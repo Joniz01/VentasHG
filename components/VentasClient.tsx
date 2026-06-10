@@ -13,12 +13,12 @@ import {
 } from "@/lib/types";
 
 type ItemRow = { productoId: string; cantidad: string; extraId: string };
-type PagoRow = { metodo: MetodoPago | ""; monto: string };
+type PagoRow = { metodo: MetodoPago | ""; monto: string; montoAuto: boolean };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY_ITEM: ItemRow = { productoId: "", cantidad: "1", extraId: "" };
-const EMPTY_PAGO: PagoRow = { metodo: "", monto: "" };
+const EMPTY_PAGO: PagoRow = { metodo: "", monto: "", montoAuto: true };
 
 function bsToUsd(montoBs: number, tasa: number) {
   return tasa > 0 ? montoBs / tasa : 0;
@@ -85,11 +85,16 @@ export default function VentasClient() {
       ventaTotalUsd += precioUnit * cantidad;
     }
 
+    const montoSugerido = (metodo: MetodoPago | "") => {
+      if (!metodo) return 0;
+      return METODOS_PAGO_USD.includes(metodo) ? ventaTotalUsd : usdToBs(ventaTotalUsd, tasa);
+    };
+
     let totalPagosBs = 0;
     let totalPagosUsd = 0;
 
     for (const pago of pagos) {
-      const monto = Number(pago.monto) || 0;
+      const monto = pago.montoAuto ? montoSugerido(pago.metodo) : Number(pago.monto) || 0;
       if (pago.metodo && METODOS_PAGO_USD.includes(pago.metodo)) {
         totalPagosUsd += monto;
       } else {
@@ -105,6 +110,7 @@ export default function VentasClient() {
       totalPagos,
       totalPagosEnUsd,
       ventaTotalBs: usdToBs(ventaTotalUsd, tasa),
+      montoSugerido,
     };
   }, [items, pagos, productosById, tasa]);
 
@@ -124,13 +130,7 @@ export default function VentasClient() {
     setPagos((prev) =>
       prev.map((p, i) => {
         if (i !== index) return p;
-        const updated = { ...p, ...patch };
-        if (patch.metodo) {
-          updated.monto = METODOS_PAGO_USD.includes(patch.metodo)
-            ? totales.ventaTotalUsd.toFixed(2)
-            : usdToBs(totales.ventaTotalUsd, tasa).toFixed(2);
-        }
-        return updated;
+        return { ...p, ...patch };
       })
     );
   }
@@ -170,9 +170,13 @@ export default function VentasClient() {
       return;
     }
 
-    const validPagos = pagos.filter(
-      (p): p is PagoRow & { metodo: MetodoPago } => !!p.metodo && Number(p.monto) > 0
-    );
+    const validPagos = pagos
+      .filter((p): p is PagoRow & { metodo: MetodoPago } => !!p.metodo)
+      .map((p) => ({
+        metodo: p.metodo,
+        monto: p.montoAuto ? totales.montoSugerido(p.metodo) : Number(p.monto) || 0,
+      }))
+      .filter((p) => p.monto > 0);
 
     setSaving(true);
     try {
@@ -189,7 +193,7 @@ export default function VentasClient() {
           cantidad: Number(i.cantidad),
           extraId: i.extraId ? Number(i.extraId) : null,
         })),
-        pagos: validPagos.map((p) => ({ metodo: p.metodo, monto: Number(p.monto) })),
+        pagos: validPagos,
       };
 
       const res = await fetch("/api/ventas", {
@@ -394,7 +398,12 @@ export default function VentasClient() {
                 <select
                   className="col-span-7 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-8"
                   value={pago.metodo}
-                  onChange={(e) => updatePago(index, { metodo: e.target.value as MetodoPago | "" })}
+                  onChange={(e) =>
+                    updatePago(index, {
+                      metodo: e.target.value as MetodoPago | "",
+                      montoAuto: true,
+                    })
+                  }
                 >
                   <option value="">Selecciona forma de pago</option>
                   {METODOS_PAGO.map((m) => (
@@ -408,8 +417,14 @@ export default function VentasClient() {
                   step="0.01"
                   min="0"
                   className="col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3"
-                  value={pago.monto}
-                  onChange={(e) => updatePago(index, { monto: e.target.value })}
+                  value={
+                    pago.montoAuto
+                      ? pago.metodo
+                        ? totales.montoSugerido(pago.metodo).toFixed(2)
+                        : ""
+                      : pago.monto
+                  }
+                  onChange={(e) => updatePago(index, { monto: e.target.value, montoAuto: false })}
                   placeholder="Monto"
                 />
                 <button
