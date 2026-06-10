@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const MESES: Record<string, string> = {
   enero: "01",
@@ -124,23 +124,33 @@ async function fromDolarApi() {
   return { tasa, fecha: data.fechaActualizacion };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   // Se prioriza el scraping directo de bcv.org.ve porque refleja la última
   // tasa publicada (incluso si ya corresponde al día siguiente). Las demás
   // fuentes son respaldo en caso de que bcv.org.ve bloquee la solicitud.
-  const fuentes = [fromBcvOrgVe, fromRafnixg, fromPyDolarVenezuela, fromDolarApi];
+  const fuentes: { nombre: string; fn: () => Promise<{ tasa: number; fecha: string | null }> }[] = [
+    { nombre: "bcv.org.ve", fn: fromBcvOrgVe },
+    { nombre: "bcv-api.rafnixg.dev", fn: fromRafnixg },
+    { nombre: "pyDolarVenezuela", fn: fromPyDolarVenezuela },
+    { nombre: "DolarApi", fn: fromDolarApi },
+  ];
+
+  const debug = request.nextUrl.searchParams.get("debug") === "1";
+  const errores: Record<string, string> = {};
 
   for (const fuente of fuentes) {
     try {
-      const resultado = await fuente();
-      return NextResponse.json(resultado);
-    } catch {
-      continue;
+      const resultado = await fuente.fn();
+      return NextResponse.json(
+        debug ? { ...resultado, fuente: fuente.nombre, errores } : resultado
+      );
+    } catch (err) {
+      errores[fuente.nombre] = err instanceof Error ? err.message : String(err);
     }
   }
 
   return NextResponse.json(
-    { error: "No se pudo consultar la tasa BCV" },
+    { error: "No se pudo consultar la tasa BCV", ...(debug ? { errores } : {}) },
     { status: 502 }
   );
 }
