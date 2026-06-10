@@ -13,12 +13,12 @@ import {
 } from "@/lib/types";
 
 type ItemRow = { productoId: string; cantidad: string; extraId: string };
-type PagoRow = { metodo: MetodoPago; monto: string };
+type PagoRow = { metodo: MetodoPago | ""; monto: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY_ITEM: ItemRow = { productoId: "", cantidad: "1", extraId: "" };
-const EMPTY_PAGO: PagoRow = { metodo: "EFECTIVO_BS", monto: "" };
+const EMPTY_PAGO: PagoRow = { metodo: "", monto: "" };
 
 function bsToUsd(montoBs: number, tasa: number) {
   return tasa > 0 ? montoBs / tasa : 0;
@@ -27,12 +27,6 @@ function bsToUsd(montoBs: number, tasa: number) {
 function usdToBs(montoUsd: number, tasa: number) {
   return montoUsd * tasa;
 }
-
-const METODOS_PAGO_BS_AUTOCOMPLETAR: readonly MetodoPago[] = [
-  "TRANSFERENCIA",
-  "PAGO_MOVIL",
-  "EFECTIVO_BS",
-];
 
 export default function VentasClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -80,7 +74,6 @@ export default function VentasClient() {
   const tasa = Number(tasaDelDia) || 0;
 
   const totales = useMemo(() => {
-    let costoTotalUsd = 0;
     let ventaTotalUsd = 0;
 
     for (const item of items) {
@@ -89,7 +82,6 @@ export default function VentasClient() {
       if (!producto) continue;
       const extra = producto.extras.find((ex) => String(ex.id) === item.extraId);
       const precioUnit = producto.precioVenta + (extra?.precioAdicional ?? 0);
-      costoTotalUsd += producto.costo * cantidad;
       ventaTotalUsd += precioUnit * cantidad;
     }
 
@@ -98,7 +90,7 @@ export default function VentasClient() {
 
     for (const pago of pagos) {
       const monto = Number(pago.monto) || 0;
-      if (METODOS_PAGO_USD.includes(pago.metodo)) {
+      if (pago.metodo && METODOS_PAGO_USD.includes(pago.metodo)) {
         totalPagosUsd += monto;
       } else {
         totalPagosBs += monto;
@@ -109,11 +101,9 @@ export default function VentasClient() {
     const totalPagosEnUsd = totalPagosUsd + bsToUsd(totalPagosBs, tasa);
 
     return {
-      costoTotalUsd,
       ventaTotalUsd,
       totalPagos,
       totalPagosEnUsd,
-      costoTotalBs: usdToBs(costoTotalUsd, tasa),
       ventaTotalBs: usdToBs(ventaTotalUsd, tasa),
     };
   }, [items, pagos, productosById, tasa]);
@@ -135,8 +125,10 @@ export default function VentasClient() {
       prev.map((p, i) => {
         if (i !== index) return p;
         const updated = { ...p, ...patch };
-        if (patch.metodo && METODOS_PAGO_BS_AUTOCOMPLETAR.includes(patch.metodo)) {
-          updated.monto = usdToBs(totales.ventaTotalUsd, tasa).toFixed(2);
+        if (patch.metodo) {
+          updated.monto = METODOS_PAGO_USD.includes(patch.metodo)
+            ? totales.ventaTotalUsd.toFixed(2)
+            : usdToBs(totales.ventaTotalUsd, tasa).toFixed(2);
         }
         return updated;
       })
@@ -178,7 +170,9 @@ export default function VentasClient() {
       return;
     }
 
-    const validPagos = pagos.filter((p) => Number(p.monto) > 0);
+    const validPagos = pagos.filter(
+      (p): p is PagoRow & { metodo: MetodoPago } => !!p.metodo && Number(p.monto) > 0
+    );
 
     setSaving(true);
     try {
@@ -400,8 +394,9 @@ export default function VentasClient() {
                 <select
                   className="col-span-7 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-8"
                   value={pago.metodo}
-                  onChange={(e) => updatePago(index, { metodo: e.target.value as MetodoPago })}
+                  onChange={(e) => updatePago(index, { metodo: e.target.value as MetodoPago | "" })}
                 >
+                  <option value="">Selecciona forma de pago</option>
                   {METODOS_PAGO.map((m) => (
                     <option key={m} value={m}>
                       {METODO_PAGO_LABELS[m]}
@@ -429,12 +424,7 @@ export default function VentasClient() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-3">
-          <div>
-            <span className="font-medium text-zinc-600">Costo total: </span>
-            {totales.costoTotalBs.toFixed(2)} Bs{" "}
-            <span className="text-zinc-500">(${totales.costoTotalUsd.toFixed(2)})</span>
-          </div>
+        <div className="grid grid-cols-1 gap-2 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-2">
           <div>
             <span className="font-medium text-zinc-600">Total venta: </span>
             {totales.ventaTotalBs.toFixed(2)} Bs{" "}
@@ -470,7 +460,6 @@ export default function VentasClient() {
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Productos</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Pagos</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Costo total</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Total venta</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Total $</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Entrega</th>
@@ -487,16 +476,12 @@ export default function VentasClient() {
             )}
             {!loading && ventas.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
                   No hay ventas registradas
                 </td>
               </tr>
             )}
             {ventas.map((venta) => {
-              const costoTotalUsd = venta.items.reduce(
-                (acc, i) => acc + i.costoUnit * i.cantidad,
-                0
-              );
               const ventaTotalUsd = venta.items.reduce(
                 (acc, i) => acc + i.precioUnit * i.cantidad,
                 0
@@ -519,9 +504,6 @@ export default function VentasClient() {
                     {venta.pagos
                       .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${p.monto.toFixed(2)}`)
                       .join(", ") || "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {usdToBs(costoTotalUsd, venta.tasaDelDia).toFixed(2)}
                   </td>
                   <td className="px-4 py-2 text-right">
                     {usdToBs(ventaTotalUsd, venta.tasaDelDia).toFixed(2)}
