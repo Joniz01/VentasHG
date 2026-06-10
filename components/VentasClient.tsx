@@ -85,22 +85,47 @@ export default function VentasClient() {
       ventaTotalUsd += precioUnit * cantidad;
     }
 
-    const montoSugerido = (metodo: MetodoPago | "") => {
+    // Resuelve cada pago en orden: los pagos automáticos toman el restante
+    // (en $) después de descontar los pagos previos, y los manuales se
+    // convierten a $ según su moneda para descontarlos del restante.
+    let restanteUsd = ventaTotalUsd;
+    const resueltosUsd: number[] = [];
+    for (const pago of pagos) {
+      if (!pago.metodo) {
+        resueltosUsd.push(0);
+        continue;
+      }
+
+      let montoUsd: number;
+      if (pago.montoAuto) {
+        montoUsd = restanteUsd;
+      } else {
+        const montoRaw = Number(pago.monto) || 0;
+        montoUsd = METODOS_PAGO_USD.includes(pago.metodo) ? montoRaw : bsToUsd(montoRaw, tasa);
+      }
+
+      resueltosUsd.push(montoUsd);
+      restanteUsd -= montoUsd;
+    }
+
+    const montoSugerido = (index: number) => {
+      const metodo = pagos[index]?.metodo;
       if (!metodo) return 0;
-      return METODOS_PAGO_USD.includes(metodo) ? ventaTotalUsd : usdToBs(ventaTotalUsd, tasa);
+      const montoUsd = resueltosUsd[index];
+      return METODOS_PAGO_USD.includes(metodo) ? montoUsd : usdToBs(montoUsd, tasa);
     };
 
     let totalPagosBs = 0;
     let totalPagosUsd = 0;
-
-    for (const pago of pagos) {
-      const monto = pago.montoAuto ? montoSugerido(pago.metodo) : Number(pago.monto) || 0;
-      if (pago.metodo && METODOS_PAGO_USD.includes(pago.metodo)) {
+    pagos.forEach((pago, index) => {
+      if (!pago.metodo) return;
+      const monto = pago.montoAuto ? montoSugerido(index) : Number(pago.monto) || 0;
+      if (METODOS_PAGO_USD.includes(pago.metodo)) {
         totalPagosUsd += monto;
       } else {
         totalPagosBs += monto;
       }
-    }
+    });
 
     const totalPagos = totalPagosBs + totalPagosUsd * tasa;
     const totalPagosEnUsd = totalPagosUsd + bsToUsd(totalPagosBs, tasa);
@@ -171,12 +196,11 @@ export default function VentasClient() {
     }
 
     const validPagos = pagos
-      .filter((p): p is PagoRow & { metodo: MetodoPago } => !!p.metodo)
-      .map((p) => ({
+      .map((p, index) => ({
         metodo: p.metodo,
-        monto: p.montoAuto ? totales.montoSugerido(p.metodo) : Number(p.monto) || 0,
+        monto: p.montoAuto ? totales.montoSugerido(index) : Number(p.monto) || 0,
       }))
-      .filter((p) => p.monto > 0);
+      .filter((p): p is { metodo: MetodoPago; monto: number } => !!p.metodo && p.monto > 0);
 
     setSaving(true);
     try {
@@ -420,7 +444,7 @@ export default function VentasClient() {
                   value={
                     pago.montoAuto
                       ? pago.metodo
-                        ? totales.montoSugerido(pago.metodo).toFixed(2)
+                        ? totales.montoSugerido(index).toFixed(2)
                         : ""
                       : pago.monto
                   }
