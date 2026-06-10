@@ -161,7 +161,10 @@ export async function POST(request: NextRequest) {
 
       if (item.extraId) {
         const extraResult = await client.query(
-          `SELECT id, nombre, precio_adicional FROM producto_extras WHERE id = $1 AND producto_id = $2`,
+          `SELECT pe.id, ec.nombre, pe.precio_adicional
+           FROM producto_extras pe
+           JOIN extras_catalogo ec ON ec.id = pe.extra_id
+           WHERE pe.id = $1 AND pe.producto_id = $2`,
           [item.extraId, item.productoId]
         );
 

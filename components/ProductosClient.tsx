@@ -1,21 +1,26 @@
 "use client";
 
 import { Fragment, useEffect, useState, FormEvent } from "react";
-import type { Producto } from "@/lib/types";
+import type { Categoria, Producto } from "@/lib/types";
 import ProductoExtrasPanel from "@/components/ProductoExtrasPanel";
+
+const NUEVA_CATEGORIA = "__nueva__";
 
 const EMPTY_FORM = {
   nombre: "",
   descripcion: "",
   costo: "",
   precioVenta: "",
+  categoriaId: "",
 };
 
 export default function ProductosClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -32,9 +37,20 @@ export default function ProductosClient() {
     }
   }
 
+  async function loadCategorias() {
+    try {
+      const res = await fetch("/api/categorias");
+      const data = await res.json();
+      setCategorias(data);
+    } catch {
+      setError("No se pudieron cargar las categorías");
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProductos();
+    loadCategorias();
   }, []);
 
   function startEdit(producto: Producto) {
@@ -44,12 +60,15 @@ export default function ProductosClient() {
       descripcion: producto.descripcion ?? "",
       costo: String(producto.costo),
       precioVenta: String(producto.precioVenta),
+      categoriaId: producto.categoriaId ? String(producto.categoriaId) : "",
     });
+    setNuevaCategoriaNombre("");
   }
 
   function cancelEdit() {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setNuevaCategoriaNombre("");
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -63,12 +82,33 @@ export default function ProductosClient() {
 
     setSaving(true);
     try {
+      let categoriaId = form.categoriaId;
+
+      if (categoriaId === NUEVA_CATEGORIA) {
+        if (!nuevaCategoriaNombre.trim()) {
+          throw new Error("El nombre de la nueva categoría es obligatorio");
+        }
+        const catRes = await fetch("/api/categorias", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nombre: nuevaCategoriaNombre.trim() }),
+        });
+        if (!catRes.ok) {
+          const data = await catRes.json();
+          throw new Error(data.error ?? "Error al crear la categoría");
+        }
+        const nuevaCategoria = await catRes.json();
+        categoriaId = String(nuevaCategoria.id);
+        await loadCategorias();
+      }
+
       const payload = {
         nombre: form.nombre.trim(),
         descripcion: form.descripcion.trim() || null,
         costo: Number(form.costo) || 0,
         precioVenta: Number(form.precioVenta) || 0,
         activo: true,
+        categoriaId: categoriaId || null,
       };
 
       const res = await fetch(
@@ -86,6 +126,7 @@ export default function ProductosClient() {
       }
 
       cancelEdit();
+      setNuevaCategoriaNombre("");
       await loadProductos();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar el producto");
@@ -133,6 +174,30 @@ export default function ProductosClient() {
             onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
             placeholder="Opcional"
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-zinc-700">Categoría</label>
+          <select
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            value={form.categoriaId}
+            onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
+          >
+            <option value="">Sin categoría</option>
+            {categorias.map((categoria) => (
+              <option key={categoria.id} value={categoria.id}>
+                {categoria.nombre}
+              </option>
+            ))}
+            <option value={NUEVA_CATEGORIA}>+ Nueva categoría...</option>
+          </select>
+          {form.categoriaId === NUEVA_CATEGORIA && (
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={nuevaCategoriaNombre}
+              onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
+              placeholder="Nombre de la nueva categoría"
+            />
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-zinc-700">Costo</label>
@@ -189,6 +254,7 @@ export default function ProductosClient() {
           <thead className="bg-zinc-50">
             <tr>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Nombre</th>
+              <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Descripción</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Costo</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Precio venta</th>
@@ -200,14 +266,14 @@ export default function ProductosClient() {
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
             {!loading && productos.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
                   No hay productos registrados
                 </td>
               </tr>
@@ -216,6 +282,7 @@ export default function ProductosClient() {
               <Fragment key={producto.id}>
                 <tr>
                   <td className="px-4 py-2 font-medium">{producto.nombre}</td>
+                  <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
                   <td className="px-4 py-2 text-zinc-600">{producto.descripcion}</td>
                   <td className="px-4 py-2 text-right">{producto.costo.toFixed(2)}</td>
                   <td className="px-4 py-2 text-right">{producto.precioVenta.toFixed(2)}</td>
@@ -256,7 +323,7 @@ export default function ProductosClient() {
                 </tr>
                 {expandedId === producto.id && (
                   <tr>
-                    <td colSpan={7} className="bg-zinc-50 px-4 py-3">
+                    <td colSpan={8} className="bg-zinc-50 px-4 py-3">
                       <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
                     </td>
                   </tr>

@@ -1,6 +1,17 @@
+export type Categoria = {
+  id: number;
+  nombre: string;
+};
+
+export type ExtraCatalogo = {
+  id: number;
+  nombre: string;
+};
+
 export type ProductoExtra = {
   id: number;
   productoId: number;
+  extraId: number;
   nombre: string;
   precioAdicional: number;
 };
@@ -12,6 +23,8 @@ export type Producto = {
   costo: number;
   precioVenta: number;
   activo: boolean;
+  categoriaId: number | null;
+  categoriaNombre: string | null;
   createdAt: string;
   extras: ProductoExtra[];
 };

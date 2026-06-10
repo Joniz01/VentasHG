@@ -1,5 +1,29 @@
 -- Esquema de base de datos para VentasHG
 
+-- Categorías preconfiguradas de productos
+CREATE TABLE IF NOT EXISTS categorias (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL UNIQUE
+);
+
+INSERT INTO categorias (nombre) VALUES
+  ('Queso'),
+  ('Premium'),
+  ('Especiales'),
+  ('Masas Intervenidas'),
+  ('Combos y Pack'),
+  ('Raciones')
+ON CONFLICT (nombre) DO NOTHING;
+
+-- Catálogo global de extras/presentaciones (ej: "Frito")
+CREATE TABLE IF NOT EXISTS extras_catalogo (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL UNIQUE
+);
+
+INSERT INTO extras_catalogo (nombre) VALUES ('Frito')
+ON CONFLICT (nombre) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS productos (
   id SERIAL PRIMARY KEY,
   nombre TEXT NOT NULL,
@@ -7,16 +31,18 @@ CREATE TABLE IF NOT EXISTS productos (
   costo NUMERIC(12, 2) NOT NULL DEFAULT 0,
   precio_venta NUMERIC(12, 2) NOT NULL DEFAULT 0,
   activo BOOLEAN NOT NULL DEFAULT TRUE,
+  categoria_id INTEGER REFERENCES categorias(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Extras/presentaciones adicionales de un producto (ej: "Frito" con un monto adicional)
+-- Extras/presentaciones adicionales asignados a un producto, con precio adicional propio
 CREATE TABLE IF NOT EXISTS producto_extras (
   id SERIAL PRIMARY KEY,
   producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
-  nombre TEXT NOT NULL,
+  extra_id INTEGER NOT NULL REFERENCES extras_catalogo(id),
   precio_adicional NUMERIC(12, 2) NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_producto_extra UNIQUE (producto_id, extra_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_producto_extras_producto_id ON producto_extras(producto_id);

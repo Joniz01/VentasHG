@@ -6,10 +6,11 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  const { nombre, precioAdicional } = body;
+  const { extraId, precioAdicional } = body;
 
-  if (!nombre || typeof nombre !== "string") {
-    return NextResponse.json({ error: "El nombre del extra es obligatorio" }, { status: 400 });
+  const extraIdNum = Number(extraId);
+  if (!extraIdNum) {
+    return NextResponse.json({ error: "Debes seleccionar un extra" }, { status: 400 });
   }
 
   const precioNum = Number(precioAdicional);
@@ -18,19 +19,26 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   const result = await pool.query(
-    `INSERT INTO producto_extras (producto_id, nombre, precio_adicional)
+    `INSERT INTO producto_extras (producto_id, extra_id, precio_adicional)
      VALUES ($1, $2, $3)
-     RETURNING id, producto_id, nombre, precio_adicional`,
-    [id, nombre.trim(), precioNum]
+     ON CONFLICT (producto_id, extra_id) DO UPDATE SET precio_adicional = EXCLUDED.precio_adicional
+     RETURNING id, producto_id, extra_id, precio_adicional`,
+    [id, extraIdNum, precioNum]
   );
 
   const row = result.rows[0];
+
+  const nombreResult = await pool.query(
+    `SELECT nombre FROM extras_catalogo WHERE id = $1`,
+    [row.extra_id]
+  );
 
   return NextResponse.json(
     {
       id: row.id,
       productoId: row.producto_id,
-      nombre: row.nombre,
+      extraId: row.extra_id,
+      nombre: nombreResult.rows[0]?.nombre ?? "",
       precioAdicional: Number(row.precio_adicional),
     },
     { status: 201 }
