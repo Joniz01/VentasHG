@@ -44,6 +44,9 @@ export default function VentasClient() {
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
+  const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
+  const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
+  const [consultandoTasa, setConsultandoTasa] = useState(false);
 
   async function loadData() {
     try {
@@ -168,6 +171,26 @@ export default function VentasClient() {
     setPagos((prev) => prev.filter((_, i) => i !== index));
   }
 
+  async function handleConsultarTasaBcv() {
+    setTasaBcvError(null);
+    setConsultandoTasa(true);
+    try {
+      const res = await fetch("/api/tasa-bcv");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "No se pudo consultar la tasa BCV");
+      }
+      setTasaDelDia(String(data.tasa));
+      setTasaBcvFecha(data.fecha);
+    } catch (err) {
+      setTasaBcvError(
+        err instanceof Error ? err.message : "No se pudo consultar la tasa BCV"
+      );
+    } finally {
+      setConsultandoTasa(false);
+    }
+  }
+
   function resetForm() {
     setFecha(today());
     setTasaDelDia("");
@@ -270,15 +293,34 @@ export default function VentasClient() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Tasa del día</label>
-            <input
-              type="number"
-              step="0.0001"
-              min="0"
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              value={tasaDelDia}
-              onChange={(e) => setTasaDelDia(e.target.value)}
-              placeholder="0.00"
-            />
+            <div className="flex gap-1">
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={tasaDelDia}
+                onChange={(e) => setTasaDelDia(e.target.value)}
+                placeholder="0.00"
+              />
+              <button
+                type="button"
+                onClick={handleConsultarTasaBcv}
+                disabled={consultandoTasa}
+                title="Consultar tasa oficial BCV"
+                className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
+              >
+                {consultandoTasa ? "..." : "BCV"}
+              </button>
+            </div>
+            {tasaBcvFecha && (
+              <span className="text-xs text-zinc-500">
+                BCV: {new Date(tasaBcvFecha).toLocaleDateString("es-VE")}
+              </span>
+            )}
+            {tasaBcvError && (
+              <span className="text-xs text-red-600">{tasaBcvError}</span>
+            )}
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
             <label className="text-sm font-medium text-zinc-700">Cliente</label>
