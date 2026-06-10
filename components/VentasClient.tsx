@@ -24,6 +24,16 @@ function bsToUsd(montoBs: number, tasa: number) {
   return tasa > 0 ? montoBs / tasa : 0;
 }
 
+function usdToBs(montoUsd: number, tasa: number) {
+  return montoUsd * tasa;
+}
+
+const METODOS_PAGO_BS_AUTOCOMPLETAR: readonly MetodoPago[] = [
+  "TRANSFERENCIA",
+  "PAGO_MOVIL",
+  "EFECTIVO_BS",
+];
+
 export default function VentasClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
@@ -70,8 +80,8 @@ export default function VentasClient() {
   const tasa = Number(tasaDelDia) || 0;
 
   const totales = useMemo(() => {
-    let costoTotal = 0;
-    let ventaTotal = 0;
+    let costoTotalUsd = 0;
+    let ventaTotalUsd = 0;
 
     for (const item of items) {
       const producto = productosById.get(Number(item.productoId));
@@ -79,8 +89,8 @@ export default function VentasClient() {
       if (!producto) continue;
       const extra = producto.extras.find((ex) => String(ex.id) === item.extraId);
       const precioUnit = producto.precioVenta + (extra?.precioAdicional ?? 0);
-      costoTotal += producto.costo * cantidad;
-      ventaTotal += precioUnit * cantidad;
+      costoTotalUsd += producto.costo * cantidad;
+      ventaTotalUsd += precioUnit * cantidad;
     }
 
     let totalPagosBs = 0;
@@ -99,12 +109,12 @@ export default function VentasClient() {
     const totalPagosEnUsd = totalPagosUsd + bsToUsd(totalPagosBs, tasa);
 
     return {
-      costoTotal,
-      ventaTotal,
+      costoTotalUsd,
+      ventaTotalUsd,
       totalPagos,
       totalPagosEnUsd,
-      costoTotalUsd: bsToUsd(costoTotal, tasa),
-      ventaTotalUsd: bsToUsd(ventaTotal, tasa),
+      costoTotalBs: usdToBs(costoTotalUsd, tasa),
+      ventaTotalBs: usdToBs(ventaTotalUsd, tasa),
     };
   }, [items, pagos, productosById, tasa]);
 
@@ -121,7 +131,16 @@ export default function VentasClient() {
   }
 
   function updatePago(index: number, patch: Partial<PagoRow>) {
-    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+    setPagos((prev) =>
+      prev.map((p, i) => {
+        if (i !== index) return p;
+        const updated = { ...p, ...patch };
+        if (patch.metodo && METODOS_PAGO_BS_AUTOCOMPLETAR.includes(patch.metodo)) {
+          updated.monto = usdToBs(totales.ventaTotalUsd, tasa).toFixed(2);
+        }
+        return updated;
+      })
+    );
   }
 
   function addPago() {
@@ -413,12 +432,12 @@ export default function VentasClient() {
         <div className="grid grid-cols-1 gap-2 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-3">
           <div>
             <span className="font-medium text-zinc-600">Costo total: </span>
-            {totales.costoTotal.toFixed(2)} Bs{" "}
+            {totales.costoTotalBs.toFixed(2)} Bs{" "}
             <span className="text-zinc-500">(${totales.costoTotalUsd.toFixed(2)})</span>
           </div>
           <div>
             <span className="font-medium text-zinc-600">Total venta: </span>
-            {totales.ventaTotal.toFixed(2)} Bs{" "}
+            {totales.ventaTotalBs.toFixed(2)} Bs{" "}
             <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
           </div>
           <div>
@@ -474,11 +493,11 @@ export default function VentasClient() {
               </tr>
             )}
             {ventas.map((venta) => {
-              const costoTotal = venta.items.reduce(
+              const costoTotalUsd = venta.items.reduce(
                 (acc, i) => acc + i.costoUnit * i.cantidad,
                 0
               );
-              const ventaTotal = venta.items.reduce(
+              const ventaTotalUsd = venta.items.reduce(
                 (acc, i) => acc + i.precioUnit * i.cantidad,
                 0
               );
@@ -501,11 +520,13 @@ export default function VentasClient() {
                       .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${p.monto.toFixed(2)}`)
                       .join(", ") || "-"}
                   </td>
-                  <td className="px-4 py-2 text-right">{costoTotal.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right">{ventaTotal.toFixed(2)}</td>
                   <td className="px-4 py-2 text-right">
-                    ${bsToUsd(ventaTotal, venta.tasaDelDia).toFixed(2)}
+                    {usdToBs(costoTotalUsd, venta.tasaDelDia).toFixed(2)}
                   </td>
+                  <td className="px-4 py-2 text-right">
+                    {usdToBs(ventaTotalUsd, venta.tasaDelDia).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-right">${ventaTotalUsd.toFixed(2)}</td>
                   <td className="px-4 py-2">
                     {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
                   </td>
