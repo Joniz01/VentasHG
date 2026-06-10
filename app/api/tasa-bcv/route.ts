@@ -1,4 +1,33 @@
+import https from "node:https";
 import { NextRequest, NextResponse } from "next/server";
+
+const NAVEGADOR_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+// bcv.org.ve sirve un certificado SSL inválido/autofirmado, por lo que el
+// fetch de Node lo rechaza con "fetch failed". Se usa https.request con
+// rejectUnauthorized desactivado, igual que hacen los scrapers conocidos.
+function fetchBcvOrgVeHtml(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      "https://www.bcv.org.ve/",
+      {
+        headers: { "User-Agent": NAVEGADOR_USER_AGENT },
+        rejectUnauthorized: false,
+        timeout: 10000,
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve(data));
+        res.on("error", reject);
+      }
+    );
+
+    req.on("timeout", () => req.destroy(new Error("Tiempo de espera agotado")));
+    req.on("error", reject);
+  });
+}
 
 const MESES: Record<string, string> = {
   enero: "01",
@@ -31,19 +60,7 @@ function parseFechaValorBcv(texto: string): string | null {
 }
 
 async function fromBcvOrgVe() {
-  const res = await fetch("https://www.bcv.org.ve/", {
-    cache: "no-store",
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`bcv.org.ve respondió con estado ${res.status}`);
-  }
-
-  const html = await res.text();
+  const html = await fetchBcvOrgVeHtml();
 
   const dolarSection = html.match(/id="dolar"[\s\S]*?<\/div>\s*<\/div>/);
   if (!dolarSection) {
@@ -70,6 +87,7 @@ async function fromBcvOrgVe() {
 async function fromRafnixg() {
   const res = await fetch("https://bcv-api.rafnixg.dev/rates/", {
     cache: "no-store",
+    headers: { "User-Agent": NAVEGADOR_USER_AGENT },
   });
 
   if (!res.ok) {
@@ -89,6 +107,7 @@ async function fromRafnixg() {
 async function fromPyDolarVenezuela() {
   const res = await fetch("https://pydolarve.org/api/v1/dollar?page=bcv", {
     cache: "no-store",
+    headers: { "User-Agent": NAVEGADOR_USER_AGENT },
   });
 
   if (!res.ok) {
