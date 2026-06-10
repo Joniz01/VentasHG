@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, FormEvent } from "react";
 import {
   METODOS_PAGO,
+  METODOS_PAGO_USD,
   METODO_PAGO_LABELS,
   MODOS_ENTREGA,
   type MetodoPago,
@@ -11,13 +12,17 @@ import {
   type Venta,
 } from "@/lib/types";
 
-type ItemRow = { productoId: string; cantidad: string };
+type ItemRow = { productoId: string; cantidad: string; extraId: string };
 type PagoRow = { metodo: MetodoPago; monto: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const EMPTY_ITEM: ItemRow = { productoId: "", cantidad: "1" };
+const EMPTY_ITEM: ItemRow = { productoId: "", cantidad: "1", extraId: "" };
 const EMPTY_PAGO: PagoRow = { metodo: "EFECTIVO_BS", monto: "" };
+
+function bsToUsd(montoBs: number, tasa: number) {
+  return tasa > 0 ? montoBs / tasa : 0;
+}
 
 export default function VentasClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -62,6 +67,8 @@ export default function VentasClient() {
     return map;
   }, [productos]);
 
+  const tasa = Number(tasaDelDia) || 0;
+
   const totales = useMemo(() => {
     let costoTotal = 0;
     let ventaTotal = 0;
@@ -70,14 +77,36 @@ export default function VentasClient() {
       const producto = productosById.get(Number(item.productoId));
       const cantidad = Number(item.cantidad) || 0;
       if (!producto) continue;
+      const extra = producto.extras.find((ex) => String(ex.id) === item.extraId);
+      const precioUnit = producto.precioVenta + (extra?.precioAdicional ?? 0);
       costoTotal += producto.costo * cantidad;
-      ventaTotal += producto.precioVenta * cantidad;
+      ventaTotal += precioUnit * cantidad;
     }
 
-    const totalPagos = pagos.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
+    let totalPagosBs = 0;
+    let totalPagosUsd = 0;
 
-    return { costoTotal, ventaTotal, totalPagos };
-  }, [items, pagos, productosById]);
+    for (const pago of pagos) {
+      const monto = Number(pago.monto) || 0;
+      if (METODOS_PAGO_USD.includes(pago.metodo)) {
+        totalPagosUsd += monto;
+      } else {
+        totalPagosBs += monto;
+      }
+    }
+
+    const totalPagos = totalPagosBs + totalPagosUsd * tasa;
+    const totalPagosEnUsd = totalPagosUsd + bsToUsd(totalPagosBs, tasa);
+
+    return {
+      costoTotal,
+      ventaTotal,
+      totalPagos,
+      totalPagosEnUsd,
+      costoTotalUsd: bsToUsd(costoTotal, tasa),
+      ventaTotalUsd: bsToUsd(ventaTotal, tasa),
+    };
+  }, [items, pagos, productosById, tasa]);
 
   function updateItem(index: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
@@ -145,6 +174,7 @@ export default function VentasClient() {
         items: validItems.map((i) => ({
           productoId: Number(i.productoId),
           cantidad: Number(i.cantidad),
+          extraId: i.extraId ? Number(i.extraId) : null,
         })),
         pagos: validPagos.map((p) => ({ metodo: p.metodo, monto: Number(p.monto) })),
       };
@@ -280,17 +310,32 @@ export default function VentasClient() {
             {items.map((item, index) => {
               const producto = productosById.get(Number(item.productoId));
               const cantidad = Number(item.cantidad) || 0;
+              const extra = producto?.extras.find((ex) => String(ex.id) === item.extraId);
+              const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
               return (
                 <div key={index} className="grid grid-cols-12 items-center gap-2">
                   <select
-                    className="col-span-6 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-7"
+                    className="col-span-6 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-4"
                     value={item.productoId}
-                    onChange={(e) => updateItem(index, { productoId: e.target.value })}
+                    onChange={(e) => updateItem(index, { productoId: e.target.value, extraId: "" })}
                   >
                     <option value="">Selecciona un producto</option>
                     {productos.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="col-span-3 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3"
+                    value={item.extraId}
+                    onChange={(e) => updateItem(index, { extraId: e.target.value })}
+                    disabled={!producto || producto.extras.length === 0}
+                  >
+                    <option value="">Sin extra</option>
+                    {producto?.extras.map((ex) => (
+                      <option key={ex.id} value={ex.id}>
+                        {ex.nombre} (+{ex.precioAdicional.toFixed(2)})
                       </option>
                     ))}
                   </select>
@@ -304,7 +349,7 @@ export default function VentasClient() {
                     placeholder="Cantidad"
                   />
                   <div className="col-span-2 text-right text-sm text-zinc-600 sm:col-span-2">
-                    {producto ? (producto.precioVenta * cantidad).toFixed(2) : "-"}
+                    {producto ? (precioUnit * cantidad).toFixed(2) : "-"}
                   </div>
                   <button
                     type="button"
@@ -368,15 +413,18 @@ export default function VentasClient() {
         <div className="grid grid-cols-1 gap-2 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-3">
           <div>
             <span className="font-medium text-zinc-600">Costo total: </span>
-            {totales.costoTotal.toFixed(2)}
+            {totales.costoTotal.toFixed(2)} Bs{" "}
+            <span className="text-zinc-500">(${totales.costoTotalUsd.toFixed(2)})</span>
           </div>
           <div>
             <span className="font-medium text-zinc-600">Total venta: </span>
-            {totales.ventaTotal.toFixed(2)}
+            {totales.ventaTotal.toFixed(2)} Bs{" "}
+            <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
           </div>
           <div>
             <span className="font-medium text-zinc-600">Total pagado: </span>
-            {totales.totalPagos.toFixed(2)}
+            {totales.totalPagos.toFixed(2)} Bs{" "}
+            <span className="text-zinc-500">(${totales.totalPagosEnUsd.toFixed(2)})</span>
           </div>
         </div>
 
@@ -405,6 +453,7 @@ export default function VentasClient() {
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Pagos</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Costo total</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Total venta</th>
+              <th className="px-4 py-2 text-right font-medium text-zinc-600">Total $</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Entrega</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
             </tr>
@@ -419,7 +468,7 @@ export default function VentasClient() {
             )}
             {!loading && ventas.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
                   No hay ventas registradas
                 </td>
               </tr>
@@ -441,7 +490,10 @@ export default function VentasClient() {
                   <td className="px-4 py-2 font-medium">{venta.cliente}</td>
                   <td className="px-4 py-2 text-zinc-600">
                     {venta.items
-                      .map((i) => `${i.nombreProducto} x${i.cantidad}`)
+                      .map(
+                        (i) =>
+                          `${i.nombreProducto}${i.extraNombre ? ` (${i.extraNombre})` : ""} x${i.cantidad}`
+                      )
                       .join(", ")}
                   </td>
                   <td className="px-4 py-2 text-zinc-600">
@@ -451,6 +503,9 @@ export default function VentasClient() {
                   </td>
                   <td className="px-4 py-2 text-right">{costoTotal.toFixed(2)}</td>
                   <td className="px-4 py-2 text-right">{ventaTotal.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right">
+                    ${bsToUsd(ventaTotal, venta.tasaDelDia).toFixed(2)}
+                  </td>
                   <td className="px-4 py-2">
                     {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
                   </td>

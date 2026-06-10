@@ -15,6 +15,7 @@ export async function GET() {
   const itemsResult = ventaIds.length
     ? await pool.query(
         `SELECT vi.id, vi.venta_id, vi.producto_id, vi.cantidad, vi.costo_unit, vi.precio_unit,
+                vi.extra_id, vi.extra_nombre, vi.extra_precio,
                 p.nombre AS nombre_producto
          FROM venta_items vi
          JOIN productos p ON p.id = vi.producto_id
@@ -51,6 +52,9 @@ export async function GET() {
         cantidad: Number(item.cantidad),
         costoUnit: Number(item.costo_unit),
         precioUnit: Number(item.precio_unit),
+        extraId: item.extra_id,
+        extraNombre: item.extra_nombre,
+        extraPrecio: Number(item.extra_precio),
       })),
     pagos: pagosResult.rows
       .filter((pago) => pago.venta_id === row.id)
@@ -151,10 +155,31 @@ export async function POST(request: NextRequest) {
 
       const { costo, precio_venta } = productoResult.rows[0];
 
+      let extraId: number | null = null;
+      let extraNombre: string | null = null;
+      let extraPrecio = 0;
+
+      if (item.extraId) {
+        const extraResult = await client.query(
+          `SELECT id, nombre, precio_adicional FROM producto_extras WHERE id = $1 AND producto_id = $2`,
+          [item.extraId, item.productoId]
+        );
+
+        if (extraResult.rowCount === 0) {
+          throw new Error(`Extra ${item.extraId} no encontrado para el producto`);
+        }
+
+        extraId = extraResult.rows[0].id;
+        extraNombre = extraResult.rows[0].nombre;
+        extraPrecio = Number(extraResult.rows[0].precio_adicional);
+      }
+
+      const precioUnit = Number(precio_venta) + extraPrecio;
+
       await client.query(
-        `INSERT INTO venta_items (venta_id, producto_id, cantidad, costo_unit, precio_unit)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [ventaId, item.productoId, cantidadNum, costo, precio_venta]
+        `INSERT INTO venta_items (venta_id, producto_id, cantidad, costo_unit, precio_unit, extra_id, extra_nombre, extra_precio)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [ventaId, item.productoId, cantidadNum, costo, precioUnit, extraId, extraNombre, extraPrecio]
       );
     }
 

@@ -8,6 +8,18 @@ export async function GET() {
      ORDER BY nombre ASC`
   );
 
+  const productoIds = result.rows.map((row) => row.id);
+
+  const extrasResult = productoIds.length
+    ? await pool.query(
+        `SELECT id, producto_id, nombre, precio_adicional
+         FROM producto_extras
+         WHERE producto_id = ANY($1::int[])
+         ORDER BY nombre ASC`,
+        [productoIds]
+      )
+    : { rows: [] };
+
   const productos = result.rows.map((row) => ({
     id: row.id,
     nombre: row.nombre,
@@ -16,6 +28,14 @@ export async function GET() {
     precioVenta: Number(row.precio_venta),
     activo: row.activo,
     createdAt: row.created_at,
+    extras: extrasResult.rows
+      .filter((extra) => extra.producto_id === row.id)
+      .map((extra) => ({
+        id: extra.id,
+        productoId: extra.producto_id,
+        nombre: extra.nombre,
+        precioAdicional: Number(extra.precio_adicional),
+      })),
   }));
 
   return NextResponse.json(productos);
@@ -60,6 +80,7 @@ export async function POST(request: NextRequest) {
       precioVenta: Number(row.precio_venta),
       activo: row.activo,
       createdAt: row.created_at,
+      extras: [],
     },
     { status: 201 }
   );

@@ -1,3 +1,10 @@
+export type ProductoExtra = {
+  id: number;
+  productoId: number;
+  nombre: string;
+  precioAdicional: number;
+};
+
 export type Producto = {
   id: number;
   nombre: string;
@@ -6,6 +13,7 @@ export type Producto = {
   precioVenta: number;
   activo: boolean;
   createdAt: string;
+  extras: ProductoExtra[];
 };
 
 export const METODOS_PAGO = [
@@ -18,6 +26,9 @@ export const METODOS_PAGO = [
 ] as const;
 
 export type MetodoPago = (typeof METODOS_PAGO)[number];
+
+// Métodos de pago cuyo monto se ingresa directamente en dólares
+export const METODOS_PAGO_USD: readonly MetodoPago[] = ["EFECTIVO_USD", "ZELLE"];
 
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   PUNTO_VENTA: "Punto de Venta",
@@ -39,6 +50,9 @@ export type VentaItem = {
   cantidad: number;
   costoUnit: number;
   precioUnit: number;
+  extraId: number | null;
+  extraNombre: string | null;
+  extraPrecio: number;
 };
 
 export type PagoVenta = {
@@ -64,6 +78,7 @@ export type Venta = {
 export type VentaItemInput = {
   productoId: number;
   cantidad: number;
+  extraId?: number | null;
 };
 
 export type PagoVentaInput = {

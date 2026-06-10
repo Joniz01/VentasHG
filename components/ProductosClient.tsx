@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { Fragment, useEffect, useState, FormEvent } from "react";
 import type { Producto } from "@/lib/types";
+import ProductoExtrasPanel from "@/components/ProductoExtrasPanel";
 
 const EMPTY_FORM = {
   nombre: "",
@@ -17,6 +18,7 @@ export default function ProductosClient() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   async function loadProductos() {
     try {
@@ -191,50 +193,75 @@ export default function ProductosClient() {
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Costo</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Precio venta</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Margen</th>
+              <th className="px-4 py-2 text-left font-medium text-zinc-600">Extras</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
             {!loading && productos.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
                   No hay productos registrados
                 </td>
               </tr>
             )}
             {productos.map((producto) => (
-              <tr key={producto.id}>
-                <td className="px-4 py-2 font-medium">{producto.nombre}</td>
-                <td className="px-4 py-2 text-zinc-600">{producto.descripcion}</td>
-                <td className="px-4 py-2 text-right">{producto.costo.toFixed(2)}</td>
-                <td className="px-4 py-2 text-right">{producto.precioVenta.toFixed(2)}</td>
-                <td className="px-4 py-2 text-right">
-                  {(producto.precioVenta - producto.costo).toFixed(2)}
-                </td>
-                <td className="px-4 py-2 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => startEdit(producto)}
-                      className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(producto.id)}
-                      className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <Fragment key={producto.id}>
+                <tr>
+                  <td className="px-4 py-2 font-medium">{producto.nombre}</td>
+                  <td className="px-4 py-2 text-zinc-600">{producto.descripcion}</td>
+                  <td className="px-4 py-2 text-right">{producto.costo.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right">{producto.precioVenta.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right">
+                    {(producto.precioVenta - producto.costo).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-zinc-600">
+                    {producto.extras.length === 0
+                      ? "-"
+                      : producto.extras
+                          .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
+                          .join(", ")}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() =>
+                          setExpandedId(expandedId === producto.id ? null : producto.id)
+                        }
+                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                      >
+                        Extras
+                      </button>
+                      <button
+                        onClick={() => startEdit(producto)}
+                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(producto.id)}
+                        className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {expandedId === producto.id && (
+                  <tr>
+                    <td colSpan={7} className="bg-zinc-50 px-4 py-3">
+                      <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

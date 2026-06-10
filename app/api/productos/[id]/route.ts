@@ -32,6 +32,14 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const row = result.rows[0];
 
+  const extrasResult = await pool.query(
+    `SELECT id, producto_id, nombre, precio_adicional
+     FROM producto_extras
+     WHERE producto_id = $1
+     ORDER BY nombre ASC`,
+    [id]
+  );
+
   return NextResponse.json({
     id: row.id,
     nombre: row.nombre,
@@ -40,6 +48,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
     precioVenta: Number(row.precio_venta),
     activo: row.activo,
     createdAt: row.created_at,
+    extras: extrasResult.rows.map((extra) => ({
+      id: extra.id,
+      productoId: extra.producto_id,
+      nombre: extra.nombre,
+      precioAdicional: Number(extra.precio_adicional),
+    })),
   });
 }
 

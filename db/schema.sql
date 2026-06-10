@@ -10,6 +10,17 @@ CREATE TABLE IF NOT EXISTS productos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Extras/presentaciones adicionales de un producto (ej: "Frito" con un monto adicional)
+CREATE TABLE IF NOT EXISTS producto_extras (
+  id SERIAL PRIMARY KEY,
+  producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  nombre TEXT NOT NULL,
+  precio_adicional NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_producto_extras_producto_id ON producto_extras(producto_id);
+
 DO $$ BEGIN
   CREATE TYPE metodo_pago AS ENUM (
     'PUNTO_VENTA',
@@ -47,7 +58,10 @@ CREATE TABLE IF NOT EXISTS venta_items (
   producto_id INTEGER NOT NULL REFERENCES productos(id),
   cantidad NUMERIC(12, 2) NOT NULL,
   costo_unit NUMERIC(12, 2) NOT NULL,
-  precio_unit NUMERIC(12, 2) NOT NULL
+  precio_unit NUMERIC(12, 2) NOT NULL,
+  extra_id INTEGER REFERENCES producto_extras(id) ON DELETE SET NULL,
+  extra_nombre TEXT,
+  extra_precio NUMERIC(12, 2) NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS pagos_venta (
