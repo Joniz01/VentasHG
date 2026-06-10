@@ -62,14 +62,18 @@ function parseFechaValorBcv(texto: string): string | null {
 async function fromBcvOrgVe() {
   const html = await fetchBcvOrgVeHtml();
 
-  const dolarSection = html.match(/id="dolar"[\s\S]*?<\/div>\s*<\/div>/);
-  if (!dolarSection) {
+  const dolarIndex = html.indexOf('id="dolar"');
+  if (dolarIndex === -1) {
     throw new Error("No se encontró la sección del dólar en bcv.org.ve");
   }
 
-  const valorMatch = dolarSection[0].match(/<strong>\s*([\d.,]+)\s*<\/strong>/);
+  const dolarSection = html.slice(dolarIndex, dolarIndex + 1500);
+
+  const valorMatch = dolarSection.match(/<strong>\s*([\d.,]+)\s*<\/strong>/);
   if (!valorMatch) {
-    throw new Error("No se encontró el valor del dólar en bcv.org.ve");
+    throw new Error(
+      `No se encontró el valor del dólar en bcv.org.ve. Sección: ${dolarSection.replace(/\s+/g, " ").slice(0, 400)}`
+    );
   }
 
   const tasa = Number(valorMatch[1].replace(/\./g, "").replace(",", "."));
