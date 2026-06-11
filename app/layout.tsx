@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavTabs from "@/components/NavTabs";
@@ -30,9 +31,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
         <header className="border-b border-zinc-200 bg-white">
-          <div className="mx-auto max-w-[1400px] px-4 py-4">
-            <h1 className="text-xl font-semibold">VentasHG</h1>
-            <NavTabs />
+          <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-4">
+            <Image src="/logo.jpg" alt="La Tequeñería Hechizo Gourmet" width={48} height={60} className="h-12 w-auto rounded-md" priority />
+            <div>
+              <h1 className="text-xl font-semibold">VentasHG</h1>
+              <NavTabs />
+            </div>
           </div>
         </header>
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6">
