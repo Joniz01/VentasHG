@@ -1,14 +1,30 @@
 -- Esquema de base de datos para VentasHG
 
--- Configuración de acceso al sistema (contraseña de administración)
+-- Configuración general del sistema (clave/valor)
 CREATE TABLE IF NOT EXISTS app_config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 
--- Sesiones activas para el acceso protegido por contraseña
+-- Usuarios del sistema con roles y permisos por sección
+CREATE TABLE IF NOT EXISTS usuarios (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  usuario TEXT NOT NULL UNIQUE,
+  clave_hash TEXT NOT NULL,
+  rol TEXT NOT NULL DEFAULT 'USUARIO' CHECK (rol IN ('ADMIN', 'USUARIO')),
+  ve_productos BOOLEAN NOT NULL DEFAULT FALSE,
+  ve_ventas BOOLEAN NOT NULL DEFAULT FALSE,
+  ve_reportes BOOLEAN NOT NULL DEFAULT FALSE,
+  ve_pedidos_pendientes BOOLEAN NOT NULL DEFAULT FALSE,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Sesiones activas para el acceso protegido por usuario
 CREATE TABLE IF NOT EXISTS sesiones (
   token TEXT PRIMARY KEY,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ NOT NULL
 );
 

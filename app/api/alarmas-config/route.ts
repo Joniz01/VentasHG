@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { getSesionFromRequest } from "@/lib/auth";
 import {
   ALARMAS_CONFIG_DEFAULT,
   TIPOS_ALARMA,
@@ -64,6 +65,11 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion || sesion.rol !== "ADMIN") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
   const body = (await request.json()) as Partial<AlarmasConfig>;
 
   const config: AlarmasConfig = {

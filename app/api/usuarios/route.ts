@@ -1,0 +1,92 @@
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
+import { getSesionFromRequest, hasAnyUsuario, hashPassword } from "@/lib/auth";
+import { PERMISOS_VACIOS, ROLES, type UsuarioInput } from "@/lib/types";
+
+export async function GET(request: NextRequest) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion || sesion.rol !== "ADMIN") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const result = await pool.query(
+    `SELECT id, nombre, usuario, rol, activo,
+            ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes
+     FROM usuarios
+     ORDER BY nombre ASC`
+  );
+
+  const usuarios = result.rows.map((row) => ({
+    id: row.id,
+    nombre: row.nombre,
+    usuario: row.usuario,
+    rol: row.rol,
+    activo: row.activo,
+    permisos: {
+      productos: row.ve_productos,
+      ventas: row.ve_ventas,
+      reportes: row.ve_reportes,
+      pedidosPendientes: row.ve_pedidos_pendientes,
+    },
+  }));
+
+  return NextResponse.json(usuarios);
+}
+
+export async function POST(request: NextRequest) {
+  const body = (await request.json()) as UsuarioInput;
+
+  if (!body.nombre?.trim() || !body.usuario?.trim() || !body.clave?.trim()) {
+    return NextResponse.json(
+      { error: "Nombre, usuario y clave son obligatorios" },
+      { status: 400 }
+    );
+  }
+
+  const isBootstrap = !(await hasAnyUsuario());
+
+  let rol = body.rol;
+  let permisos = body.permisos ?? PERMISOS_VACIOS;
+
+  if (isBootstrap) {
+    rol = "ADMIN";
+    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true };
+  } else {
+    const sesion = await getSesionFromRequest(request);
+    if (!sesion || sesion.rol !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    if (!ROLES.includes(rol)) {
+      return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+    }
+    if (rol === "ADMIN") {
+      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true };
+    }
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO usuarios (nombre, usuario, clave_hash, rol, ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [
+        body.nombre.trim(),
+        body.usuario.trim(),
+        hashPassword(body.clave),
+        rol,
+        permisos.productos,
+        permisos.ventas,
+        permisos.reportes,
+        permisos.pedidosPendientes,
+      ]
+    );
+
+    return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
+  } catch (err) {
+    const message =
+      err instanceof Error && err.message.includes("duplicate")
+        ? "El usuario ya existe"
+        : "Error al crear el usuario";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

@@ -1,3 +1,46 @@
+export const ROLES = ["ADMIN", "USUARIO"] as const;
+export type Rol = (typeof ROLES)[number];
+
+export const ROL_LABELS: Record<Rol, string> = {
+  ADMIN: "Administrador",
+  USUARIO: "Usuario del sistema",
+};
+
+export const PERMISO_TABS = [
+  { key: "productos", label: "Productos" },
+  { key: "ventas", label: "Ventas" },
+  { key: "reportes", label: "Reportes" },
+  { key: "pedidosPendientes", label: "Pedidos Pendientes" },
+] as const;
+
+export type PermisoTab = (typeof PERMISO_TABS)[number]["key"];
+
+export type PermisosUsuario = Record<PermisoTab, boolean>;
+
+export const PERMISOS_VACIOS: PermisosUsuario = {
+  productos: false,
+  ventas: false,
+  reportes: false,
+  pedidosPendientes: false,
+};
+
+export type Usuario = {
+  id: number;
+  nombre: string;
+  usuario: string;
+  rol: Rol;
+  activo: boolean;
+  permisos: PermisosUsuario;
+};
+
+export type UsuarioInput = {
+  nombre: string;
+  usuario: string;
+  clave: string;
+  rol: Rol;
+  permisos: PermisosUsuario;
+};
+
 export type Motorizado = {
   id: number;
   nombre: string;

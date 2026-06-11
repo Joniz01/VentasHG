@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavTabs from "@/components/NavTabs";
+import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,11 +21,15 @@ export const metadata: Metadata = {
   description: "Control de productos, costos y ventas",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const sesion = token ? await getUsuarioFromSession(token) : null;
+
   return (
     <html
       lang="es"
@@ -35,7 +41,7 @@ export default function RootLayout({
             <Image src="/logo.jpg" alt="La Tequeñería Hechizo Gourmet" width={48} height={60} className="h-12 w-auto rounded-md" priority />
             <div>
               <h1 className="text-xl font-semibold">VentasHG</h1>
-              <NavTabs />
+              <NavTabs rol={sesion?.rol ?? null} permisos={sesion?.permisos ?? null} />
             </div>
           </div>
         </header>

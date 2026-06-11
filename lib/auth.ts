@@ -1,9 +1,10 @@
 import crypto from "crypto";
+import type { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
+import type { PermisosUsuario, Rol } from "@/lib/types";
 
 export const SESSION_COOKIE = "vhg_session";
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
-const ADMIN_PASSWORD_KEY = "admin_password_hash";
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -19,29 +20,20 @@ export function verifyPassword(password: string, stored: string): boolean {
   return crypto.timingSafeEqual(hashBuffer, candidate);
 }
 
-export async function getAdminPasswordHash(): Promise<string | null> {
-  const result = await pool.query(
-    `SELECT value FROM app_config WHERE key = $1`,
-    [ADMIN_PASSWORD_KEY]
-  );
-  return result.rows[0]?.value ?? null;
+export async function hasAnyUsuario(): Promise<boolean> {
+  const result = await pool.query(`SELECT 1 FROM usuarios LIMIT 1`);
+  return (result.rowCount ?? 0) > 0;
 }
 
-export async function setAdminPassword(password: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO app_config (key, value) VALUES ($1, $2)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-    [ADMIN_PASSWORD_KEY, hashPassword(password)]
-  );
-}
-
-export async function createSession(): Promise<{ token: string; expiresAt: Date }> {
+export async function createUserSession(
+  usuarioId: number
+): Promise<{ token: string; expiresAt: Date }> {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
 
   await pool.query(
-    `INSERT INTO sesiones (token, expires_at) VALUES ($1, $2)`,
-    [token, expiresAt]
+    `INSERT INTO sesiones (token, usuario_id, expires_at) VALUES ($1, $2, $3)`,
+    [token, usuarioId, expiresAt]
   );
 
   return { token, expiresAt };
@@ -51,12 +43,45 @@ export async function deleteSession(token: string): Promise<void> {
   await pool.query(`DELETE FROM sesiones WHERE token = $1`, [token]);
 }
 
-export async function isSessionValid(token: string): Promise<boolean> {
+export type SesionUsuario = {
+  id: number;
+  nombre: string;
+  usuario: string;
+  rol: Rol;
+  permisos: PermisosUsuario;
+};
+
+export async function getUsuarioFromSession(token: string): Promise<SesionUsuario | null> {
   const result = await pool.query(
-    `SELECT 1 FROM sesiones WHERE token = $1 AND expires_at > now()`,
+    `SELECT u.id, u.nombre, u.usuario, u.rol,
+            u.ve_productos, u.ve_ventas, u.ve_reportes, u.ve_pedidos_pendientes
+     FROM sesiones s
+     JOIN usuarios u ON u.id = s.usuario_id
+     WHERE s.token = $1 AND s.expires_at > now() AND u.activo = TRUE`,
     [token]
   );
-  return (result.rowCount ?? 0) > 0;
+
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    nombre: row.nombre,
+    usuario: row.usuario,
+    rol: row.rol,
+    permisos: {
+      productos: row.ve_productos,
+      ventas: row.ve_ventas,
+      reportes: row.ve_reportes,
+      pedidosPendientes: row.ve_pedidos_pendientes,
+    },
+  };
+}
+
+export async function getSesionFromRequest(request: NextRequest): Promise<SesionUsuario | null> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  return getUsuarioFromSession(token);
 }
 
 export const MOTORIZADO_SESSION_COOKIE = "vhg_motorizado_session";
