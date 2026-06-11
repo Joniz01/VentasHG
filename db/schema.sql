@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS ventas (
   hora_preparacion TIMESTAMPTZ,
   delivery_asignado TEXT,
   motorizado_id INTEGER REFERENCES motorizados(id),
+  pedido_aceptado BOOLEAN NOT NULL DEFAULT FALSE,
   pedido_entregado BOOLEAN NOT NULL DEFAULT FALSE,
   pedido_enviado BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

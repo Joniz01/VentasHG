@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
 
   const ventasResult = await pool.query(
-    `SELECT id, cliente, direccion, delivery_asignado, motorizado_id, hora_entrega, hora_preparacion, pedido_entregado, pedido_enviado
+    `SELECT id, cliente, direccion, delivery_asignado, motorizado_id, hora_entrega, hora_preparacion, pedido_aceptado, pedido_entregado, pedido_enviado
      FROM ventas
      WHERE despacho_pendiente = TRUE
        AND motorizado_id = $1
@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
       motorizadoId: row.motorizado_id,
       horaEntrega: row.hora_entrega,
       horaPreparacion: row.hora_preparacion,
+      pedidoAceptado: row.pedido_aceptado,
       pedidoEntregado: row.pedido_entregado,
       pedidoEnviado: row.pedido_enviado,
       fritoCongelado,

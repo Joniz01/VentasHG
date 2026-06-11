@@ -210,6 +210,7 @@ export type PedidoPendiente = {
   fritoCongelado: string;
   horaEntrega: string;
   horaPreparacion: string;
+  pedidoAceptado: boolean;
   pedidoEntregado: boolean;
   pedidoEnviado: boolean;
   items: PedidoPendienteItem[];

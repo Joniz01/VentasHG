@@ -142,6 +142,23 @@ export default function DeliveryClient() {
     setNow(now + 1);
   }
 
+  async function marcarAceptado(pedidoId: number) {
+    try {
+      const res = await fetch(`/api/delivery-pedidos/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aceptado: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Error al actualizar el pedido");
+      }
+      await loadPedidos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar el pedido");
+    }
+  }
+
   async function marcarEntregado(pedidoId: number) {
     try {
       const res = await fetch(`/api/delivery-pedidos/${pedidoId}`, {
@@ -302,13 +319,23 @@ export default function DeliveryClient() {
                     >
                       {now < (silenciados[pedido.id] ?? 0) ? "Silenciado" : "Silenciar"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => marcarEntregado(pedido.id)}
-                      className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
-                    >
-                      Entregado
-                    </button>
+                    {pedido.pedidoAceptado ? (
+                      <button
+                        type="button"
+                        onClick={() => marcarEntregado(pedido.id)}
+                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+                      >
+                        Entregado
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => marcarAceptado(pedido.id)}
+                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+                      >
+                        Tomar Pedido
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

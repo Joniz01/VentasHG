@@ -225,6 +225,11 @@ export default function PedidosPendientesClient() {
                 <span className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold uppercase">
                   {ESTADO_LABELS[estado]}
                 </span>
+                {pedido.pedidoAceptado && (
+                  <span className="rounded-md border border-blue-400 bg-blue-100 px-2 py-1 text-xs font-semibold uppercase text-blue-800">
+                    Motorizado aceptó la entrega
+                  </span>
+                )}
               </div>
             </div>
 
