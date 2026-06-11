@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, FormEvent } from "react";
 import type { Categoria, Producto } from "@/lib/types";
 import ProductoExtrasPanel from "@/components/ProductoExtrasPanel";
 
@@ -24,6 +24,16 @@ export default function ProductosClient() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [orden, setOrden] = useState<"nombre" | "categoria">("nombre");
+
+  const productosOrdenados = useMemo(() => {
+    if (orden === "nombre") return productos;
+
+    return [...productos].sort((a, b) => {
+      const categoriaCompare = (a.categoriaNombre ?? "").localeCompare(b.categoriaNombre ?? "");
+      return categoriaCompare !== 0 ? categoriaCompare : a.nombre.localeCompare(b.nombre);
+    });
+  }, [productos, orden]);
 
   async function loadProductos() {
     try {
@@ -249,6 +259,18 @@ export default function ProductosClient() {
         </div>
       )}
 
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium text-zinc-700">Ordenar por</label>
+        <select
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          value={orden}
+          onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
+        >
+          <option value="nombre">Nombre</option>
+          <option value="categoria">Categoría</option>
+        </select>
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
           <thead className="bg-zinc-50">
@@ -278,7 +300,7 @@ export default function ProductosClient() {
                 </td>
               </tr>
             )}
-            {productos.map((producto) => (
+            {productosOrdenados.map((producto) => (
               <Fragment key={producto.id}>
                 <tr>
                   <td className="px-4 py-2 font-medium">{producto.nombre}</td>

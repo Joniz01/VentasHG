@@ -13,12 +13,12 @@ import {
   type Venta,
 } from "@/lib/types";
 
-type ItemRow = { productoId: string; cantidad: string; extraId: string };
+type ItemRow = { productoId: string; productoNombre: string; cantidad: string; extraId: string };
 type PagoRow = { metodo: MetodoPago | ""; monto: string; montoAuto: boolean };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const EMPTY_ITEM: ItemRow = { productoId: "", cantidad: "1", extraId: "" };
+const EMPTY_ITEM: ItemRow = { productoId: "", productoNombre: "", cantidad: "1", extraId: "" };
 const EMPTY_PAGO: PagoRow = { metodo: "", monto: "", montoAuto: true };
 
 function bsToUsd(montoBs: number, tasa: number) {
@@ -279,6 +279,7 @@ export default function VentasClient() {
     setItems(
       venta.items.map((item) => ({
         productoId: String(item.productoId),
+        productoNombre: item.nombreProducto,
         cantidad: String(item.cantidad),
         extraId: item.extraId ? String(item.extraId) : "",
       }))
@@ -538,6 +539,11 @@ export default function VentasClient() {
               + Agregar producto
             </button>
           </div>
+          <datalist id="productos-list">
+            {productos.map((p) => (
+              <option key={p.id} value={p.nombre} />
+            ))}
+          </datalist>
           <div className="flex flex-col gap-2">
             {items.map((item, index) => {
               const producto = productosById.get(Number(item.productoId));
@@ -546,18 +552,21 @@ export default function VentasClient() {
               const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
               return (
                 <div key={index} className="grid grid-cols-12 items-center gap-2">
-                  <select
+                  <input
+                    list="productos-list"
                     className="col-span-6 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-4"
-                    value={item.productoId}
-                    onChange={(e) => updateItem(index, { productoId: e.target.value, extraId: "" })}
-                  >
-                    <option value="">Selecciona un producto</option>
-                    {productos.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre}
-                      </option>
-                    ))}
-                  </select>
+                    value={item.productoNombre}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const match = productos.find((p) => p.nombre === value);
+                      updateItem(index, {
+                        productoNombre: value,
+                        productoId: match ? String(match.id) : "",
+                        extraId: "",
+                      });
+                    }}
+                    placeholder="Selecciona o escribe un producto"
+                  />
                   <select
                     className="col-span-3 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3"
                     value={item.extraId}
