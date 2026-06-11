@@ -101,8 +101,16 @@ CREATE TABLE IF NOT EXISTS ventas (
   modo_entrega modo_entrega NOT NULL DEFAULT 'LOCAL',
   costo_delivery NUMERIC(12, 2) NOT NULL DEFAULT 0,
   observaciones TEXT,
+  despacho_pendiente BOOLEAN NOT NULL DEFAULT FALSE,
+  hora_entrega TIMESTAMPTZ,
+  hora_preparacion TIMESTAMPTZ,
+  delivery_asignado TEXT,
+  pedido_entregado BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_ventas_pedidos_pendientes
+  ON ventas (despacho_pendiente, pedido_entregado);
 
 CREATE TABLE IF NOT EXISTS venta_items (
   id SERIAL PRIMARY KEY,

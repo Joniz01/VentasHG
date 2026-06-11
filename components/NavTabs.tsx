@@ -7,6 +7,7 @@ const TABS = [
   { href: "/productos", label: "Productos" },
   { href: "/ventas", label: "Ventas" },
   { href: "/reportes", label: "Reportes" },
+  { href: "/pedidos-pendientes", label: "Pedidos Pendientes" },
 ];
 
 export default function NavTabs() {

@@ -5,7 +5,8 @@ import { guardarCliente, insertarItemsYPagos, validarVenta, type VentaBody } fro
 export async function GET() {
   const ventasResult = await pool.query(
     `SELECT id, fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega,
-            costo_delivery, observaciones, created_at
+            costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion,
+            delivery_asignado, pedido_entregado, created_at
      FROM ventas
      ORDER BY fecha DESC, id DESC`
   );
@@ -44,6 +45,11 @@ export async function GET() {
     modoEntrega: row.modo_entrega,
     costoDelivery: Number(row.costo_delivery),
     observaciones: row.observaciones,
+    despachoPendiente: row.despacho_pendiente,
+    horaEntrega: row.hora_entrega,
+    horaPreparacion: row.hora_preparacion,
+    deliveryAsignado: row.delivery_asignado,
+    pedidoEntregado: row.pedido_entregado,
     createdAt: row.created_at,
     items: itemsResult.rows
       .filter((item) => item.venta_id === row.id)
@@ -84,8 +90,8 @@ export async function POST(request: NextRequest) {
     await client.query("BEGIN");
 
     const ventaResult = await client.query(
-      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id`,
       [
         body.fecha,
@@ -97,6 +103,10 @@ export async function POST(request: NextRequest) {
         body.modoEntrega || "LOCAL",
         Number(body.costoDelivery),
         body.observaciones || null,
+        Boolean(body.despachoPendiente),
+        body.despachoPendiente ? body.horaEntrega : null,
+        body.despachoPendiente ? body.horaPreparacion : null,
+        body.despachoPendiente ? body.deliveryAsignado || null : null,
       ]
     );
 

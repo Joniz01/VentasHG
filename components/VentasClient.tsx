@@ -29,6 +29,14 @@ function usdToBs(montoUsd: number, tasa: number) {
   return montoUsd * tasa;
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+function combinarFechaHora(fecha: string, hora: string): Date | null {
+  if (!fecha || !hora) return null;
+  const date = new Date(`${fecha}T${hora}:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export default function VentasClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
@@ -48,6 +56,11 @@ export default function VentasClient() {
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
+  const [despachoPendiente, setDespachoPendiente] = useState(false);
+  const [horaEntrega, setHoraEntrega] = useState("");
+  const [minutosPrep, setMinutosPrep] = useState("15");
+  const [minutosPrepCustom, setMinutosPrepCustom] = useState("");
+  const [deliveryAsignado, setDeliveryAsignado] = useState("");
   const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
   const [consultandoTasa, setConsultandoTasa] = useState(false);
@@ -202,6 +215,14 @@ export default function VentasClient() {
     };
   }, [items, pagos, productosById, tasa, costoDelivery]);
 
+  const minutosPreparacionNum =
+    minutosPrep === "otro" ? Number(minutosPrepCustom) || 0 : Number(minutosPrep);
+
+  const horaEntregaDate = combinarFechaHora(fecha, horaEntrega);
+  const horaPreparacionDate = horaEntregaDate
+    ? new Date(horaEntregaDate.getTime() - minutosPreparacionNum * 60000)
+    : null;
+
   function updateItem(index: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   }
@@ -263,6 +284,11 @@ export default function VentasClient() {
     setObservaciones("");
     setItems([{ ...EMPTY_ITEM }]);
     setPagos([{ ...EMPTY_PAGO }]);
+    setDespachoPendiente(false);
+    setHoraEntrega("");
+    setMinutosPrep("15");
+    setMinutosPrepCustom("");
+    setDeliveryAsignado("");
   }
 
   function startEdit(venta: Venta) {
@@ -293,6 +319,28 @@ export default function VentasClient() {
           }))
         : [{ ...EMPTY_PAGO }]
     );
+
+    if (venta.despachoPendiente && venta.horaEntrega && venta.horaPreparacion) {
+      const entregaDate = new Date(venta.horaEntrega);
+      const prepDate = new Date(venta.horaPreparacion);
+      setDespachoPendiente(true);
+      setHoraEntrega(`${pad(entregaDate.getHours())}:${pad(entregaDate.getMinutes())}`);
+      const diffMin = Math.round((entregaDate.getTime() - prepDate.getTime()) / 60000);
+      if ([5, 15, 30].includes(diffMin)) {
+        setMinutosPrep(String(diffMin));
+        setMinutosPrepCustom("");
+      } else {
+        setMinutosPrep("otro");
+        setMinutosPrepCustom(String(diffMin));
+      }
+      setDeliveryAsignado(venta.deliveryAsignado ?? "");
+    } else {
+      setDespachoPendiente(false);
+      setHoraEntrega("");
+      setMinutosPrep("15");
+      setMinutosPrepCustom("");
+      setDeliveryAsignado("");
+    }
   }
 
   function cancelEdit() {
@@ -321,6 +369,11 @@ export default function VentasClient() {
       }))
       .filter((p): p is { metodo: MetodoPago; monto: number } => !!p.metodo && p.monto > 0);
 
+    if (despachoPendiente && (!horaEntregaDate || !horaPreparacionDate)) {
+      setError("Indica la hora de entrega para el despacho pendiente");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -333,6 +386,11 @@ export default function VentasClient() {
         modoEntrega,
         costoDelivery: Number(costoDelivery) || 0,
         observaciones: observaciones.trim(),
+        despachoPendiente,
+        horaEntrega: despachoPendiente && horaEntregaDate ? horaEntregaDate.toISOString() : null,
+        horaPreparacion:
+          despachoPendiente && horaPreparacionDate ? horaPreparacionDate.toISOString() : null,
+        deliveryAsignado: despachoPendiente ? deliveryAsignado.trim() : "",
         items: validItems.map((i) => ({
           productoId: Number(i.productoId),
           cantidad: Number(i.cantidad),
@@ -526,6 +584,94 @@ export default function VentasClient() {
               placeholder="Opcional"
             />
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-md border border-zinc-200 p-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">¿Despacho pendiente?</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDespachoPendiente(true)}
+                className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                  despachoPendiente
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-300 hover:bg-zinc-100"
+                }`}
+              >
+                Sí
+              </button>
+              <button
+                type="button"
+                onClick={() => setDespachoPendiente(false)}
+                className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                  !despachoPendiente
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-300 hover:bg-zinc-100"
+                }`}
+              >
+                No
+              </button>
+            </div>
+          </div>
+
+          {despachoPendiente && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
+                <input
+                  type="time"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={horaEntrega}
+                  onChange={(e) => setHoraEntrega(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Avisar preparar</label>
+                <select
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={minutosPrep}
+                  onChange={(e) => setMinutosPrep(e.target.value)}
+                >
+                  <option value="5">5 min antes</option>
+                  <option value="15">15 min antes</option>
+                  <option value="30">30 min antes</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              {minutosPrep === "otro" && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-zinc-700">Minutos antes</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    value={minutosPrepCustom}
+                    onChange={(e) => setMinutosPrepCustom(e.target.value)}
+                    placeholder="Ej: 20"
+                  />
+                </div>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Delivery asignado</label>
+                <input
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={deliveryAsignado}
+                  onChange={(e) => setDeliveryAsignado(e.target.value)}
+                  placeholder="Nombre del repartidor"
+                />
+              </div>
+              {horaPreparacionDate && (
+                <div className="flex flex-col justify-end text-sm text-zinc-600 sm:col-span-4">
+                  La alarma de preparación sonará a las{" "}
+                  <span className="font-medium">
+                    {pad(horaPreparacionDate.getHours())}:{pad(horaPreparacionDate.getMinutes())}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div>

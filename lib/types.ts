@@ -93,6 +93,11 @@ export type Venta = {
   modoEntrega: ModoEntrega;
   costoDelivery: number;
   observaciones: string | null;
+  despachoPendiente: boolean;
+  horaEntrega: string | null;
+  horaPreparacion: string | null;
+  deliveryAsignado: string | null;
+  pedidoEntregado: boolean;
   createdAt: string;
   items: VentaItem[];
   pagos: PagoVenta[];
@@ -119,8 +124,29 @@ export type VentaInput = {
   modoEntrega: ModoEntrega;
   costoDelivery: number;
   observaciones: string;
+  despachoPendiente: boolean;
+  horaEntrega: string | null;
+  horaPreparacion: string | null;
+  deliveryAsignado: string;
   items: VentaItemInput[];
   pagos: PagoVentaInput[];
+};
+
+export type PedidoPendienteItem = {
+  nombreProducto: string;
+  cantidad: number;
+  extraNombre: string | null;
+};
+
+export type PedidoPendiente = {
+  id: number;
+  cliente: string;
+  direccion: string | null;
+  deliveryAsignado: string | null;
+  fritoCongelado: string;
+  horaEntrega: string;
+  horaPreparacion: string;
+  items: PedidoPendienteItem[];
 };
 
 export type ReporteFormaPago = {

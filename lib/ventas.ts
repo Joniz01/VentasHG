@@ -11,6 +11,10 @@ export type VentaBody = {
   modoEntrega?: string | null;
   costoDelivery: number;
   observaciones?: string | null;
+  despachoPendiente?: boolean;
+  horaEntrega?: string | null;
+  horaPreparacion?: string | null;
+  deliveryAsignado?: string | null;
   items: { productoId: number; cantidad: number; extraId?: number | null }[];
   pagos?: { metodo: string; monto: number }[];
 };
@@ -36,6 +40,10 @@ export function validarVenta(body: VentaBody): string | null {
 
   if (Number.isNaN(Number(body.tasaDelDia)) || Number.isNaN(Number(body.costoDelivery))) {
     return "Datos numéricos inválidos";
+  }
+
+  if (body.despachoPendiente && (!body.horaEntrega || !body.horaPreparacion)) {
+    return "Debes indicar la hora de entrega y de preparación para un despacho pendiente";
   }
 
   return null;
