@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS ventas (
   fecha DATE NOT NULL DEFAULT CURRENT_DATE,
   tasa_dia NUMERIC(12, 4) NOT NULL DEFAULT 0,
   cliente TEXT NOT NULL,
+  cliente_ci TEXT,
+  direccion TEXT,
   modalidad_compra TEXT,
   modo_entrega modo_entrega NOT NULL DEFAULT 'LOCAL',
   costo_delivery NUMERIC(12, 2) NOT NULL DEFAULT 0,

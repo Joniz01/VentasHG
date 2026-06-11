@@ -35,9 +35,12 @@ export default function VentasClient() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(today());
   const [tasaDelDia, setTasaDelDia] = useState("");
   const [cliente, setCliente] = useState("");
+  const [clienteCi, setClienteCi] = useState("");
+  const [direccion, setDireccion] = useState("");
   const [modalidadCompra, setModalidadCompra] = useState("");
   const [modoEntrega, setModoEntrega] = useState<ModoEntrega>("LOCAL");
   const [costoDelivery, setCostoDelivery] = useState("0");
@@ -66,6 +69,7 @@ export default function VentasClient() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
+    handleConsultarTasaBcv();
   }, []);
 
   const productosById = useMemo(() => {
@@ -199,15 +203,50 @@ export default function VentasClient() {
   }
 
   function resetForm() {
+    setEditingId(null);
     setFecha(today());
-    setTasaDelDia("");
     setCliente("");
+    setClienteCi("");
+    setDireccion("");
     setModalidadCompra("");
     setModoEntrega("LOCAL");
     setCostoDelivery("0");
     setObservaciones("");
     setItems([{ ...EMPTY_ITEM }]);
     setPagos([{ ...EMPTY_PAGO }]);
+  }
+
+  function startEdit(venta: Venta) {
+    setEditingId(venta.id);
+    setFecha(String(venta.fecha).slice(0, 10));
+    setTasaDelDia(String(venta.tasaDelDia));
+    setCliente(venta.cliente);
+    setClienteCi(venta.clienteCi ?? "");
+    setDireccion(venta.direccion ?? "");
+    setModalidadCompra(venta.modalidadCompra ?? "");
+    setModoEntrega(venta.modoEntrega);
+    setCostoDelivery(String(venta.costoDelivery));
+    setObservaciones(venta.observaciones ?? "");
+    setItems(
+      venta.items.map((item) => ({
+        productoId: String(item.productoId),
+        cantidad: String(item.cantidad),
+        extraId: item.extraId ? String(item.extraId) : "",
+      }))
+    );
+    setPagos(
+      venta.pagos.length
+        ? venta.pagos.map((pago) => ({
+            metodo: pago.metodo,
+            monto: String(pago.monto),
+            montoAuto: false,
+          }))
+        : [{ ...EMPTY_PAGO }]
+    );
+  }
+
+  function cancelEdit() {
+    resetForm();
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -238,6 +277,8 @@ export default function VentasClient() {
         fecha,
         tasaDelDia: Number(tasaDelDia) || 0,
         cliente: cliente.trim(),
+        clienteCi: clienteCi.trim(),
+        direccion: direccion.trim(),
         modalidadCompra: modalidadCompra.trim(),
         modoEntrega,
         costoDelivery: Number(costoDelivery) || 0,
@@ -250,11 +291,14 @@ export default function VentasClient() {
         pagos: validPagos,
       };
 
-      const res = await fetch("/api/ventas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        editingId ? `/api/ventas/${editingId}` : "/api/ventas",
+        {
+          method: editingId ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (!res.ok) {
         const data = await res.json();
@@ -337,6 +381,24 @@ export default function VentasClient() {
               onChange={(e) => setCliente(e.target.value)}
               placeholder="Nombre del cliente"
               required
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">C.I/ID</label>
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={clienteCi}
+              onChange={(e) => setClienteCi(e.target.value)}
+              placeholder="Opcional"
+            />
+          </div>
+          <div className="flex flex-col gap-1 sm:col-span-2">
+            <label className="text-sm font-medium text-zinc-700">Dirección</label>
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              placeholder="Opcional"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -541,14 +603,23 @@ export default function VentasClient() {
           <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
         )}
 
-        <div>
+        <div className="flex gap-2">
           <button
             type="submit"
             disabled={saving}
             className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
           >
-            Registrar venta
+            {editingId ? "Guardar cambios" : "Registrar venta"}
           </button>
+          {editingId && (
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              Cancelar
+            </button>
+          )}
         </div>
       </form>
 
@@ -561,7 +632,8 @@ export default function VentasClient() {
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Productos</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Pagos</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Total venta</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Total $</th>
+              <th className="px-4 py-2 text-right font-medium text-zinc-600">Delivery</th>
+              <th className="px-4 py-2 text-right font-medium text-zinc-600">Total pagado</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Entrega</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
             </tr>
@@ -569,14 +641,14 @@ export default function VentasClient() {
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
             {!loading && ventas.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
                   No hay ventas registradas
                 </td>
               </tr>
@@ -586,6 +658,20 @@ export default function VentasClient() {
                 (acc, i) => acc + i.precioUnit * i.cantidad,
                 0
               );
+              const costoDeliveryUsd = venta.costoDelivery;
+
+              let totalPagadoBs = 0;
+              let totalPagadoUsd = 0;
+              for (const pago of venta.pagos) {
+                if (METODOS_PAGO_USD.includes(pago.metodo)) {
+                  totalPagadoUsd += pago.monto;
+                } else {
+                  totalPagadoBs += pago.monto;
+                }
+              }
+              const totalPagadoEnBs = totalPagadoBs + usdToBs(totalPagadoUsd, venta.tasaDelDia);
+              const totalPagadoEnUsd = totalPagadoUsd + bsToUsd(totalPagadoBs, venta.tasaDelDia);
+
               return (
                 <tr key={venta.id}>
                   <td className="px-4 py-2 whitespace-nowrap">
@@ -606,19 +692,41 @@ export default function VentasClient() {
                       .join(", ") || "-"}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    {usdToBs(ventaTotalUsd, venta.tasaDelDia).toFixed(2)}
+                    {usdToBs(ventaTotalUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
+                    <span className="text-zinc-500">(${ventaTotalUsd.toFixed(2)})</span>
                   </td>
-                  <td className="px-4 py-2 text-right">${ventaTotalUsd.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right">
+                    {costoDeliveryUsd > 0 ? (
+                      <>
+                        {usdToBs(costoDeliveryUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
+                        <span className="text-zinc-500">(${costoDeliveryUsd.toFixed(2)})</span>
+                      </>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {totalPagadoEnBs.toFixed(2)} Bs{" "}
+                    <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
+                  </td>
                   <td className="px-4 py-2">
                     {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <button
-                      onClick={() => handleDelete(venta.id)}
-                      className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                    >
-                      Eliminar
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => startEdit(venta)}
+                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(venta.id)}
+                        className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );

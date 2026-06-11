@@ -79,6 +79,8 @@ export type Venta = {
   fecha: string;
   tasaDelDia: number;
   cliente: string;
+  clienteCi: string | null;
+  direccion: string | null;
   modalidadCompra: string | null;
   modoEntrega: ModoEntrega;
   costoDelivery: number;
@@ -103,6 +105,8 @@ export type VentaInput = {
   fecha: string;
   tasaDelDia: number;
   cliente: string;
+  clienteCi: string;
+  direccion: string;
   modalidadCompra: string;
   modoEntrega: ModoEntrega;
   costoDelivery: number;
