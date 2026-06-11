@@ -16,7 +16,10 @@ import {
 type ItemRow = { productoId: string; productoNombre: string; cantidad: string; extraId: string };
 type PagoRow = { metodo: MetodoPago | ""; monto: string; montoAuto: boolean };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 const EMPTY_ITEM: ItemRow = { productoId: "", productoNombre: "", cantidad: "1", extraId: "" };
 const EMPTY_PAGO: PagoRow = { metodo: "", monto: "", montoAuto: true };
