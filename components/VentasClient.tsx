@@ -14,6 +14,7 @@ import {
   type Venta,
 } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+import TimeInput12h from "@/components/TimeInput12h";
 
 type ItemRow = { productoId: string; productoNombre: string; cantidad: string; extraId: string };
 type PagoRow = { metodo: MetodoPago | ""; monto: string; montoAuto: boolean };
@@ -641,13 +642,7 @@ export default function VentasClient() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
-                <input
-                  type="time"
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                  value={horaEntrega}
-                  onChange={(e) => setHoraEntrega(e.target.value)}
-                  required
-                />
+                <TimeInput12h value={horaEntrega} onChange={setHoraEntrega} required />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Avisar preparar</label>
