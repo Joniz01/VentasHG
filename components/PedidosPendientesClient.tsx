@@ -33,8 +33,8 @@ function computeEstado(now: number, horaPreparacion: string, horaEntrega: string
 
 const ESTADO_LABELS: Record<Estado, string> = {
   PENDIENTE: "Pendiente",
-  PREPARAR: "Preparar",
-  ENTREGAR: "Entregar",
+  PREPARAR: "Por preparar",
+  ENTREGAR: "Por entregar",
 };
 
 const ESTADO_CLASES: Record<Estado, string> = {
@@ -49,6 +49,7 @@ export default function PedidosPendientesClient() {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [mostrarEntregados, setMostrarEntregados] = useState(false);
+  const [silenciados, setSilenciados] = useState<Record<string, number>>({});
 
   const alarmas = useRef<Map<number, AlarmaInfo>>(new Map());
   const alarmasConfig = useRef<AlarmasConfig>(ALARMAS_CONFIG_DEFAULT);
@@ -150,6 +151,7 @@ export default function PedidosPendientesClient() {
     } else {
       info.entregaProximoBeep = proximo;
     }
+    setSilenciados((prev) => ({ ...prev, [`${pedidoId}-${etapa}`]: proximo }));
     setNow(now + 1);
   }
 
@@ -162,12 +164,33 @@ export default function PedidosPendientesClient() {
 
   async function aceptarEntrega(pedidoId: number) {
     try {
-      const res = await fetch(`/api/pedidos-pendientes/${pedidoId}`, { method: "PATCH" });
+      const res = await fetch(`/api/pedidos-pendientes/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entregado: true }),
+      });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error ?? "Error al actualizar el pedido");
       }
       alarmas.current.delete(pedidoId);
+      await loadPedidos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar el pedido");
+    }
+  }
+
+  async function volverAPendiente(pedidoId: number) {
+    try {
+      const res = await fetch(`/api/pedidos-pendientes/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entregado: false }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Error al actualizar el pedido");
+      }
       await loadPedidos();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar el pedido");
@@ -247,9 +270,13 @@ export default function PedidosPendientesClient() {
                 <button
                   type="button"
                   onClick={() => silenciar(pedido.id, "prep")}
-                  className="rounded-md border border-zinc-400 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+                  className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                    now < (silenciados[`${pedido.id}-prep`] ?? 0)
+                      ? "border-yellow-300 bg-yellow-100 hover:bg-yellow-200"
+                      : "border-zinc-400 bg-white hover:bg-zinc-100"
+                  }`}
                 >
-                  Silenciar
+                  {now < (silenciados[`${pedido.id}-prep`] ?? 0) ? "Silenciado" : "Silenciar"}
                 </button>
                 <button
                   type="button"
@@ -266,9 +293,13 @@ export default function PedidosPendientesClient() {
                 <button
                   type="button"
                   onClick={() => silenciar(pedido.id, "entrega")}
-                  className="rounded-md border border-zinc-400 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+                  className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                    now < (silenciados[`${pedido.id}-entrega`] ?? 0)
+                      ? "border-yellow-300 bg-yellow-100 hover:bg-yellow-200"
+                      : "border-zinc-400 bg-white hover:bg-zinc-100"
+                  }`}
                 >
-                  Silenciar
+                  {now < (silenciados[`${pedido.id}-entrega`] ?? 0) ? "Silenciado" : "Silenciar"}
                 </button>
                 <button
                   type="button"
@@ -310,9 +341,18 @@ export default function PedidosPendientesClient() {
                         <span className="font-medium">Hora de entrega: </span>
                         {formatHora(pedido.horaEntrega)}
                       </span>
-                      <span className="rounded-md border border-green-400 bg-white px-2 py-1 text-xs font-semibold uppercase text-green-800">
-                        Entregado
-                      </span>
+                      <div className="flex flex-col items-stretch gap-1">
+                        <span className="rounded-md border border-green-400 bg-white px-2 py-1 text-center text-xs font-semibold uppercase text-green-800">
+                          Entregado
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => volverAPendiente(pedido.id)}
+                          className="rounded-md border border-zinc-400 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                        >
+                          Volver a pendiente
+                        </button>
+                      </div>
                     </div>
                   </div>
 

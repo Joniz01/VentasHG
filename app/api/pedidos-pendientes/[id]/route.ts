@@ -3,12 +3,20 @@ import { pool } from "@/lib/db";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function PATCH(_request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
 
+  let entregado = true;
+  try {
+    const body = (await request.json()) as { entregado?: boolean };
+    if (typeof body.entregado === "boolean") entregado = body.entregado;
+  } catch {
+    // sin body: marcar como entregado
+  }
+
   const result = await pool.query(
-    `UPDATE ventas SET pedido_entregado = TRUE WHERE id = $1 RETURNING id`,
-    [id]
+    `UPDATE ventas SET pedido_entregado = $2 WHERE id = $1 RETURNING id`,
+    [id, entregado]
   );
 
   if (result.rowCount === 0) {
