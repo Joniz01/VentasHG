@@ -306,8 +306,8 @@ export default function DeliveryClient() {
                   </div>
                 </div>
 
-                {(estado === "ENVIADO" || estado === "ENTREGAR") && (
-                  <div className="flex gap-2">
+                <div className="flex gap-2">
+                  {(estado === "ENVIADO" || estado === "ENTREGAR") && (
                     <button
                       type="button"
                       onClick={() => silenciar(pedido.id)}
@@ -319,25 +319,25 @@ export default function DeliveryClient() {
                     >
                       {now < (silenciados[pedido.id] ?? 0) ? "Silenciado" : "Silenciar"}
                     </button>
-                    {pedido.pedidoAceptado ? (
-                      <button
-                        type="button"
-                        onClick={() => marcarEntregado(pedido.id)}
-                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
-                      >
-                        Entregado
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => marcarAceptado(pedido.id)}
-                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
-                      >
-                        Tomar Pedido
-                      </button>
-                    )}
-                  </div>
-                )}
+                  )}
+                  {pedido.pedidoAceptado ? (
+                    <button
+                      type="button"
+                      onClick={() => marcarEntregado(pedido.id)}
+                      className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+                    >
+                      Entregado
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => marcarAceptado(pedido.id)}
+                      className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+                    >
+                      Aceptar pedido
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

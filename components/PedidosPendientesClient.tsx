@@ -211,7 +211,9 @@ export default function PedidosPendientesClient() {
         return (
           <div
             key={pedido.id}
-            className={`flex flex-col gap-2 rounded-lg border p-4 ${ESTADO_CLASES[estado]}`}
+            className={`flex flex-col gap-2 rounded-lg border p-4 ${
+              pedido.pedidoAceptado ? "border-blue-300 bg-blue-100" : ESTADO_CLASES[estado]
+            }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-semibold">
@@ -227,7 +229,7 @@ export default function PedidosPendientesClient() {
                 </span>
                 {pedido.pedidoAceptado && (
                   <span className="rounded-md border border-blue-400 bg-blue-100 px-2 py-1 text-xs font-semibold uppercase text-blue-800">
-                    Motorizado aceptó la entrega
+                    Aceptado por Motorizado{pedido.deliveryAsignado ? ` (${pedido.deliveryAsignado})` : ""}
                   </span>
                 )}
               </div>
