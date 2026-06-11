@@ -15,6 +15,7 @@ export type VentaBody = {
   horaEntrega?: string | null;
   horaPreparacion?: string | null;
   deliveryAsignado?: string | null;
+  motorizadoId?: number | null;
   items: { productoId: number; cantidad: number; extraId?: number | null }[];
   pagos?: { metodo: string; monto: number }[];
 };
@@ -47,6 +48,25 @@ export function validarVenta(body: VentaBody): string | null {
   }
 
   return null;
+}
+
+// Resuelve el nombre a mostrar del motorizado asignado a partir de su id,
+// para mantener delivery_asignado como texto legible en los reportes.
+export async function resolveDeliveryAsignado(
+  client: PoolClient,
+  body: VentaBody
+): Promise<string | null> {
+  if (!body.motorizadoId) return body.deliveryAsignado || null;
+
+  const result = await client.query(
+    `SELECT nombre, apellido FROM motorizados WHERE id = $1`,
+    [body.motorizadoId]
+  );
+
+  if (result.rowCount === 0) return body.deliveryAsignado || null;
+
+  const { nombre, apellido } = result.rows[0];
+  return apellido ? `${nombre} ${apellido}` : nombre;
 }
 
 // Guarda/actualiza el cliente en el catálogo a partir de los datos de la

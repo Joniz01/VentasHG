@@ -1,3 +1,20 @@
+export type Motorizado = {
+  id: number;
+  nombre: string;
+  apellido: string | null;
+  telefono: string | null;
+  usuario: string;
+  activo: boolean;
+};
+
+export type MotorizadoInput = {
+  nombre: string;
+  apellido: string;
+  telefono: string;
+  usuario: string;
+  clave: string;
+};
+
 export type Categoria = {
   id: number;
   nombre: string;
@@ -97,7 +114,9 @@ export type Venta = {
   horaEntrega: string | null;
   horaPreparacion: string | null;
   deliveryAsignado: string | null;
+  motorizadoId: number | null;
   pedidoEntregado: boolean;
+  pedidoEnviado: boolean;
   createdAt: string;
   items: VentaItem[];
   pagos: PagoVenta[];
@@ -128,6 +147,7 @@ export type VentaInput = {
   horaEntrega: string | null;
   horaPreparacion: string | null;
   deliveryAsignado: string;
+  motorizadoId: number | null;
   items: VentaItemInput[];
   pagos: PagoVentaInput[];
 };
@@ -143,10 +163,12 @@ export type PedidoPendiente = {
   cliente: string;
   direccion: string | null;
   deliveryAsignado: string | null;
+  motorizadoId: number | null;
   fritoCongelado: string;
   horaEntrega: string;
   horaPreparacion: string;
   pedidoEntregado: boolean;
+  pedidoEnviado: boolean;
   items: PedidoPendienteItem[];
 };
 
@@ -215,4 +237,20 @@ export type ReporteVentas = {
   porFormaPago: ReporteFormaPago[];
   porCliente: ReporteCliente[];
   porProducto: ReporteProducto[];
+};
+
+export type ReporteDeliveryItem = {
+  ventaId: number;
+  cliente: string;
+  fecha: string;
+  costoDeliveryUsd: number;
+  costoDeliveryBs: number;
+};
+
+export type ReporteDeliveryMotorizado = {
+  desde: string;
+  hasta: string;
+  items: ReporteDeliveryItem[];
+  totalUsd: number;
+  totalBs: number;
 };

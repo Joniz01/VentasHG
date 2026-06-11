@@ -9,6 +9,7 @@ import {
   type MetodoPago,
   type ModoEntrega,
   type Cliente,
+  type Motorizado,
   type Producto,
   type Venta,
 } from "@/lib/types";
@@ -43,6 +44,7 @@ function combinarFechaHora(fecha: string, hora: string): Date | null {
 export default function VentasClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
+  const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,7 +65,7 @@ export default function VentasClient() {
   const [horaEntrega, setHoraEntrega] = useState("");
   const [minutosPrep, setMinutosPrep] = useState("15");
   const [minutosPrepCustom, setMinutosPrepCustom] = useState("");
-  const [deliveryAsignado, setDeliveryAsignado] = useState("");
+  const [motorizadoId, setMotorizadoId] = useState("");
   const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
   const [consultandoTasa, setConsultandoTasa] = useState(false);
@@ -77,12 +79,14 @@ export default function VentasClient() {
 
   async function loadData() {
     try {
-      const [productosRes, ventasRes] = await Promise.all([
+      const [productosRes, ventasRes, motorizadosRes] = await Promise.all([
         fetch("/api/productos"),
         fetch("/api/ventas"),
+        fetch("/api/motorizados"),
       ]);
       setProductos(await productosRes.json());
       setVentas(await ventasRes.json());
+      setMotorizados(await motorizadosRes.json());
     } catch {
       setError("No se pudieron cargar los datos");
     } finally {
@@ -305,7 +309,7 @@ export default function VentasClient() {
     setHoraEntrega("");
     setMinutosPrep("15");
     setMinutosPrepCustom("");
-    setDeliveryAsignado("");
+    setMotorizadoId("");
   }
 
   function startEdit(venta: Venta) {
@@ -350,13 +354,13 @@ export default function VentasClient() {
         setMinutosPrep("otro");
         setMinutosPrepCustom(String(diffMin));
       }
-      setDeliveryAsignado(venta.deliveryAsignado ?? "");
+      setMotorizadoId(venta.motorizadoId ? String(venta.motorizadoId) : "");
     } else {
       setDespachoPendiente(false);
       setHoraEntrega("");
       setMinutosPrep("15");
       setMinutosPrepCustom("");
-      setDeliveryAsignado("");
+      setMotorizadoId("");
     }
   }
 
@@ -407,7 +411,7 @@ export default function VentasClient() {
         horaEntrega: despachoPendiente && horaEntregaDate ? horaEntregaDate.toISOString() : null,
         horaPreparacion:
           despachoPendiente && horaPreparacionDate ? horaPreparacionDate.toISOString() : null,
-        deliveryAsignado: despachoPendiente ? deliveryAsignado.trim() : "",
+        motorizadoId: despachoPendiente && motorizadoId ? Number(motorizadoId) : null,
         items: validItems.map((i) => ({
           productoId: Number(i.productoId),
           cantidad: Number(i.cantidad),
@@ -672,12 +676,18 @@ export default function VentasClient() {
               )}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Delivery asignado</label>
-                <input
+                <select
                   className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                  value={deliveryAsignado}
-                  onChange={(e) => setDeliveryAsignado(e.target.value)}
-                  placeholder="Nombre del repartidor"
-                />
+                  value={motorizadoId}
+                  onChange={(e) => setMotorizadoId(e.target.value)}
+                >
+                  <option value="">Sin asignar</option>
+                  {motorizados.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.apellido ? `${m.nombre} ${m.apellido}` : m.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
               {horaPreparacionDate && (
                 <div className="flex flex-col justify-end text-sm text-zinc-600 sm:col-span-4">

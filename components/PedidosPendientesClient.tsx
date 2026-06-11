@@ -4,43 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import type { AlarmasConfig, PedidoPendiente } from "@/lib/types";
 import { ALARMAS_CONFIG_DEFAULT } from "@/lib/types";
 import { reproducirAlarma } from "@/lib/alarmas";
-
-type Estado = "PENDIENTE" | "PREPARAR" | "ENTREGAR";
+import {
+  computeEstadoPedido,
+  ESTADO_PEDIDO_CLASES as ESTADO_CLASES,
+  ESTADO_PEDIDO_LABELS as ESTADO_LABELS,
+  formatHora,
+} from "@/lib/pedidos";
 
 type AlarmaInfo = {
-  prepAck: boolean;
   prepProximoBeep: number | null;
-  entregaAck: boolean;
   entregaProximoBeep: number | null;
-};
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatHora(iso: string) {
-  const date = new Date(iso);
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function computeEstado(now: number, horaPreparacion: string, horaEntrega: string): Estado {
-  const prep = new Date(horaPreparacion).getTime();
-  const entrega = new Date(horaEntrega).getTime();
-  if (now >= entrega) return "ENTREGAR";
-  if (now >= prep) return "PREPARAR";
-  return "PENDIENTE";
-}
-
-const ESTADO_LABELS: Record<Estado, string> = {
-  PENDIENTE: "Pendiente",
-  PREPARAR: "Por preparar",
-  ENTREGAR: "Por entregar",
-};
-
-const ESTADO_CLASES: Record<Estado, string> = {
-  PENDIENTE: "border-zinc-200 bg-white",
-  PREPARAR: "border-yellow-300 bg-yellow-100",
-  ENTREGAR: "border-pink-200 bg-pink-100",
 };
 
 export default function PedidosPendientesClient() {
@@ -79,9 +52,7 @@ export default function PedidosPendientesClient() {
       for (const pedido of data) {
         if (!pedido.pedidoEntregado && !alarmas.current.has(pedido.id)) {
           alarmas.current.set(pedido.id, {
-            prepAck: false,
             prepProximoBeep: null,
-            entregaAck: false,
             entregaProximoBeep: null,
           });
         }
@@ -111,9 +82,14 @@ export default function PedidosPendientesClient() {
         if (pedido.pedidoEntregado) continue;
         const info = alarmas.current.get(pedido.id);
         if (!info) continue;
-        const estado = computeEstado(now, pedido.horaPreparacion, pedido.horaEntrega);
+        const estado = computeEstadoPedido(
+          now,
+          pedido.horaPreparacion,
+          pedido.horaEntrega,
+          pedido.pedidoEnviado
+        );
 
-        if (estado === "PREPARAR" && !info.prepAck) {
+        if (estado === "PREPARAR") {
           const config = alarmasConfig.current.preparacion;
           if (info.prepProximoBeep === null) info.prepProximoBeep = now;
           if (now >= info.prepProximoBeep) {
@@ -122,7 +98,7 @@ export default function PedidosPendientesClient() {
           }
         }
 
-        if (estado === "ENTREGAR" && !info.entregaAck) {
+        if (estado === "ENTREGAR") {
           const config = alarmasConfig.current.entrega;
           if (info.entregaProximoBeep === null) info.entregaProximoBeep = now;
           if (now >= info.entregaProximoBeep) {
@@ -155,11 +131,21 @@ export default function PedidosPendientesClient() {
     setNow(now + 1);
   }
 
-  function aceptarPreparacion(pedidoId: number) {
-    const info = alarmas.current.get(pedidoId);
-    if (!info) return;
-    info.prepAck = true;
-    setNow(now + 1);
+  async function aceptarPreparacion(pedidoId: number) {
+    try {
+      const res = await fetch(`/api/pedidos-pendientes/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enviado: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Error al actualizar el pedido");
+      }
+      await loadPedidos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar el pedido");
+    }
   }
 
   async function aceptarEntrega(pedidoId: number) {
@@ -215,7 +201,12 @@ export default function PedidosPendientesClient() {
       )}
 
       {pedidosPendientes.map((pedido) => {
-        const estado = computeEstado(now, pedido.horaPreparacion, pedido.horaEntrega);
+        const estado = computeEstadoPedido(
+          now,
+          pedido.horaPreparacion,
+          pedido.horaEntrega,
+          pedido.pedidoEnviado
+        );
 
         return (
           <div

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { guardarCliente, insertarItemsYPagos, validarVenta, type VentaBody } from "@/lib/ventas";
+import {
+  guardarCliente,
+  insertarItemsYPagos,
+  resolveDeliveryAsignado,
+  validarVenta,
+  type VentaBody,
+} from "@/lib/ventas";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -18,12 +24,17 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     await client.query("BEGIN");
 
+    const deliveryAsignado = body.despachoPendiente
+      ? await resolveDeliveryAsignado(client, body)
+      : null;
+
     const ventaResult = await client.query(
       `UPDATE ventas
        SET fecha = $1, tasa_dia = $2, cliente = $3, cliente_ci = $4, direccion = $5,
            modalidad_compra = $6, modo_entrega = $7, costo_delivery = $8, observaciones = $9,
-           despacho_pendiente = $10, hora_entrega = $11, hora_preparacion = $12, delivery_asignado = $13
-       WHERE id = $14
+           despacho_pendiente = $10, hora_entrega = $11, hora_preparacion = $12, delivery_asignado = $13,
+           motorizado_id = $14
+       WHERE id = $15
        RETURNING id`,
       [
         body.fecha,
@@ -38,7 +49,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
         Boolean(body.despachoPendiente),
         body.despachoPendiente ? body.horaEntrega : null,
         body.despachoPendiente ? body.horaPreparacion : null,
-        body.despachoPendiente ? body.deliveryAsignado || null : null,
+        deliveryAsignado,
+        body.despachoPendiente ? body.motorizadoId || null : null,
         id,
       ]
     );

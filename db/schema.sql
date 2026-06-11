@@ -90,6 +90,24 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+-- Usuarios motorizados (delivery) y sus sesiones
+CREATE TABLE IF NOT EXISTS motorizados (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  apellido TEXT,
+  telefono TEXT,
+  usuario TEXT NOT NULL UNIQUE,
+  clave_hash TEXT NOT NULL,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS motorizado_sesiones (
+  token TEXT PRIMARY KEY,
+  motorizado_id INTEGER NOT NULL REFERENCES motorizados(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ventas (
   id SERIAL PRIMARY KEY,
   fecha DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -105,12 +123,16 @@ CREATE TABLE IF NOT EXISTS ventas (
   hora_entrega TIMESTAMPTZ,
   hora_preparacion TIMESTAMPTZ,
   delivery_asignado TEXT,
+  motorizado_id INTEGER REFERENCES motorizados(id),
   pedido_entregado BOOLEAN NOT NULL DEFAULT FALSE,
+  pedido_enviado BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_ventas_pedidos_pendientes
   ON ventas (despacho_pendiente, pedido_entregado);
+
+CREATE INDEX IF NOT EXISTS idx_ventas_motorizado_id ON ventas (motorizado_id);
 
 CREATE TABLE IF NOT EXISTS venta_items (
   id SERIAL PRIMARY KEY,

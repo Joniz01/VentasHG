@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE, getAdminPasswordHash, isSessionValid } from "@/lib/auth";
 import AdminClient from "@/components/AdminClient";
 import AlarmasConfigClient from "@/components/AlarmasConfigClient";
+import MotorizadosConfigClient from "@/components/MotorizadosConfigClient";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function AdminPage() {
   const configured = (await getAdminPasswordHash()) !== null;
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-8">
+    <div className="mx-auto flex max-w-2xl flex-col gap-8">
       <div>
         <h2 className="mb-4 text-lg font-semibold">Administración</h2>
         <p className="mb-4 text-sm text-zinc-600">
@@ -30,6 +31,16 @@ export default async function AdminPage() {
             Configura el sonido y comportamiento de las alarmas de Pedidos Pendientes.
           </p>
           <AlarmasConfigClient />
+        </div>
+      )}
+
+      {authenticated && (
+        <div>
+          <h2 className="mb-4 text-lg font-semibold">Motorizados (Delivery)</h2>
+          <p className="mb-4 text-sm text-zinc-600">
+            Crea y gestiona los usuarios de los motorizados encargados de las entregas.
+          </p>
+          <MotorizadosConfigClient />
         </div>
       )}
     </div>

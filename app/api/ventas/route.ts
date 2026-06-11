@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { guardarCliente, insertarItemsYPagos, validarVenta, type VentaBody } from "@/lib/ventas";
+import {
+  guardarCliente,
+  insertarItemsYPagos,
+  resolveDeliveryAsignado,
+  validarVenta,
+  type VentaBody,
+} from "@/lib/ventas";
 
 export async function GET() {
   const ventasResult = await pool.query(
     `SELECT id, fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega,
             costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion,
-            delivery_asignado, pedido_entregado, created_at
+            delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado, created_at
      FROM ventas
      ORDER BY fecha DESC, id DESC`
   );
@@ -49,7 +55,9 @@ export async function GET() {
     horaEntrega: row.hora_entrega,
     horaPreparacion: row.hora_preparacion,
     deliveryAsignado: row.delivery_asignado,
+    motorizadoId: row.motorizado_id,
     pedidoEntregado: row.pedido_entregado,
+    pedidoEnviado: row.pedido_enviado,
     createdAt: row.created_at,
     items: itemsResult.rows
       .filter((item) => item.venta_id === row.id)
@@ -89,9 +97,13 @@ export async function POST(request: NextRequest) {
   try {
     await client.query("BEGIN");
 
+    const deliveryAsignado = body.despachoPendiente
+      ? await resolveDeliveryAsignado(client, body)
+      : null;
+
     const ventaResult = await client.query(
-      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado, motorizado_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id`,
       [
         body.fecha,
@@ -106,7 +118,8 @@ export async function POST(request: NextRequest) {
         Boolean(body.despachoPendiente),
         body.despachoPendiente ? body.horaEntrega : null,
         body.despachoPendiente ? body.horaPreparacion : null,
-        body.despachoPendiente ? body.deliveryAsignado || null : null,
+        deliveryAsignado,
+        body.despachoPendiente ? body.motorizadoId || null : null,
       ]
     );
 

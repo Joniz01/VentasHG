@@ -1,13 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { MOTORIZADO_SESSION_COOKIE, getMotorizadoIdFromSession } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const token = request.cookies.get(MOTORIZADO_SESSION_COOKIE)?.value;
+  const motorizadoId = token ? await getMotorizadoIdFromSession(token) : null;
+
+  if (!motorizadoId) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const ventasResult = await pool.query(
     `SELECT id, cliente, direccion, delivery_asignado, motorizado_id, hora_entrega, hora_preparacion, pedido_entregado, pedido_enviado
      FROM ventas
      WHERE despacho_pendiente = TRUE
+       AND motorizado_id = $1
        AND (pedido_entregado = FALSE OR fecha = CURRENT_DATE)
-     ORDER BY pedido_entregado ASC, hora_entrega ASC NULLS LAST, id ASC`
+     ORDER BY pedido_entregado ASC, hora_entrega ASC NULLS LAST, id ASC`,
+    [motorizadoId]
   );
 
   const ventaIds = ventasResult.rows.map((row) => row.id);
