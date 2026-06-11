@@ -88,10 +88,13 @@ export default function VentasClient() {
       ventaTotalUsd += precioUnit * cantidad;
     }
 
+    const costoDeliveryUsd = Number(costoDelivery) || 0;
+    const totalAPagarUsd = ventaTotalUsd + costoDeliveryUsd;
+
     // Resuelve cada pago en orden: los pagos automáticos toman el restante
     // (en $) después de descontar los pagos previos, y los manuales se
     // convierten a $ según su moneda para descontarlos del restante.
-    let restanteUsd = ventaTotalUsd;
+    let restanteUsd = totalAPagarUsd;
     const resueltosUsd: number[] = [];
     for (const pago of pagos) {
       if (!pago.metodo) {
@@ -135,12 +138,16 @@ export default function VentasClient() {
 
     return {
       ventaTotalUsd,
+      costoDeliveryUsd,
+      totalAPagarUsd,
       totalPagos,
       totalPagosEnUsd,
       ventaTotalBs: usdToBs(ventaTotalUsd, tasa),
+      costoDeliveryBs: usdToBs(costoDeliveryUsd, tasa),
+      totalAPagarBs: usdToBs(totalAPagarUsd, tasa),
       montoSugerido,
     };
-  }, [items, pagos, productosById, tasa]);
+  }, [items, pagos, productosById, tasa, costoDelivery]);
 
   function updateItem(index: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
@@ -510,6 +517,18 @@ export default function VentasClient() {
             <span className="font-medium text-zinc-600">Total venta: </span>
             {totales.ventaTotalBs.toFixed(2)} Bs{" "}
             <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
+          </div>
+          {modoEntrega === "DELIVERY" && (
+            <div>
+              <span className="font-medium text-zinc-600">Costo delivery: </span>
+              {totales.costoDeliveryBs.toFixed(2)} Bs{" "}
+              <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span>
+            </div>
+          )}
+          <div>
+            <span className="font-medium text-zinc-600">Total a pagar: </span>
+            {totales.totalAPagarBs.toFixed(2)} Bs{" "}
+            <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span>
           </div>
           <div>
             <span className="font-medium text-zinc-600">Total pagado: </span>
