@@ -16,7 +16,12 @@ export type VentaBody = {
   horaPreparacion?: string | null;
   deliveryAsignado?: string | null;
   motorizadoId?: number | null;
-  items: { productoId: number; cantidad: number; extraId?: number | null }[];
+  items: {
+    productoId: number;
+    cantidad: number;
+    extraId?: number | null;
+    variadaSelecciones?: number[];
+  }[];
   pagos?: { metodo: string; monto: number }[];
 };
 
@@ -86,6 +91,47 @@ export async function guardarCliente(client: PoolClient, body: VentaBody) {
   );
 }
 
+// Descuenta unidades del inventario de un producto y registra el movimiento
+// asociado a la venta, para poder revertirlo si la venta se edita o elimina.
+async function descontarInventario(
+  client: PoolClient,
+  productoId: number,
+  cantidad: number,
+  ventaId: number
+) {
+  await client.query(
+    `UPDATE productos SET stock_actual = stock_actual - $1 WHERE id = $2`,
+    [cantidad, productoId]
+  );
+  await client.query(
+    `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, venta_id)
+     VALUES ($1, 'VENTA', $2, $3)`,
+    [productoId, -cantidad, ventaId]
+  );
+}
+
+// Revierte los descuentos de inventario aplicados por una venta (usado antes
+// de reeditar o eliminar la venta), restaurando el stock de cada producto.
+export async function revertirInventarioVenta(client: PoolClient, ventaId: number) {
+  const movimientos = await client.query(
+    `SELECT producto_id, cantidad FROM inventario_movimientos
+     WHERE venta_id = $1 AND tipo = 'VENTA'`,
+    [ventaId]
+  );
+
+  for (const mov of movimientos.rows) {
+    await client.query(
+      `UPDATE productos SET stock_actual = stock_actual - $1 WHERE id = $2`,
+      [mov.cantidad, mov.producto_id]
+    );
+  }
+
+  await client.query(
+    `DELETE FROM inventario_movimientos WHERE venta_id = $1 AND tipo = 'VENTA'`,
+    [ventaId]
+  );
+}
+
 export async function insertarItemsYPagos(
   client: PoolClient,
   ventaId: number,
@@ -93,7 +139,7 @@ export async function insertarItemsYPagos(
 ) {
   for (const item of body.items) {
     const productoResult = await client.query(
-      `SELECT costo, precio_venta FROM productos WHERE id = $1`,
+      `SELECT costo, precio_venta, tipo_producto, variada_raciones FROM productos WHERE id = $1`,
       [item.productoId]
     );
 
@@ -106,7 +152,7 @@ export async function insertarItemsYPagos(
       throw new Error("Cantidad inválida");
     }
 
-    const { costo, precio_venta } = productoResult.rows[0];
+    const { costo, precio_venta, tipo_producto, variada_raciones } = productoResult.rows[0];
 
     let extraId: number | null = null;
     let extraNombre: string | null = null;
@@ -132,11 +178,50 @@ export async function insertarItemsYPagos(
 
     const precioUnit = Number(precio_venta) + extraPrecio;
 
-    await client.query(
+    const itemResult = await client.query(
       `INSERT INTO venta_items (venta_id, producto_id, cantidad, costo_unit, precio_unit, extra_id, extra_nombre, extra_precio)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
       [ventaId, item.productoId, cantidadNum, costo, precioUnit, extraId, extraNombre, extraPrecio]
     );
+
+    const ventaItemId = itemResult.rows[0].id;
+
+    if (tipo_producto === "NORMAL") {
+      await descontarInventario(client, item.productoId, cantidadNum, ventaId);
+    } else if (tipo_producto === "COMBO") {
+      const componentesResult = await client.query(
+        `SELECT componente_id, cantidad FROM producto_componentes WHERE producto_id = $1`,
+        [item.productoId]
+      );
+
+      for (const componente of componentesResult.rows) {
+        await descontarInventario(
+          client,
+          componente.componente_id,
+          Number(componente.cantidad) * cantidadNum,
+          ventaId
+        );
+      }
+    } else if (tipo_producto === "VARIADA") {
+      const selecciones = item.variadaSelecciones ?? [];
+      const racionesEsperadas = Number(variada_raciones) || 0;
+
+      if (racionesEsperadas > 0 && selecciones.length !== racionesEsperadas) {
+        throw new Error(
+          `Debes seleccionar ${racionesEsperadas} ración(es) para "Bandeja Variada"`
+        );
+      }
+
+      for (const seleccionId of selecciones) {
+        await descontarInventario(client, Number(seleccionId), cantidadNum, ventaId);
+        await client.query(
+          `INSERT INTO venta_item_variada (venta_item_id, producto_id, cantidad)
+           VALUES ($1, $2, $3)`,
+          [ventaItemId, Number(seleccionId), cantidadNum]
+        );
+      }
+    }
   }
 
   for (const pago of body.pagos ?? []) {

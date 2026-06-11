@@ -16,7 +16,13 @@ import {
 import { formatFecha } from "@/lib/pedidos";
 import TimeInput12h from "@/components/TimeInput12h";
 
-type ItemRow = { productoId: string; productoNombre: string; cantidad: string; extraId: string };
+type ItemRow = {
+  productoId: string;
+  productoNombre: string;
+  cantidad: string;
+  extraId: string;
+  variadaSelecciones: string[];
+};
 type PagoRow = { metodo: MetodoPago | ""; monto: string; montoAuto: boolean };
 
 const today = () => {
@@ -24,7 +30,13 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const EMPTY_ITEM: ItemRow = { productoId: "", productoNombre: "", cantidad: "1", extraId: "" };
+const EMPTY_ITEM: ItemRow = {
+  productoId: "",
+  productoNombre: "",
+  cantidad: "1",
+  extraId: "",
+  variadaSelecciones: [],
+};
 const EMPTY_PAGO: PagoRow = { metodo: "", monto: "", montoAuto: true };
 
 function bsToUsd(montoBs: number, tasa: number) {
@@ -331,6 +343,7 @@ export default function VentasClient() {
         productoNombre: item.nombreProducto,
         cantidad: String(item.cantidad),
         extraId: item.extraId ? String(item.extraId) : "",
+        variadaSelecciones: (item.variadaSelecciones ?? []).map((s) => String(s.productoId)),
       }))
     );
     setPagos(
@@ -385,6 +398,19 @@ export default function VentasClient() {
       return;
     }
 
+    for (const item of validItems) {
+      const producto = productosById.get(Number(item.productoId));
+      if (producto?.tipoProducto === "VARIADA") {
+        const seleccionesValidas = item.variadaSelecciones.filter((s) => s);
+        if (seleccionesValidas.length !== producto.variadaRaciones) {
+          setError(
+            `Selecciona las ${producto.variadaRaciones} raciones de "${producto.nombre}"`
+          );
+          return;
+        }
+      }
+    }
+
     const validPagos = pagos
       .map((p, index) => ({
         metodo: p.metodo,
@@ -418,6 +444,7 @@ export default function VentasClient() {
           productoId: Number(i.productoId),
           cantidad: Number(i.cantidad),
           extraId: i.extraId ? Number(i.extraId) : null,
+          variadaSelecciones: i.variadaSelecciones.filter((s) => s).map(Number),
         })),
         pagos: validPagos,
       };
@@ -732,6 +759,10 @@ export default function VentasClient() {
                         productoNombre: value,
                         productoId: match ? String(match.id) : "",
                         extraId: "",
+                        variadaSelecciones:
+                          match?.tipoProducto === "VARIADA"
+                            ? Array.from({ length: match.variadaRaciones }, () => "")
+                            : [],
                       });
                     }}
                     placeholder="Selecciona o escribe un producto"
@@ -768,6 +799,32 @@ export default function VentasClient() {
                   >
                     X
                   </button>
+                  {producto?.tipoProducto === "VARIADA" && (
+                    <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-2">
+                      <span className="text-xs font-medium text-zinc-600">Raciones:</span>
+                      {item.variadaSelecciones.map((seleccion, racionIndex) => (
+                        <select
+                          key={racionIndex}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
+                          value={seleccion}
+                          onChange={(e) => {
+                            const nuevasSelecciones = [...item.variadaSelecciones];
+                            nuevasSelecciones[racionIndex] = e.target.value;
+                            updateItem(index, { variadaSelecciones: nuevasSelecciones });
+                          }}
+                        >
+                          <option value="">Selecciona ración {racionIndex + 1}</option>
+                          {productos
+                            .filter((p) => p.tipoProducto === "NORMAL")
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.nombre} (stock: {p.stockActual})
+                              </option>
+                            ))}
+                        </select>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}

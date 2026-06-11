@@ -40,6 +40,17 @@ export async function GET() {
       )
     : { rows: [] };
 
+  const variadaResult = ventaIds.length
+    ? await pool.query(
+        `SELECT viv.venta_item_id, viv.producto_id, viv.cantidad, p.nombre AS nombre_producto
+         FROM venta_item_variada viv
+         JOIN venta_items vi ON vi.id = viv.venta_item_id
+         JOIN productos p ON p.id = viv.producto_id
+         WHERE vi.venta_id = ANY($1::int[])`,
+        [ventaIds]
+      )
+    : { rows: [] };
+
   const ventas = ventasResult.rows.map((row) => ({
     id: row.id,
     fecha: row.fecha,
@@ -71,6 +82,13 @@ export async function GET() {
         extraId: item.extra_id,
         extraNombre: item.extra_nombre,
         extraPrecio: Number(item.extra_precio),
+        variadaSelecciones: variadaResult.rows
+          .filter((v) => v.venta_item_id === item.id)
+          .map((v) => ({
+            productoId: v.producto_id,
+            nombreProducto: v.nombre_producto,
+            cantidad: Number(v.cantidad),
+          })),
       })),
     pagos: pagosResult.rows
       .filter((pago) => pago.venta_id === row.id)

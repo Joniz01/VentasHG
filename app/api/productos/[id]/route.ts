@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { TIPOS_PRODUCTO } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  const { nombre, descripcion, costo, precioVenta, activo, categoriaId } = body;
+  const { nombre, descripcion, costo, precioVenta, activo, categoriaId, tipoProducto, variadaRaciones } = body;
 
   const costoNum = Number(costo);
   const precioNum = Number(precioVenta);
@@ -18,14 +19,20 @@ export async function PUT(request: NextRequest, { params }: Params) {
     );
   }
 
+  if (tipoProducto && !TIPOS_PRODUCTO.includes(tipoProducto)) {
+    return NextResponse.json({ error: "Tipo de producto inválido" }, { status: 400 });
+  }
+
   const categoriaIdNum = categoriaId ? Number(categoriaId) : null;
+  const variadaRacionesNum = Number(variadaRaciones) || 0;
 
   const result = await pool.query(
     `UPDATE productos
-     SET nombre = $1, descripcion = $2, costo = $3, precio_venta = $4, activo = $5, categoria_id = $6
-     WHERE id = $7
-     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at`,
-    [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum, id]
+     SET nombre = $1, descripcion = $2, costo = $3, precio_venta = $4, activo = $5, categoria_id = $6,
+         tipo_producto = $7, variada_raciones = $8
+     WHERE id = $9
+     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at, tipo_producto, stock_actual, variada_raciones`,
+    [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum, tipoProducto || "NORMAL", variadaRacionesNum, id]
   );
 
   if (result.rowCount === 0) {
@@ -52,6 +59,15 @@ export async function PUT(request: NextRequest, { params }: Params) {
     [id]
   );
 
+  const componentesResult = await pool.query(
+    `SELECT pc.id, pc.producto_id, pc.componente_id, pc.cantidad, p2.nombre
+     FROM producto_componentes pc
+     JOIN productos p2 ON p2.id = pc.componente_id
+     WHERE pc.producto_id = $1
+     ORDER BY p2.nombre ASC`,
+    [id]
+  );
+
   return NextResponse.json({
     id: row.id,
     nombre: row.nombre,
@@ -61,6 +77,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
     activo: row.activo,
     categoriaId: row.categoria_id,
     categoriaNombre,
+    tipoProducto: row.tipo_producto,
+    stockActual: Number(row.stock_actual),
+    variadaRaciones: row.variada_raciones,
     createdAt: row.created_at,
     extras: extrasResult.rows.map((extra) => ({
       id: extra.id,
@@ -68,6 +87,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
       extraId: extra.extra_id,
       nombre: extra.nombre,
       precioAdicional: Number(extra.precio_adicional),
+    })),
+    componentes: componentesResult.rows.map((componente) => ({
+      id: componente.id,
+      productoId: componente.producto_id,
+      componenteId: componente.componente_id,
+      componenteNombre: componente.nombre,
+      cantidad: Number(componente.cantidad),
     })),
   });
 }

@@ -84,6 +84,36 @@ export type ProductoExtra = {
   precioAdicional: number;
 };
 
+export const TIPOS_PRODUCTO = ["NORMAL", "COMBO", "VARIADA"] as const;
+export type TipoProducto = (typeof TIPOS_PRODUCTO)[number];
+
+export const TIPO_PRODUCTO_LABELS: Record<TipoProducto, string> = {
+  NORMAL: "Normal (con inventario)",
+  COMBO: "Combo / Pack (descuenta componentes)",
+  VARIADA: "Bandeja Variada (raciones a elegir)",
+};
+
+export type ProductoComponente = {
+  id: number;
+  productoId: number;
+  componenteId: number;
+  componenteNombre: string;
+  cantidad: number;
+};
+
+export const TIPOS_MOVIMIENTO_INVENTARIO = ["ENTRADA", "AJUSTE", "VENTA"] as const;
+export type TipoMovimientoInventario = (typeof TIPOS_MOVIMIENTO_INVENTARIO)[number];
+
+export type MovimientoInventario = {
+  id: number;
+  productoId: number;
+  tipo: TipoMovimientoInventario;
+  cantidad: number;
+  nota: string | null;
+  ventaId: number | null;
+  createdAt: string;
+};
+
 export type Producto = {
   id: number;
   nombre: string;
@@ -93,8 +123,12 @@ export type Producto = {
   activo: boolean;
   categoriaId: number | null;
   categoriaNombre: string | null;
+  tipoProducto: TipoProducto;
+  stockActual: number;
+  variadaRaciones: number;
   createdAt: string;
   extras: ProductoExtra[];
+  componentes: ProductoComponente[];
 };
 
 export const METODOS_PAGO = [
@@ -124,6 +158,12 @@ export const MODOS_ENTREGA = ["LOCAL", "DELIVERY"] as const;
 
 export type ModoEntrega = (typeof MODOS_ENTREGA)[number];
 
+export type VariadaSeleccion = {
+  productoId: number;
+  nombreProducto: string;
+  cantidad: number;
+};
+
 export type VentaItem = {
   id: number;
   productoId: number;
@@ -134,6 +174,7 @@ export type VentaItem = {
   extraId: number | null;
   extraNombre: string | null;
   extraPrecio: number;
+  variadaSelecciones?: VariadaSeleccion[];
 };
 
 export type PagoVenta = {
@@ -169,6 +210,7 @@ export type VentaItemInput = {
   productoId: number;
   cantidad: number;
   extraId?: number | null;
+  variadaSelecciones?: number[];
 };
 
 export type PagoVentaInput = {

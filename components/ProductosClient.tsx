@@ -1,8 +1,11 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState, FormEvent } from "react";
-import type { Categoria, Producto } from "@/lib/types";
+import type { Categoria, Producto, TipoProducto } from "@/lib/types";
+import { TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
 import ProductoExtrasPanel from "@/components/ProductoExtrasPanel";
+import ProductoComponentesPanel from "@/components/ProductoComponentesPanel";
+import InventarioPanel from "@/components/InventarioPanel";
 
 const NUEVA_CATEGORIA = "__nueva__";
 
@@ -12,6 +15,8 @@ const EMPTY_FORM = {
   costo: "",
   precioVenta: "",
   categoriaId: "",
+  tipoProducto: "NORMAL" as TipoProducto,
+  variadaRaciones: "3",
 };
 
 export default function ProductosClient() {
@@ -24,7 +29,9 @@ export default function ProductosClient() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedPanel, setExpandedPanel] = useState<"extras" | "componentes" | null>(null);
   const [orden, setOrden] = useState<"nombre" | "categoria">("nombre");
+  const [tab, setTab] = useState<"productos" | "inventario">("productos");
 
   const productosOrdenados = useMemo(() => {
     if (orden === "nombre") return productos;
@@ -71,6 +78,8 @@ export default function ProductosClient() {
       costo: String(producto.costo),
       precioVenta: String(producto.precioVenta),
       categoriaId: producto.categoriaId ? String(producto.categoriaId) : "",
+      tipoProducto: producto.tipoProducto,
+      variadaRaciones: String(producto.variadaRaciones || 3),
     });
     setNuevaCategoriaNombre("");
   }
@@ -119,6 +128,8 @@ export default function ProductosClient() {
         precioVenta: Number(form.precioVenta) || 0,
         activo: true,
         categoriaId: categoriaId || null,
+        tipoProducto: form.tipoProducto,
+        variadaRaciones: form.tipoProducto === "VARIADA" ? Number(form.variadaRaciones) || 0 : 0,
       };
 
       const res = await fetch(
@@ -233,6 +244,34 @@ export default function ProductosClient() {
             placeholder="0.00"
           />
         </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-zinc-700">Tipo de producto</label>
+          <select
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            value={form.tipoProducto}
+            onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}
+          >
+            {TIPOS_PRODUCTO.map((tipo) => (
+              <option key={tipo} value={tipo}>
+                {TIPO_PRODUCTO_LABELS[tipo]}
+              </option>
+            ))}
+          </select>
+        </div>
+        {form.tipoProducto === "VARIADA" && (
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">Raciones a elegir</label>
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              type="number"
+              step="1"
+              min="1"
+              value={form.variadaRaciones}
+              onChange={(e) => setForm({ ...form, variadaRaciones: e.target.value })}
+              placeholder="3"
+            />
+          </div>
+        )}
         <div className="flex items-end gap-2 lg:col-span-5">
           <button
             type="submit"
@@ -259,102 +298,160 @@ export default function ProductosClient() {
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-zinc-700">Ordenar por</label>
-        <select
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          value={orden}
-          onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
+      <div className="flex gap-2 border-b border-zinc-200">
+        <button
+          type="button"
+          onClick={() => setTab("productos")}
+          className={`border-b-2 px-3 py-2 text-sm font-medium ${
+            tab === "productos"
+              ? "border-zinc-900 text-zinc-900"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
         >
-          <option value="nombre">Nombre</option>
-          <option value="categoria">Categoría</option>
-        </select>
+          Productos
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("inventario")}
+          className={`border-b-2 px-3 py-2 text-sm font-medium ${
+            tab === "inventario"
+              ? "border-zinc-900 text-zinc-900"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Inventario
+        </button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-        <table className="min-w-full divide-y divide-zinc-200 text-sm">
-          <thead className="bg-zinc-50">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Nombre</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Descripción</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Costo</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Precio venta</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Margen</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Extras</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {loading && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
-                  Cargando...
-                </td>
-              </tr>
-            )}
-            {!loading && productos.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
-                  No hay productos registrados
-                </td>
-              </tr>
-            )}
-            {productosOrdenados.map((producto) => (
-              <Fragment key={producto.id}>
+      {tab === "inventario" ? (
+        <InventarioPanel productos={productos} />
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-zinc-700">Ordenar por</label>
+            <select
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={orden}
+              onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
+            >
+              <option value="nombre">Nombre</option>
+              <option value="categoria">Categoría</option>
+            </select>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+            <table className="min-w-full divide-y divide-zinc-200 text-sm">
+              <thead className="bg-zinc-50">
                 <tr>
-                  <td className="px-4 py-2 font-medium">{producto.nombre}</td>
-                  <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
-                  <td className="px-4 py-2 text-zinc-600">{producto.descripcion}</td>
-                  <td className="px-4 py-2 text-right">{producto.costo.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right">{producto.precioVenta.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right">
-                    {(producto.precioVenta - producto.costo).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-zinc-600">
-                    {producto.extras.length === 0
-                      ? "-"
-                      : producto.extras
-                          .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
-                          .join(", ")}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() =>
-                          setExpandedId(expandedId === producto.id ? null : producto.id)
-                        }
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                      >
-                        Extras
-                      </button>
-                      <button
-                        onClick={() => startEdit(producto)}
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDelete(producto.id)}
-                        className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Nombre</th>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Tipo</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Costo</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Precio venta</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Margen</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Stock</th>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Extras</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
                 </tr>
-                {expandedId === producto.id && (
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {loading && (
                   <tr>
-                    <td colSpan={8} className="bg-zinc-50 px-4 py-3">
-                      <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
+                    <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
+                      Cargando...
                     </td>
                   </tr>
                 )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                {!loading && productos.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
+                      No hay productos registrados
+                    </td>
+                  </tr>
+                )}
+                {productosOrdenados.map((producto) => (
+                  <Fragment key={producto.id}>
+                    <tr>
+                      <td className="px-4 py-2 font-medium">{producto.nombre}</td>
+                      <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
+                      <td className="px-4 py-2 text-zinc-600">{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
+                      <td className="px-4 py-2 text-right">{producto.costo.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right">{producto.precioVenta.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right">
+                        {(producto.precioVenta - producto.costo).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {producto.tipoProducto === "NORMAL" ? producto.stockActual : "-"}
+                      </td>
+                      <td className="px-4 py-2 text-zinc-600">
+                        {producto.extras.length === 0
+                          ? "-"
+                          : producto.extras
+                              .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
+                              .join(", ")}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setExpandedId(expandedId === producto.id && expandedPanel === "extras" ? null : producto.id);
+                              setExpandedPanel("extras");
+                            }}
+                            className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                          >
+                            Extras
+                          </button>
+                          {producto.tipoProducto === "COMBO" && (
+                            <button
+                              onClick={() => {
+                                setExpandedId(expandedId === producto.id && expandedPanel === "componentes" ? null : producto.id);
+                                setExpandedPanel("componentes");
+                              }}
+                              className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                            >
+                              Componentes
+                            </button>
+                          )}
+                          <button
+                            onClick={() => startEdit(producto)}
+                            className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(producto.id)}
+                            className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedId === producto.id && expandedPanel === "extras" && (
+                      <tr>
+                        <td colSpan={9} className="bg-zinc-50 px-4 py-3">
+                          <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
+                        </td>
+                      </tr>
+                    )}
+                    {expandedId === producto.id && expandedPanel === "componentes" && (
+                      <tr>
+                        <td colSpan={9} className="bg-zinc-50 px-4 py-3">
+                          <ProductoComponentesPanel
+                            producto={producto}
+                            productos={productos}
+                            onChange={loadProductos}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

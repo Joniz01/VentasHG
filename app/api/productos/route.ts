@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { TIPOS_PRODUCTO } from "@/lib/types";
 
 export async function GET() {
   const result = await pool.query(
     `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
-            p.categoria_id, c.nombre AS categoria_nombre
+            p.categoria_id, c.nombre AS categoria_nombre,
+            p.tipo_producto, p.stock_actual, p.variada_raciones
      FROM productos p
      LEFT JOIN categorias c ON c.id = p.categoria_id
      ORDER BY p.nombre ASC`
@@ -23,6 +25,17 @@ export async function GET() {
       )
     : { rows: [] };
 
+  const componentesResult = productoIds.length
+    ? await pool.query(
+        `SELECT pc.id, pc.producto_id, pc.componente_id, pc.cantidad, p2.nombre
+         FROM producto_componentes pc
+         JOIN productos p2 ON p2.id = pc.componente_id
+         WHERE pc.producto_id = ANY($1::int[])
+         ORDER BY p2.nombre ASC`,
+        [productoIds]
+      )
+    : { rows: [] };
+
   const productos = result.rows.map((row) => ({
     id: row.id,
     nombre: row.nombre,
@@ -32,6 +45,9 @@ export async function GET() {
     activo: row.activo,
     categoriaId: row.categoria_id,
     categoriaNombre: row.categoria_nombre,
+    tipoProducto: row.tipo_producto,
+    stockActual: Number(row.stock_actual),
+    variadaRaciones: row.variada_raciones,
     createdAt: row.created_at,
     extras: extrasResult.rows
       .filter((extra) => extra.producto_id === row.id)
@@ -42,6 +58,15 @@ export async function GET() {
         nombre: extra.nombre,
         precioAdicional: Number(extra.precio_adicional),
       })),
+    componentes: componentesResult.rows
+      .filter((componente) => componente.producto_id === row.id)
+      .map((componente) => ({
+        id: componente.id,
+        productoId: componente.producto_id,
+        componenteId: componente.componente_id,
+        componenteNombre: componente.nombre,
+        cantidad: Number(componente.cantidad),
+      })),
   }));
 
   return NextResponse.json(productos);
@@ -49,7 +74,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { nombre, descripcion, costo, precioVenta, categoriaId } = body;
+  const { nombre, descripcion, costo, precioVenta, categoriaId, tipoProducto, variadaRaciones } = body;
 
   if (!nombre || typeof nombre !== "string") {
     return NextResponse.json(
@@ -68,13 +93,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (tipoProducto && !TIPOS_PRODUCTO.includes(tipoProducto)) {
+    return NextResponse.json({ error: "Tipo de producto inválido" }, { status: 400 });
+  }
+
   const categoriaIdNum = categoriaId ? Number(categoriaId) : null;
+  const variadaRacionesNum = Number(variadaRaciones) || 0;
 
   const result = await pool.query(
-    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at`,
-    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum]
+    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id, tipo_producto, variada_raciones)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at, tipo_producto, stock_actual, variada_raciones`,
+    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum, tipoProducto || "NORMAL", variadaRacionesNum]
   );
 
   const row = result.rows[0];
@@ -98,8 +128,12 @@ export async function POST(request: NextRequest) {
       activo: row.activo,
       categoriaId: row.categoria_id,
       categoriaNombre,
+      tipoProducto: row.tipo_producto,
+      stockActual: Number(row.stock_actual),
+      variadaRaciones: row.variada_raciones,
       createdAt: row.created_at,
       extras: [],
+      componentes: [],
     },
     { status: 201 }
   );

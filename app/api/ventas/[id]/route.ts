@@ -4,6 +4,7 @@ import {
   guardarCliente,
   insertarItemsYPagos,
   resolveDeliveryAsignado,
+  revertirInventarioVenta,
   validarVenta,
   type VentaBody,
 } from "@/lib/ventas";
@@ -59,6 +60,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
       throw new Error("Venta no encontrada");
     }
 
+    await revertirInventarioVenta(client, Number(id));
+
     await client.query(`DELETE FROM venta_items WHERE venta_id = $1`, [id]);
     await client.query(`DELETE FROM pagos_venta WHERE venta_id = $1`, [id]);
 
@@ -81,11 +84,28 @@ export async function PUT(request: NextRequest, { params }: Params) {
 export async function DELETE(_request: NextRequest, { params }: Params) {
   const { id } = await params;
 
-  const result = await pool.query(`DELETE FROM ventas WHERE id = $1`, [id]);
+  const client = await pool.connect();
 
-  if (result.rowCount === 0) {
-    return NextResponse.json({ error: "Venta no encontrada" }, { status: 404 });
+  try {
+    await client.query("BEGIN");
+
+    await revertirInventarioVenta(client, Number(id));
+
+    const result = await client.query(`DELETE FROM ventas WHERE id = $1`, [id]);
+
+    if (result.rowCount === 0) {
+      throw new Error("Venta no encontrada");
+    }
+
+    await client.query("COMMIT");
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    const message = err instanceof Error ? err.message : "Error al eliminar la venta";
+    const status = message === "Venta no encontrada" ? 404 : 400;
+    return NextResponse.json({ error: message }, { status });
+  } finally {
+    client.release();
   }
-
-  return NextResponse.json({ ok: true });
 }

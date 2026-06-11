@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
+import { TIPOS_MOVIMIENTO_INVENTARIO } from "@/lib/types";
+
+type Params = { params: Promise<{ id: string }> };
+
+export async function GET(_request: NextRequest, { params }: Params) {
+  const { id } = await params;
+
+  const result = await pool.query(
+    `SELECT id, producto_id, tipo, cantidad, nota, venta_id, created_at
+     FROM inventario_movimientos
+     WHERE producto_id = $1
+     ORDER BY created_at DESC, id DESC`,
+    [id]
+  );
+
+  return NextResponse.json(
+    result.rows.map((row) => ({
+      id: row.id,
+      productoId: row.producto_id,
+      tipo: row.tipo,
+      cantidad: Number(row.cantidad),
+      nota: row.nota,
+      ventaId: row.venta_id,
+      createdAt: row.created_at,
+    }))
+  );
+}
+
+export async function POST(request: NextRequest, { params }: Params) {
+  const { id } = await params;
+  const body = await request.json();
+  const { tipo, cantidad, nota } = body;
+
+  if (!TIPOS_MOVIMIENTO_INVENTARIO.includes(tipo) || tipo === "VENTA") {
+    return NextResponse.json({ error: "Tipo de movimiento inválido" }, { status: 400 });
+  }
+
+  const cantidadNum = Number(cantidad);
+  if (Number.isNaN(cantidadNum) || cantidadNum === 0) {
+    return NextResponse.json({ error: "La cantidad debe ser numérica y distinta de 0" }, { status: 400 });
+  }
+
+  if (tipo === "ENTRADA" && cantidadNum <= 0) {
+    return NextResponse.json({ error: "La cantidad de una entrada debe ser mayor a 0" }, { status: 400 });
+  }
+
+  const notaTexto = typeof nota === "string" ? nota.trim() : "";
+  if (tipo === "AJUSTE" && !notaTexto) {
+    return NextResponse.json({ error: "Debes indicar el motivo del ajuste" }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const productoResult = await client.query(
+      `SELECT id, stock_actual FROM productos WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+
+    if (productoResult.rowCount === 0) {
+      throw new Error("Producto no encontrado");
+    }
+
+    const stockActual = Number(productoResult.rows[0].stock_actual);
+    const nuevoStock = stockActual + cantidadNum;
+
+    if (nuevoStock < 0) {
+      throw new Error("El ajuste dejaría el inventario en negativo");
+    }
+
+    await client.query(`UPDATE productos SET stock_actual = $1 WHERE id = $2`, [nuevoStock, id]);
+
+    const movimientoResult = await client.query(
+      `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, producto_id, tipo, cantidad, nota, venta_id, created_at`,
+      [id, tipo, cantidadNum, notaTexto || null]
+    );
+
+    await client.query("COMMIT");
+
+    const row = movimientoResult.rows[0];
+
+    return NextResponse.json(
+      {
+        id: row.id,
+        productoId: row.producto_id,
+        tipo: row.tipo,
+        cantidad: Number(row.cantidad),
+        nota: row.nota,
+        ventaId: row.venta_id,
+        createdAt: row.created_at,
+        stockActual: nuevoStock,
+      },
+      { status: 201 }
+    );
+  } catch (err) {
+    await client.query("ROLLBACK");
+    const message = err instanceof Error ? err.message : "Error al registrar el movimiento";
+    const status = message === "Producto no encontrado" ? 404 : 400;
+    return NextResponse.json({ error: message }, { status });
+  } finally {
+    client.release();
+  }
+}
