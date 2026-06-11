@@ -13,6 +13,7 @@ export type Cliente = {
 export type ExtraCatalogo = {
   id: number;
   nombre: string;
+  precios: number[];
 };
 
 export type ProductoExtra = {

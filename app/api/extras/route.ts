@@ -3,11 +3,25 @@ import { pool } from "@/lib/db";
 
 export async function GET() {
   const result = await pool.query(
-    `SELECT id, nombre FROM extras_catalogo ORDER BY nombre ASC`
+    `SELECT ec.id, ec.nombre,
+            COALESCE(
+              json_agg(DISTINCT pe.precio_adicional) FILTER (WHERE pe.precio_adicional IS NOT NULL),
+              '[]'
+            ) AS precios
+     FROM extras_catalogo ec
+     LEFT JOIN producto_extras pe ON pe.extra_id = ec.id
+     GROUP BY ec.id, ec.nombre
+     ORDER BY ec.nombre ASC`
   );
 
   return NextResponse.json(
-    result.rows.map((row) => ({ id: row.id, nombre: row.nombre }))
+    result.rows.map((row) => ({
+      id: row.id,
+      nombre: row.nombre,
+      precios: (row.precios as (string | number)[])
+        .map(Number)
+        .sort((a, b) => a - b),
+    }))
   );
 }
 

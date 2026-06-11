@@ -36,6 +36,23 @@ export default function ProductoExtrasPanel({
   const asignadosIds = new Set(producto.extras.map((extra) => extra.extraId));
   const disponibles = catalogo.filter((extra) => !asignadosIds.has(extra.id));
 
+  type Opcion = { value: string; label: string; extraId: number; precio: string };
+  const opciones: Opcion[] = disponibles.flatMap((extra) => {
+    const base: Opcion = {
+      value: `${extra.id}:`,
+      label: extra.nombre,
+      extraId: extra.id,
+      precio: "",
+    };
+    const variantes: Opcion[] = extra.precios.map((precio) => ({
+      value: `${extra.id}:${precio}`,
+      label: `${extra.nombre} (+$${precio.toFixed(2)})`,
+      extraId: extra.id,
+      precio: String(precio),
+    }));
+    return [base, ...variantes];
+  });
+
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -196,13 +213,17 @@ export default function ProductoExtrasPanel({
           <label className="text-xs font-medium text-zinc-600">Extra del catálogo</label>
           <select
             className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
-            value={extraId}
-            onChange={(e) => setExtraId(e.target.value)}
+            value={extraId ? `${extraId}:${precioAdicional}` : ""}
+            onChange={(e) => {
+              const opcion = opciones.find((o) => o.value === e.target.value);
+              setExtraId(opcion ? String(opcion.extraId) : "");
+              setPrecioAdicional(opcion?.precio ?? "");
+            }}
           >
             <option value="">Selecciona un extra</option>
-            {disponibles.map((extra) => (
-              <option key={extra.id} value={extra.id}>
-                {extra.nombre}
+            {opciones.map((opcion) => (
+              <option key={opcion.value} value={opcion.value}>
+                {opcion.label}
               </option>
             ))}
           </select>
