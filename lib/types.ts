@@ -122,3 +122,34 @@ export type VentaInput = {
   items: VentaItemInput[];
   pagos: PagoVentaInput[];
 };
+
+export type ReporteFormaPago = {
+  metodo: MetodoPago;
+  totalUsd: number;
+  totalBs: number;
+};
+
+export type ReporteCliente = {
+  cliente: string;
+  clienteCi: string | null;
+  cantidadVentas: number;
+  totalUsd: number;
+};
+
+export type ReporteProducto = {
+  productoId: number;
+  nombre: string;
+  cantidad: number;
+  totalUsd: number;
+  margenUsd: number;
+};
+
+export type ReporteVentas = {
+  desde: string;
+  hasta: string;
+  totalVentasUsd: number;
+  cantidadVentas: number;
+  porFormaPago: ReporteFormaPago[];
+  porCliente: ReporteCliente[];
+  porProducto: ReporteProducto[];
+};
