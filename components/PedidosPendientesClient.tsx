@@ -203,42 +203,43 @@ export default function PedidosPendientesClient() {
               <h3 className="text-base font-semibold">
                 Pedido #{pedido.id} — {pedido.cliente}
               </h3>
-              <span className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold uppercase">
-                {ESTADO_LABELS[estado]}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-zinc-700">
+                  <span className="font-medium">Hora de entrega: </span>
+                  {formatHora(pedido.horaEntrega)}
+                </span>
+                <span className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold uppercase">
+                  {ESTADO_LABELS[estado]}
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-1 text-sm text-zinc-700 sm:grid-cols-2">
               <div>
+                <span className="font-medium">Frito o Congelado: </span>
+                {pedido.fritoCongelado}
+              </div>
+              <div>
                 <span className="font-medium">Dirección: </span>
                 {pedido.direccion ?? "-"}
+              </div>
+              <div>
+                <span className="font-medium">Productos: </span>
+                {pedido.items
+                  .map(
+                    (item) =>
+                      `${item.nombreProducto}${item.extraNombre ? ` (${item.extraNombre})` : ""} x${item.cantidad}`
+                  )
+                  .join(", ")}
               </div>
               <div>
                 <span className="font-medium">Delivery asignado: </span>
                 {pedido.deliveryAsignado ?? "-"}
               </div>
               <div>
-                <span className="font-medium">Frito o Congelado: </span>
-                {pedido.fritoCongelado}
-              </div>
-              <div>
                 <span className="font-medium">Hora de preparación: </span>
                 {formatHora(pedido.horaPreparacion)}
               </div>
-              <div>
-                <span className="font-medium">Hora de entrega: </span>
-                {formatHora(pedido.horaEntrega)}
-              </div>
-            </div>
-
-            <div className="text-sm text-zinc-700">
-              <span className="font-medium">Productos: </span>
-              {pedido.items
-                .map(
-                  (item) =>
-                    `${item.nombreProducto}${item.extraNombre ? ` (${item.extraNombre})` : ""} x${item.cantidad}`
-                )
-                .join(", ")}
             </div>
 
             {estado === "PREPARAR" && (
@@ -304,42 +305,43 @@ export default function PedidosPendientesClient() {
                     <h3 className="text-base font-semibold">
                       Pedido #{pedido.id} — {pedido.cliente}
                     </h3>
-                    <span className="rounded-md border border-green-400 bg-white px-2 py-1 text-xs font-semibold uppercase text-green-800">
-                      Entregado
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-zinc-700">
+                        <span className="font-medium">Hora de entrega: </span>
+                        {formatHora(pedido.horaEntrega)}
+                      </span>
+                      <span className="rounded-md border border-green-400 bg-white px-2 py-1 text-xs font-semibold uppercase text-green-800">
+                        Entregado
+                      </span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-1 text-sm text-zinc-700 sm:grid-cols-2">
                     <div>
+                      <span className="font-medium">Frito o Congelado: </span>
+                      {pedido.fritoCongelado}
+                    </div>
+                    <div>
                       <span className="font-medium">Dirección: </span>
                       {pedido.direccion ?? "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Productos: </span>
+                      {pedido.items
+                        .map(
+                          (item) =>
+                            `${item.nombreProducto}${item.extraNombre ? ` (${item.extraNombre})` : ""} x${item.cantidad}`
+                        )
+                        .join(", ")}
                     </div>
                     <div>
                       <span className="font-medium">Delivery asignado: </span>
                       {pedido.deliveryAsignado ?? "-"}
                     </div>
                     <div>
-                      <span className="font-medium">Frito o Congelado: </span>
-                      {pedido.fritoCongelado}
-                    </div>
-                    <div>
                       <span className="font-medium">Hora de preparación: </span>
                       {formatHora(pedido.horaPreparacion)}
                     </div>
-                    <div>
-                      <span className="font-medium">Hora de entrega: </span>
-                      {formatHora(pedido.horaEntrega)}
-                    </div>
-                  </div>
-
-                  <div className="text-sm text-zinc-700">
-                    <span className="font-medium">Productos: </span>
-                    {pedido.items
-                      .map(
-                        (item) =>
-                          `${item.nombreProducto}${item.extraNombre ? ` (${item.extraNombre})` : ""} x${item.cantidad}`
-                      )
-                      .join(", ")}
                   </div>
                 </div>
               ))}
