@@ -13,6 +13,7 @@ import {
   type Producto,
   type Venta,
 } from "@/lib/types";
+import { formatFecha } from "@/lib/pedidos";
 
 type ItemRow = { productoId: string; productoNombre: string; cantidad: string; extraId: string };
 type PagoRow = { metodo: MetodoPago | ""; monto: string; montoAuto: boolean };
@@ -495,7 +496,7 @@ export default function VentasClient() {
             </div>
             {tasaBcvFecha && (
               <span className="text-xs text-zinc-500">
-                BCV: {new Date(tasaBcvFecha).toLocaleDateString("es-VE")}
+                BCV: {formatFecha(tasaBcvFecha)}
               </span>
             )}
             {tasaBcvError && (
@@ -957,7 +958,7 @@ export default function VentasClient() {
                 <tr key={venta.id}>
                   <td className="px-4 py-2 whitespace-nowrap font-medium">#{venta.id}</td>
                   <td className="px-4 py-2 whitespace-nowrap">
-                    {new Date(venta.fecha).toLocaleDateString("es-VE")}
+                    {formatFecha(venta.fecha)}
                   </td>
                   <td className="px-4 py-2 font-medium whitespace-nowrap">{venta.cliente}</td>
                   <td className="px-4 py-2 text-zinc-600">

@@ -36,3 +36,11 @@ export function formatHora(iso: string): string {
   const date = new Date(iso);
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+// Las fechas (sin hora) llegan como "YYYY-MM-DD" o "YYYY-MM-DDT00:00:00.000Z".
+// Se formatean a partir del string para evitar que la conversión a la
+// zona horaria local desplace el día (ej: medianoche UTC -> día anterior).
+export function formatFecha(fecha: string): string {
+  const [year, month, day] = fecha.slice(0, 10).split("-");
+  return `${day}/${month}/${year}`;
+}

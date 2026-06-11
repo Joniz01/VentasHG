@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import type { ReporteDeliveryMotorizado } from "@/lib/types";
+import { formatFecha } from "@/lib/pedidos";
 
 const MAX_DIAS_ATRAS = 21;
 
@@ -160,7 +161,7 @@ export default function DeliveryReporteClient() {
                   <tr key={item.ventaId}>
                     <td className="px-4 py-2 whitespace-nowrap font-medium">#{item.ventaId}</td>
                     <td className="px-4 py-2 whitespace-nowrap">
-                      {new Date(item.fecha).toLocaleDateString("es-VE")}
+                      {formatFecha(item.fecha)}
                     </td>
                     <td className="px-4 py-2 font-medium whitespace-nowrap">{item.cliente}</td>
                     <td className="px-4 py-2 text-right whitespace-nowrap">
