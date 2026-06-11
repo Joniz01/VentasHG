@@ -3,6 +3,13 @@ export type Categoria = {
   nombre: string;
 };
 
+export type Cliente = {
+  id: number;
+  nombre: string;
+  cedula: string | null;
+  direccion: string | null;
+};
+
 export type ExtraCatalogo = {
   id: number;
   nombre: string;

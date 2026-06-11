@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { insertarItemsYPagos, validarVenta, type VentaBody } from "@/lib/ventas";
+import { guardarCliente, insertarItemsYPagos, validarVenta, type VentaBody } from "@/lib/ventas";
 
 export async function GET() {
   const ventasResult = await pool.query(
@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
 
     const ventaId = ventaResult.rows[0].id;
 
+    await guardarCliente(client, body);
     await insertarItemsYPagos(client, ventaId, body);
 
     await client.query("COMMIT");

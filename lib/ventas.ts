@@ -41,6 +41,23 @@ export function validarVenta(body: VentaBody): string | null {
   return null;
 }
 
+// Guarda/actualiza el cliente en el catálogo a partir de los datos de la
+// venta, para poder reutilizarlo en ventas futuras sin duplicar registros.
+// Si la cédula ya existe, actualiza el nombre y la dirección del cliente.
+export async function guardarCliente(client: PoolClient, body: VentaBody) {
+  const cedula = body.clienteCi?.trim() || null;
+  if (!cedula) return;
+
+  await client.query(
+    `INSERT INTO clientes (nombre, cedula, direccion)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (cedula) DO UPDATE
+       SET nombre = EXCLUDED.nombre,
+           direccion = COALESCE(EXCLUDED.direccion, clientes.direccion)`,
+    [body.cliente.trim(), cedula, body.direccion?.trim() || null]
+  );
+}
+
 export async function insertarItemsYPagos(
   client: PoolClient,
   ventaId: number,

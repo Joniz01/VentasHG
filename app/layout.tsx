@@ -30,12 +30,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
         <header className="border-b border-zinc-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-4">
+          <div className="mx-auto max-w-[1400px] px-4 py-4">
             <h1 className="text-xl font-semibold">VentasHG</h1>
             <NavTabs />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6">
           {children}
         </main>
       </body>

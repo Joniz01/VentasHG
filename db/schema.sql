@@ -1,5 +1,17 @@
 -- Esquema de base de datos para VentasHG
 
+-- Catálogo de clientes para reutilizar datos entre ventas
+CREATE TABLE IF NOT EXISTS clientes (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  cedula TEXT UNIQUE,
+  direccion TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_clientes_nombre ON clientes (lower(nombre) text_pattern_ops);
+CREATE INDEX IF NOT EXISTS idx_clientes_cedula ON clientes (lower(cedula) text_pattern_ops);
+
 -- Categorías preconfiguradas de productos
 CREATE TABLE IF NOT EXISTS categorias (
   id SERIAL PRIMARY KEY,

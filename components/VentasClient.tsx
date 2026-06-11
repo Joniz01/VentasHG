@@ -8,6 +8,7 @@ import {
   MODOS_ENTREGA,
   type MetodoPago,
   type ModoEntrega,
+  type Cliente,
   type Producto,
   type Venta,
 } from "@/lib/types";
@@ -51,6 +52,10 @@ export default function VentasClient() {
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
   const [consultandoTasa, setConsultandoTasa] = useState(false);
 
+  const [clientesResultados, setClientesResultados] = useState<Cliente[]>([]);
+  const [buscandoClientes, setBuscandoClientes] = useState(false);
+  const [mostrarResultados, setMostrarResultados] = useState(false);
+
   async function loadData() {
     try {
       const [productosRes, ventasRes] = await Promise.all([
@@ -71,6 +76,50 @@ export default function VentasClient() {
     loadData();
     handleConsultarTasaBcv();
   }, []);
+
+  async function buscarClientes(q: string) {
+    const query = q.trim();
+    if (query.length < 4) {
+      setClientesResultados([]);
+      setMostrarResultados(false);
+      return;
+    }
+
+    setBuscandoClientes(true);
+    try {
+      const res = await fetch(`/api/clientes?q=${encodeURIComponent(query)}`);
+      const data = (await res.json()) as Cliente[];
+      setClientesResultados(data);
+      setMostrarResultados(true);
+    } catch {
+      setClientesResultados([]);
+    } finally {
+      setBuscandoClientes(false);
+    }
+  }
+
+  useEffect(() => {
+    const query = cliente.trim() || clienteCi.trim();
+    if (query.length < 4) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      buscarClientes(query);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [cliente, clienteCi]);
+
+  const puedeMostrarResultados =
+    mostrarResultados && (cliente.trim().length >= 4 || clienteCi.trim().length >= 4);
+
+  function seleccionarCliente(c: Cliente) {
+    setCliente(c.nombre);
+    setClienteCi(c.cedula ?? "");
+    setDireccion(c.direccion ?? "");
+    setMostrarResultados(false);
+  }
 
   const productosById = useMemo(() => {
     const map = new Map<number, Producto>();
@@ -373,15 +422,46 @@ export default function VentasClient() {
               <span className="text-xs text-red-600">{tasaBcvError}</span>
             )}
           </div>
-          <div className="flex flex-col gap-1 sm:col-span-2">
+          <div className="relative flex flex-col gap-1 sm:col-span-2">
             <label className="text-sm font-medium text-zinc-700">Cliente</label>
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              placeholder="Nombre del cliente"
-              required
-            />
+            <div className="flex gap-1">
+              <input
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
+                onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)}
+                placeholder="Nombre del cliente"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => buscarClientes(cliente || clienteCi)}
+                disabled={buscandoClientes}
+                title="Buscar cliente"
+                className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
+              >
+                {buscandoClientes ? "..." : "Buscar"}
+              </button>
+            </div>
+            {puedeMostrarResultados && clientesResultados.length > 0 && (
+              <ul className="absolute top-full left-0 z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg">
+                {clientesResultados.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => seleccionarCliente(c)}
+                      className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-zinc-100"
+                    >
+                      <span className="font-medium">{c.nombre}</span>
+                      <span className="text-xs text-zinc-500">
+                        {c.cedula ?? "Sin C.I/ID"}
+                        {c.direccion ? ` · ${c.direccion}` : ""}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">C.I/ID</label>
@@ -677,7 +757,7 @@ export default function VentasClient() {
                   <td className="px-4 py-2 whitespace-nowrap">
                     {new Date(venta.fecha).toLocaleDateString("es-VE")}
                   </td>
-                  <td className="px-4 py-2 font-medium">{venta.cliente}</td>
+                  <td className="px-4 py-2 font-medium whitespace-nowrap">{venta.cliente}</td>
                   <td className="px-4 py-2 text-zinc-600">
                     {venta.items
                       .map(
@@ -691,11 +771,11 @@ export default function VentasClient() {
                       .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${p.monto.toFixed(2)}`)
                       .join(", ") || "-"}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
                     {usdToBs(ventaTotalUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
                     <span className="text-zinc-500">(${ventaTotalUsd.toFixed(2)})</span>
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
                     {costoDeliveryUsd > 0 ? (
                       <>
                         {usdToBs(costoDeliveryUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
@@ -705,7 +785,7 @@ export default function VentasClient() {
                       "-"
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
                     {totalPagadoEnBs.toFixed(2)} Bs{" "}
                     <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
                   </td>

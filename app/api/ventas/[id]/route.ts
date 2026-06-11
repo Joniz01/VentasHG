@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { insertarItemsYPagos, validarVenta, type VentaBody } from "@/lib/ventas";
+import { guardarCliente, insertarItemsYPagos, validarVenta, type VentaBody } from "@/lib/ventas";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -45,6 +45,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     await client.query(`DELETE FROM venta_items WHERE venta_id = $1`, [id]);
     await client.query(`DELETE FROM pagos_venta WHERE venta_id = $1`, [id]);
 
+    await guardarCliente(client, body);
     await insertarItemsYPagos(client, Number(id), body);
 
     await client.query("COMMIT");
