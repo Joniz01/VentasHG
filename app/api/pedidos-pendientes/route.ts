@@ -3,10 +3,11 @@ import { pool } from "@/lib/db";
 
 export async function GET() {
   const ventasResult = await pool.query(
-    `SELECT id, cliente, direccion, delivery_asignado, hora_entrega, hora_preparacion
+    `SELECT id, cliente, direccion, delivery_asignado, hora_entrega, hora_preparacion, pedido_entregado
      FROM ventas
-     WHERE despacho_pendiente = TRUE AND pedido_entregado = FALSE
-     ORDER BY hora_entrega ASC NULLS LAST, id ASC`
+     WHERE despacho_pendiente = TRUE
+       AND (pedido_entregado = FALSE OR fecha = CURRENT_DATE)
+     ORDER BY pedido_entregado ASC, hora_entrega ASC NULLS LAST, id ASC`
   );
 
   const ventaIds = ventasResult.rows.map((row) => row.id);
@@ -46,6 +47,7 @@ export async function GET() {
       deliveryAsignado: row.delivery_asignado,
       horaEntrega: row.hora_entrega,
       horaPreparacion: row.hora_preparacion,
+      pedidoEntregado: row.pedido_entregado,
       fritoCongelado,
       items,
     };

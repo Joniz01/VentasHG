@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PedidoPendiente } from "@/lib/types";
+import type { AlarmasConfig, PedidoPendiente } from "@/lib/types";
+import { ALARMAS_CONFIG_DEFAULT } from "@/lib/types";
+import { reproducirAlarma } from "@/lib/alarmas";
 
 type Estado = "PENDIENTE" | "PREPARAR" | "ENTREGAR";
 
@@ -11,9 +13,6 @@ type AlarmaInfo = {
   entregaAck: boolean;
   entregaProximoBeep: number | null;
 };
-
-const REPETIR_MS = 30_000;
-const SILENCIAR_MS = 5 * 60_000;
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -30,33 +29,6 @@ function computeEstado(now: number, horaPreparacion: string, horaEntrega: string
   if (now >= entrega) return "ENTREGAR";
   if (now >= prep) return "PREPARAR";
   return "PENDIENTE";
-}
-
-function playAlarma() {
-  try {
-    type WindowWithWebkitAudio = typeof window & { webkitAudioContext?: typeof AudioContext };
-    const win = window as WindowWithWebkitAudio;
-    const AudioContextClass = win.AudioContext ?? win.webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-
-    for (let i = 0; i < 3; i++) {
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.value = 880;
-      gain.gain.value = 0.3;
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-      const startTime = ctx.currentTime + i * 0.4;
-      oscillator.start(startTime);
-      oscillator.stop(startTime + 0.25);
-    }
-
-    setTimeout(() => ctx.close(), 1500);
-  } catch {
-    // El navegador no soporta Web Audio API
-  }
 }
 
 const ESTADO_LABELS: Record<Estado, string> = {
@@ -76,20 +48,35 @@ export default function PedidosPendientesClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(0);
+  const [mostrarEntregados, setMostrarEntregados] = useState(false);
 
   const alarmas = useRef<Map<number, AlarmaInfo>>(new Map());
+  const alarmasConfig = useRef<AlarmasConfig>(ALARMAS_CONFIG_DEFAULT);
+
+  async function loadAlarmasConfig() {
+    try {
+      const res = await fetch("/api/alarmas-config");
+      if (res.ok) {
+        alarmasConfig.current = (await res.json()) as AlarmasConfig;
+      }
+    } catch {
+      // Usar configuración por defecto si falla
+    }
+  }
 
   async function loadPedidos() {
     try {
       const res = await fetch("/api/pedidos-pendientes");
       const data = (await res.json()) as PedidoPendiente[];
 
-      const idsActuales = new Set(data.map((p) => p.id));
+      const idsPendientes = new Set(
+        data.filter((p) => !p.pedidoEntregado).map((p) => p.id)
+      );
       for (const id of alarmas.current.keys()) {
-        if (!idsActuales.has(id)) alarmas.current.delete(id);
+        if (!idsPendientes.has(id)) alarmas.current.delete(id);
       }
       for (const pedido of data) {
-        if (!alarmas.current.has(pedido.id)) {
+        if (!pedido.pedidoEntregado && !alarmas.current.has(pedido.id)) {
           alarmas.current.set(pedido.id, {
             prepAck: false,
             prepProximoBeep: null,
@@ -108,6 +95,7 @@ export default function PedidosPendientesClient() {
   }
 
   useEffect(() => {
+    loadAlarmasConfig();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPedidos();
     const fetchInterval = setInterval(loadPedidos, 30_000);
@@ -117,31 +105,31 @@ export default function PedidosPendientesClient() {
   useEffect(() => {
     const tickInterval = setInterval(() => {
       const now = Date.now();
-      let sonar = false;
 
       for (const pedido of pedidos) {
+        if (pedido.pedidoEntregado) continue;
         const info = alarmas.current.get(pedido.id);
         if (!info) continue;
         const estado = computeEstado(now, pedido.horaPreparacion, pedido.horaEntrega);
 
         if (estado === "PREPARAR" && !info.prepAck) {
+          const config = alarmasConfig.current.preparacion;
           if (info.prepProximoBeep === null) info.prepProximoBeep = now;
           if (now >= info.prepProximoBeep) {
-            sonar = true;
-            info.prepProximoBeep = now + REPETIR_MS;
+            reproducirAlarma(config, pedido.id, ESTADO_LABELS[estado], pedido.fritoCongelado);
+            info.prepProximoBeep = now + config.repetirSegundos * 1000;
           }
         }
 
         if (estado === "ENTREGAR" && !info.entregaAck) {
+          const config = alarmasConfig.current.entrega;
           if (info.entregaProximoBeep === null) info.entregaProximoBeep = now;
           if (now >= info.entregaProximoBeep) {
-            sonar = true;
-            info.entregaProximoBeep = now + REPETIR_MS;
+            reproducirAlarma(config, pedido.id, ESTADO_LABELS[estado], pedido.fritoCongelado);
+            info.entregaProximoBeep = now + config.repetirSegundos * 1000;
           }
         }
       }
-
-      if (sonar) playAlarma();
 
       setNow(now);
     }, 1000);
@@ -152,7 +140,11 @@ export default function PedidosPendientesClient() {
   function silenciar(pedidoId: number, etapa: "prep" | "entrega") {
     const info = alarmas.current.get(pedidoId);
     if (!info) return;
-    const proximo = now + SILENCIAR_MS;
+    const silenciarMs =
+      (etapa === "prep"
+        ? alarmasConfig.current.preparacion.silenciarMinutos
+        : alarmasConfig.current.entrega.silenciarMinutos) * 60_000;
+    const proximo = now + silenciarMs;
     if (etapa === "prep") {
       info.prepProximoBeep = proximo;
     } else {
@@ -182,6 +174,9 @@ export default function PedidosPendientesClient() {
     }
   }
 
+  const pedidosPendientes = pedidos.filter((p) => !p.pedidoEntregado);
+  const pedidosEntregados = pedidos.filter((p) => p.pedidoEntregado);
+
   return (
     <div className="flex flex-col gap-4">
       {error && (
@@ -190,13 +185,13 @@ export default function PedidosPendientesClient() {
 
       {loading && <div className="text-sm text-zinc-500">Cargando...</div>}
 
-      {!loading && pedidos.length === 0 && (
+      {!loading && pedidosPendientes.length === 0 && (
         <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-500">
           No hay pedidos pendientes por entregar
         </div>
       )}
 
-      {pedidos.map((pedido) => {
+      {pedidosPendientes.map((pedido) => {
         const estado = computeEstado(now, pedido.horaPreparacion, pedido.horaEntrega);
 
         return (
@@ -286,6 +281,72 @@ export default function PedidosPendientesClient() {
           </div>
         );
       })}
+
+      {pedidosEntregados.length > 0 && (
+        <div className="rounded-lg border border-green-200 bg-green-50">
+          <button
+            type="button"
+            onClick={() => setMostrarEntregados((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-green-800"
+          >
+            <span>Pedidos entregados hoy ({pedidosEntregados.length})</span>
+            <span>{mostrarEntregados ? "▲" : "▼"}</span>
+          </button>
+
+          {mostrarEntregados && (
+            <div className="flex flex-col gap-2 border-t border-green-200 p-4">
+              {pedidosEntregados.map((pedido) => (
+                <div
+                  key={pedido.id}
+                  className="flex flex-col gap-2 rounded-lg border border-green-300 bg-green-100 p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold">
+                      Pedido #{pedido.id} — {pedido.cliente}
+                    </h3>
+                    <span className="rounded-md border border-green-400 bg-white px-2 py-1 text-xs font-semibold uppercase text-green-800">
+                      Entregado
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-1 text-sm text-zinc-700 sm:grid-cols-2">
+                    <div>
+                      <span className="font-medium">Dirección: </span>
+                      {pedido.direccion ?? "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Delivery asignado: </span>
+                      {pedido.deliveryAsignado ?? "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Frito o Congelado: </span>
+                      {pedido.fritoCongelado}
+                    </div>
+                    <div>
+                      <span className="font-medium">Hora de preparación: </span>
+                      {formatHora(pedido.horaPreparacion)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Hora de entrega: </span>
+                      {formatHora(pedido.horaEntrega)}
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-zinc-700">
+                    <span className="font-medium">Productos: </span>
+                    {pedido.items
+                      .map(
+                        (item) =>
+                          `${item.nombreProducto}${item.extraNombre ? ` (${item.extraNombre})` : ""} x${item.cantidad}`
+                      )
+                      .join(", ")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

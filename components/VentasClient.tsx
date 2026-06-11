@@ -72,6 +72,9 @@ export default function VentasClient() {
   const [buscandoClientes, setBuscandoClientes] = useState(false);
   const [mostrarResultados, setMostrarResultados] = useState(false);
 
+  const [busqueda, setBusqueda] = useState("");
+  const [soloPendientes, setSoloPendientes] = useState(false);
+
   async function loadData() {
     try {
       const [productosRes, ventasRes] = await Promise.all([
@@ -225,6 +228,17 @@ export default function VentasClient() {
   const horaPreparacionDate = horaEntregaDate
     ? new Date(horaEntregaDate.getTime() - minutosPreparacionNum * 60000)
     : null;
+
+  const ventasFiltradas = useMemo(() => {
+    const term = busqueda.trim().toLowerCase();
+    return ventas.filter((venta) => {
+      if (soloPendientes && !(venta.despachoPendiente && !venta.pedidoEntregado)) return false;
+      if (!term) return true;
+      const idMatch = String(venta.id).includes(term) || `#${venta.id}`.includes(term);
+      const clienteMatch = venta.cliente.toLowerCase().includes(term);
+      return idMatch || clienteMatch;
+    });
+  }, [ventas, busqueda, soloPendientes]);
 
   function updateItem(index: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
@@ -861,10 +875,29 @@ export default function VentasClient() {
         </div>
       </form>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="text"
+          placeholder="Buscar por # de pedido o cliente..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="flex-1 min-w-[200px] rounded-md border border-zinc-300 px-3 py-2 text-sm"
+        />
+        <label className="flex items-center gap-2 text-sm text-zinc-700">
+          <input
+            type="checkbox"
+            checked={soloPendientes}
+            onChange={(e) => setSoloPendientes(e.target.checked)}
+          />
+          Solo pendientes por entregar
+        </label>
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
           <thead className="bg-zinc-50">
             <tr>
+              <th className="px-4 py-2 text-left font-medium text-zinc-600">Pedido #</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Fecha</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Productos</th>
@@ -879,19 +912,19 @@ export default function VentasClient() {
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={10} className="px-4 py-6 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
-            {!loading && ventas.length === 0 && (
+            {!loading && ventasFiltradas.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={10} className="px-4 py-6 text-center text-zinc-500">
                   No hay ventas registradas
                 </td>
               </tr>
             )}
-            {ventas.map((venta) => {
+            {ventasFiltradas.map((venta) => {
               const ventaTotalUsd = venta.items.reduce(
                 (acc, i) => acc + i.precioUnit * i.cantidad,
                 0
@@ -912,6 +945,7 @@ export default function VentasClient() {
 
               return (
                 <tr key={venta.id}>
+                  <td className="px-4 py-2 whitespace-nowrap font-medium">#{venta.id}</td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {new Date(venta.fecha).toLocaleDateString("es-VE")}
                   </td>
@@ -948,7 +982,15 @@ export default function VentasClient() {
                     <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
                   </td>
                   <td className="px-4 py-2">
-                    {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
+                    {venta.despachoPendiente && !venta.pedidoEntregado ? (
+                      <span className="rounded-md bg-zinc-900 px-2 py-1 font-bold text-white">
+                        {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
+                      </span>
+                    ) : venta.modoEntrega === "DELIVERY" ? (
+                      "Delivery"
+                    ) : (
+                      "Local"
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex justify-end gap-2">

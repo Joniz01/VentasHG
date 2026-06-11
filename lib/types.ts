@@ -146,7 +146,44 @@ export type PedidoPendiente = {
   fritoCongelado: string;
   horaEntrega: string;
   horaPreparacion: string;
+  pedidoEntregado: boolean;
   items: PedidoPendienteItem[];
+};
+
+export const TIPOS_ALARMA = ["navegador", "tono", "mp3", "voz"] as const;
+export type TipoAlarma = (typeof TIPOS_ALARMA)[number];
+
+export const TONOS_PRESET = ["clasico", "campana", "urgente", "suave"] as const;
+export type TonoPreset = (typeof TONOS_PRESET)[number];
+
+export type AlarmaEtapaConfig = {
+  tipo: TipoAlarma;
+  tonoId: TonoPreset;
+  audioDataUrl: string | null;
+  audioNombre: string | null;
+  mensajeVoz: string;
+  repetirSegundos: number;
+  silenciarMinutos: number;
+};
+
+export type AlarmasConfig = {
+  preparacion: AlarmaEtapaConfig;
+  entrega: AlarmaEtapaConfig;
+};
+
+export const ALARMA_ETAPA_DEFAULT: AlarmaEtapaConfig = {
+  tipo: "navegador",
+  tonoId: "clasico",
+  audioDataUrl: null,
+  audioNombre: null,
+  mensajeVoz: "",
+  repetirSegundos: 30,
+  silenciarMinutos: 5,
+};
+
+export const ALARMAS_CONFIG_DEFAULT: AlarmasConfig = {
+  preparacion: { ...ALARMA_ETAPA_DEFAULT },
+  entrega: { ...ALARMA_ETAPA_DEFAULT },
 };
 
 export type ReporteFormaPago = {
