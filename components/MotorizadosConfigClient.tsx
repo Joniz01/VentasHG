@@ -139,6 +139,7 @@ export default function MotorizadosConfigClient() {
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={form.usuario}
               onChange={(e) => setForm((prev) => ({ ...prev, usuario: e.target.value }))}
+              autoComplete="off"
               required
             />
           </div>
@@ -151,6 +152,7 @@ export default function MotorizadosConfigClient() {
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={form.clave}
               onChange={(e) => setForm((prev) => ({ ...prev, clave: e.target.value }))}
+              autoComplete="new-password"
               required={!editingId}
             />
           </div>
