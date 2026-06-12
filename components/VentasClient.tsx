@@ -88,6 +88,8 @@ export default function VentasClient() {
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
   const [diasCredito, setDiasCredito] = useState("");
   const [fechaLimitePago, setFechaLimitePago] = useState("");
+  const [mostrarCuentaPorCobrar, setMostrarCuentaPorCobrar] = useState(false);
+  const [errorPlazoPago, setErrorPlazoPago] = useState(false);
   const [despachoPendiente, setDespachoPendiente] = useState(false);
   const [horaEntrega, setHoraEntrega] = useState("");
   const [minutosPrep, setMinutosPrep] = useState("15");
@@ -336,6 +338,8 @@ export default function VentasClient() {
     setPagos([{ ...EMPTY_PAGO }]);
     setDiasCredito("");
     setFechaLimitePago("");
+    setMostrarCuentaPorCobrar(false);
+    setErrorPlazoPago(false);
     setDespachoPendiente(false);
     setHoraEntrega("");
     setMinutosPrep("15");
@@ -375,6 +379,8 @@ export default function VentasClient() {
     );
     setDiasCredito("");
     setFechaLimitePago(venta.cuentaPorCobrar ? (venta.fechaLimitePago ?? "").slice(0, 10) : "");
+    setMostrarCuentaPorCobrar(venta.cuentaPorCobrar);
+    setErrorPlazoPago(false);
 
     if (venta.despachoPendiente && venta.horaEntrega && venta.horaPreparacion) {
       const entregaDate = new Date(venta.horaEntrega);
@@ -450,11 +456,12 @@ export default function VentasClient() {
     }
 
     if (validPagos.length === 0 && !fechaLimitePago) {
-      setError(
-        "Esta venta no tiene forma de pago: indica la fecha límite de pago (cuenta por cobrar)"
-      );
+      setMostrarCuentaPorCobrar(true);
+      setErrorPlazoPago(true);
+      setError("Registre el Plazo de pago");
       return;
     }
+    setErrorPlazoPago(false);
 
     setSaving(true);
     try {
@@ -985,42 +992,60 @@ export default function VentasClient() {
         </div>
 
         {pagos.every((p) => !p.metodo) && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-            <h3 className="mb-2 text-sm font-semibold text-amber-800">
-              Cuenta por cobrar: indica el plazo de pago
-            </h3>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Días de crédito</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                  value={diasCredito}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDiasCredito(value);
-                    const dias = Number(value);
-                    if (value && !Number.isNaN(dias) && fecha) {
-                      setFechaLimitePago(addDays(fecha, dias));
-                    }
-                  }}
-                  placeholder="Ej: 15"
-                />
+          <div
+            className={`rounded-md border p-3 ${
+              errorPlazoPago ? "border-red-300 bg-red-50" : "border-amber-200 bg-amber-50"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setMostrarCuentaPorCobrar((prev) => !prev)}
+              className={`flex w-full items-center justify-between text-left text-sm font-semibold ${
+                errorPlazoPago ? "text-red-800" : "text-amber-800"
+              }`}
+            >
+              <span>Cuenta por cobrar: indica el plazo de pago</span>
+              <span className="text-xs">{mostrarCuentaPorCobrar ? "▲" : "▼"}</span>
+            </button>
+            {errorPlazoPago && (
+              <p className="mt-1 text-xs font-medium text-red-700">Registre el Plazo de pago</p>
+            )}
+            {mostrarCuentaPorCobrar && (
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-zinc-600">Días de crédito</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    value={diasCredito}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDiasCredito(value);
+                      const dias = Number(value);
+                      if (value && !Number.isNaN(dias) && fecha) {
+                        setFechaLimitePago(addDays(fecha, dias));
+                      }
+                      setErrorPlazoPago(false);
+                    }}
+                    placeholder="Ej: 15"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-zinc-600">Fecha límite de pago</label>
+                  <input
+                    type="date"
+                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    value={fechaLimitePago}
+                    onChange={(e) => {
+                      setFechaLimitePago(e.target.value);
+                      setDiasCredito("");
+                      setErrorPlazoPago(false);
+                    }}
+                  />
+                </div>
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Fecha límite de pago</label>
-                <input
-                  type="date"
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                  value={fechaLimitePago}
-                  onChange={(e) => {
-                    setFechaLimitePago(e.target.value);
-                    setDiasCredito("");
-                  }}
-                />
-              </div>
-            </div>
+            )}
           </div>
         )}
 
