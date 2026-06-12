@@ -21,6 +21,19 @@ type Props = {
 export default function NavTabs({ rol, permisos }: Props) {
   const pathname = usePathname();
 
+  if (pathname?.startsWith("/delivery")) {
+    return (
+      <nav className="mt-3 flex gap-2">
+        <Link
+          href="/delivery"
+          className="rounded-t-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors"
+        >
+          Delivery
+        </Link>
+      </nav>
+    );
+  }
+
   const tabs = TABS.filter((tab) => {
     if (tab.href === "/admin") return rol === "ADMIN";
     if (tab.href === "/delivery") return true;
