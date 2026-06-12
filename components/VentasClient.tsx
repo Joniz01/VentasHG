@@ -15,7 +15,9 @@ import {
 } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
 import { ajustarCantidadConFlechas } from "@/lib/cantidad";
+import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
+import NotasEntregaTab from "@/components/NotasEntregaTab";
 
 type ItemRow = {
   productoId: string;
@@ -57,6 +59,7 @@ function combinarFechaHora(fecha: string, hora: string): Date | null {
 }
 
 export default function VentasClient() {
+  const [vista, setVista] = useState<"ventas" | "notas">("ventas");
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
@@ -397,6 +400,12 @@ export default function VentasClient() {
       return;
     }
 
+    const ciRifError = validarCedulaRif(clienteCi);
+    if (ciRifError) {
+      setError(ciRifError);
+      return;
+    }
+
     const validItems = items.filter((i) => i.productoId && Number(i.cantidad) > 0);
     if (validItems.length === 0) {
       setError("Agrega al menos un producto con cantidad válida");
@@ -494,6 +503,35 @@ export default function VentasClient() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex gap-2 print:hidden">
+        <button
+          type="button"
+          onClick={() => setVista("ventas")}
+          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+            vista === "ventas"
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 hover:bg-zinc-100"
+          }`}
+        >
+          Registro de Ventas
+        </button>
+        <button
+          type="button"
+          onClick={() => setVista("notas")}
+          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+            vista === "notas"
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 hover:bg-zinc-100"
+          }`}
+        >
+          Notas de Entrega
+        </button>
+      </div>
+
+      {vista === "notas" && <NotasEntregaTab productos={productos} />}
+
+      {vista === "ventas" && (
+    <>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
@@ -569,7 +607,7 @@ export default function VentasClient() {
                     >
                       <span className="font-medium">{c.nombre}</span>
                       <span className="text-xs text-zinc-500">
-                        {c.cedula ?? "Sin C.I/ID"}
+                        {c.cedula ?? "Sin C.I/Rif"}
                         {c.telefono ? ` · ${c.telefono}` : ""}
                         {c.direccion ? ` · ${c.direccion}` : ""}
                       </span>
@@ -580,12 +618,12 @@ export default function VentasClient() {
             )}
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700">C.I/ID</label>
+            <label className="text-sm font-medium text-zinc-700">C.I/Rif</label>
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={clienteCi}
               onChange={(e) => setClienteCi(e.target.value)}
-              placeholder="Opcional"
+              placeholder="Ej: 12345678 o V12345678"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -1097,6 +1135,8 @@ export default function VentasClient() {
           </tbody>
         </table>
       </div>
+    </>
+      )}
     </div>
   );
 }

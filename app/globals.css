@@ -26,3 +26,26 @@ textarea {
   color: #171717;
 }
 
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #orden-entrega-print,
+  #orden-entrega-print * {
+    visibility: visible;
+  }
+
+  #orden-entrega-print {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}
+
+@page {
+  size: letter;
+  margin: 0.5in;
+}
+
