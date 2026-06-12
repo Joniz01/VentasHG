@@ -1,8 +1,11 @@
 import ProductosClient from "@/components/ProductosClient";
+import { requirePermiso } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default function ProductosPage() {
+export default async function ProductosPage() {
+  await requirePermiso("productos");
+
   return (
     <div>
       <h2 className="mb-4 text-lg font-semibold">Productos</h2>

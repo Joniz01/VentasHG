@@ -1,5 +1,7 @@
 import crypto from "crypto";
 import type { NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import type { PermisosUsuario, Rol } from "@/lib/types";
 
@@ -82,6 +84,22 @@ export async function getSesionFromRequest(request: NextRequest): Promise<Sesion
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   return getUsuarioFromSession(token);
+}
+
+export async function requirePermiso(permiso: keyof PermisosUsuario): Promise<SesionUsuario> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const sesion = token ? await getUsuarioFromSession(token) : null;
+
+  if (!sesion) {
+    redirect("/admin");
+  }
+
+  if (sesion.rol !== "ADMIN" && !sesion.permisos[permiso]) {
+    redirect("/sin-acceso");
+  }
+
+  return sesion;
 }
 
 export const MOTORIZADO_SESSION_COOKIE = "vhg_motorizado_session";

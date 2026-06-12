@@ -1,8 +1,11 @@
 import ReportesClient from "@/components/ReportesClient";
+import { requirePermiso } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default function ReportesPage() {
+export default async function ReportesPage() {
+  await requirePermiso("reportes");
+
   return (
     <div>
       <h2 className="mb-4 text-lg font-semibold">Reportes</h2>

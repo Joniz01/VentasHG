@@ -1,8 +1,11 @@
 import PedidosPendientesClient from "@/components/PedidosPendientesClient";
+import { requirePermiso } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default function PedidosPendientesPage() {
+export default async function PedidosPendientesPage() {
+  await requirePermiso("pedidosPendientes");
+
   return (
     <div>
       <h2 className="mb-4 text-lg font-semibold">Pedidos Pendientes</h2>
