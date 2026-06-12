@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import type { Producto } from "@/lib/types";
+import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 
 export default function ProductoComponentesPanel({
   producto,
@@ -126,7 +127,13 @@ export default function ProductoComponentesPanel({
                   min="0"
                   defaultValue={componente.cantidad}
                   onChange={(e) =>
-                    setCantidades({ ...cantidades, [componente.id]: e.target.value })
+                    setCantidades({
+                      ...cantidades,
+                      [componente.id]: ajustarCantidadConFlechas(
+                        cantidades[componente.id] ?? String(componente.cantidad),
+                        e.target.value
+                      ),
+                    })
                   }
                 />
                 <button
@@ -172,7 +179,7 @@ export default function ProductoComponentesPanel({
             step="1"
             min="0"
             value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
+            onChange={(e) => setCantidad(ajustarCantidadConFlechas(cantidad, e.target.value))}
             placeholder="1"
           />
         </div>

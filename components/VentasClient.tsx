@@ -14,6 +14,7 @@ import {
   type Venta,
 } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import TimeInput12h from "@/components/TimeInput12h";
 
 type ItemRow = {
@@ -786,7 +787,11 @@ export default function VentasClient() {
                     min="0"
                     className="col-span-3 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-2"
                     value={item.cantidad}
-                    onChange={(e) => updateItem(index, { cantidad: e.target.value })}
+                    onChange={(e) =>
+                      updateItem(index, {
+                        cantidad: ajustarCantidadConFlechas(item.cantidad, e.target.value),
+                      })
+                    }
                     placeholder="Cantidad"
                   />
                   <div className="col-span-2 text-right text-sm text-zinc-600 sm:col-span-2">

@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState, FormEvent } from "react";
 import type { MovimientoInventario, Producto } from "@/lib/types";
+import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 
 const TIPO_MOVIMIENTO_LABELS: Record<MovimientoInventario["tipo"], string> = {
   ENTRADA: "Entrada",
@@ -119,7 +120,7 @@ function MovimientosProducto({ producto }: { producto: Producto }) {
             type="number"
             step="1"
             value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
+            onChange={(e) => setCantidad(ajustarCantidadConFlechas(cantidad, e.target.value))}
             placeholder={tipo === "AJUSTE" ? "Ej: -2" : "Ej: 10"}
           />
         </div>
