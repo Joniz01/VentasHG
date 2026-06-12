@@ -33,6 +33,8 @@ export default function ProductosClient() {
   const [orden, setOrden] = useState<"nombre" | "categoria">("nombre");
   const [tab, setTab] = useState<"productos" | "inventario">("productos");
 
+  const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
+
   const productosOrdenados = useMemo(() => {
     if (orden === "nombre") return productos;
 
@@ -146,9 +148,15 @@ export default function ProductosClient() {
         throw new Error(data.error ?? "Error al guardar el producto");
       }
 
-      cancelEdit();
-      setNuevaCategoriaNombre("");
+      const saved = await res.json();
       await loadProductos();
+
+      if (form.tipoProducto === "COMBO") {
+        setEditingId(saved.id);
+      } else {
+        cancelEdit();
+      }
+      setNuevaCategoriaNombre("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar el producto");
     } finally {
@@ -291,6 +299,22 @@ export default function ProductosClient() {
           )}
         </div>
       </form>
+
+      {form.tipoProducto === "COMBO" && (
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          {productoEnEdicion ? (
+            <ProductoComponentesPanel
+              producto={productoEnEdicion}
+              productos={productos}
+              onChange={loadProductos}
+            />
+          ) : (
+            <p className="text-sm text-zinc-500">
+              Guarda el producto para poder configurar las bandejas (y cantidades) que descuenta este combo.
+            </p>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">
