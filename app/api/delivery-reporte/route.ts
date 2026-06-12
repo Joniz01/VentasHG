@@ -34,14 +34,25 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const pagado = searchParams.get("pagado");
+
+  const params: unknown[] = [motorizadoId, desde, hasta];
+  let pagadoFiltro = "";
+  if (pagado === "PAGADO") {
+    pagadoFiltro = "AND delivery_pagado = TRUE";
+  } else if (pagado === "PENDIENTE") {
+    pagadoFiltro = "AND delivery_pagado = FALSE";
+  }
+
   const result = await pool.query(
-    `SELECT id, cliente, fecha, costo_delivery, tasa_dia
+    `SELECT id, cliente, fecha, costo_delivery, tasa_dia, delivery_pagado
      FROM ventas
      WHERE motorizado_id = $1
        AND fecha BETWEEN $2 AND $3
        AND despacho_pendiente = TRUE
+       ${pagadoFiltro}
      ORDER BY fecha ASC, id ASC`,
-    [motorizadoId, desde, hasta]
+    params
   );
 
   const items = result.rows.map((row) => {
@@ -53,6 +64,7 @@ export async function GET(request: NextRequest) {
       fecha: row.fecha,
       costoDeliveryUsd,
       costoDeliveryBs: costoDeliveryUsd * tasa,
+      deliveryPagado: row.delivery_pagado,
     };
   });
 

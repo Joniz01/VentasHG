@@ -159,11 +159,16 @@ CREATE TABLE IF NOT EXISTS ventas (
   pedido_aceptado BOOLEAN NOT NULL DEFAULT FALSE,
   pedido_entregado BOOLEAN NOT NULL DEFAULT FALSE,
   pedido_enviado BOOLEAN NOT NULL DEFAULT FALSE,
+  delivery_pagado BOOLEAN NOT NULL DEFAULT FALSE,
+  delivery_pagado_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_ventas_pedidos_pendientes
   ON ventas (despacho_pendiente, pedido_entregado);
+
+CREATE INDEX IF NOT EXISTS idx_ventas_delivery_pagado
+  ON ventas (despacho_pendiente, delivery_pagado);
 
 CREATE INDEX IF NOT EXISTS idx_ventas_motorizado_id ON ventas (motorizado_id);
 

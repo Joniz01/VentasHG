@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import type { ReporteVentas } from "@/lib/types";
 import { METODO_PAGO_LABELS } from "@/lib/types";
+import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -24,6 +25,7 @@ function startOfMonth(date: Date) {
 }
 
 export default function ReportesClient() {
+  const [tab, setTab] = useState<"ventas" | "deliveries">("ventas");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [mesEspecifico, setMesEspecifico] = useState("");
@@ -93,6 +95,35 @@ export default function ReportesClient() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex gap-2 border-b border-zinc-200">
+        <button
+          type="button"
+          onClick={() => setTab("ventas")}
+          className={`px-4 py-2 text-sm font-medium ${
+            tab === "ventas"
+              ? "border-b-2 border-zinc-900 text-zinc-900"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Ventas
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("deliveries")}
+          className={`px-4 py-2 text-sm font-medium ${
+            tab === "deliveries"
+              ? "border-b-2 border-zinc-900 text-zinc-900"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Pagos a Delivery
+        </button>
+      </div>
+
+      {tab === "deliveries" && <DeliveryPagosPanel />}
+
+      {tab === "ventas" && (
+      <>
       <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-end gap-2">
           <button
@@ -264,6 +295,8 @@ export default function ReportesClient() {
             </table>
           </section>
         </>
+      )}
+      </>
       )}
     </div>
   );

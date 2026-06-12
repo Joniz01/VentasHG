@@ -27,20 +27,24 @@ function minDesde() {
   return toIsoDate(d);
 }
 
+type EstadoFiltro = "TODOS" | "PAGADO" | "PENDIENTE";
+
 export default function DeliveryReporteClient() {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [estado, setEstado] = useState<EstadoFiltro>("TODOS");
   const [reporte, setReporte] = useState<ReporteDeliveryMotorizado | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function generar(desdeParam: string, hastaParam: string) {
+  async function generar(desdeParam: string, hastaParam: string, estadoParam: EstadoFiltro) {
     setError(null);
     setLoading(true);
     setDesde(desdeParam);
     setHasta(hastaParam);
     try {
-      const res = await fetch(`/api/delivery-reporte?desde=${desdeParam}&hasta=${hastaParam}`);
+      const pagadoParam = estadoParam !== "TODOS" ? `&pagado=${estadoParam}` : "";
+      const res = await fetch(`/api/delivery-reporte?desde=${desdeParam}&hasta=${hastaParam}${pagadoParam}`);
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? "Error al generar el reporte");
@@ -56,12 +60,12 @@ export default function DeliveryReporteClient() {
 
   function handleHoy() {
     const hoy = toIsoDate(new Date());
-    generar(hoy, hoy);
+    generar(hoy, hoy, estado);
   }
 
   function handleSemana() {
     const hoy = new Date();
-    generar(toIsoDate(startOfWeek(hoy)), toIsoDate(hoy));
+    generar(toIsoDate(startOfWeek(hoy)), toIsoDate(hoy), estado);
   }
 
   function handleSubmit(e: FormEvent) {
@@ -70,7 +74,14 @@ export default function DeliveryReporteClient() {
       setError("Selecciona el rango de fechas");
       return;
     }
-    generar(desde, hasta);
+    generar(desde, hasta, estado);
+  }
+
+  function handleEstadoChange(value: EstadoFiltro) {
+    setEstado(value);
+    if (desde && hasta) {
+      generar(desde, hasta, value);
+    }
   }
 
   return (
@@ -116,6 +127,18 @@ export default function DeliveryReporteClient() {
               onChange={(e) => setHasta(e.target.value)}
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">Estado</label>
+            <select
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={estado}
+              onChange={(e) => handleEstadoChange(e.target.value as EstadoFiltro)}
+            >
+              <option value="TODOS">Todos</option>
+              <option value="PAGADO">Pagados</option>
+              <option value="PENDIENTE">Pendientes de pago</option>
+            </select>
+          </div>
           <button
             type="submit"
             disabled={loading}
@@ -147,12 +170,13 @@ export default function DeliveryReporteClient() {
                   <th className="px-4 py-2 text-left font-medium text-zinc-600">Fecha</th>
                   <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
                   <th className="px-4 py-2 text-right font-medium text-zinc-600">Monto delivery</th>
+                  <th className="px-4 py-2 text-center font-medium text-zinc-600">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {reporte.items.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                    <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
                       No hay deliveries en el período seleccionado
                     </td>
                   </tr>
@@ -167,6 +191,17 @@ export default function DeliveryReporteClient() {
                     <td className="px-4 py-2 text-right whitespace-nowrap">
                       {item.costoDeliveryBs.toFixed(2)} Bs{" "}
                       <span className="text-zinc-500">(${item.costoDeliveryUsd.toFixed(2)})</span>
+                    </td>
+                    <td className="px-4 py-2 text-center whitespace-nowrap">
+                      {item.deliveryPagado ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          Pagado
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                          Pendiente
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

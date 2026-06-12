@@ -331,6 +331,7 @@ export type ReporteDeliveryItem = {
   fecha: string;
   costoDeliveryUsd: number;
   costoDeliveryBs: number;
+  deliveryPagado: boolean;
 };
 
 export type ReporteDeliveryMotorizado = {
@@ -339,4 +340,18 @@ export type ReporteDeliveryMotorizado = {
   items: ReporteDeliveryItem[];
   totalUsd: number;
   totalBs: number;
+};
+
+export type DeliveryPagoItem = {
+  ventaId: number;
+  fecha: string;
+  cliente: string;
+  clienteCi: string | null;
+  deliveryAsignado: string | null;
+  motorizadoId: number | null;
+  motorizadoNombre: string | null;
+  costoDeliveryUsd: number;
+  costoDeliveryBs: number;
+  deliveryPagado: boolean;
+  deliveryPagadoAt: string | null;
 };
