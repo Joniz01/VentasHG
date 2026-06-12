@@ -117,7 +117,7 @@ function MovimientosProducto({ producto }: { producto: Producto }) {
           <input
             className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
             type="number"
-            step="0.01"
+            step="1"
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
             placeholder={tipo === "AJUSTE" ? "Ej: -2" : "Ej: 10"}

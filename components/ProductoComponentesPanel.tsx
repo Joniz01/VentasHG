@@ -122,7 +122,7 @@ export default function ProductoComponentesPanel({
                 <input
                   className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-xs"
                   type="number"
-                  step="0.01"
+                  step="1"
                   min="0"
                   defaultValue={componente.cantidad}
                   onChange={(e) =>
@@ -169,7 +169,7 @@ export default function ProductoComponentesPanel({
           <input
             className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
             type="number"
-            step="0.01"
+            step="1"
             min="0"
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}

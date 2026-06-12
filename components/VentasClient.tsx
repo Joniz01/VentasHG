@@ -782,7 +782,7 @@ export default function VentasClient() {
                   </select>
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     min="0"
                     className="col-span-3 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-2"
                     value={item.cantidad}
