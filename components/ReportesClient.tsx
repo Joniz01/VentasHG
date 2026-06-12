@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import type { ReporteVentas } from "@/lib/types";
 import { METODO_PAGO_LABELS } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
+import CuentasPorCobrarPanel from "@/components/CuentasPorCobrarPanel";
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -25,7 +26,7 @@ function startOfMonth(date: Date) {
 }
 
 export default function ReportesClient() {
-  const [tab, setTab] = useState<"ventas" | "deliveries">("ventas");
+  const [tab, setTab] = useState<"ventas" | "deliveries" | "cuentasPorCobrar">("ventas");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [mesEspecifico, setMesEspecifico] = useState("");
@@ -118,9 +119,22 @@ export default function ReportesClient() {
         >
           Pagos a Delivery
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("cuentasPorCobrar")}
+          className={`px-4 py-2 text-sm font-medium ${
+            tab === "cuentasPorCobrar"
+              ? "border-b-2 border-zinc-900 text-zinc-900"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Ventas por Cobrar
+        </button>
       </div>
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
+
+      {tab === "cuentasPorCobrar" && <CuentasPorCobrarPanel />}
 
       {tab === "ventas" && (
       <>

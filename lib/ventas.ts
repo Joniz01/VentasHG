@@ -17,6 +17,7 @@ export type VentaBody = {
   horaPreparacion?: string | null;
   deliveryAsignado?: string | null;
   motorizadoId?: number | null;
+  fechaLimitePago?: string | null;
   items: {
     productoId: number;
     cantidad: number;
@@ -51,6 +52,10 @@ export function validarVenta(body: VentaBody): string | null {
 
   if (body.despachoPendiente && (!body.horaEntrega || !body.horaPreparacion)) {
     return "Debes indicar la hora de entrega y de preparación para un despacho pendiente";
+  }
+
+  if ((!body.pagos || body.pagos.length === 0) && !body.fechaLimitePago) {
+    return "Indica la fecha límite de pago: esta venta quedará como cuenta por cobrar";
   }
 
   return null;

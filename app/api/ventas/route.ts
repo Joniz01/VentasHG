@@ -12,7 +12,8 @@ export async function GET() {
   const ventasResult = await pool.query(
     `SELECT id, fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega,
             costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion,
-            delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado, created_at
+            delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado,
+            cuenta_por_cobrar, fecha_limite_pago, cuenta_cobrada, cuenta_cobrada_at, created_at
      FROM ventas
      ORDER BY fecha DESC, id DESC`
   );
@@ -70,6 +71,10 @@ export async function GET() {
     motorizadoId: row.motorizado_id,
     pedidoEntregado: row.pedido_entregado,
     pedidoEnviado: row.pedido_enviado,
+    cuentaPorCobrar: row.cuenta_por_cobrar,
+    fechaLimitePago: row.fecha_limite_pago,
+    cuentaCobrada: row.cuenta_cobrada,
+    cuentaCobradaAt: row.cuenta_cobrada_at,
     createdAt: row.created_at,
     items: itemsResult.rows
       .filter((item) => item.venta_id === row.id)
@@ -120,9 +125,11 @@ export async function POST(request: NextRequest) {
       ? await resolveDeliveryAsignado(client, body)
       : null;
 
+    const cuentaPorCobrar = !body.pagos || body.pagos.length === 0;
+
     const ventaResult = await client.query(
-      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado, motorizado_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado, motorizado_id, cuenta_por_cobrar, fecha_limite_pago)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING id`,
       [
         body.fecha,
@@ -140,6 +147,8 @@ export async function POST(request: NextRequest) {
         body.despachoPendiente ? body.horaPreparacion : null,
         deliveryAsignado,
         body.despachoPendiente ? body.motorizadoId || null : null,
+        cuentaPorCobrar,
+        cuentaPorCobrar ? body.fechaLimitePago || null : null,
       ]
     );
 

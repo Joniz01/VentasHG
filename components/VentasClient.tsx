@@ -33,6 +33,12 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+function addDays(fecha: string, dias: number): string {
+  const d = new Date(`${fecha}T00:00:00`);
+  d.setDate(d.getDate() + dias);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const EMPTY_ITEM: ItemRow = {
   productoId: "",
   productoNombre: "",
@@ -80,6 +86,8 @@ export default function VentasClient() {
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
+  const [diasCredito, setDiasCredito] = useState("");
+  const [fechaLimitePago, setFechaLimitePago] = useState("");
   const [despachoPendiente, setDespachoPendiente] = useState(false);
   const [horaEntrega, setHoraEntrega] = useState("");
   const [minutosPrep, setMinutosPrep] = useState("15");
@@ -326,6 +334,8 @@ export default function VentasClient() {
     setObservaciones("");
     setItems([{ ...EMPTY_ITEM }]);
     setPagos([{ ...EMPTY_PAGO }]);
+    setDiasCredito("");
+    setFechaLimitePago("");
     setDespachoPendiente(false);
     setHoraEntrega("");
     setMinutosPrep("15");
@@ -363,6 +373,8 @@ export default function VentasClient() {
           }))
         : [{ ...EMPTY_PAGO }]
     );
+    setDiasCredito("");
+    setFechaLimitePago(venta.cuentaPorCobrar ? (venta.fechaLimitePago ?? "").slice(0, 10) : "");
 
     if (venta.despachoPendiente && venta.horaEntrega && venta.horaPreparacion) {
       const entregaDate = new Date(venta.horaEntrega);
@@ -437,6 +449,13 @@ export default function VentasClient() {
       return;
     }
 
+    if (validPagos.length === 0 && !fechaLimitePago) {
+      setError(
+        "Esta venta no tiene forma de pago: indica la fecha límite de pago (cuenta por cobrar)"
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -462,6 +481,7 @@ export default function VentasClient() {
           variadaSelecciones: i.variadaSelecciones.filter((s) => s).map(Number),
         })),
         pagos: validPagos,
+        fechaLimitePago: validPagos.length === 0 ? fechaLimitePago : null,
       };
 
       const res = await fetch(
@@ -498,6 +518,23 @@ export default function VentasClient() {
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al eliminar la venta");
+    }
+  }
+
+  async function handleToggleCuentaCobrada(venta: Venta) {
+    try {
+      const res = await fetch(`/api/reportes/cuentas-por-cobrar/${venta.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cuentaCobrada: !venta.cuentaCobrada }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Error al actualizar el cobro");
+      }
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar el cobro");
     }
   }
 
@@ -947,6 +984,46 @@ export default function VentasClient() {
           </div>
         </div>
 
+        {pagos.every((p) => !p.metodo) && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+            <h3 className="mb-2 text-sm font-semibold text-amber-800">
+              Cuenta por cobrar: indica el plazo de pago
+            </h3>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-zinc-600">Días de crédito</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={diasCredito}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDiasCredito(value);
+                    const dias = Number(value);
+                    if (value && !Number.isNaN(dias) && fecha) {
+                      setFechaLimitePago(addDays(fecha, dias));
+                    }
+                  }}
+                  placeholder="Ej: 15"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-zinc-600">Fecha límite de pago</label>
+                <input
+                  type="date"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={fechaLimitePago}
+                  onChange={(e) => {
+                    setFechaLimitePago(e.target.value);
+                    setDiasCredito("");
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-2 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-2">
           <div>
             <span className="font-medium text-zinc-600">Total venta: </span>
@@ -1027,20 +1104,21 @@ export default function VentasClient() {
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Delivery</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Total pagado</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Entrega</th>
+              <th className="px-4 py-2 text-center font-medium text-zinc-600">Cobro</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={11} className="px-4 py-6 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
             {!loading && ventasFiltradas.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={11} className="px-4 py-6 text-center text-zinc-500">
                   No hay ventas registradas
                 </td>
               </tr>
@@ -1111,6 +1189,29 @@ export default function VentasClient() {
                       "Delivery"
                     ) : (
                       "Local"
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-center whitespace-nowrap">
+                    {venta.cuentaPorCobrar ? (
+                      <div className="flex flex-col items-center gap-1">
+                        {venta.cuentaCobrada ? (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            Pagada
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                            Pendiente
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleToggleCuentaCobrada(venta)}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                        >
+                          {venta.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
+                        </button>
+                      </div>
+                    ) : (
+                      "-"
                     )}
                   </td>
                   <td className="px-4 py-2 text-right">

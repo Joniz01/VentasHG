@@ -203,6 +203,10 @@ export type Venta = {
   motorizadoId: number | null;
   pedidoEntregado: boolean;
   pedidoEnviado: boolean;
+  cuentaPorCobrar: boolean;
+  fechaLimitePago: string | null;
+  cuentaCobrada: boolean;
+  cuentaCobradaAt: string | null;
   createdAt: string;
   items: VentaItem[];
   pagos: PagoVenta[];
@@ -357,4 +361,17 @@ export type DeliveryPagoItem = {
   costoDeliveryBs: number;
   deliveryPagado: boolean;
   deliveryPagadoAt: string | null;
+};
+
+export type CuentaPorCobrarItem = {
+  ventaId: number;
+  fecha: string;
+  cliente: string;
+  clienteCi: string | null;
+  clienteTelefono: string | null;
+  totalUsd: number;
+  totalBs: number;
+  fechaLimitePago: string | null;
+  cuentaCobrada: boolean;
+  cuentaCobradaAt: string | null;
 };
