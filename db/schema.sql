@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS clientes (
   nombre TEXT NOT NULL,
   cedula TEXT UNIQUE,
   direccion TEXT,
+  telefono TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -146,6 +147,7 @@ CREATE TABLE IF NOT EXISTS ventas (
   tasa_dia NUMERIC(12, 4) NOT NULL DEFAULT 0,
   cliente TEXT NOT NULL,
   cliente_ci TEXT,
+  cliente_telefono TEXT,
   direccion TEXT,
   modalidad_compra TEXT,
   modo_entrega modo_entrega NOT NULL DEFAULT 'LOCAL',

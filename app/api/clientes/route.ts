@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   // Búsqueda por prefijo (case-insensitive) sobre nombre o cédula, usando
   // los índices lower(...) text_pattern_ops para que sea eficiente.
   const result = await pool.query(
-    `SELECT id, nombre, cedula, direccion
+    `SELECT id, nombre, cedula, direccion, telefono
      FROM clientes
      WHERE lower(nombre) LIKE lower($1) || '%'
         OR lower(cedula) LIKE lower($1) || '%'
@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
       nombre: row.nombre,
       cedula: row.cedula,
       direccion: row.direccion,
+      telefono: row.telefono,
     }))
   );
 }

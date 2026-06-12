@@ -1,0 +1,5 @@
+ALTER TABLE ventas
+  ADD COLUMN IF NOT EXISTS cliente_telefono TEXT;
+
+ALTER TABLE clientes
+  ADD COLUMN IF NOT EXISTS telefono TEXT;

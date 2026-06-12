@@ -6,6 +6,7 @@ export type VentaBody = {
   tasaDelDia: number;
   cliente: string;
   clienteCi?: string | null;
+  clienteTelefono?: string | null;
   direccion?: string | null;
   modalidadCompra?: string | null;
   modoEntrega?: string | null;
@@ -82,12 +83,13 @@ export async function guardarCliente(client: PoolClient, body: VentaBody) {
   if (!cedula) return;
 
   await client.query(
-    `INSERT INTO clientes (nombre, cedula, direccion)
-     VALUES ($1, $2, $3)
+    `INSERT INTO clientes (nombre, cedula, direccion, telefono)
+     VALUES ($1, $2, $3, $4)
      ON CONFLICT (cedula) DO UPDATE
        SET nombre = EXCLUDED.nombre,
-           direccion = COALESCE(EXCLUDED.direccion, clientes.direccion)`,
-    [body.cliente.trim(), cedula, body.direccion?.trim() || null]
+           direccion = COALESCE(EXCLUDED.direccion, clientes.direccion),
+           telefono = COALESCE(EXCLUDED.telefono, clientes.telefono)`,
+    [body.cliente.trim(), cedula, body.direccion?.trim() || null, body.clienteTelefono?.trim() || null]
   );
 }
 

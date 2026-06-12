@@ -10,7 +10,7 @@ import {
 
 export async function GET() {
   const ventasResult = await pool.query(
-    `SELECT id, fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega,
+    `SELECT id, fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega,
             costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion,
             delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado, created_at
      FROM ventas
@@ -57,6 +57,7 @@ export async function GET() {
     tasaDelDia: Number(row.tasa_dia),
     cliente: row.cliente,
     clienteCi: row.cliente_ci,
+    clienteTelefono: row.cliente_telefono,
     direccion: row.direccion,
     modalidadCompra: row.modalidad_compra,
     modoEntrega: row.modo_entrega,
@@ -120,14 +121,15 @@ export async function POST(request: NextRequest) {
       : null;
 
     const ventaResult = await client.query(
-      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado, motorizado_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado, motorizado_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING id`,
       [
         body.fecha,
         Number(body.tasaDelDia),
         body.cliente,
         body.clienteCi || null,
+        body.clienteTelefono || null,
         body.direccion || null,
         body.modalidadCompra || null,
         body.modoEntrega || "LOCAL",

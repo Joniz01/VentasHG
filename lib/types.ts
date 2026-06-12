@@ -68,6 +68,7 @@ export type Cliente = {
   nombre: string;
   cedula: string | null;
   direccion: string | null;
+  telefono: string | null;
 };
 
 export type ExtraCatalogo = {
@@ -189,6 +190,7 @@ export type Venta = {
   tasaDelDia: number;
   cliente: string;
   clienteCi: string | null;
+  clienteTelefono: string | null;
   direccion: string | null;
   modalidadCompra: string | null;
   modoEntrega: ModoEntrega;
@@ -223,6 +225,7 @@ export type VentaInput = {
   tasaDelDia: number;
   cliente: string;
   clienteCi: string;
+  clienteTelefono: string;
   direccion: string;
   modalidadCompra: string;
   modoEntrega: ModoEntrega;

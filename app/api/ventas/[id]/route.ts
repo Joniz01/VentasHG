@@ -31,17 +31,18 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     const ventaResult = await client.query(
       `UPDATE ventas
-       SET fecha = $1, tasa_dia = $2, cliente = $3, cliente_ci = $4, direccion = $5,
-           modalidad_compra = $6, modo_entrega = $7, costo_delivery = $8, observaciones = $9,
-           despacho_pendiente = $10, hora_entrega = $11, hora_preparacion = $12, delivery_asignado = $13,
-           motorizado_id = $14
-       WHERE id = $15
+       SET fecha = $1, tasa_dia = $2, cliente = $3, cliente_ci = $4, cliente_telefono = $5, direccion = $6,
+           modalidad_compra = $7, modo_entrega = $8, costo_delivery = $9, observaciones = $10,
+           despacho_pendiente = $11, hora_entrega = $12, hora_preparacion = $13, delivery_asignado = $14,
+           motorizado_id = $15
+       WHERE id = $16
        RETURNING id`,
       [
         body.fecha,
         Number(body.tasaDelDia),
         body.cliente,
         body.clienteCi || null,
+        body.clienteTelefono || null,
         body.direccion || null,
         body.modalidadCompra || null,
         body.modoEntrega || "LOCAL",

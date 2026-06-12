@@ -69,6 +69,7 @@ export default function VentasClient() {
   const [tasaDelDia, setTasaDelDia] = useState("");
   const [cliente, setCliente] = useState("");
   const [clienteCi, setClienteCi] = useState("");
+  const [clienteTelefono, setClienteTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
   const [modalidadCompra, setModalidadCompra] = useState("");
   const [modoEntrega, setModoEntrega] = useState<ModoEntrega>("LOCAL");
@@ -155,6 +156,7 @@ export default function VentasClient() {
   function seleccionarCliente(c: Cliente) {
     setCliente(c.nombre);
     setClienteCi(c.cedula ?? "");
+    setClienteTelefono(c.telefono ?? "");
     setDireccion(c.direccion ?? "");
     setMostrarResultados(false);
   }
@@ -313,6 +315,7 @@ export default function VentasClient() {
     setFecha(today());
     setCliente("");
     setClienteCi("");
+    setClienteTelefono("");
     setDireccion("");
     setModalidadCompra("");
     setModoEntrega("LOCAL");
@@ -333,6 +336,7 @@ export default function VentasClient() {
     setTasaDelDia(String(venta.tasaDelDia));
     setCliente(venta.cliente);
     setClienteCi(venta.clienteCi ?? "");
+    setClienteTelefono(venta.clienteTelefono ?? "");
     setDireccion(venta.direccion ?? "");
     setModalidadCompra(venta.modalidadCompra ?? "");
     setModoEntrega(venta.modoEntrega);
@@ -431,6 +435,7 @@ export default function VentasClient() {
         tasaDelDia: Number(tasaDelDia) || 0,
         cliente: cliente.trim(),
         clienteCi: clienteCi.trim(),
+        clienteTelefono: clienteTelefono.trim(),
         direccion: direccion.trim(),
         modalidadCompra: modalidadCompra.trim(),
         modoEntrega,
@@ -565,6 +570,7 @@ export default function VentasClient() {
                       <span className="font-medium">{c.nombre}</span>
                       <span className="text-xs text-zinc-500">
                         {c.cedula ?? "Sin C.I/ID"}
+                        {c.telefono ? ` · ${c.telefono}` : ""}
                         {c.direccion ? ` · ${c.direccion}` : ""}
                       </span>
                     </button>
@@ -579,6 +585,15 @@ export default function VentasClient() {
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={clienteCi}
               onChange={(e) => setClienteCi(e.target.value)}
+              placeholder="Opcional"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">Teléfono</label>
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={clienteTelefono}
+              onChange={(e) => setClienteTelefono(e.target.value)}
               placeholder="Opcional"
             />
           </div>
