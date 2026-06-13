@@ -737,8 +737,8 @@ export default function VentasClient() {
         </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-md border border-emerald-100 bg-emerald-50/60 p-3">
-          <h3 className="text-sm font-semibold text-emerald-800">Parámetros de entrega</h3>
+        <div className="flex flex-col gap-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
+          <h3 className="text-sm font-semibold text-blue-800">Parámetros de entrega</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
@@ -889,8 +889,8 @@ export default function VentasClient() {
           )}
         </div>
 
-        <div className="flex flex-col gap-4 rounded-md border border-violet-100 bg-violet-50/60 p-3">
-        <h3 className="text-sm font-semibold text-violet-800">Producto y forma de pago</h3>
+        <div className="flex flex-col gap-4 rounded-md border border-blue-100 bg-blue-50/60 p-3">
+        <h3 className="text-sm font-semibold text-blue-800">Producto y forma de pago</h3>
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-zinc-700">Productos</h3>
@@ -1063,14 +1063,14 @@ export default function VentasClient() {
         {pagos.every((p) => !p.metodo) && (
           <div
             className={`rounded-md border p-3 ${
-              errorPlazoPago ? "border-red-300 bg-red-50" : "border-amber-200 bg-amber-50"
+              errorPlazoPago ? "border-red-300 bg-red-50" : "border-amber-300 bg-amber-100"
             }`}
           >
             <button
               type="button"
               onClick={() => setMostrarCuentaPorCobrar((prev) => !prev)}
               className={`flex w-full items-center justify-between text-left text-sm font-semibold ${
-                errorPlazoPago ? "text-red-800" : "text-amber-800"
+                errorPlazoPago ? "text-red-800" : "text-amber-900"
               }`}
             >
               <span>Cuenta por cobrar: indica el plazo de pago</span>
