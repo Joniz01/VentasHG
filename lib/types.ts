@@ -383,3 +383,13 @@ export type CuentaPorCobrarItem = {
   cuentaCobradaAt: string | null;
   alarmaSilenciadaHasta: string | null;
 };
+
+export type VentaPendientePago = {
+  id: number;
+  cliente: string;
+  items: {
+    descripcion: string;
+    cantidad: number;
+    precioUnitario: number;
+  }[];
+};

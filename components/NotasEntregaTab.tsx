@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Cliente, Producto } from "@/lib/types";
+import type { Cliente, Producto, VentaPendientePago } from "@/lib/types";
 import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
 
@@ -43,6 +43,39 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
   const [clientesResultados, setClientesResultados] = useState<Cliente[]>([]);
   const [buscandoClientes, setBuscandoClientes] = useState(false);
   const [mostrarResultados, setMostrarResultados] = useState(false);
+
+  const [pedidosPendientes, setPedidosPendientes] = useState<VentaPendientePago[]>([]);
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState("");
+
+  useEffect(() => {
+    async function loadPedidosPendientes() {
+      try {
+        const res = await fetch("/api/ventas/pendientes-pago");
+        if (res.ok) {
+          setPedidosPendientes((await res.json()) as VentaPendientePago[]);
+        }
+      } catch {
+        // ignorar
+      }
+    }
+    loadPedidosPendientes();
+  }, []);
+
+  function handleSeleccionPedido(value: string) {
+    setPedidoSeleccionado(value);
+    if (!value) return;
+
+    const pedido = pedidosPendientes.find((p) => String(p.id) === value);
+    if (!pedido) return;
+
+    setItems(
+      pedido.items.map((it) => ({
+        descripcion: it.descripcion,
+        cantidad: String(it.cantidad),
+        precioUnitario: String(it.precioUnitario),
+      }))
+    );
+  }
 
   async function buscarClientes(q: string) {
     const query = q.trim();
@@ -162,6 +195,21 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-4 print:hidden">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">N° de pedido</label>
+            <select
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={pedidoSeleccionado}
+              onChange={(e) => handleSeleccionPedido(e.target.value)}
+            >
+              <option value="">Seleccionar pedido</option>
+              {pedidosPendientes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  #{p.id} — {p.cliente}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Fecha</label>
             <input
