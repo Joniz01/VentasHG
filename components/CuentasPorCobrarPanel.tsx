@@ -79,6 +79,9 @@ export default function CuentasPorCobrarPanel() {
 
   const totalUsd = items.reduce((acc, item) => acc + item.totalUsd, 0);
   const totalBs = items.reduce((acc, item) => acc + item.totalBs, 0);
+  const pendientes = items.filter((item) => !item.cuentaCobrada);
+  const totalPendienteUsd = pendientes.reduce((acc, item) => acc + item.totalUsd, 0);
+  const totalPendienteBs = pendientes.reduce((acc, item) => acc + item.totalBs, 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -129,9 +132,16 @@ export default function CuentasPorCobrarPanel() {
         <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm">
-        <span className="font-medium text-zinc-600">Total por cobrar: </span>
-        {totalBs.toFixed(2)} Bs <span className="text-zinc-500">(${totalUsd.toFixed(2)})</span>
+      <div className="flex flex-wrap gap-3">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm">
+          <span className="font-medium text-zinc-600">Total: </span>
+          {totalBs.toFixed(2)} Bs <span className="text-zinc-500">(${totalUsd.toFixed(2)})</span>
+        </div>
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm">
+          <span className="font-medium text-yellow-800">Total pendiente: </span>
+          {totalPendienteBs.toFixed(2)} Bs{" "}
+          <span className="text-yellow-700">(${totalPendienteUsd.toFixed(2)})</span>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">

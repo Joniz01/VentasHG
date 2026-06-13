@@ -240,6 +240,17 @@ export default function ReportesClient() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="border-t border-zinc-200 bg-zinc-50">
+                <tr>
+                  <td className="px-4 py-2 font-semibold">Total</td>
+                  <td className="px-4 py-2 text-right font-semibold">
+                    ${reporte.porFormaPago.reduce((acc, fp) => acc + fp.totalUsd, 0).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold">
+                    Bs {reporte.porFormaPago.reduce((acc, fp) => acc + fp.totalBs, 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </section>
 
