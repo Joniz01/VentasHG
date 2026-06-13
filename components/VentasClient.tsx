@@ -889,8 +889,8 @@ export default function VentasClient() {
           )}
         </div>
 
-        <div className="flex flex-col gap-4 rounded-md border border-blue-100 bg-blue-50/60 p-3">
-        <h3 className="text-sm font-semibold text-blue-800">Producto y forma de pago</h3>
+        <div className="flex flex-col gap-4 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+        <h3 className="text-sm font-semibold text-zinc-700">Producto y forma de pago</h3>
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-zinc-700">Productos</h3>
@@ -1063,14 +1063,14 @@ export default function VentasClient() {
         {pagos.every((p) => !p.metodo) && (
           <div
             className={`rounded-md border p-3 ${
-              errorPlazoPago ? "border-red-300 bg-red-50" : "border-amber-300 bg-amber-100"
+              errorPlazoPago ? "border-red-300 bg-red-50" : "border-blue-300 bg-blue-200"
             }`}
           >
             <button
               type="button"
               onClick={() => setMostrarCuentaPorCobrar((prev) => !prev)}
               className={`flex w-full items-center justify-between text-left text-sm font-semibold ${
-                errorPlazoPago ? "text-red-800" : "text-amber-900"
+                errorPlazoPago ? "text-red-800" : "text-blue-900"
               }`}
             >
               <span>Cuenta por cobrar: indica el plazo de pago</span>
@@ -1118,7 +1118,7 @@ export default function VentasClient() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-2 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 rounded-md bg-white p-3 text-sm sm:grid-cols-2">
           <div>
             <span className="font-medium text-zinc-600">Total venta: </span>
             {totales.ventaTotalBs.toFixed(2)} Bs{" "}
