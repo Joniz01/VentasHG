@@ -199,6 +199,7 @@ export type Venta = {
   despachoPendiente: boolean;
   horaEntrega: string | null;
   horaPreparacion: string | null;
+  horaRetiro: string | null;
   deliveryAsignado: string | null;
   motorizadoId: number | null;
   pedidoEntregado: boolean;
@@ -238,6 +239,7 @@ export type VentaInput = {
   despachoPendiente: boolean;
   horaEntrega: string | null;
   horaPreparacion: string | null;
+  horaRetiro: string | null;
   deliveryAsignado: string;
   motorizadoId: number | null;
   items: VentaItemInput[];
@@ -259,6 +261,7 @@ export type PedidoPendiente = {
   fritoCongelado: string;
   horaEntrega: string;
   horaPreparacion: string;
+  horaRetiro: string | null;
   pedidoAceptado: boolean;
   pedidoEntregado: boolean;
   pedidoEnviado: boolean;
@@ -283,6 +286,7 @@ export type AlarmaEtapaConfig = {
 
 export type AlarmasConfig = {
   preparacion: AlarmaEtapaConfig;
+  retiro: AlarmaEtapaConfig;
   entrega: AlarmaEtapaConfig;
 };
 
@@ -298,6 +302,7 @@ export const ALARMA_ETAPA_DEFAULT: AlarmaEtapaConfig = {
 
 export const ALARMAS_CONFIG_DEFAULT: AlarmasConfig = {
   preparacion: { ...ALARMA_ETAPA_DEFAULT },
+  retiro: { ...ALARMA_ETAPA_DEFAULT },
   entrega: { ...ALARMA_ETAPA_DEFAULT },
 };
 

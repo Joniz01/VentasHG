@@ -56,6 +56,7 @@ export async function GET() {
     const parsed = JSON.parse(result.rows[0].value) as Partial<AlarmasConfig>;
     const config: AlarmasConfig = {
       preparacion: normalizarEtapa(parsed.preparacion),
+      retiro: normalizarEtapa(parsed.retiro),
       entrega: normalizarEtapa(parsed.entrega),
     };
     return NextResponse.json(config);
@@ -74,6 +75,7 @@ export async function PUT(request: NextRequest) {
 
   const config: AlarmasConfig = {
     preparacion: normalizarEtapa(body.preparacion),
+    retiro: normalizarEtapa(body.retiro),
     entrega: normalizarEtapa(body.entrega),
   };
 

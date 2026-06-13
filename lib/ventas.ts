@@ -15,6 +15,7 @@ export type VentaBody = {
   despachoPendiente?: boolean;
   horaEntrega?: string | null;
   horaPreparacion?: string | null;
+  horaRetiro?: string | null;
   deliveryAsignado?: string | null;
   motorizadoId?: number | null;
   fechaLimitePago?: string | null;

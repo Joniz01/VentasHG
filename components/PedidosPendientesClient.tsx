@@ -13,6 +13,7 @@ import {
 
 type AlarmaInfo = {
   prepProximoBeep: number | null;
+  retiroProximoBeep: number | null;
   entregaProximoBeep: number | null;
 };
 
@@ -53,6 +54,7 @@ export default function PedidosPendientesClient() {
         if (!pedido.pedidoEntregado && !alarmas.current.has(pedido.id)) {
           alarmas.current.set(pedido.id, {
             prepProximoBeep: null,
+            retiroProximoBeep: null,
             entregaProximoBeep: null,
           });
         }
@@ -85,8 +87,8 @@ export default function PedidosPendientesClient() {
         const estado = computeEstadoPedido(
           now,
           pedido.horaPreparacion,
-          pedido.horaEntrega,
-          pedido.pedidoEnviado
+          pedido.horaRetiro,
+          pedido.horaEntrega
         );
 
         if (estado === "PREPARAR") {
@@ -95,6 +97,15 @@ export default function PedidosPendientesClient() {
           if (now >= info.prepProximoBeep) {
             reproducirAlarma(config, pedido.id, ESTADO_LABELS[estado], pedido.fritoCongelado);
             info.prepProximoBeep = now + config.repetirSegundos * 1000;
+          }
+        }
+
+        if (estado === "RETIRO") {
+          const config = alarmasConfig.current.retiro;
+          if (info.retiroProximoBeep === null) info.retiroProximoBeep = now;
+          if (now >= info.retiroProximoBeep) {
+            reproducirAlarma(config, pedido.id, ESTADO_LABELS[estado], pedido.fritoCongelado);
+            info.retiroProximoBeep = now + config.repetirSegundos * 1000;
           }
         }
 
@@ -114,16 +125,20 @@ export default function PedidosPendientesClient() {
     return () => clearInterval(tickInterval);
   }, [pedidos]);
 
-  function silenciar(pedidoId: number, etapa: "prep" | "entrega") {
+  function silenciar(pedidoId: number, etapa: "prep" | "retiro" | "entrega") {
     const info = alarmas.current.get(pedidoId);
     if (!info) return;
-    const silenciarMs =
-      (etapa === "prep"
+    const silenciarMinutos =
+      etapa === "prep"
         ? alarmasConfig.current.preparacion.silenciarMinutos
-        : alarmasConfig.current.entrega.silenciarMinutos) * 60_000;
-    const proximo = now + silenciarMs;
+        : etapa === "retiro"
+          ? alarmasConfig.current.retiro.silenciarMinutos
+          : alarmasConfig.current.entrega.silenciarMinutos;
+    const proximo = now + silenciarMinutos * 60_000;
     if (etapa === "prep") {
       info.prepProximoBeep = proximo;
+    } else if (etapa === "retiro") {
+      info.retiroProximoBeep = proximo;
     } else {
       info.entregaProximoBeep = proximo;
     }
@@ -131,7 +146,7 @@ export default function PedidosPendientesClient() {
     setNow(now + 1);
   }
 
-  async function aceptarPreparacion(pedidoId: number) {
+  async function aceptarRetiro(pedidoId: number) {
     try {
       const res = await fetch(`/api/pedidos-pendientes/${pedidoId}`, {
         method: "PATCH",
@@ -204,8 +219,8 @@ export default function PedidosPendientesClient() {
         const estado = computeEstadoPedido(
           now,
           pedido.horaPreparacion,
-          pedido.horaEntrega,
-          pedido.pedidoEnviado
+          pedido.horaRetiro,
+          pedido.horaEntrega
         );
 
         return (
@@ -230,6 +245,11 @@ export default function PedidosPendientesClient() {
                 {pedido.pedidoAceptado && (
                   <span className="rounded-md border border-blue-400 bg-blue-100 px-2 py-1 text-xs font-semibold uppercase text-blue-800">
                     Aceptado por Motorizado{pedido.deliveryAsignado ? ` (${pedido.deliveryAsignado})` : ""}
+                  </span>
+                )}
+                {pedido.pedidoEnviado && (
+                  <span className="rounded-md border border-green-400 bg-green-100 px-2 py-1 text-xs font-semibold uppercase text-green-800">
+                    Retirado
                   </span>
                 )}
               </div>
@@ -261,6 +281,10 @@ export default function PedidosPendientesClient() {
                 <span className="font-medium">Hora de preparación: </span>
                 {formatHora(pedido.horaPreparacion)}
               </div>
+              <div>
+                <span className="font-medium">Hora de retiro: </span>
+                {pedido.horaRetiro ? formatHora(pedido.horaRetiro) : "-"}
+              </div>
             </div>
 
             {estado === "PREPARAR" && (
@@ -276,13 +300,31 @@ export default function PedidosPendientesClient() {
                 >
                   {now < (silenciados[`${pedido.id}-prep`] ?? 0) ? "Silenciado" : "Silenciar"}
                 </button>
+              </div>
+            )}
+
+            {estado === "RETIRO" && (
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => aceptarPreparacion(pedido.id)}
-                  className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+                  onClick={() => silenciar(pedido.id, "retiro")}
+                  className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                    now < (silenciados[`${pedido.id}-retiro`] ?? 0)
+                      ? "border-yellow-300 bg-yellow-100 hover:bg-yellow-200"
+                      : "border-zinc-400 bg-white hover:bg-zinc-100"
+                  }`}
                 >
-                  Aceptar
+                  {now < (silenciados[`${pedido.id}-retiro`] ?? 0) ? "Silenciado" : "Silenciar"}
                 </button>
+                {!pedido.pedidoEnviado && (
+                  <button
+                    type="button"
+                    onClick={() => aceptarRetiro(pedido.id)}
+                    className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+                  >
+                    Aceptar (retirado)
+                  </button>
+                )}
               </div>
             )}
 

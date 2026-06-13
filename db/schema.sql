@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS ventas (
   despacho_pendiente BOOLEAN NOT NULL DEFAULT FALSE,
   hora_entrega TIMESTAMPTZ,
   hora_preparacion TIMESTAMPTZ,
+  hora_retiro TIMESTAMPTZ,
   delivery_asignado TEXT,
   motorizado_id INTEGER REFERENCES motorizados(id),
   pedido_aceptado BOOLEAN NOT NULL DEFAULT FALSE,

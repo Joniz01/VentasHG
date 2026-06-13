@@ -14,6 +14,7 @@ import {
 import DeliveryReporteClient from "@/components/DeliveryReporteClient";
 
 type AlarmaInfo = {
+  retiroProximoBeep: number | null;
   entregaProximoBeep: number | null;
 };
 
@@ -80,7 +81,7 @@ export default function DeliveryClient() {
       }
       for (const pedido of data) {
         if (!pedido.pedidoEntregado && !alarmas.current.has(pedido.id)) {
-          alarmas.current.set(pedido.id, { entregaProximoBeep: null });
+          alarmas.current.set(pedido.id, { retiroProximoBeep: null, entregaProximoBeep: null });
         }
       }
 
@@ -112,9 +113,18 @@ export default function DeliveryClient() {
         const estado = computeEstadoPedido(
           now,
           pedido.horaPreparacion,
-          pedido.horaEntrega,
-          pedido.pedidoEnviado
+          pedido.horaRetiro,
+          pedido.horaEntrega
         );
+
+        if (estado === "RETIRO" && alarmasHabilitadas) {
+          const config = alarmasConfig.current.retiro;
+          if (info.retiroProximoBeep === null) info.retiroProximoBeep = now;
+          if (now >= info.retiroProximoBeep) {
+            reproducirAlarma(config, pedido.id, ESTADO_PEDIDO_LABELS[estado], pedido.fritoCongelado);
+            info.retiroProximoBeep = now + config.repetirSegundos * 1000;
+          }
+        }
 
         if (estado === "ENTREGAR" && alarmasHabilitadas) {
           const config = alarmasConfig.current.entrega;
@@ -132,13 +142,20 @@ export default function DeliveryClient() {
     return () => clearInterval(tickInterval);
   }, [pedidos, alarmasHabilitadas]);
 
-  function silenciar(pedidoId: number) {
+  function silenciar(pedidoId: number, etapa: "retiro" | "entrega") {
     const info = alarmas.current.get(pedidoId);
     if (!info) return;
-    const silenciarMs = alarmasConfig.current.entrega.silenciarMinutos * 60_000;
-    const proximo = now + silenciarMs;
-    info.entregaProximoBeep = proximo;
-    setSilenciados((prev) => ({ ...prev, [pedidoId]: proximo }));
+    const silenciarMinutos =
+      etapa === "retiro"
+        ? alarmasConfig.current.retiro.silenciarMinutos
+        : alarmasConfig.current.entrega.silenciarMinutos;
+    const proximo = now + silenciarMinutos * 60_000;
+    if (etapa === "retiro") {
+      info.retiroProximoBeep = proximo;
+    } else {
+      info.entregaProximoBeep = proximo;
+    }
+    setSilenciados((prev) => ({ ...prev, [`${pedidoId}-${etapa}`]: proximo }));
     setNow(now + 1);
   }
 
@@ -258,8 +275,8 @@ export default function DeliveryClient() {
             const estado = computeEstadoPedido(
               now,
               pedido.horaPreparacion,
-              pedido.horaEntrega,
-              pedido.pedidoEnviado
+              pedido.horaRetiro,
+              pedido.horaEntrega
             );
 
             return (
@@ -304,20 +321,28 @@ export default function DeliveryClient() {
                     <span className="font-medium">Hora de preparación: </span>
                     {formatHora(pedido.horaPreparacion)}
                   </div>
+                  <div>
+                    <span className="font-medium">Hora de retiro: </span>
+                    {pedido.horaRetiro ? formatHora(pedido.horaRetiro) : "-"}
+                  </div>
                 </div>
 
                 <div className="flex gap-2">
-                  {(estado === "ENVIADO" || estado === "ENTREGAR") && (
+                  {(estado === "RETIRO" || estado === "ENTREGAR") && (
                     <button
                       type="button"
-                      onClick={() => silenciar(pedido.id)}
+                      onClick={() => silenciar(pedido.id, estado === "RETIRO" ? "retiro" : "entrega")}
                       className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-                        now < (silenciados[pedido.id] ?? 0)
+                        now <
+                        (silenciados[`${pedido.id}-${estado === "RETIRO" ? "retiro" : "entrega"}`] ?? 0)
                           ? "border-yellow-300 bg-yellow-100 hover:bg-yellow-200"
                           : "border-zinc-400 bg-white hover:bg-zinc-100"
                       }`}
                     >
-                      {now < (silenciados[pedido.id] ?? 0) ? "Silenciado" : "Silenciar"}
+                      {now <
+                      (silenciados[`${pedido.id}-${estado === "RETIRO" ? "retiro" : "entrega"}`] ?? 0)
+                        ? "Silenciado"
+                        : "Silenciar"}
                     </button>
                   )}
                   {pedido.pedidoAceptado ? (

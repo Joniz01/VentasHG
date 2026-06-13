@@ -11,7 +11,7 @@ import {
 export async function GET() {
   const ventasResult = await pool.query(
     `SELECT id, fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega,
-            costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion,
+            costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro,
             delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado,
             cuenta_por_cobrar, fecha_limite_pago, cuenta_cobrada, cuenta_cobrada_at, created_at
      FROM ventas
@@ -67,6 +67,7 @@ export async function GET() {
     despachoPendiente: row.despacho_pendiente,
     horaEntrega: row.hora_entrega,
     horaPreparacion: row.hora_preparacion,
+    horaRetiro: row.hora_retiro,
     deliveryAsignado: row.delivery_asignado,
     motorizadoId: row.motorizado_id,
     pedidoEntregado: row.pedido_entregado,
@@ -128,8 +129,8 @@ export async function POST(request: NextRequest) {
     const cuentaPorCobrar = !body.pagos || body.pagos.length === 0;
 
     const ventaResult = await client.query(
-      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, delivery_asignado, motorizado_id, cuenta_por_cobrar, fecha_limite_pago)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro, delivery_asignado, motorizado_id, cuenta_por_cobrar, fecha_limite_pago)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING id`,
       [
         body.fecha,
@@ -145,6 +146,7 @@ export async function POST(request: NextRequest) {
         Boolean(body.despachoPendiente),
         body.despachoPendiente ? body.horaEntrega : null,
         body.despachoPendiente ? body.horaPreparacion : null,
+        body.despachoPendiente ? body.horaRetiro : null,
         deliveryAsignado,
         body.despachoPendiente ? body.motorizadoId || null : null,
         cuentaPorCobrar,

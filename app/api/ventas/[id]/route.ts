@@ -35,11 +35,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
       `UPDATE ventas
        SET fecha = $1, tasa_dia = $2, cliente = $3, cliente_ci = $4, cliente_telefono = $5, direccion = $6,
            modalidad_compra = $7, modo_entrega = $8, costo_delivery = $9, observaciones = $10,
-           despacho_pendiente = $11, hora_entrega = $12, hora_preparacion = $13, delivery_asignado = $14,
-           motorizado_id = $15, cuenta_por_cobrar = $16, fecha_limite_pago = $17,
-           cuenta_cobrada = CASE WHEN $16 THEN cuenta_cobrada ELSE FALSE END,
-           cuenta_cobrada_at = CASE WHEN $16 THEN cuenta_cobrada_at ELSE NULL END
-       WHERE id = $18
+           despacho_pendiente = $11, hora_entrega = $12, hora_preparacion = $13, hora_retiro = $14,
+           delivery_asignado = $15, motorizado_id = $16, cuenta_por_cobrar = $17, fecha_limite_pago = $18,
+           cuenta_cobrada = CASE WHEN $17 THEN cuenta_cobrada ELSE FALSE END,
+           cuenta_cobrada_at = CASE WHEN $17 THEN cuenta_cobrada_at ELSE NULL END
+       WHERE id = $19
        RETURNING id`,
       [
         body.fecha,
@@ -55,6 +55,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
         Boolean(body.despachoPendiente),
         body.despachoPendiente ? body.horaEntrega : null,
         body.despachoPendiente ? body.horaPreparacion : null,
+        body.despachoPendiente ? body.horaRetiro : null,
         deliveryAsignado,
         body.despachoPendiente ? body.motorizadoId || null : null,
         cuentaPorCobrar,

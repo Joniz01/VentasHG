@@ -12,6 +12,7 @@ import { TONO_LABELS, TIPO_ALARMA_LABELS, reproducirAlarma } from "@/lib/alarmas
 
 const ETAPAS: { key: keyof AlarmasConfig; titulo: string; estadoLabel: string }[] = [
   { key: "preparacion", titulo: "Alarma de Preparación", estadoLabel: "Preparar" },
+  { key: "retiro", titulo: "Alarma de Retiro de Pedido", estadoLabel: "Retirar" },
   { key: "entrega", titulo: "Alarma de Entrega", estadoLabel: "Entregar" },
 ];
 

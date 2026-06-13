@@ -94,6 +94,8 @@ export default function VentasClient() {
   const [horaEntrega, setHoraEntrega] = useState("");
   const [minutosPrep, setMinutosPrep] = useState("15");
   const [minutosPrepCustom, setMinutosPrepCustom] = useState("");
+  const [minutosRetiro, setMinutosRetiro] = useState("10");
+  const [minutosRetiroCustom, setMinutosRetiroCustom] = useState("");
   const [motorizadoId, setMotorizadoId] = useState("");
   const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
@@ -257,10 +259,15 @@ export default function VentasClient() {
 
   const minutosPreparacionNum =
     minutosPrep === "otro" ? Number(minutosPrepCustom) || 0 : Number(minutosPrep);
+  const minutosRetiroNum =
+    minutosRetiro === "otro" ? Number(minutosRetiroCustom) || 0 : Number(minutosRetiro);
 
   const horaEntregaDate = combinarFechaHora(fecha, horaEntrega);
   const horaPreparacionDate = horaEntregaDate
     ? new Date(horaEntregaDate.getTime() - minutosPreparacionNum * 60000)
+    : null;
+  const horaRetiroDate = horaEntregaDate
+    ? new Date(horaEntregaDate.getTime() - minutosRetiroNum * 60000)
     : null;
 
   const ventasFiltradas = useMemo(() => {
@@ -344,6 +351,8 @@ export default function VentasClient() {
     setHoraEntrega("");
     setMinutosPrep("15");
     setMinutosPrepCustom("");
+    setMinutosRetiro("10");
+    setMinutosRetiroCustom("");
     setMotorizadoId("");
   }
 
@@ -395,12 +404,28 @@ export default function VentasClient() {
         setMinutosPrep("otro");
         setMinutosPrepCustom(String(diffMin));
       }
+      if (venta.horaRetiro) {
+        const retiroDate = new Date(venta.horaRetiro);
+        const diffRetiro = Math.round((entregaDate.getTime() - retiroDate.getTime()) / 60000);
+        if ([5, 15, 30].includes(diffRetiro)) {
+          setMinutosRetiro(String(diffRetiro));
+          setMinutosRetiroCustom("");
+        } else {
+          setMinutosRetiro("otro");
+          setMinutosRetiroCustom(String(diffRetiro));
+        }
+      } else {
+        setMinutosRetiro("10");
+        setMinutosRetiroCustom("");
+      }
       setMotorizadoId(venta.motorizadoId ? String(venta.motorizadoId) : "");
     } else {
       setDespachoPendiente(false);
       setHoraEntrega("");
       setMinutosPrep("15");
       setMinutosPrepCustom("");
+      setMinutosRetiro("10");
+      setMinutosRetiroCustom("");
       setMotorizadoId("");
     }
   }
@@ -480,6 +505,7 @@ export default function VentasClient() {
         horaEntrega: despachoPendiente && horaEntregaDate ? horaEntregaDate.toISOString() : null,
         horaPreparacion:
           despachoPendiente && horaPreparacionDate ? horaPreparacionDate.toISOString() : null,
+        horaRetiro: despachoPendiente && horaRetiroDate ? horaRetiroDate.toISOString() : null,
         motorizadoId: despachoPendiente && motorizadoId ? Number(motorizadoId) : null,
         items: validItems.map((i) => ({
           productoId: Number(i.productoId),
@@ -577,6 +603,8 @@ export default function VentasClient() {
       {vista === "ventas" && (
     <>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="flex flex-col gap-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
+        <h3 className="text-sm font-semibold text-blue-800">Información del cliente</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Fecha</label>
@@ -689,32 +717,6 @@ export default function VentasClient() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
-            <select
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              value={modoEntrega}
-              onChange={(e) => setModoEntrega(e.target.value as ModoEntrega)}
-            >
-              {MODOS_ENTREGA.map((m) => (
-                <option key={m} value={m}>
-                  {m === "LOCAL" ? "Local" : "Delivery"}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700">Costo delivery</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              value={costoDelivery}
-              onChange={(e) => setCostoDelivery(e.target.value)}
-              disabled={modoEntrega !== "DELIVERY"}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Modalidad de compra</label>
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
@@ -733,8 +735,38 @@ export default function VentasClient() {
             />
           </div>
         </div>
+        </div>
 
-        <div className="flex flex-col gap-3 rounded-md border border-zinc-200 p-3">
+        <div className="flex flex-col gap-3 rounded-md border border-emerald-100 bg-emerald-50/60 p-3">
+          <h3 className="text-sm font-semibold text-emerald-800">Parámetros de entrega</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
+              <select
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={modoEntrega}
+                onChange={(e) => setModoEntrega(e.target.value as ModoEntrega)}
+              >
+                {MODOS_ENTREGA.map((m) => (
+                  <option key={m} value={m}>
+                    {m === "DELIVERY" ? "Delivery" : "Local"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-zinc-700">Costo delivery</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={costoDelivery}
+                onChange={(e) => setCostoDelivery(e.target.value)}
+                disabled={modoEntrega !== "DELIVERY"}
+              />
+            </div>
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">¿Despacho pendiente?</label>
             <div className="flex gap-2">
@@ -796,6 +828,33 @@ export default function VentasClient() {
                 </div>
               )}
               <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Avisar hora de retiro</label>
+                <select
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={minutosRetiro}
+                  onChange={(e) => setMinutosRetiro(e.target.value)}
+                >
+                  <option value="5">5 min antes</option>
+                  <option value="10">10 min antes</option>
+                  <option value="15">15 min antes</option>
+                  <option value="30">30 min antes</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              {minutosRetiro === "otro" && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-zinc-700">Minutos antes</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    value={minutosRetiroCustom}
+                    onChange={(e) => setMinutosRetiroCustom(e.target.value)}
+                    placeholder="Ej: 10"
+                  />
+                </div>
+              )}
+              <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Delivery asignado</label>
                 <select
                   className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
@@ -818,10 +877,20 @@ export default function VentasClient() {
                   </span>
                 </div>
               )}
+              {horaRetiroDate && (
+                <div className="flex flex-col justify-end text-sm text-zinc-600 sm:col-span-4">
+                  La alarma de retiro sonará a las{" "}
+                  <span className="font-medium">
+                    {pad(horaRetiroDate.getHours())}:{pad(horaRetiroDate.getMinutes())}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
+        <div className="flex flex-col gap-4 rounded-md border border-violet-100 bg-violet-50/60 p-3">
+        <h3 className="text-sm font-semibold text-violet-800">Producto y forma de pago</h3>
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-zinc-700">Productos</h3>
@@ -1072,6 +1141,7 @@ export default function VentasClient() {
             {totales.totalPagos.toFixed(2)} Bs{" "}
             <span className="text-zinc-500">(${totales.totalPagosEnUsd.toFixed(2)})</span>
           </div>
+        </div>
         </div>
 
         {error && (
