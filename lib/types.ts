@@ -288,6 +288,7 @@ export type AlarmasConfig = {
   preparacion: AlarmaEtapaConfig;
   retiro: AlarmaEtapaConfig;
   entrega: AlarmaEtapaConfig;
+  vencimientoHora: string;
 };
 
 export const ALARMA_ETAPA_DEFAULT: AlarmaEtapaConfig = {
@@ -304,6 +305,7 @@ export const ALARMAS_CONFIG_DEFAULT: AlarmasConfig = {
   preparacion: { ...ALARMA_ETAPA_DEFAULT },
   retiro: { ...ALARMA_ETAPA_DEFAULT },
   entrega: { ...ALARMA_ETAPA_DEFAULT },
+  vencimientoHora: "09:00",
 };
 
 export type ReporteFormaPago = {
@@ -379,4 +381,5 @@ export type CuentaPorCobrarItem = {
   fechaLimitePago: string | null;
   cuentaCobrada: boolean;
   cuentaCobradaAt: string | null;
+  alarmaSilenciadaHasta: string | null;
 };

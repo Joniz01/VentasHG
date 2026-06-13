@@ -2,7 +2,9 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import type { CuentaPorCobrarItem } from "@/lib/types";
+import { ALARMAS_CONFIG_DEFAULT } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+import { alarmaVencimientoActiva, esCuentaVencida, proximaAlarmaVencimiento } from "@/lib/cuentasPorCobrar";
 
 type EstadoFiltro = "TODOS" | "COBRADA" | "PENDIENTE";
 
@@ -11,6 +13,8 @@ export default function CuentasPorCobrarPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [vencimientoHora, setVencimientoHora] = useState(ALARMAS_CONFIG_DEFAULT.vencimientoHora);
+  const [now, setNow] = useState(0);
 
   const [estado, setEstado] = useState<EstadoFiltro>("PENDIENTE");
   const [ventaId, setVentaId] = useState("");
@@ -45,6 +49,25 @@ export default function CuentasPorCobrarPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const res = await fetch("/api/alarmas-config");
+        if (res.ok) {
+          const config = await res.json();
+          setVencimientoHora(config.vencimientoHora);
+        }
+      } catch {
+        // usar valor por defecto
+      }
+    }
+    loadConfig();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     loadItems();
@@ -72,6 +95,33 @@ export default function CuentasPorCobrarPanel() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar el cobro");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function handleSilenciarAlarma(item: CuentaPorCobrarItem) {
+    setUpdatingId(item.ventaId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/reportes/cuentas-por-cobrar/${item.ventaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alarmaSilenciadaHasta: proximaAlarmaVencimiento(vencimientoHora) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Error al actualizar la alarma");
+      }
+      setItems((prev) =>
+        prev.map((it) =>
+          it.ventaId === item.ventaId
+            ? { ...it, alarmaSilenciadaHasta: data.alarmaSilenciadaHasta }
+            : it
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar la alarma");
     } finally {
       setUpdatingId(null);
     }
@@ -199,13 +249,34 @@ export default function CuentasPorCobrarPanel() {
                     )}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => handleToggleCobrada(item)}
-                      disabled={updatingId === item.ventaId}
-                      className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
-                    >
-                      {item.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {esCuentaVencida(item, now) && (
+                        <button
+                          type="button"
+                          onClick={() => handleSilenciarAlarma(item)}
+                          disabled={updatingId === item.ventaId}
+                          title={
+                            alarmaVencimientoActiva(item, now, vencimientoHora)
+                              ? "Plazo vencido: clic para silenciar la alarma hasta el próximo aviso"
+                              : "Alarma silenciada hasta el próximo aviso"
+                          }
+                          className={`rounded-full px-2 py-1 text-xs font-medium disabled:opacity-50 ${
+                            alarmaVencimientoActiva(item, now, vencimientoHora)
+                              ? "bg-red-600 text-white hover:bg-red-700"
+                              : "bg-zinc-200 text-zinc-500 hover:bg-zinc-300"
+                          }`}
+                        >
+                          🔔
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleToggleCobrada(item)}
+                        disabled={updatingId === item.ventaId}
+                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
+                      >
+                        {item.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -45,6 +45,15 @@ function ALARMA_ETAPA_DEFAULT_CLONE(): AlarmaEtapaConfig {
   return { ...ALARMAS_CONFIG_DEFAULT.preparacion };
 }
 
+const HORA_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function normalizarVencimientoHora(value: unknown): string {
+  if (typeof value === "string" && HORA_REGEX.test(value)) {
+    return value;
+  }
+  return ALARMAS_CONFIG_DEFAULT.vencimientoHora;
+}
+
 export async function GET() {
   const result = await pool.query(`SELECT value FROM app_config WHERE key = $1`, [CONFIG_KEY]);
 
@@ -58,6 +67,7 @@ export async function GET() {
       preparacion: normalizarEtapa(parsed.preparacion),
       retiro: normalizarEtapa(parsed.retiro),
       entrega: normalizarEtapa(parsed.entrega),
+      vencimientoHora: normalizarVencimientoHora(parsed.vencimientoHora),
     };
     return NextResponse.json(config);
   } catch {
@@ -77,6 +87,7 @@ export async function PUT(request: NextRequest) {
     preparacion: normalizarEtapa(body.preparacion),
     retiro: normalizarEtapa(body.retiro),
     entrega: normalizarEtapa(body.entrega),
+    vencimientoHora: normalizarVencimientoHora(body.vencimientoHora),
   };
 
   await pool.query(

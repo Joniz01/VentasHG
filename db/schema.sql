@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS ventas (
   fecha_limite_pago DATE,
   cuenta_cobrada BOOLEAN NOT NULL DEFAULT FALSE,
   cuenta_cobrada_at TIMESTAMPTZ,
+  alarma_vencimiento_silenciada_hasta TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

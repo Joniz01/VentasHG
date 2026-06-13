@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ReporteVentas } from "@/lib/types";
 import { METODO_PAGO_LABELS } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
@@ -26,7 +27,11 @@ function startOfMonth(date: Date) {
 }
 
 export default function ReportesClient() {
-  const [tab, setTab] = useState<"ventas" | "deliveries" | "cuentasPorCobrar">("ventas");
+  const searchParams = useSearchParams();
+  const tabInicial = searchParams.get("tab");
+  const [tab, setTab] = useState<"ventas" | "deliveries" | "cuentasPorCobrar">(
+    tabInicial === "cuentasPorCobrar" || tabInicial === "deliveries" ? tabInicial : "ventas"
+  );
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [mesEspecifico, setMesEspecifico] = useState("");

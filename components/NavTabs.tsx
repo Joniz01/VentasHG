@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PermisosUsuario, Rol } from "@/lib/types";
+import CuentasPorCobrarAlerta from "@/components/CuentasPorCobrarAlerta";
 
 const TABS: { href: string; label: string; permiso?: keyof PermisosUsuario }[] = [
   { href: "/productos", label: "Productos", permiso: "productos" },
@@ -42,8 +43,10 @@ export default function NavTabs({ rol, permisos }: Props) {
     return permisos[tab.permiso];
   });
 
+  const puedeVerReportes = rol === "ADMIN" || !!permisos?.reportes;
+
   return (
-    <nav className="mt-3 flex gap-2">
+    <nav className="mt-3 flex items-center gap-2">
       {tabs.map((tab) => {
         const active = pathname?.startsWith(tab.href);
         return (
@@ -60,6 +63,7 @@ export default function NavTabs({ rol, permisos }: Props) {
           </Link>
         );
       })}
+      {puedeVerReportes && <CuentasPorCobrarAlerta />}
     </nav>
   );
 }

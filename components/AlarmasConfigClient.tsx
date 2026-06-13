@@ -10,7 +10,7 @@ import {
 } from "@/lib/types";
 import { TONO_LABELS, TIPO_ALARMA_LABELS, reproducirAlarma } from "@/lib/alarmas";
 
-const ETAPAS: { key: keyof AlarmasConfig; titulo: string; estadoLabel: string }[] = [
+const ETAPAS: { key: Exclude<keyof AlarmasConfig, "vencimientoHora">; titulo: string; estadoLabel: string }[] = [
   { key: "preparacion", titulo: "Alarma de Preparación", estadoLabel: "Preparar" },
   { key: "retiro", titulo: "Alarma de Retiro de Pedido", estadoLabel: "Retirar" },
   { key: "entrega", titulo: "Alarma de Entrega", estadoLabel: "Entregar" },
@@ -50,14 +50,14 @@ export default function AlarmasConfigClient() {
     load();
   }, []);
 
-  function updateEtapa(etapa: keyof AlarmasConfig, cambios: Partial<AlarmaEtapaConfig>) {
+  function updateEtapa(etapa: Exclude<keyof AlarmasConfig, "vencimientoHora">, cambios: Partial<AlarmaEtapaConfig>) {
     setConfig((prev) => ({
       ...prev,
       [etapa]: { ...prev[etapa], ...cambios },
     }));
   }
 
-  async function handleAudioChange(etapa: keyof AlarmasConfig, file: File | null) {
+  async function handleAudioChange(etapa: Exclude<keyof AlarmasConfig, "vencimientoHora">, file: File | null) {
     if (!file) return;
     if (file.size > MAX_AUDIO_BYTES) {
       setError("El archivo de audio no debe superar 500 KB");
@@ -68,7 +68,7 @@ export default function AlarmasConfigClient() {
     updateEtapa(etapa, { audioDataUrl: dataUrl, audioNombre: file.name });
   }
 
-  function handleProbar(etapa: keyof AlarmasConfig) {
+  function handleProbar(etapa: Exclude<keyof AlarmasConfig, "vencimientoHora">) {
     const etapaConfig = config[etapa];
     const estadoLabel = ETAPAS.find((e) => e.key === etapa)?.estadoLabel ?? "Preparar";
     reproducirAlarma(etapaConfig, 7, estadoLabel, "Frito");
@@ -107,6 +107,24 @@ export default function AlarmasConfigClient() {
       {success && (
         <div className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-700">{success}</div>
       )}
+
+      <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4">
+        <h3 className="text-sm font-semibold text-zinc-800">Alerta de Cuentas por Cobrar Vencidas</h3>
+        <div className="flex flex-col gap-1 sm:max-w-xs">
+          <label className="text-sm font-medium text-zinc-700">
+            Hora de alerta diaria
+          </label>
+          <input
+            type="time"
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            value={config.vencimientoHora}
+            onChange={(e) => setConfig((prev) => ({ ...prev, vencimientoHora: e.target.value }))}
+          />
+          <p className="text-xs text-zinc-500">
+            Hora en la que se activará la alerta para las cuentas por cobrar con plazo vencido.
+          </p>
+        </div>
+      </div>
 
       {ETAPAS.map(({ key, titulo }) => {
         const etapaConfig = config[key];
