@@ -28,6 +28,7 @@ function formatFechaDDMMYYYY(fecha: string) {
 export default function NotasEntregaTab({ productos }: { productos: Producto[] }) {
   const [fecha, setFecha] = useState(today());
   const [fechaLimitePago, setFechaLimitePago] = useState("");
+  const [numeroFactura, setNumeroFactura] = useState("");
   const [cliente, setCliente] = useState("");
   const [clienteCi, setClienteCi] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
@@ -177,6 +178,15 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={fechaLimitePago}
               onChange={(e) => setFechaLimitePago(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">N° de Factura</label>
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={numeroFactura}
+              onChange={(e) => setNumeroFactura(e.target.value)}
+              placeholder="Opcional"
             />
           </div>
           <div className="relative flex flex-col gap-1 sm:col-span-2">
@@ -343,7 +353,10 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
           <div className="flex-1 text-center">
             <h1 className="text-2xl font-bold">ORDEN DE ENTREGA</h1>
           </div>
-          <div className="text-sm whitespace-nowrap">Fecha {formatFechaDDMMYYYY(fecha)}</div>
+          <div className="flex flex-col items-end gap-1 text-sm whitespace-nowrap">
+            <div>Fecha {formatFechaDDMMYYYY(fecha)}</div>
+            {numeroFactura && <div>N. de Factura: {numeroFactura}</div>}
+          </div>
         </div>
 
         <div className="mt-4 flex flex-col gap-1 text-sm">
