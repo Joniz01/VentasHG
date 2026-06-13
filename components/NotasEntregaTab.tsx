@@ -68,6 +68,12 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
     const pedido = pedidosPendientes.find((p) => String(p.id) === value);
     if (!pedido) return;
 
+    setCliente(pedido.cliente);
+    setClienteCi(pedido.clienteCi ?? "");
+    setClienteTelefono(pedido.clienteTelefono ?? "");
+    setDireccion(pedido.direccion ?? "");
+    setFechaLimitePago((pedido.fechaLimitePago ?? "").slice(0, 10));
+
     setItems(
       pedido.items.map((it) => ({
         descripcion: it.descripcion,

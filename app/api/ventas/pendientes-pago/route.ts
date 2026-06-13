@@ -3,7 +3,7 @@ import { pool } from "@/lib/db";
 
 export async function GET() {
   const ventasResult = await pool.query(
-    `SELECT id, cliente
+    `SELECT id, cliente, cliente_ci, cliente_telefono, direccion, fecha_limite_pago
      FROM ventas
      WHERE cuenta_por_cobrar = TRUE AND cuenta_cobrada = FALSE
      ORDER BY id DESC`
@@ -25,6 +25,10 @@ export async function GET() {
   const pedidos = ventasResult.rows.map((row) => ({
     id: row.id,
     cliente: row.cliente,
+    clienteCi: row.cliente_ci,
+    clienteTelefono: row.cliente_telefono,
+    direccion: row.direccion,
+    fechaLimitePago: row.fecha_limite_pago,
     items: itemsResult.rows
       .filter((item) => item.venta_id === row.id)
       .map((item) => ({

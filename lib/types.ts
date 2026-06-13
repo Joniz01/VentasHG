@@ -387,6 +387,10 @@ export type CuentaPorCobrarItem = {
 export type VentaPendientePago = {
   id: number;
   cliente: string;
+  clienteCi: string | null;
+  clienteTelefono: string | null;
+  direccion: string | null;
+  fechaLimitePago: string | null;
   items: {
     descripcion: string;
     cantidad: number;
