@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Image from "next/image";
 import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -19,6 +19,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "VentasHG",
   description: "Control de productos, costos y ventas",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "VentasHG",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#18181b",
 };
 
 export default async function RootLayout({
@@ -37,15 +48,15 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
         <header className="border-b border-zinc-200 bg-white">
-          <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-4">
-            <Image src="/logo.jpg" alt="La Tequeñería Hechizo Gourmet" width={48} height={60} className="h-12 w-auto rounded-md" priority />
-            <div>
-              <h1 className="text-xl font-semibold">VentasHG</h1>
+          <div className="mx-auto flex max-w-[1400px] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-4">
+            <Image src="/logo.jpg" alt="La Tequeñería Hechizo Gourmet" width={48} height={60} className="h-10 w-auto rounded-md sm:h-12" priority />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-semibold sm:text-xl">VentasHG</h1>
               <NavTabs rol={sesion?.rol ?? null} permisos={sesion?.permisos ?? null} />
             </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6">
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 sm:px-4 sm:py-6">
           {children}
         </main>
       </body>
