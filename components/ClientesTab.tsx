@@ -247,7 +247,11 @@ export default function ClientesTab({ rol }: Props) {
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={form.telefono}
               onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
+              placeholder="Ej: 584129002211"
             />
+            <span className="text-xs text-zinc-500">
+              Formato: código de país + número, sin espacios ni símbolos (Ej: 584129002211)
+            </span>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Dirección</label>
