@@ -66,6 +66,7 @@ export type Categoria = {
 export type Cliente = {
   id: number;
   nombre: string;
+  apellido: string | null;
   cedula: string | null;
   direccion: string | null;
   telefono: string | null;
@@ -73,18 +74,23 @@ export type Cliente = {
 
 export type ClienteInput = {
   nombre: string;
+  apellido: string;
   cedula: string;
   direccion: string;
   telefono: string;
 };
 
 export type ClientesConfig = {
+  nombreObligatorio: boolean;
+  apellidoObligatorio: boolean;
   cedulaObligatoria: boolean;
   telefonoObligatorio: boolean;
   direccionObligatoria: boolean;
 };
 
 export const CLIENTES_CONFIG_DEFAULT: ClientesConfig = {
+  nombreObligatorio: true,
+  apellidoObligatorio: false,
   cedulaObligatoria: false,
   telefonoObligatorio: false,
   direccionObligatoria: false,
@@ -208,6 +214,8 @@ export type Venta = {
   fecha: string;
   tasaDelDia: number;
   cliente: string;
+  clienteNombre: string | null;
+  clienteApellido: string | null;
   clienteCi: string | null;
   clienteTelefono: string | null;
   direccion: string | null;
@@ -248,6 +256,8 @@ export type VentaInput = {
   fecha: string;
   tasaDelDia: number;
   cliente: string;
+  clienteNombre: string;
+  clienteApellido: string;
   clienteCi: string;
   clienteTelefono: string;
   direccion: string;

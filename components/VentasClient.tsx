@@ -18,7 +18,7 @@ import {
 } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
 import { ajustarCantidadConFlechas } from "@/lib/cantidad";
-import { validarCedulaRif } from "@/lib/validacion";
+import { validarCedulaRif, validarTelefono } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
 import ClientesTab from "@/components/ClientesTab";
@@ -85,7 +85,8 @@ export default function VentasClient({ rol = null }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(today());
   const [tasaDelDia, setTasaDelDia] = useState("");
-  const [cliente, setCliente] = useState("");
+  const [clienteNombre, setClienteNombre] = useState("");
+  const [clienteApellido, setClienteApellido] = useState("");
   const [clienteCi, setClienteCi] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -176,7 +177,7 @@ export default function VentasClient({ rol = null }: Props) {
   }
 
   useEffect(() => {
-    const query = cliente.trim() || clienteCi.trim();
+    const query = clienteNombre.trim() || clienteCi.trim();
     if (query.length < 4) {
       return;
     }
@@ -186,13 +187,14 @@ export default function VentasClient({ rol = null }: Props) {
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [cliente, clienteCi]);
+  }, [clienteNombre, clienteCi]);
 
   const puedeMostrarResultados =
-    mostrarResultados && (cliente.trim().length >= 4 || clienteCi.trim().length >= 4);
+    mostrarResultados && (clienteNombre.trim().length >= 4 || clienteCi.trim().length >= 4);
 
   function seleccionarCliente(c: Cliente) {
-    setCliente(c.nombre);
+    setClienteNombre(c.nombre);
+    setClienteApellido(c.apellido ?? "");
     setClienteCi(c.cedula ?? "");
     setClienteTelefono(c.telefono ?? "");
     setDireccion(c.direccion ?? "");
@@ -356,7 +358,8 @@ export default function VentasClient({ rol = null }: Props) {
   function resetForm() {
     setEditingId(null);
     setFecha(today());
-    setCliente("");
+    setClienteNombre("");
+    setClienteApellido("");
     setClienteCi("");
     setClienteTelefono("");
     setDireccion("");
@@ -383,7 +386,8 @@ export default function VentasClient({ rol = null }: Props) {
     setEditingId(venta.id);
     setFecha(String(venta.fecha).slice(0, 10));
     setTasaDelDia(String(venta.tasaDelDia));
-    setCliente(venta.cliente);
+    setClienteNombre(venta.clienteNombre ?? venta.cliente);
+    setClienteApellido(venta.clienteApellido ?? "");
     setClienteCi(venta.clienteCi ?? "");
     setClienteTelefono(venta.clienteTelefono ?? "");
     setDireccion(venta.direccion ?? "");
@@ -461,14 +465,25 @@ export default function VentasClient({ rol = null }: Props) {
     e.preventDefault();
     setError(null);
 
-    if (!cliente.trim()) {
-      setError("El cliente es obligatorio");
+    if (!clienteNombre.trim()) {
+      setError("El nombre del cliente es obligatorio");
       return;
     }
 
     const ciRifError = validarCedulaRif(clienteCi);
     if (ciRifError) {
       setError(ciRifError);
+      return;
+    }
+
+    const telefonoError = validarTelefono(clienteTelefono);
+    if (telefonoError) {
+      setError(telefonoError);
+      return;
+    }
+
+    if (clientesConfig.apellidoObligatorio && !clienteApellido.trim()) {
+      setError("El apellido del cliente es obligatorio");
       return;
     }
 
@@ -531,7 +546,9 @@ export default function VentasClient({ rol = null }: Props) {
       const payload = {
         fecha,
         tasaDelDia: Number(tasaDelDia) || 0,
-        cliente: cliente.trim(),
+        cliente: `${clienteNombre.trim()} ${clienteApellido.trim()}`.trim(),
+        clienteNombre: clienteNombre.trim(),
+        clienteApellido: clienteApellido.trim(),
         clienteCi: clienteCi.trim(),
         clienteTelefono: clienteTelefono.trim(),
         direccion: direccion.trim(),
@@ -699,25 +716,43 @@ export default function VentasClient({ rol = null }: Props) {
             )}
           </div>
           <div className="relative flex flex-col gap-1 sm:col-span-2">
-            <label className="text-sm font-medium text-zinc-700">Cliente</label>
-            <div className="flex gap-1">
-              <input
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                value={cliente}
-                onChange={(e) => setCliente(e.target.value)}
-                onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)}
-                placeholder="Nombre del cliente"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => buscarClientes(cliente || clienteCi)}
-                disabled={buscandoClientes}
-                title="Buscar cliente"
-                className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
-              >
-                {buscandoClientes ? "..." : "Buscar"}
-              </button>
+            <div className="grid grid-cols-2 gap-1">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">
+                  Nombre{clientesConfig.nombreObligatorio && " *"}
+                </label>
+                <div className="flex gap-1">
+                  <input
+                    className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    value={clienteNombre}
+                    onChange={(e) => setClienteNombre(e.target.value)}
+                    onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)}
+                    placeholder="Nombre"
+                    required={clientesConfig.nombreObligatorio}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => buscarClientes(clienteNombre || clienteCi)}
+                    disabled={buscandoClientes}
+                    title="Buscar cliente"
+                    className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
+                  >
+                    {buscandoClientes ? "..." : "Buscar"}
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">
+                  Apellido{clientesConfig.apellidoObligatorio && " *"}
+                </label>
+                <input
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={clienteApellido}
+                  onChange={(e) => setClienteApellido(e.target.value)}
+                  placeholder="Apellido"
+                  required={clientesConfig.apellidoObligatorio}
+                />
+              </div>
             </div>
             {puedeMostrarResultados && clientesResultados.length > 0 && (
               <ul className="absolute top-full left-0 z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg">
@@ -728,7 +763,9 @@ export default function VentasClient({ rol = null }: Props) {
                       onClick={() => seleccionarCliente(c)}
                       className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-zinc-100"
                     >
-                      <span className="font-medium">{c.nombre}</span>
+                      <span className="font-medium">
+                        {c.nombre} {c.apellido ?? ""}
+                      </span>
                       <span className="text-xs text-zinc-500">
                         {c.cedula ?? "Sin C.I/Rif"}
                         {c.telefono ? ` · ${c.telefono}` : ""}
@@ -760,9 +797,12 @@ export default function VentasClient({ rol = null }: Props) {
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={clienteTelefono}
               onChange={(e) => setClienteTelefono(e.target.value)}
-              placeholder={clientesConfig.telefonoObligatorio ? "" : "Opcional"}
+              placeholder="Ej: 584129002211"
               required={clientesConfig.telefonoObligatorio}
             />
+            <span className="text-xs text-zinc-500">
+              Formato: código de país + número, sin espacios ni símbolos (Ej: 584129002211)
+            </span>
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
             <label className="text-sm font-medium text-zinc-700">

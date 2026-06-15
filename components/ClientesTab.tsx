@@ -3,10 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { Cliente, ClienteInput, ClientesConfig, Rol } from "@/lib/types";
 import { CLIENTES_CONFIG_DEFAULT } from "@/lib/types";
-import { validarCedulaRif } from "@/lib/validacion";
+import { validarCedulaRif, validarTelefono } from "@/lib/validacion";
 
 const EMPTY_FORM: ClienteInput = {
   nombre: "",
+  apellido: "",
   cedula: "",
   direccion: "",
   telefono: "",
@@ -69,6 +70,7 @@ export default function ClientesTab({ rol }: Props) {
     setEditingId(cliente.id);
     setForm({
       nombre: cliente.nombre,
+      apellido: cliente.apellido ?? "",
       cedula: cliente.cedula ?? "",
       direccion: cliente.direccion ?? "",
       telefono: cliente.telefono ?? "",
@@ -91,6 +93,12 @@ export default function ClientesTab({ rol }: Props) {
       return;
     }
 
+    const errorTelefono = validarTelefono(form.telefono);
+    if (errorTelefono) {
+      setError(errorTelefono);
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await fetch(editingId ? `/api/clientes/${editingId}` : "/api/clientes", {
@@ -98,6 +106,7 @@ export default function ClientesTab({ rol }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nombre,
+          apellido: form.apellido.trim(),
           cedula: form.cedula.trim(),
           direccion: form.direccion.trim(),
           telefono: form.telefono.trim(),
@@ -160,6 +169,7 @@ export default function ClientesTab({ rol }: Props) {
     if (!q) return true;
     return (
       c.nombre.toLowerCase().includes(q) ||
+      (c.apellido ?? "").toLowerCase().includes(q) ||
       (c.cedula ?? "").toLowerCase().includes(q) ||
       (c.telefono ?? "").toLowerCase().includes(q)
     );
@@ -176,6 +186,22 @@ export default function ClientesTab({ rol }: Props) {
             Aplica para todos los usuarios al registrar nuevas ventas.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+            <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                checked={config.nombreObligatorio}
+                onChange={(e) => setConfig((prev) => ({ ...prev, nombreObligatorio: e.target.checked }))}
+              />
+              Nombre obligatorio
+            </label>
+            <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                checked={config.apellidoObligatorio}
+                onChange={(e) => setConfig((prev) => ({ ...prev, apellidoObligatorio: e.target.checked }))}
+              />
+              Apellido obligatorio
+            </label>
             <label className="flex items-center gap-2 text-sm text-zinc-700">
               <input
                 type="checkbox"
@@ -233,6 +259,14 @@ export default function ClientesTab({ rol }: Props) {
             />
           </div>
           <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">Apellido</label>
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={form.apellido}
+              onChange={(e) => setForm((prev) => ({ ...prev, apellido: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">C.I/Rif</label>
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
@@ -247,7 +281,11 @@ export default function ClientesTab({ rol }: Props) {
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={form.telefono}
               onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
+              placeholder="Ej: 584129002211"
             />
+            <span className="text-xs text-zinc-500">
+              Formato: código de país + número, sin espacios ni símbolos (Ej: 584129002211)
+            </span>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Dirección</label>
@@ -300,6 +338,7 @@ export default function ClientesTab({ rol }: Props) {
           <thead className="bg-zinc-50">
             <tr>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Nombre</th>
+              <th className="px-4 py-2 text-left font-medium text-zinc-600">Apellido</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">C.I/Rif</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Teléfono</th>
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Dirección</th>
@@ -309,14 +348,14 @@ export default function ClientesTab({ rol }: Props) {
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
             {!loading && clientesFiltrados.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
                   No hay clientes registrados
                 </td>
               </tr>
@@ -325,6 +364,7 @@ export default function ClientesTab({ rol }: Props) {
               clientesFiltrados.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-2 font-medium whitespace-nowrap">{c.nombre}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{c.apellido ?? "-"}</td>
                   <td className="px-4 py-2 whitespace-nowrap">{c.cedula ?? "-"}</td>
                   <td className="px-4 py-2 whitespace-nowrap">{c.telefono ?? "-"}</td>
                   <td className="px-4 py-2 whitespace-nowrap">{c.direccion ?? "-"}</td>

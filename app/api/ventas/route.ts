@@ -10,7 +10,7 @@ import {
 
 export async function GET() {
   const ventasResult = await pool.query(
-    `SELECT id, fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega,
+    `SELECT id, fecha, tasa_dia, cliente, cliente_nombre, cliente_apellido, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega,
             costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro,
             delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado,
             cuenta_por_cobrar, fecha_limite_pago, cuenta_cobrada, cuenta_cobrada_at, created_at
@@ -57,6 +57,8 @@ export async function GET() {
     fecha: row.fecha,
     tasaDelDia: Number(row.tasa_dia),
     cliente: row.cliente,
+    clienteNombre: row.cliente_nombre,
+    clienteApellido: row.cliente_apellido,
     clienteCi: row.cliente_ci,
     clienteTelefono: row.cliente_telefono,
     direccion: row.direccion,
@@ -129,13 +131,15 @@ export async function POST(request: NextRequest) {
     const cuentaPorCobrar = !body.pagos || body.pagos.length === 0;
 
     const ventaResult = await client.query(
-      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro, delivery_asignado, motorizado_id, cuenta_por_cobrar, fecha_limite_pago)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_nombre, cliente_apellido, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro, delivery_asignado, motorizado_id, cuenta_por_cobrar, fecha_limite_pago)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        RETURNING id`,
       [
         body.fecha,
         Number(body.tasaDelDia),
         body.cliente,
+        body.clienteNombre?.trim() || null,
+        body.clienteApellido?.trim() || null,
         body.clienteCi || null,
         body.clienteTelefono || null,
         body.direccion || null,

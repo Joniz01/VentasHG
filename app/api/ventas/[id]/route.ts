@@ -33,18 +33,20 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     const ventaResult = await client.query(
       `UPDATE ventas
-       SET fecha = $1, tasa_dia = $2, cliente = $3, cliente_ci = $4, cliente_telefono = $5, direccion = $6,
-           modalidad_compra = $7, modo_entrega = $8, costo_delivery = $9, observaciones = $10,
-           despacho_pendiente = $11, hora_entrega = $12, hora_preparacion = $13, hora_retiro = $14,
-           delivery_asignado = $15, motorizado_id = $16, cuenta_por_cobrar = $17, fecha_limite_pago = $18,
-           cuenta_cobrada = CASE WHEN $17 THEN cuenta_cobrada ELSE FALSE END,
-           cuenta_cobrada_at = CASE WHEN $17 THEN cuenta_cobrada_at ELSE NULL END
-       WHERE id = $19
+       SET fecha = $1, tasa_dia = $2, cliente = $3, cliente_nombre = $4, cliente_apellido = $5, cliente_ci = $6, cliente_telefono = $7, direccion = $8,
+           modalidad_compra = $9, modo_entrega = $10, costo_delivery = $11, observaciones = $12,
+           despacho_pendiente = $13, hora_entrega = $14, hora_preparacion = $15, hora_retiro = $16,
+           delivery_asignado = $17, motorizado_id = $18, cuenta_por_cobrar = $19, fecha_limite_pago = $20,
+           cuenta_cobrada = CASE WHEN $19 THEN cuenta_cobrada ELSE FALSE END,
+           cuenta_cobrada_at = CASE WHEN $19 THEN cuenta_cobrada_at ELSE NULL END
+       WHERE id = $21
        RETURNING id`,
       [
         body.fecha,
         Number(body.tasaDelDia),
         body.cliente,
+        body.clienteNombre?.trim() || null,
+        body.clienteApellido?.trim() || null,
         body.clienteCi || null,
         body.clienteTelefono || null,
         body.direccion || null,

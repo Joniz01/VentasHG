@@ -10,6 +10,8 @@ function normalizarConfig(value: unknown): ClientesConfig {
   const v = value as Record<string, unknown>;
 
   return {
+    nombreObligatorio: typeof v.nombreObligatorio === "boolean" ? v.nombreObligatorio : CLIENTES_CONFIG_DEFAULT.nombreObligatorio,
+    apellidoObligatorio: typeof v.apellidoObligatorio === "boolean" ? v.apellidoObligatorio : CLIENTES_CONFIG_DEFAULT.apellidoObligatorio,
     cedulaObligatoria: typeof v.cedulaObligatoria === "boolean" ? v.cedulaObligatoria : CLIENTES_CONFIG_DEFAULT.cedulaObligatoria,
     telefonoObligatorio: typeof v.telefonoObligatorio === "boolean" ? v.telefonoObligatorio : CLIENTES_CONFIG_DEFAULT.telefonoObligatorio,
     direccionObligatoria: typeof v.direccionObligatoria === "boolean" ? v.direccionObligatoria : CLIENTES_CONFIG_DEFAULT.direccionObligatoria,
