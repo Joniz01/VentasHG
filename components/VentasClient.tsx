@@ -763,9 +763,6 @@ export default function VentasClient({ rol = null }: Props) {
               placeholder="Ej: 584129002211"
               required={clientesConfig.telefonoObligatorio}
             />
-            <span className="text-xs text-zinc-500">
-              Formato: código de país + número, sin espacios ni símbolos (Ej: 584129002211)
-            </span>
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
             <label className="text-sm font-medium text-zinc-700">
