@@ -6,11 +6,14 @@ import {
   METODOS_PAGO_USD,
   METODO_PAGO_LABELS,
   MODOS_ENTREGA,
+  CLIENTES_CONFIG_DEFAULT,
   type MetodoPago,
   type ModoEntrega,
   type Cliente,
+  type ClientesConfig,
   type Motorizado,
   type Producto,
+  type Rol,
   type Venta,
 } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
@@ -18,6 +21,7 @@ import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
+import ClientesTab from "@/components/ClientesTab";
 
 type ItemRow = {
   productoId: string;
@@ -64,8 +68,13 @@ function combinarFechaHora(fecha: string, hora: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export default function VentasClient() {
-  const [vista, setVista] = useState<"ventas" | "notas">("ventas");
+type Props = {
+  rol?: Rol | null;
+};
+
+export default function VentasClient({ rol = null }: Props) {
+  const [vista, setVista] = useState<"ventas" | "notas" | "clientes">("ventas");
+  const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
@@ -129,6 +138,20 @@ export default function VentasClient() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
     handleConsultarTasaBcv();
+  }, []);
+
+  useEffect(() => {
+    async function loadClientesConfig() {
+      try {
+        const res = await fetch("/api/clientes-config");
+        if (res.ok) {
+          setClientesConfig((await res.json()) as ClientesConfig);
+        }
+      } catch {
+        // se mantiene la configuración por defecto
+      }
+    }
+    loadClientesConfig();
   }, []);
 
   async function buscarClientes(q: string) {
@@ -449,6 +472,21 @@ export default function VentasClient() {
       return;
     }
 
+    if (clientesConfig.cedulaObligatoria && !clienteCi.trim()) {
+      setError("El C.I/Rif del cliente es obligatorio");
+      return;
+    }
+
+    if (clientesConfig.telefonoObligatorio && !clienteTelefono.trim()) {
+      setError("El teléfono del cliente es obligatorio");
+      return;
+    }
+
+    if (clientesConfig.direccionObligatoria && !direccion.trim()) {
+      setError("La dirección del cliente es obligatoria");
+      return;
+    }
+
     const validItems = items.filter((i) => i.productoId && Number(i.cantidad) > 0);
     if (validItems.length === 0) {
       setError("Agrega al menos un producto con cantidad válida");
@@ -596,9 +634,22 @@ export default function VentasClient() {
         >
           Notas de Entrega
         </button>
+        <button
+          type="button"
+          onClick={() => setVista("clientes")}
+          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+            vista === "clientes"
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 hover:bg-zinc-100"
+          }`}
+        >
+          Clientes
+        </button>
       </div>
 
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
+
+      {vista === "clientes" && <ClientesTab rol={rol} />}
 
       {vista === "ventas" && (
     <>
@@ -690,30 +741,39 @@ export default function VentasClient() {
             )}
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700">C.I/Rif</label>
+            <label className="text-sm font-medium text-zinc-700">
+              C.I/Rif{clientesConfig.cedulaObligatoria && " *"}
+            </label>
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={clienteCi}
               onChange={(e) => setClienteCi(e.target.value)}
               placeholder="Ej: 12345678 o V12345678"
+              required={clientesConfig.cedulaObligatoria}
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700">Teléfono</label>
+            <label className="text-sm font-medium text-zinc-700">
+              Teléfono{clientesConfig.telefonoObligatorio && " *"}
+            </label>
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={clienteTelefono}
               onChange={(e) => setClienteTelefono(e.target.value)}
-              placeholder="Opcional"
+              placeholder={clientesConfig.telefonoObligatorio ? "" : "Opcional"}
+              required={clientesConfig.telefonoObligatorio}
             />
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
-            <label className="text-sm font-medium text-zinc-700">Dirección</label>
+            <label className="text-sm font-medium text-zinc-700">
+              Dirección{clientesConfig.direccionObligatoria && " *"}
+            </label>
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={direccion}
               onChange={(e) => setDireccion(e.target.value)}
-              placeholder="Opcional"
+              placeholder={clientesConfig.direccionObligatoria ? "" : "Opcional"}
+              required={clientesConfig.direccionObligatoria}
             />
           </div>
           <div className="flex flex-col gap-1">

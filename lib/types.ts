@@ -71,6 +71,25 @@ export type Cliente = {
   telefono: string | null;
 };
 
+export type ClienteInput = {
+  nombre: string;
+  cedula: string;
+  direccion: string;
+  telefono: string;
+};
+
+export type ClientesConfig = {
+  cedulaObligatoria: boolean;
+  telefonoObligatorio: boolean;
+  direccionObligatoria: boolean;
+};
+
+export const CLIENTES_CONFIG_DEFAULT: ClientesConfig = {
+  cedulaObligatoria: false,
+  telefonoObligatorio: false,
+  direccionObligatoria: false,
+};
+
 export type ExtraCatalogo = {
   id: number;
   nombre: string;

@@ -4,7 +4,7 @@ import { requirePermiso } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export default async function VentasPage() {
-  await requirePermiso("ventas");
+  const sesion = await requirePermiso("ventas");
 
   return (
     <div>
@@ -12,7 +12,7 @@ export default async function VentasPage() {
       <p className="mb-4 text-sm text-zinc-600">
         Registra cada venta con sus productos, costo total y forma de pago.
       </p>
-      <VentasClient />
+      <VentasClient rol={sesion.rol} />
     </div>
   );
 }
