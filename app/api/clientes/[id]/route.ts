@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { validarCedulaRif, validarTelefono } from "@/lib/validacion";
+import { validarCedulaRif } from "@/lib/validacion";
 import type { ClienteInput } from "@/lib/types";
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -18,22 +18,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: errorCedula }, { status: 400 });
   }
 
-  const telefono = body.telefono?.trim() ?? "";
-  const errorTelefono = validarTelefono(telefono);
-  if (errorTelefono) {
-    return NextResponse.json({ error: errorTelefono }, { status: 400 });
-  }
-
-  const apellido = body.apellido?.trim() ?? "";
   const direccion = body.direccion?.trim() ?? "";
+  const telefono = body.telefono?.trim() ?? "";
 
   try {
     const result = await pool.query(
       `UPDATE clientes
-       SET nombre = $1, apellido = $2, cedula = $3, direccion = $4, telefono = $5
-       WHERE id = $6
-       RETURNING id, nombre, apellido, cedula, direccion, telefono`,
-      [nombre, apellido || null, cedula || null, direccion || null, telefono || null, id]
+       SET nombre = $1, cedula = $2, direccion = $3, telefono = $4
+       WHERE id = $5
+       RETURNING id, nombre, cedula, direccion, telefono`,
+      [nombre, cedula || null, direccion || null, telefono || null, id]
     );
 
     if (!result.rows[0]) {

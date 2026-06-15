@@ -1,13 +1,10 @@
 import type { PoolClient } from "pg";
 import { METODOS_PAGO, MODOS_ENTREGA } from "@/lib/types";
-import { validarTelefono } from "@/lib/validacion";
 
 export type VentaBody = {
   fecha: string;
   tasaDelDia: number;
   cliente: string;
-  clienteNombre?: string;
-  clienteApellido?: string;
   clienteCi?: string | null;
   clienteTelefono?: string | null;
   direccion?: string | null;
@@ -34,15 +31,6 @@ export type VentaBody = {
 export function validarVenta(body: VentaBody): string | null {
   if (!body.fecha || !body.cliente || typeof body.cliente !== "string") {
     return "Fecha y cliente son obligatorios";
-  }
-
-  if (!body.clienteNombre?.trim()) {
-    return "El nombre del cliente es obligatorio";
-  }
-
-  const telefonoError = validarTelefono(body.clienteTelefono ?? "");
-  if (telefonoError) {
-    return telefonoError;
   }
 
   if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -96,50 +84,18 @@ export async function resolveDeliveryAsignado(
 // Guarda/actualiza el cliente en el catálogo a partir de los datos de la
 // venta, para poder reutilizarlo en ventas futuras sin duplicar registros.
 // Si la cédula ya existe, actualiza el nombre y la dirección del cliente.
-// Si no tiene cédula, se busca por nombre y apellido para evitar duplicados.
 export async function guardarCliente(client: PoolClient, body: VentaBody) {
-  const nombre = body.clienteNombre?.trim() || body.cliente.trim();
-  if (!nombre) return;
-
-  const apellido = body.clienteApellido?.trim() || null;
   const cedula = body.clienteCi?.trim() || null;
-  const direccion = body.direccion?.trim() || null;
-  const telefono = body.clienteTelefono?.trim() || null;
-
-  if (cedula) {
-    await client.query(
-      `INSERT INTO clientes (nombre, apellido, cedula, direccion, telefono)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (cedula) DO UPDATE
-         SET nombre = EXCLUDED.nombre,
-             apellido = EXCLUDED.apellido,
-             direccion = COALESCE(EXCLUDED.direccion, clientes.direccion),
-             telefono = COALESCE(EXCLUDED.telefono, clientes.telefono)`,
-      [nombre, apellido, cedula, direccion, telefono]
-    );
-    return;
-  }
-
-  const existente = await client.query(
-    `SELECT id FROM clientes
-     WHERE cedula IS NULL AND lower(nombre) = lower($1) AND lower(COALESCE(apellido, '')) = lower(COALESCE($2, ''))`,
-    [nombre, apellido]
-  );
-
-  if (existente.rowCount && existente.rowCount > 0) {
-    await client.query(
-      `UPDATE clientes
-       SET direccion = COALESCE($2, direccion), telefono = COALESCE($3, telefono)
-       WHERE id = $1`,
-      [existente.rows[0].id, direccion, telefono]
-    );
-    return;
-  }
+  if (!cedula) return;
 
   await client.query(
-    `INSERT INTO clientes (nombre, apellido, cedula, direccion, telefono)
-     VALUES ($1, $2, NULL, $3, $4)`,
-    [nombre, apellido, direccion, telefono]
+    `INSERT INTO clientes (nombre, cedula, direccion, telefono)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (cedula) DO UPDATE
+       SET nombre = EXCLUDED.nombre,
+           direccion = COALESCE(EXCLUDED.direccion, clientes.direccion),
+           telefono = COALESCE(EXCLUDED.telefono, clientes.telefono)`,
+    [body.cliente.trim(), cedula, body.direccion?.trim() || null, body.clienteTelefono?.trim() || null]
   );
 }
 

@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS sesiones (
 CREATE TABLE IF NOT EXISTS clientes (
   id SERIAL PRIMARY KEY,
   nombre TEXT NOT NULL,
-  apellido TEXT,
   cedula TEXT UNIQUE,
   direccion TEXT,
   telefono TEXT,
@@ -147,8 +146,6 @@ CREATE TABLE IF NOT EXISTS ventas (
   fecha DATE NOT NULL DEFAULT CURRENT_DATE,
   tasa_dia NUMERIC(12, 4) NOT NULL DEFAULT 0,
   cliente TEXT NOT NULL,
-  cliente_nombre TEXT,
-  cliente_apellido TEXT,
   cliente_ci TEXT,
   cliente_telefono TEXT,
   direccion TEXT,

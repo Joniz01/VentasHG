@@ -9,16 +9,3 @@ export function validarCedulaRif(value: string): string | null {
 
   return "C.I/Rif inválido: debe ser solo números (cédula) o iniciar con V, J o G seguido de números (Rif)";
 }
-
-// Valida el formato del teléfono: código de país (58) seguido del número,
-// sin espacios, guiones ni símbolos. Ej: 584129002211. El campo es opcional.
-const TELEFONO_REGEX = /^58\d{10}$/;
-
-export function validarTelefono(value: string): string | null {
-  const v = value.trim();
-  if (!v) return null;
-
-  if (TELEFONO_REGEX.test(v)) return null;
-
-  return "Teléfono inválido: debe registrarse en formato 584129002211 (58 seguido del número, sin espacios, guiones ni símbolos)";
-}
