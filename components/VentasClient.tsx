@@ -43,6 +43,19 @@ function addDays(fecha: string, dias: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function startOfWeek(fecha: string): string {
+  const d = new Date(`${fecha}T00:00:00`);
+  const dia = d.getDay();
+  const diff = dia === 0 ? 6 : dia - 1;
+  d.setDate(d.getDate() - diff);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function startOfMonth(fecha: string): string {
+  const d = new Date(`${fecha}T00:00:00`);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 const EMPTY_ITEM: ItemRow = {
   productoId: "",
   productoNombre: "",
@@ -116,6 +129,9 @@ export default function VentasClient({ rol = null }: Props) {
 
   const [busqueda, setBusqueda] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [soloPendientesPago, setSoloPendientesPago] = useState(false);
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState(() => today());
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState(() => today());
 
   async function loadData() {
     try {
@@ -297,12 +313,37 @@ export default function VentasClient({ rol = null }: Props) {
     const term = busqueda.trim().toLowerCase();
     return ventas.filter((venta) => {
       if (soloPendientes && !(venta.despachoPendiente && !venta.pedidoEntregado)) return false;
+
+      if (soloPendientesPago) {
+        if (!(venta.cuentaPorCobrar && !venta.cuentaCobrada)) return false;
+      } else if (filtroFechaDesde && filtroFechaHasta) {
+        if (venta.fecha < filtroFechaDesde || venta.fecha > filtroFechaHasta) return false;
+      }
+
       if (!term) return true;
       const idMatch = String(venta.id).includes(term) || `#${venta.id}`.includes(term);
       const clienteMatch = venta.cliente.toLowerCase().includes(term);
       return idMatch || clienteMatch;
     });
-  }, [ventas, busqueda, soloPendientes]);
+  }, [ventas, busqueda, soloPendientes, soloPendientesPago, filtroFechaDesde, filtroFechaHasta]);
+
+  function handleFiltroHoy() {
+    const hoy = today();
+    setFiltroFechaDesde(hoy);
+    setFiltroFechaHasta(hoy);
+  }
+
+  function handleFiltroSemana() {
+    const hoy = today();
+    setFiltroFechaDesde(startOfWeek(hoy));
+    setFiltroFechaHasta(hoy);
+  }
+
+  function handleFiltroMes() {
+    const hoy = today();
+    setFiltroFechaDesde(startOfMonth(hoy));
+    setFiltroFechaHasta(hoy);
+  }
 
   function updateItem(index: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
@@ -1244,7 +1285,59 @@ export default function VentasClient({ rol = null }: Props) {
           />
           Solo pendientes por entregar
         </label>
+        <label className="flex items-center gap-2 text-sm text-zinc-700">
+          <input
+            type="checkbox"
+            checked={soloPendientesPago}
+            onChange={(e) => setSoloPendientesPago(e.target.checked)}
+          />
+          Solo pendientes por pagar
+        </label>
       </div>
+
+      {!soloPendientesPago && (
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            type="button"
+            onClick={handleFiltroHoy}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={handleFiltroSemana}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+          >
+            Esta semana
+          </button>
+          <button
+            type="button"
+            onClick={handleFiltroMes}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+          >
+            Este mes
+          </button>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-zinc-600">Desde</label>
+            <input
+              type="date"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              value={filtroFechaDesde}
+              onChange={(e) => setFiltroFechaDesde(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-zinc-600">Hasta</label>
+            <input
+              type="date"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              value={filtroFechaHasta}
+              onChange={(e) => setFiltroFechaHasta(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
