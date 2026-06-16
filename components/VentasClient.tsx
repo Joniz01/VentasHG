@@ -317,7 +317,8 @@ export default function VentasClient({ rol = null }: Props) {
       if (soloPendientesPago) {
         if (!(venta.cuentaPorCobrar && !venta.cuentaCobrada)) return false;
       } else if (filtroFechaDesde && filtroFechaHasta) {
-        if (venta.fecha < filtroFechaDesde || venta.fecha > filtroFechaHasta) return false;
+        const fechaVenta = String(venta.fecha).slice(0, 10);
+        if (fechaVenta < filtroFechaDesde || fechaVenta > filtroFechaHasta) return false;
       }
 
       if (!term) return true;
@@ -331,6 +332,12 @@ export default function VentasClient({ rol = null }: Props) {
     const hoy = today();
     setFiltroFechaDesde(hoy);
     setFiltroFechaHasta(hoy);
+  }
+
+  function handleFiltroAyer() {
+    const ayer = addDays(today(), -1);
+    setFiltroFechaDesde(ayer);
+    setFiltroFechaHasta(ayer);
   }
 
   function handleFiltroSemana() {
@@ -1303,6 +1310,13 @@ export default function VentasClient({ rol = null }: Props) {
             className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
           >
             Hoy
+          </button>
+          <button
+            type="button"
+            onClick={handleFiltroAyer}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+          >
+            Ayer
           </button>
           <button
             type="button"
