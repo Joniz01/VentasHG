@@ -14,6 +14,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const includePendientes = searchParams.get("pendientes") === "1";
+
+  // Filtro base: ventas cobradas al contado + cuentas cobradas por fecha de cobro.
+  // Si includePendientes, también incluye cuentas pendientes (por fecha de venta).
+  const filtroBase = includePendientes
+    ? `(NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
+       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)
+       OR (v.cuenta_por_cobrar = true AND v.cuenta_cobrada = false AND v.fecha BETWEEN $1 AND $2)`
+    : `(NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
+       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)`;
+
   // Solo cuentas efectivamente cobradas en el periodo:
   // - ventas normales (no CxC) por su fecha de venta
   // - cuentas por cobrar ya cobradas por la fecha en que se marcaron como cobradas
@@ -24,9 +35,7 @@ export async function GET(request: NextRequest) {
               0
             ) AS total_items
      FROM ventas v
-     WHERE
-       (NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
-       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)`,
+     WHERE ${filtroBase}`,
     [desde, hasta]
   );
 
@@ -77,9 +86,7 @@ export async function GET(request: NextRequest) {
                 0
               ) AS total_items
        FROM ventas v
-       WHERE
-         (NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
-         OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)
+       WHERE ${filtroBase}
      )
      SELECT cliente, cliente_ci,
             COUNT(*) AS cantidad_ventas,
@@ -105,9 +112,7 @@ export async function GET(request: NextRequest) {
      FROM venta_items vi
      JOIN ventas v ON v.id = vi.venta_id
      JOIN productos p ON p.id = vi.producto_id
-     WHERE
-       (NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
-       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)
+     WHERE ${filtroBase}
      GROUP BY p.id, p.nombre
      ORDER BY total_usd DESC`,
     [desde, hasta]

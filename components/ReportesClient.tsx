@@ -38,6 +38,7 @@ export default function ReportesClient() {
   const [reporte, setReporte] = useState<ReporteVentas | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [includePendientes, setIncludePendientes] = useState(false);
 
   async function generar(desdeParam: string, hastaParam: string) {
     setError(null);
@@ -46,7 +47,7 @@ export default function ReportesClient() {
     setHasta(hastaParam);
     try {
       const res = await fetch(
-        `/api/reportes?desde=${desdeParam}&hasta=${hastaParam}`
+        `/api/reportes?desde=${desdeParam}&hasta=${hastaParam}${includePendientes ? "&pendientes=1" : ""}`
       );
       const data = await res.json();
       if (!res.ok) {
@@ -203,6 +204,14 @@ export default function ReportesClient() {
           >
             Generar reporte
           </button>
+          <label className="flex items-center gap-2 text-sm text-zinc-700 self-end pb-2">
+            <input
+              type="checkbox"
+              checked={includePendientes}
+              onChange={(e) => setIncludePendientes(e.target.checked)}
+            />
+            Mostrar ventas pendientes por pagar
+          </label>
         </form>
       </div>
 
