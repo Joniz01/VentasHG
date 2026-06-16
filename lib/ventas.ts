@@ -81,22 +81,57 @@ export async function resolveDeliveryAsignado(
   return apellido ? `${nombre} ${apellido}` : nombre;
 }
 
-// Guarda/actualiza el cliente en el catálogo a partir de los datos de la
-// venta, para poder reutilizarlo en ventas futuras sin duplicar registros.
-// Si la cédula ya existe, actualiza el nombre y la dirección del cliente.
-export async function guardarCliente(client: PoolClient, body: VentaBody) {
-  const cedula = body.clienteCi?.trim() || null;
-  if (!cedula) return;
+// Normaliza un nombre propio: primera letra de cada palabra en mayúscula y
+// el resto en minúscula. "MARIA GONZALEZ" → "Maria Gonzalez".
+export function toTitleCase(s: string): string {
+  return s
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ""))
+    .join(" ");
+}
 
-  await client.query(
-    `INSERT INTO clientes (nombre, cedula, direccion, telefono)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (cedula) DO UPDATE
-       SET nombre = EXCLUDED.nombre,
-           direccion = COALESCE(EXCLUDED.direccion, clientes.direccion),
-           telefono = COALESCE(EXCLUDED.telefono, clientes.telefono)`,
-    [body.cliente.trim(), cedula, body.direccion?.trim() || null, body.clienteTelefono?.trim() || null]
-  );
+// Guarda/actualiza el cliente en el catálogo a partir de los datos de la
+// venta. Siempre registra el cliente; si hay cédula deduplica por ella,
+// si no, deduplica por nombre (case-insensitive).
+export async function guardarCliente(client: PoolClient, body: VentaBody) {
+  const nombre = toTitleCase(body.cliente);
+  if (!nombre) return;
+
+  const cedula = body.clienteCi?.trim() || null;
+  const telefono = body.clienteTelefono?.trim() || null;
+  const direccion = body.direccion?.trim() || null;
+
+  if (cedula) {
+    await client.query(
+      `INSERT INTO clientes (nombre, cedula, direccion, telefono)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (cedula) DO UPDATE
+         SET nombre = EXCLUDED.nombre,
+             direccion = COALESCE(EXCLUDED.direccion, clientes.direccion),
+             telefono = COALESCE(EXCLUDED.telefono, clientes.telefono)`,
+      [nombre, cedula, direccion, telefono]
+    );
+  } else {
+    const existing = await client.query(
+      `SELECT id FROM clientes WHERE lower(nombre) = lower($1) AND cedula IS NULL LIMIT 1`,
+      [nombre]
+    );
+    if (existing.rowCount && existing.rowCount > 0) {
+      await client.query(
+        `UPDATE clientes
+         SET direccion = COALESCE($1, direccion),
+             telefono  = COALESCE($2, telefono)
+         WHERE id = $3`,
+        [direccion, telefono, existing.rows[0].id]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO clientes (nombre, cedula, direccion, telefono) VALUES ($1, NULL, $2, $3)`,
+        [nombre, direccion, telefono]
+      );
+    }
+  }
 }
 
 // Descuenta unidades del inventario de un producto y registra el movimiento

@@ -4,6 +4,7 @@ import {
   guardarCliente,
   insertarItemsYPagos,
   resolveDeliveryAsignado,
+  toTitleCase,
   validarVenta,
   type VentaBody,
 } from "@/lib/ventas";
@@ -121,6 +122,8 @@ export async function POST(request: NextRequest) {
 
   try {
     await client.query("BEGIN");
+
+    body.cliente = toTitleCase(body.cliente);
 
     const deliveryAsignado = body.despachoPendiente
       ? await resolveDeliveryAsignado(client, body)

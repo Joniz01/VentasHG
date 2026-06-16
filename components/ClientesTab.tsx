@@ -30,6 +30,7 @@ export default function ClientesTab({ rol }: Props) {
   const [configSaving, setConfigSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const [configSuccess, setConfigSuccess] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   async function loadClientes() {
     setLoading(true);
@@ -155,6 +156,23 @@ export default function ClientesTab({ rol }: Props) {
     }
   }
 
+  async function handleSyncClientes() {
+    setSyncing(true);
+    setConfigError(null);
+    setConfigSuccess(null);
+    try {
+      const res = await fetch("/api/admin/sync-clientes", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al sincronizar");
+      setConfigSuccess(`Sincronización completada (${data.sincronizados as number} ventas procesadas)`);
+      await loadClientes();
+    } catch (err) {
+      setConfigError(err instanceof Error ? err.message : "Error al sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const clientesFiltrados = clientes.filter((c) => {
     const q = busqueda.trim().toLowerCase();
     if (!q) return true;
@@ -207,14 +225,24 @@ export default function ClientesTab({ rol }: Props) {
           {configSuccess && (
             <div className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-700">{configSuccess}</div>
           )}
-          <button
-            type="button"
-            onClick={handleGuardarConfig}
-            disabled={configSaving}
-            className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
-          >
-            {configSaving ? "Guardando..." : "Guardar configuración"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleGuardarConfig}
+              disabled={configSaving}
+              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+            >
+              {configSaving ? "Guardando..." : "Guardar configuración"}
+            </button>
+            <button
+              type="button"
+              onClick={handleSyncClientes}
+              disabled={syncing}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
+            >
+              {syncing ? "Sincronizando..." : "Importar clientes de ventas"}
+            </button>
+          </div>
         </div>
       )}
 
