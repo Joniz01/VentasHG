@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Solo cuentas efectivamente cobradas en el periodo:
+  // - ventas normales (no CxC) por su fecha de venta
+  // - cuentas por cobrar ya cobradas por la fecha en que se marcaron como cobradas
   const resumenResult = await pool.query(
     `SELECT v.id, v.costo_delivery,
             COALESCE(
@@ -21,7 +24,9 @@ export async function GET(request: NextRequest) {
               0
             ) AS total_items
      FROM ventas v
-     WHERE v.fecha BETWEEN $1 AND $2`,
+     WHERE
+       (NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
+       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)`,
     [desde, hasta]
   );
 
@@ -72,7 +77,9 @@ export async function GET(request: NextRequest) {
                 0
               ) AS total_items
        FROM ventas v
-       WHERE v.fecha BETWEEN $1 AND $2
+       WHERE
+         (NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
+         OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)
      )
      SELECT cliente, cliente_ci,
             COUNT(*) AS cantidad_ventas,
@@ -98,7 +105,9 @@ export async function GET(request: NextRequest) {
      FROM venta_items vi
      JOIN ventas v ON v.id = vi.venta_id
      JOIN productos p ON p.id = vi.producto_id
-     WHERE v.fecha BETWEEN $1 AND $2
+     WHERE
+       (NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
+       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)
      GROUP BY p.id, p.nombre
      ORDER BY total_usd DESC`,
     [desde, hasta]

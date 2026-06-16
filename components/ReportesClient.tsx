@@ -289,6 +289,19 @@ export default function ReportesClient() {
                   </tr>
                 ))}
               </tbody>
+              {reporte.porCliente.length > 0 && (
+                <tfoot className="border-t border-zinc-200 bg-zinc-50">
+                  <tr>
+                    <td colSpan={2} className="px-4 py-2 font-semibold">Total</td>
+                    <td className="px-4 py-2 text-right font-semibold">
+                      {reporte.porCliente.reduce((acc, c) => acc + c.cantidadVentas, 0)}
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold">
+                      ${reporte.porCliente.reduce((acc, c) => acc + c.totalUsd, 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </section>
 
@@ -322,6 +335,22 @@ export default function ReportesClient() {
                   </tr>
                 ))}
               </tbody>
+              {reporte.porProducto.length > 0 && (
+                <tfoot className="border-t border-zinc-200 bg-zinc-50">
+                  <tr>
+                    <td className="px-4 py-2 font-semibold">Total</td>
+                    <td className="px-4 py-2 text-right font-semibold">
+                      {reporte.porProducto.reduce((acc, p) => acc + p.cantidad, 0)}
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold">
+                      ${reporte.porProducto.reduce((acc, p) => acc + p.totalUsd, 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold">
+                      ${reporte.porProducto.reduce((acc, p) => acc + p.margenUsd, 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </section>
         </>
