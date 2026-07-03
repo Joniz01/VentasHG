@@ -235,13 +235,18 @@ export default function PedidosPendientesClient() {
                 Pedido #{pedido.id} — {pedido.cliente}
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-zinc-700">
-                  <span className="font-medium">Hora de entrega: </span>
-                  {formatHora(pedido.horaEntrega)}
-                  <span className="ml-1 text-xs text-zinc-500">
-                    {pedido.fecha ? pedido.fecha.slice(8,10) + "/" + pedido.fecha.slice(5,7) + "/" + pedido.fecha.slice(0,4) : ""}
+                <div className="flex flex-col text-sm text-zinc-700">
+                  <span>
+                    <span className="font-medium">Hora de entrega: </span>
+                    {formatHora(pedido.horaEntrega)}
                   </span>
-                </span>
+                  {pedido.fecha && (
+                    <span className="text-xs text-zinc-500">
+                      <span className="font-medium">Fecha: </span>
+                      {pedido.fecha.slice(8,10) + "/" + pedido.fecha.slice(5,7) + "/" + pedido.fecha.slice(0,4)}
+                    </span>
+                  )}
+                </div>
                 <span className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold uppercase">
                   {ESTADO_LABELS[estado]}
                 </span>
