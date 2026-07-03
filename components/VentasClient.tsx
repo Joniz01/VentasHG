@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, FormEvent } from "react";
+import { useEffect, useMemo, useState, useCallback, FormEvent } from "react";
 import {
   METODOS_PAGO,
   METODOS_PAGO_USD,
@@ -132,6 +132,29 @@ export default function VentasClient({ rol = null }: Props) {
   const [soloPendientesPago, setSoloPendientesPago] = useState(false);
   const [filtroFechaDesde, setFiltroFechaDesde] = useState(() => today());
   const [filtroFechaHasta, setFiltroFechaHasta] = useState(() => today());
+
+  const hayDatosIngresados = useCallback(() => {
+    if (editingId !== null) return false;
+    return (
+      cliente.trim() !== "" ||
+      clienteCi.trim() !== "" ||
+      clienteTelefono.trim() !== "" ||
+      observaciones.trim() !== "" ||
+      items.some((i) => i.productoId !== "") ||
+      pagos.some((p) => p.monto !== "")
+    );
+  }, [editingId, cliente, clienteCi, clienteTelefono, observaciones, items, pagos]);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hayDatosIngresados()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hayDatosIngresados]);
 
   async function loadData() {
     try {

@@ -22,7 +22,7 @@ export default async function Home() {
   }
 
   if (sesion.rol === "ADMIN") {
-    redirect("/productos");
+    redirect("/ventas");
   }
 
   const primeraTab = PERMISO_TABS.find((tab) => sesion.permisos[tab.key]);
