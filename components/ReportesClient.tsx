@@ -49,8 +49,10 @@ export default function ReportesClient() {
     if (!reporte) return;
     const empresa = process.env.NEXT_PUBLIC_EMPRESA_NOMBRE ?? "";
     const fecha = reporte.desde === reporte.hasta ? reporte.desde : `${reporte.desde} al ${reporte.hasta}`;
+    const url = `${window.location.origin}/reportes/vista?desde=${reporte.desde}&hasta=${reporte.hasta}`;
     const lineas = [
-      `📊 *Reporte de Ventas${empresa ? " — " + empresa : ""}*`,
+      empresa ? `*${empresa}*` : null,
+      `📊 *Reporte de Ventas*`,
       `📅 ${fecha}`,
       ``,
       `💰 *Total: $${reporte.totalVentasUsd.toFixed(2)}* (${reporte.cantidadVentas} ${reporte.cantidadVentas === 1 ? "venta" : "ventas"})`,
@@ -59,7 +61,9 @@ export default function ReportesClient() {
       ...reporte.porFormaPago
         .filter((fp) => fp.totalUsd > 0)
         .map((fp) => `• ${METODO_PAGO_LABELS[fp.metodo]}: $${fp.totalUsd.toFixed(2)} / Bs ${fp.totalBs.toFixed(2)}`),
-    ];
+      ``,
+      url,
+    ].filter((l) => l !== null);
     const texto = lineas.join("\n");
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
   }

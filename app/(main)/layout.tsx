@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Image from "next/image";
 import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import NavTabs from "@/components/NavTabs";
 import PerfilMenu from "@/components/PerfilMenu";
 import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
@@ -36,7 +36,7 @@ export const viewport: Viewport = {
   themeColor: "#DBEAFE",
 };
 
-export default async function RootLayout({
+export default async function MainLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
