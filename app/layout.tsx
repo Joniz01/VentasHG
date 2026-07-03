@@ -16,13 +16,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const EMPRESA = process.env.EMPRESA_NOMBRE ?? "VentasHG";
+
 export const metadata: Metadata = {
-  title: "VentasHG",
+  title: EMPRESA,
   description: "Control de productos, costos y ventas",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "VentasHG",
+    title: EMPRESA,
   },
 };
 
@@ -51,7 +53,7 @@ export default async function RootLayout({
           <div className="mx-auto flex max-w-[1400px] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-4">
             <Image src="/logo.jpg" alt="La Tequeñería Hechizo Gourmet" width={48} height={60} className="h-10 w-auto rounded-md sm:h-12" priority />
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold sm:text-xl">VentasHG</h1>
+              <h1 className="text-lg font-semibold sm:text-xl">{EMPRESA}</h1>
               <NavTabs rol={sesion?.rol ?? null} permisos={sesion?.permisos ?? null} />
             </div>
           </div>
