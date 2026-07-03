@@ -385,10 +385,18 @@ export default function PedidosPendientesClient() {
                       Pedido #{pedido.id} — {pedido.cliente}
                     </h3>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-zinc-700">
-                        <span className="font-medium">Hora de entrega: </span>
-                        {formatHora(pedido.horaEntrega)}
-                      </span>
+                      <div className="flex flex-col text-sm text-zinc-700">
+                        <span>
+                          <span className="font-medium">Hora de entrega: </span>
+                          {formatHora(pedido.horaEntrega)}
+                        </span>
+                        {pedido.fecha && (
+                          <span>
+                            <span className="font-medium">Fecha: </span>
+                            {(() => { const d = String(pedido.fecha).slice(0,10); return d.slice(8,10) + "/" + d.slice(5,7) + "/" + d.slice(0,4); })()}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-col items-stretch gap-1">
                         <span className="rounded-md border border-green-400 bg-white px-2 py-1 text-center text-xs font-semibold uppercase text-green-800">
                           Entregado
