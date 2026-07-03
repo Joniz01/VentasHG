@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavTabs from "@/components/NavTabs";
+import PerfilMenu from "@/components/PerfilMenu";
 import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
 
 const geistSans = Geist({
@@ -57,6 +58,7 @@ export default async function RootLayout({
               <h1 className="text-lg font-semibold sm:text-xl">{EMPRESA}</h1>
               <NavTabs rol={sesion?.rol ?? null} permisos={sesion?.permisos ?? null} />
             </div>
+            {sesion && <PerfilMenu />}
           </div>
         </header>
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 sm:px-4 sm:py-6">
