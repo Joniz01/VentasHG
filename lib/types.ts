@@ -273,6 +273,7 @@ export type PedidoPendienteItem = {
 
 export type PedidoPendiente = {
   id: number;
+  fecha: string;
   cliente: string;
   direccion: string | null;
   deliveryAsignado: string | null;
