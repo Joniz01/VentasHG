@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const EMPRESA = process.env.EMPRESA_NOMBRE ?? "VentasHG";
+const EMPRESA = process.env.EMPRESA_NOMBRE ?? "Hechizo Gourmet Polanco";
 const EMPRESA_COLOR = process.env.EMPRESA_COLOR ?? "";
 
 export const metadata: Metadata = {
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#18181b",
+  themeColor: "#DBEAFE",
 };
 
 export default async function RootLayout({
