@@ -239,7 +239,7 @@ export default function PedidosPendientesClient() {
                   <span className="font-medium">Hora de entrega: </span>
                   {formatHora(pedido.horaEntrega)}
                   <span className="ml-1 text-xs text-zinc-500">
-                    {pedido.fecha ? new Date(pedido.fecha + "T00:00:00").toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""}
+                    {pedido.fecha ? pedido.fecha.slice(8,10) + "/" + pedido.fecha.slice(5,7) + "/" + pedido.fecha.slice(0,4) : ""}
                   </span>
                 </span>
                 <span className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold uppercase">
