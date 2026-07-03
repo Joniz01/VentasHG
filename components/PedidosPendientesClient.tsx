@@ -393,7 +393,7 @@ export default function PedidosPendientesClient() {
                         {pedido.fecha && (
                           <span>
                             <span className="font-medium">Fecha: </span>
-                            {(() => { const d = String(pedido.fecha).slice(0,10); return d.slice(8,10) + "/" + d.slice(5,7) + "/" + d.slice(0,4); })()}
+                            {pedido.fecha.slice(8,10) + "/" + pedido.fecha.slice(5,7) + "/" + pedido.fecha.slice(0,4)}
                           </span>
                         )}
                       </div>

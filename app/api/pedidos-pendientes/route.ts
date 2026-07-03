@@ -42,7 +42,7 @@ export async function GET() {
 
     return {
       id: row.id,
-      fecha: String(row.fecha).slice(0, 10),
+      fecha: row.fecha instanceof Date ? row.fecha.toISOString().slice(0, 10) : String(row.fecha).slice(0, 10),
       cliente: row.cliente,
       direccion: row.direccion,
       deliveryAsignado: row.delivery_asignado,
