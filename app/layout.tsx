@@ -17,6 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 const EMPRESA = process.env.EMPRESA_NOMBRE ?? "VentasHG";
+const EMPRESA_COLOR = process.env.EMPRESA_COLOR ?? "";
 
 export const metadata: Metadata = {
   title: EMPRESA,
@@ -49,7 +50,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
-        <header className="border-b border-zinc-200 bg-white">
+        <header className="border-b border-zinc-200 bg-white" style={EMPRESA_COLOR ? { backgroundColor: EMPRESA_COLOR } : {}}>
           <div className="mx-auto flex max-w-[1400px] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-4">
             <Image src="/logo.jpg" alt="La Tequeñería Hechizo Gourmet" width={48} height={60} className="h-10 w-auto rounded-md sm:h-12" priority />
             <div className="min-w-0 flex-1">
