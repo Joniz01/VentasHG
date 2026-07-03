@@ -1,20 +1,28 @@
 import { notFound } from "next/navigation";
 import { getReporte } from "@/lib/getReporte";
 import { METODO_PAGO_LABELS } from "@/lib/types";
+import { pool } from "@/lib/db";
 import ImagenPuntoToggle from "./ImagenPuntoToggle";
 
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams: Promise<{ desde?: string; hasta?: string }>;
+  searchParams: Promise<{ desde?: string; hasta?: string; img?: string }>;
 }
 
 export default async function ReporteVistaPage({ searchParams }: Props) {
-  const { desde, hasta } = await searchParams;
+  const { desde, hasta, img } = await searchParams;
 
   if (!desde || !hasta) notFound();
 
-  const reporte = await getReporte(desde, hasta);
+  const [reporte, imagenResult] = await Promise.all([
+    getReporte(desde, hasta),
+    img
+      ? pool.query(`SELECT data FROM reporte_imagenes WHERE id = $1`, [img])
+      : Promise.resolve({ rows: [] }),
+  ]);
+
+  const imagenData: string | null = imagenResult.rows[0]?.data ?? null;
 
   const empresa = process.env.EMPRESA_NOMBRE ?? "VentasHG";
   const periodo = desde === hasta ? desde : `${desde} al ${hasta}`;
@@ -61,7 +69,7 @@ export default async function ReporteVistaPage({ searchParams }: Props) {
           </div>
         )}
 
-        <ImagenPuntoToggle />
+        {imagenData && <ImagenPuntoToggle imagen={imagenData} />}
       </div>
     </div>
   );

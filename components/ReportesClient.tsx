@@ -41,6 +41,7 @@ export default function ReportesClient() {
   const [includePendientes, setIncludePendientes] = useState(false);
   const [imagenPunto, setImagenPunto] = useState<string | null>(null);
   const [imagenExpandida, setImagenExpandida] = useState(false);
+  const [imagenId, setImagenId] = useState<string | null>(null);
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const reporteRef = useRef<HTMLDivElement>(null);
   const inputImagenRef = useRef<HTMLInputElement>(null);
@@ -49,7 +50,7 @@ export default function ReportesClient() {
     if (!reporte) return;
     const empresa = process.env.NEXT_PUBLIC_EMPRESA_NOMBRE ?? "";
     const fecha = reporte.desde === reporte.hasta ? reporte.desde : `${reporte.desde} al ${reporte.hasta}`;
-    const url = `${window.location.origin}/reportes/vista?desde=${reporte.desde}&hasta=${reporte.hasta}`;
+    const url = buildVistaUrl();
     const lineas = [
       empresa ? `*${empresa}*` : null,
       `📊 *Reporte de Ventas*`,
@@ -92,11 +93,20 @@ export default function ReportesClient() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const data = ev.target?.result as string;
       setImagenPunto(data);
       setImagenExpandida(false);
       try { localStorage.setItem("reporte_imagen_punto", data); } catch {}
+      try {
+        const res = await fetch("/api/reportes/imagen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+        });
+        const json = await res.json();
+        if (json.id) setImagenId(json.id);
+      } catch {}
     };
     reader.readAsDataURL(file);
   }
@@ -106,9 +116,16 @@ export default function ReportesClient() {
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
   }
 
+  function buildVistaUrl() {
+    if (!reporte) return "";
+    let url = `${window.location.origin}/reportes/vista?desde=${reporte.desde}&hasta=${reporte.hasta}`;
+    if (imagenId) url += `&img=${imagenId}`;
+    return url;
+  }
+
   function copiarEnlace() {
-    if (!reporte) return;
-    const url = `${window.location.origin}/reportes/vista?desde=${reporte.desde}&hasta=${reporte.hasta}`;
+    const url = buildVistaUrl();
+    if (!url) return;
     navigator.clipboard.writeText(url).then(() => {
       setEnlaceCopiado(true);
       setTimeout(() => setEnlaceCopiado(false), 2000);
