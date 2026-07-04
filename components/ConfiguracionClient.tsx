@@ -31,7 +31,7 @@ export default function ConfiguracionClient() {
   useEffect(() => {
     fetch("/api/configuracion")
       .then((r) => r.json())
-      .then((d) => { setConfig(d); setLoading(false); })
+      .then((d) => { setConfig((prev) => ({ ...prev, ...d })); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
@@ -55,11 +55,11 @@ export default function ConfiguracionClient() {
     }
   }
 
-  const porcentajesArr = config.cashea_porcentajes
+  const porcentajesArr = (config.cashea_porcentajes ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const diasArr = config.cashea_dias
+  const diasArr = (config.cashea_dias ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
