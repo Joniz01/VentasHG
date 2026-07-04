@@ -893,7 +893,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
         <div className="flex flex-col gap-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
           <h3 className="text-sm font-semibold text-blue-800">Parámetros de entrega</h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
               <select
@@ -924,6 +924,23 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   {TIPOS_DELIVERY.map((t) => (
                     <option key={t} value={t}>
                       {TIPO_DELIVERY_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {modoEntrega === "DELIVERY" && tipoDelivery === "EMPRESA" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Motorizado</label>
+                <select
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={motorizadoId}
+                  onChange={(e) => setMotorizadoId(e.target.value)}
+                >
+                  <option value="">Sin asignar</option>
+                  {motorizados.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.apellido ? `${m.nombre} ${m.apellido}` : m.nombre}
                     </option>
                   ))}
                 </select>
