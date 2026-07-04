@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, FormEvent } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, FormEvent } from "react";
 import Paginador from "@/components/Paginador";
 import {
   METODOS_PAGO,
@@ -159,16 +159,46 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     );
   }, [editingId, cliente, clienteCi, clienteTelefono, observaciones, items, pagos]);
 
+  // Ref para que el guard de pushState siempre lea el valor actual sin re-registrarse
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    dirtyRef.current = hayDatosIngresados();
+  });
+
+  // Guard para cierre/recarga de pestaña
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (hayDatosIngresados()) {
+      if (dirtyRef.current) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [hayDatosIngresados]);
+  }, []);
+
+  // Guard para navegación client-side de Next.js (clicks en NavTabs)
+  useEffect(() => {
+    const MSG = "Tienes datos sin guardar. ¿Deseas salir y perder los cambios?";
+    const originalPushState = history.pushState.bind(history);
+
+    history.pushState = function (...args: Parameters<typeof history.pushState>) {
+      if (dirtyRef.current && !confirm(MSG)) return;
+      originalPushState(...args);
+    };
+
+    const handlePopState = () => {
+      if (dirtyRef.current && !confirm(MSG)) {
+        history.pushState(null, "", window.location.href);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      history.pushState = originalPushState;
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
 
   async function loadData() {
     try {
