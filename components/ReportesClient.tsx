@@ -7,6 +7,7 @@ import type { ReporteVentas } from "@/lib/types";
 import { METODO_PAGO_LABELS } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
 import CuentasPorCobrarPanel from "@/components/CuentasPorCobrarPanel";
+import CasheaPanel from "@/components/CasheaPanel";
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -30,8 +31,8 @@ function startOfMonth(date: Date) {
 export default function ReportesClient() {
   const searchParams = useSearchParams();
   const tabInicial = searchParams.get("tab");
-  const [tab, setTab] = useState<"ventas" | "deliveries" | "cuentasPorCobrar">(
-    tabInicial === "cuentasPorCobrar" || tabInicial === "deliveries" ? tabInicial : "ventas"
+  const [tab, setTab] = useState<"ventas" | "deliveries" | "cuentasPorCobrar" | "cashea">(
+    tabInicial === "cuentasPorCobrar" || tabInicial === "deliveries" || tabInicial === "cashea" ? tabInicial : "ventas"
   );
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -249,11 +250,25 @@ export default function ReportesClient() {
         >
           Ventas por Cobrar
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("cashea")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium ${
+            tab === "cashea"
+              ? "border-b-2 border-orange-500 text-orange-600"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">C</span>
+          Cashea
+        </button>
       </div>
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
 
       {tab === "cuentasPorCobrar" && <CuentasPorCobrarPanel />}
+
+      {tab === "cashea" && <CasheaPanel />}
 
       {tab === "ventas" && (
       <>

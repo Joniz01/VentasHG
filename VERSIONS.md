@@ -129,6 +129,74 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v1.5 — 2026-07-04
+
+### Resumen
+- Nueva forma de pago **Cashea** (BNPL nivel Cotidiana)
+  - Selector de % de cuota inicial y cantidad de días (configurables en Admin)
+  - Monto inicial auto-calculado (solo lectura); muestra monto financiado y fecha de vencimiento
+  - Tabla `cashea_pagos` registra cada venta Cashea con estado de liquidación
+- Pestaña **Cashea** en Reportes (con ícono naranja "C")
+  - Filtros: Pendientes / Liquidados / Todos
+  - Acción "Marcar liquidado / Marcar pendiente" por fila
+  - Resumen de montos pendientes (inicial cobrado + financiado)
+- **Alerta de Cashea** en la barra de navegación (ícono naranja "C" con contador)
+  - Se activa diariamente a la hora configurada, para pagos vencidos sin liquidar
+  - Silenciable por item; enlaza a la pestaña Cashea en Reportes
+- Configuración Cashea en Admin/Configuración:
+  - Lista de % de cuota inicial con agregar/eliminar y selector de default
+  - Lista de días de financiamiento con agregar/eliminar y selector de default
+- Sección de alerta Cashea en Admin/Alarmas (igual que la de Cuentas por Cobrar)
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/021_cashea.sql` | Tabla `cashea_pagos`; claves de configuración Cashea; índice y FK |
+| `app/api/reportes/cashea/route.ts` | GET lista pagos Cashea con filtro `?estado=PENDIENTE|LIQUIDADO` |
+| `app/api/reportes/cashea/[id]/route.ts` | PATCH: marcar liquidado/pendiente o silenciar alarma |
+| `components/CasheaPanel.tsx` | Tabla de pagos Cashea con filtros, estado y acciones |
+| `components/CasheaAlerta.tsx` | Badge naranja en nav con conteo de pagos Cashea vencidos activos |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `lib/types.ts` | Agrega `"CASHEA"` a `METODOS_PAGO`; agrega `CasheaPagoItem`; agrega `casheaVencimientoHora` a `AlarmasConfig` |
+| `lib/ventas.ts` | Agrega `casheaDatos` a `VentaBody`; INSERT en `cashea_pagos` en `insertarItemsYPagos` |
+| `app/api/alarmas-config/route.ts` | GET/PUT incluyen `casheaVencimientoHora` |
+| `components/VentasClient.tsx` | UI de Cashea al seleccionar esa forma de pago: selectors de % y días, montos calculados, payload con `casheaDatos` |
+| `components/ConfiguracionClient.tsx` | Sección Cashea: gestión de opciones de % e días, defaults |
+| `components/ReportesClient.tsx` | Pestaña Cashea con ícono naranja; renderiza `CasheaPanel` |
+| `components/NavTabs.tsx` | Agrega `CasheaAlerta` junto a `CuentasPorCobrarAlerta` |
+| `components/AlarmasConfigClient.tsx` | Sección "Alerta de Pagos Cashea Vencidos" con input de hora |
+
+### Migración SQL (ejecutar en Neon)
+
+**021_cashea.sql**
+```sql
+CREATE TABLE IF NOT EXISTS cashea_pagos (
+  venta_id          INT PRIMARY KEY REFERENCES ventas(id) ON DELETE CASCADE,
+  porcentaje        DECIMAL(5,2) NOT NULL,
+  monto_inicial     DECIMAL(12,2) NOT NULL,
+  monto_financiado  DECIMAL(12,2) NOT NULL,
+  dias              INT NOT NULL,
+  fecha_vencimiento DATE NOT NULL,
+  liquidado         BOOLEAN NOT NULL DEFAULT FALSE,
+  liquidado_at      TIMESTAMPTZ,
+  alarma_silenciada_hasta TIMESTAMPTZ
+);
+INSERT INTO configuracion (clave, valor) VALUES ('cashea_porcentajes', '40,50,60') ON CONFLICT (clave) DO NOTHING;
+INSERT INTO configuracion (clave, valor) VALUES ('cashea_porcentaje_default', '50') ON CONFLICT (clave) DO NOTHING;
+INSERT INTO configuracion (clave, valor) VALUES ('cashea_dias', '15,30') ON CONFLICT (clave) DO NOTHING;
+INSERT INTO configuracion (clave, valor) VALUES ('cashea_dias_default', '15') ON CONFLICT (clave) DO NOTHING;
+INSERT INTO configuracion (clave, valor) VALUES ('cashea_vencimiento_hora', '09:00') ON CONFLICT (clave) DO NOTHING;
+```
+
+### Sin cambios de variables de entorno
+
+---
+
 ## v1.4 — 2026-07-04
 
 ### Resumen

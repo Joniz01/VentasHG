@@ -28,6 +28,13 @@ export type VentaBody = {
     variadaSelecciones?: number[];
   }[];
   pagos?: { metodo: string; monto: number }[];
+  casheaDatos?: {
+    porcentaje: number;
+    montoInicial: number;
+    montoFinanciado: number;
+    dias: number;
+    fechaVencimiento: string;
+  } | null;
 };
 
 export function validarVenta(body: VentaBody): string | null {
@@ -277,6 +284,21 @@ export async function insertarItemsYPagos(
       `INSERT INTO pagos_venta (venta_id, metodo, monto)
        VALUES ($1, $2, $3)`,
       [ventaId, pago.metodo, montoNum]
+    );
+  }
+
+  if (body.casheaDatos) {
+    const cd = body.casheaDatos;
+    await client.query(
+      `INSERT INTO cashea_pagos (venta_id, porcentaje, monto_inicial, monto_financiado, dias, fecha_vencimiento)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (venta_id) DO UPDATE
+         SET porcentaje = EXCLUDED.porcentaje,
+             monto_inicial = EXCLUDED.monto_inicial,
+             monto_financiado = EXCLUDED.monto_financiado,
+             dias = EXCLUDED.dias,
+             fecha_vencimiento = EXCLUDED.fecha_vencimiento`,
+      [ventaId, cd.porcentaje, cd.montoInicial, cd.montoFinanciado, cd.dias, cd.fechaVencimiento]
     );
   }
 }

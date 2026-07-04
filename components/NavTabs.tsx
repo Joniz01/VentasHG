@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PermisosUsuario, Rol } from "@/lib/types";
 import CuentasPorCobrarAlerta from "@/components/CuentasPorCobrarAlerta";
+import CasheaAlerta from "@/components/CasheaAlerta";
 
 const TABS: { href: string; label: string; permiso?: keyof PermisosUsuario }[] = [
   { href: "/productos", label: "Productos", permiso: "productos" },
@@ -66,6 +67,7 @@ export default function NavTabs({ rol, permisos }: Props) {
         );
       })}
       {puedeVerReportes && <CuentasPorCobrarAlerta />}
+      {puedeVerReportes && <CasheaAlerta />}
     </nav>
   );
 }

@@ -115,6 +115,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [costoDelivery, setCostoDelivery] = useState("0");
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState("0");
   const [winkCostoDefault, setWinkCostoDefault] = useState("3");
+  const [casheaPorcentajes, setCasheaPorcentajes] = useState<string[]>(["50"]);
+  const [casheaDiasOpciones, setCasheaDiasOpciones] = useState<string[]>(["15"]);
+  const [casheaPorcentaje, setCasheaPorcentaje] = useState("50");
+  const [casheaDiasSeleccion, setCasheaDiasSeleccion] = useState("15");
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
@@ -195,6 +199,18 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         }
         if (cfg.wink_costo_default) {
           setWinkCostoDefault(cfg.wink_costo_default);
+        }
+        if (cfg.cashea_porcentajes) {
+          const opts = cfg.cashea_porcentajes.split(",").map((s: string) => s.trim()).filter(Boolean);
+          setCasheaPorcentajes(opts);
+          const def = cfg.cashea_porcentaje_default ?? opts[0] ?? "50";
+          setCasheaPorcentaje(def);
+        }
+        if (cfg.cashea_dias) {
+          const opts = cfg.cashea_dias.split(",").map((s: string) => s.trim()).filter(Boolean);
+          setCasheaDiasOpciones(opts);
+          const def = cfg.cashea_dias_default ?? opts[0] ?? "15";
+          setCasheaDiasSeleccion(def);
         }
       })
       .catch(() => {});
@@ -476,6 +492,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setMinutosRetiro("10");
     setMinutosRetiroCustom("");
     setMotorizadoId("");
+    setCasheaPorcentaje(casheaPorcentajes[0] ?? "50");
+    setCasheaDiasSeleccion(casheaDiasOpciones[0] ?? "15");
   }
 
   function startEdit(venta: Venta) {
@@ -656,6 +674,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         })),
         pagos: validPagos,
         fechaLimitePago: validPagos.length === 0 ? fechaLimitePago : null,
+        casheaDatos: validPagos.some((p) => p.metodo === "CASHEA")
+          ? (() => {
+              const pct = Number(casheaPorcentaje) || 50;
+              const dias = Number(casheaDiasSeleccion) || 15;
+              const totalVenta = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+              const montoInicial = totalVenta * (pct / 100);
+              const montoFinanciado = totalVenta - montoInicial;
+              const fechaVenc = addDays(fecha, dias);
+              return { porcentaje: pct, montoInicial, montoFinanciado, dias, fechaVencimiento: fechaVenc };
+            })()
+          : null,
       };
 
       const res = await fetch(
@@ -1230,46 +1259,102 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           </div>
           <div className="flex flex-col gap-2">
             {pagos.map((pago, index) => (
-              <div key={index} className="grid grid-cols-12 items-center gap-2">
-                <select
-                  className="col-span-7 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-8"
-                  value={pago.metodo}
-                  onChange={(e) =>
-                    updatePago(index, {
-                      metodo: e.target.value as MetodoPago | "",
-                      montoAuto: true,
-                    })
-                  }
-                >
-                  <option value="">Selecciona forma de pago</option>
-                  {METODOS_PAGO.map((m) => (
-                    <option key={m} value={m}>
-                      {METODO_PAGO_LABELS[m]}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3"
-                  value={
-                    pago.montoAuto
-                      ? pago.metodo
-                        ? totales.montoSugerido(index).toFixed(2)
-                        : ""
-                      : pago.monto
-                  }
-                  onChange={(e) => updatePago(index, { monto: e.target.value, montoAuto: false })}
-                  placeholder="Monto"
-                />
-                <button
-                  type="button"
-                  onClick={() => removePago(index)}
-                  className="col-span-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                >
-                  X
-                </button>
+              <div key={index} className="flex flex-col gap-2">
+                <div className="grid grid-cols-12 items-center gap-2">
+                  <select
+                    className="col-span-7 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-8"
+                    value={pago.metodo}
+                    onChange={(e) =>
+                      updatePago(index, {
+                        metodo: e.target.value as MetodoPago | "",
+                        montoAuto: true,
+                      })
+                    }
+                  >
+                    <option value="">Selecciona forma de pago</option>
+                    {METODOS_PAGO.map((m) => (
+                      <option key={m} value={m}>
+                        {METODO_PAGO_LABELS[m]}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    readOnly={pago.metodo === "CASHEA"}
+                    className={`col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3 ${pago.metodo === "CASHEA" ? "bg-zinc-50 text-zinc-500" : ""}`}
+                    value={
+                      pago.metodo === "CASHEA"
+                        ? (() => {
+                            const pct = Number(casheaPorcentaje) || 50;
+                            const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+                            return (total * pct / 100).toFixed(2);
+                          })()
+                        : pago.montoAuto
+                          ? pago.metodo
+                            ? totales.montoSugerido(index).toFixed(2)
+                            : ""
+                          : pago.monto
+                    }
+                    onChange={(e) => {
+                      if (pago.metodo !== "CASHEA") updatePago(index, { monto: e.target.value, montoAuto: false });
+                    }}
+                    placeholder="Monto"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePago(index)}
+                    className="col-span-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                  >
+                    X
+                  </button>
+                </div>
+                {pago.metodo === "CASHEA" && (
+                  <div className="ml-0 rounded-lg border border-orange-200 bg-orange-50 p-3 flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-zinc-600">% Cuota inicial</label>
+                        <select
+                          value={casheaPorcentaje}
+                          onChange={(e) => setCasheaPorcentaje(e.target.value)}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-sm w-24"
+                        >
+                          {casheaPorcentajes.map((p) => (
+                            <option key={p} value={p}>{p}%</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-zinc-600">Días</label>
+                        <select
+                          value={casheaDiasSeleccion}
+                          onChange={(e) => setCasheaDiasSeleccion(e.target.value)}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-sm w-24"
+                        >
+                          {casheaDiasOpciones.map((d) => (
+                            <option key={d} value={d}>{d} días</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {(() => {
+                      const pct = Number(casheaPorcentaje) || 50;
+                      const dias = Number(casheaDiasSeleccion) || 15;
+                      const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+                      const inicial = total * pct / 100;
+                      const financiado = total - inicial;
+                      const vence = addDays(fecha, dias);
+                      return (
+                        <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
+                          <span>Inicial cobrado: <strong>${inicial.toFixed(2)}</strong></span>
+                          <span>Financiado por Cashea: <strong className="text-orange-700">${financiado.toFixed(2)}</strong></span>
+                          <span>Vence: <strong>{vence}</strong></span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             ))}
           </div>

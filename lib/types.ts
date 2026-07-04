@@ -160,6 +160,7 @@ export const METODOS_PAGO = [
   "EFECTIVO_BS",
   "EFECTIVO_USD",
   "ZELLE",
+  "CASHEA",
 ] as const;
 
 export type MetodoPago = (typeof METODOS_PAGO)[number];
@@ -174,6 +175,21 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   EFECTIVO_BS: "Efectivo Bolívares",
   EFECTIVO_USD: "Efectivo Dólares",
   ZELLE: "Zelle",
+  CASHEA: "Cashea",
+};
+
+export type CasheaPagoItem = {
+  ventaId: number;
+  fecha: string;
+  cliente: string;
+  porcentaje: number;
+  montoInicial: number;
+  montoFinanciado: number;
+  dias: number;
+  fechaVencimiento: string;
+  liquidado: boolean;
+  liquidadoAt: string | null;
+  alarmaSilenciadaHasta: string | null;
 };
 
 export const MODOS_ENTREGA = ["LOCAL", "DELIVERY"] as const;
@@ -322,6 +338,7 @@ export type AlarmasConfig = {
   retiro: AlarmaEtapaConfig;
   entrega: AlarmaEtapaConfig;
   vencimientoHora: string;
+  casheaVencimientoHora: string;
 };
 
 export const ALARMA_ETAPA_DEFAULT: AlarmaEtapaConfig = {
@@ -339,6 +356,7 @@ export const ALARMAS_CONFIG_DEFAULT: AlarmasConfig = {
   retiro: { ...ALARMA_ETAPA_DEFAULT },
   entrega: { ...ALARMA_ETAPA_DEFAULT },
   vencimientoHora: "09:00",
+  casheaVencimientoHora: "09:00",
 };
 
 export type ReporteFormaPago = {

@@ -68,6 +68,7 @@ export async function GET() {
       retiro: normalizarEtapa(parsed.retiro),
       entrega: normalizarEtapa(parsed.entrega),
       vencimientoHora: normalizarVencimientoHora(parsed.vencimientoHora),
+      casheaVencimientoHora: normalizarVencimientoHora(parsed.casheaVencimientoHora),
     };
     return NextResponse.json(config);
   } catch {
@@ -88,6 +89,7 @@ export async function PUT(request: NextRequest) {
     retiro: normalizarEtapa(body.retiro),
     entrega: normalizarEtapa(body.entrega),
     vencimientoHora: normalizarVencimientoHora(body.vencimientoHora),
+    casheaVencimientoHora: normalizarVencimientoHora(body.casheaVencimientoHora),
   };
 
   await pool.query(
