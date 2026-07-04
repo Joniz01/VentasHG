@@ -3,33 +3,38 @@ import { getSesionFromRequest } from "@/lib/auth";
 import { getResumenLocal, ResumenData } from "@/lib/resumen";
 
 async function fetchResumen(baseUrl: string, apiKey: string): Promise<ResumenData> {
-  const url = `${baseUrl}/api/resumen${apiKey ? `?apikey=${encodeURIComponent(apiKey)}` : ""}`;
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      const empresa = baseUrl.replace(/https?:\/\//, "");
-      return {
-        empresa,
-        hoy: { cantidad: 0, total_usd: 0 },
-        semana: { cantidad: 0, total_usd: 0 },
-        mes: { cantidad: 0, total_usd: 0 },
-        cxcPendiente: { cantidad: 0, total_usd: 0 },
-        stock: { total_productos: 0, sin_stock: 0 },
-        error: `No se pudo conectar (${res.status})`,
-      };
+  const empresa = baseUrl.replace(/https?:\/\//, "").replace(/\/$/, "");
+  const empty = (): ResumenData => ({
+    empresa,
+    hoy: { cantidad: 0, total_usd: 0 },
+    semana: { cantidad: 0, total_usd: 0 },
+    mes: { cantidad: 0, total_usd: 0 },
+    cxcPendiente: { cantidad: 0, total_usd: 0 },
+    stock: { total_productos: 0, sin_stock: 0 },
+  });
+
+  const tryFetch = async (withKey: boolean): Promise<Response | null> => {
+    const qs = withKey && apiKey ? `?apikey=${encodeURIComponent(apiKey)}` : "";
+    try {
+      return await fetch(`${baseUrl}/api/resumen${qs}`, { cache: "no-store" });
+    } catch {
+      return null;
     }
-    return res.json() as Promise<ResumenData>;
+  };
+
+  // Intenta con API key primero; si falla con 401/403, reintenta sin key
+  let res = await tryFetch(true);
+  if (res && (res.status === 401 || res.status === 403) && apiKey) {
+    res = await tryFetch(false);
+  }
+
+  if (!res) return { ...empty(), error: "Error de red al conectar" };
+  if (!res.ok) return { ...empty(), error: `No se pudo conectar (${res.status})` };
+
+  try {
+    return (await res.json()) as ResumenData;
   } catch {
-    const empresa = baseUrl.replace(/https?:\/\//, "");
-    return {
-      empresa,
-      hoy: { cantidad: 0, total_usd: 0 },
-      semana: { cantidad: 0, total_usd: 0 },
-      mes: { cantidad: 0, total_usd: 0 },
-      cxcPendiente: { cantidad: 0, total_usd: 0 },
-      stock: { total_productos: 0, sin_stock: 0 },
-      error: "Error de red al conectar",
-    };
+    return { ...empty(), error: "Respuesta inválida del servidor" };
   }
 }
 
