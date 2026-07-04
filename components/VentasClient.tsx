@@ -178,26 +178,27 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   }, []);
 
   // Guard para navegación client-side de Next.js (clicks en NavTabs)
+  // Intercepta en fase de captura antes de que Next.js procese el click
   useEffect(() => {
     const MSG = "Tienes datos sin guardar. ¿Deseas salir y perder los cambios?";
-    const originalPushState = history.pushState.bind(history);
 
-    history.pushState = function (...args: Parameters<typeof history.pushState>) {
-      if (dirtyRef.current && !confirm(MSG)) return;
-      originalPushState(...args);
-    };
-
-    const handlePopState = () => {
-      if (dirtyRef.current && !confirm(MSG)) {
-        history.pushState(null, "", window.location.href);
+    const handleClick = (e: MouseEvent) => {
+      if (!dirtyRef.current) return;
+      const anchor = (e.target as HTMLElement).closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#")) return;
+      // Solo links internos
+      const isInternal = !href.startsWith("http") || href.startsWith(window.location.origin);
+      if (!isInternal) return;
+      if (!confirm(MSG)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
       }
     };
 
-    window.addEventListener("popstate", handlePopState);
-    return () => {
-      history.pushState = originalPushState;
-      window.removeEventListener("popstate", handlePopState);
-    };
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
   }, []);
 
   async function loadData() {
