@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSesionFromRequest } from "@/lib/auth";
+import { getResumenLocal, ResumenData } from "@/lib/resumen";
 
-type ResumenEmpresa = {
-  empresa: string;
-  hoy: { cantidad: number; total_usd: number };
-  semana: { cantidad: number; total_usd: number };
-  mes: { cantidad: number; total_usd: number };
-  cxcPendiente: { cantidad: number; total_usd: number };
-  stock: { total_productos: number; sin_stock: number };
-  error?: string;
-};
-
-async function fetchResumen(baseUrl: string, apiKey: string): Promise<ResumenEmpresa> {
-  const url = `${baseUrl}/api/resumen?apikey=${encodeURIComponent(apiKey)}`;
+async function fetchResumen(baseUrl: string, apiKey: string): Promise<ResumenData> {
+  const url = `${baseUrl}/api/resumen${apiKey ? `?apikey=${encodeURIComponent(apiKey)}` : ""}`;
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) {
@@ -27,7 +18,7 @@ async function fetchResumen(baseUrl: string, apiKey: string): Promise<ResumenEmp
         error: `No se pudo conectar (${res.status})`,
       };
     }
-    return res.json() as Promise<ResumenEmpresa>;
+    return res.json() as Promise<ResumenData>;
   } catch {
     const empresa = baseUrl.replace(/https?:\/\//, "");
     return {
@@ -50,16 +41,20 @@ export async function GET(request: NextRequest) {
     }
 
     const apiKey = process.env.DASHBOARD_API_KEY ?? "";
-
-    // Usar EMPRESA1_URL si está definido; si no, derivar del request entrante
-    // para evitar problemas con VERCEL_URL apuntando al deploy preview en lugar de producción
-    const reqOrigin = new URL(request.url).origin;
-    const empresa1Url = process.env.EMPRESA1_URL ?? reqOrigin;
     const empresa2Url = process.env.EMPRESA2_URL ?? "";
 
-    const fetches: Promise<ResumenEmpresa>[] = [
-      fetchResumen(empresa1Url, apiKey),
-    ];
+    // Empresa1: query directa a la DB (sin HTTP, sin API key)
+    const empresa1Promise = getResumenLocal().catch(() => ({
+      empresa: process.env.EMPRESA_NOMBRE ?? "Empresa",
+      hoy: { cantidad: 0, total_usd: 0 },
+      semana: { cantidad: 0, total_usd: 0 },
+      mes: { cantidad: 0, total_usd: 0 },
+      cxcPendiente: { cantidad: 0, total_usd: 0 },
+      stock: { total_productos: 0, sin_stock: 0 },
+      error: "Error al consultar base de datos",
+    } as ResumenData));
+
+    const fetches: Promise<ResumenData>[] = [empresa1Promise];
     if (empresa2Url) {
       fetches.push(fetchResumen(empresa2Url, apiKey));
     }
