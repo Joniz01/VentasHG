@@ -129,6 +129,45 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v1.4 — 2026-07-04
+
+### Resumen
+- Inicialización de inventario en Admin: lleva a cero el stock de todos los productos normales activos
+- Doble confirmación con checkbox antes de ejecutar el reset
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `app/api/inventario/reset/route.ts` | POST protegido (solo ADMIN): lleva stock a 0 y registra movimiento AJUSTE por producto |
+| `components/InventarioInicialClient.tsx` | UI: lista stock actual, advertencia, checkbox de confirmación, botón de ejecución |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `components/AdminTabsClient.tsx` | Import de `InventarioInicialClient`; nueva tab "Inventario Inicial" entre "Configuración" y "Acceso al Sistema" |
+
+### Sin migraciones SQL ni variables de entorno nuevas
+
+---
+
+## v1.3.1 — 2026-07-04
+
+### Resumen
+- Fix: al seleccionar "Motorizado de la Empresa" como tipo de delivery, mostrar el selector de motorizados (igual que antes)
+- Grid de parámetros de entrega cambiado a `sm:grid-cols-2 lg:grid-cols-4` para acomodar los 4 campos
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `components/VentasClient.tsx` | Agrega selector de motorizado condicionado a `modoEntrega === "DELIVERY" && tipoDelivery === "EMPRESA"`; ajusta grid |
+
+### Sin migraciones SQL ni variables de entorno nuevas
+
+---
+
 ## v1.3 — 2026-07-04
 
 ### Resumen
