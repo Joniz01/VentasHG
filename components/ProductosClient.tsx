@@ -32,7 +32,7 @@ export default function ProductosClient() {
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedPanel, setExpandedPanel] = useState<"extras" | "componentes" | null>(null);
-  const [orden, setOrden] = useState<"nombre" | "categoria">("nombre");
+  const [orden, setOrden] = useState<"nombre" | "categoria">("categoria");
   const [tab, setTab] = useState<"productos" | "inventario">("productos");
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(25);
