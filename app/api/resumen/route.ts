@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getResumenLocal } from "@/lib/resumen";
+import { getDashboardToken } from "@/lib/dashboard-token";
 
-// Endpoint público autenticado por API key para el dashboard consolidado.
-// Devuelve indicadores clave de esta instancia.
+// Endpoint autenticado para el dashboard consolidado.
+// Acepta DASHBOARD_API_KEY (si está seteado) O el token derivado de DATABASE_URL.
+// Ambas instancias que comparten la misma BD siempre coinciden en el token derivado.
 export async function GET(request: NextRequest) {
-  const apiKey = process.env.DASHBOARD_API_KEY;
-  if (apiKey) {
-    const provided =
-      request.nextUrl.searchParams.get("apikey") ??
-      request.headers.get("x-api-key");
-    if (provided !== apiKey) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+  const provided =
+    request.nextUrl.searchParams.get("apikey") ??
+    request.headers.get("x-api-key") ??
+    "";
+
+  const validTokens = new Set<string>();
+  validTokens.add(getDashboardToken());
+  if (process.env.DASHBOARD_API_KEY) {
+    validTokens.add(process.env.DASHBOARD_API_KEY);
+  }
+
+  if (!validTokens.has(provided)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {

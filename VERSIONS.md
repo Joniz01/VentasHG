@@ -132,7 +132,8 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 ## v1.8 — 2026-07-04
 
 ### Resumen
-- Dashboard Consolidado funcional para empresa1 sin necesidad de API key HTTP
+- Dashboard Consolidado funcional para empresa1 y empresa2 **sin coordinación manual de API keys**
+- Autenticación entre instancias derivada automáticamente de `DATABASE_URL` compartida (mismo Neon)
 - Colores Cashea corregidos a amarillo (color real de la marca)
 - Fix crash en Admin/Configuración cuando migración Cashea no está aplicada
 - Fix error "Unexpected end of JSON input" en Reportes/Cashea
@@ -142,13 +143,14 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 | Archivo | Descripción |
 |---------|-------------|
 | `lib/resumen.ts` | Función `getResumenLocal()` que consulta DB directamente (reutilizada por `/api/resumen` y `/api/dashboard`) |
+| `lib/dashboard-token.ts` | Token compartido derivado de `DATABASE_URL` via SHA-256; igual en ambas instancias que comparten Neon |
 
 ### Archivos MODIFICADOS
 
 | Archivo | Cambios |
 |---------|---------|
-| `app/api/dashboard/route.ts` | Empresa1 consulta DB directamente via `getResumenLocal()` (sin HTTP ni API key); empresa2 hace fetch HTTP con reintentos (con key → sin key si 401/403) |
-| `app/api/resumen/route.ts` | Refactorizado para usar `getResumenLocal()`; API key solo se valida si `DASHBOARD_API_KEY` está configurado (no bloquea si no está seteado) |
+| `app/api/dashboard/route.ts` | Empresa1: consulta DB directamente via `getResumenLocal()`; empresa2: fetch HTTP con token derivado de `DATABASE_URL` |
+| `app/api/resumen/route.ts` | Acepta token derivado de `DATABASE_URL` O `DASHBOARD_API_KEY` (si seteado); usa `getResumenLocal()` |
 | `components/AlarmasConfigClient.tsx` | Fix TypeScript: añade `casheaVencimientoHora` al Exclude del tipo; ícono Cashea `bg-yellow-400 text-black` |
 | `components/CasheaAlerta.tsx` | Badge `bg-yellow-400 text-black` (era naranja) |
 | `components/CasheaPanel.tsx` | Clases orange → yellow |
@@ -157,13 +159,19 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 | `app/api/reportes/cashea/route.ts` | Try/catch devuelve `{ items: [] }` si tabla no existe |
 | `app/api/reportes/cashea/[id]/route.ts` | Try/catch devuelve 503 si tabla no existe |
 
-### Variables de entorno para Dashboard (opcionales)
+### Variables de entorno para Dashboard
 
 | Variable | Proyecto | Descripción |
 |----------|----------|-------------|
-| `EMPRESA_NOMBRE` | ambos | Nombre que aparece en el dashboard consolidado (ej. `"Hechizo Gourmet Polanco"`) |
-| `EMPRESA2_URL` | ventas-hg | URL base de la segunda instancia (ej. `https://ventasfactory.vercel.app`) |
-| `DASHBOARD_API_KEY` | ambos (misma clave) | Opcional: protege `/api/resumen` con API key; si no está seteado, el endpoint es público |
+| `EMPRESA_NOMBRE` | ambos | Nombre en el dashboard consolidado (ej. `"Hechizo Gourmet Polanco"`) |
+| `EMPRESA2_URL` | ventas-hg | URL de la segunda instancia (ej. `https://ventasfactory.vercel.app`) |
+| `DASHBOARD_API_KEY` | — | Ya **no es necesario**; el token se deriva automáticamente de `DATABASE_URL`. Puede eliminarse de Vercel. |
+
+### IMPORTANTE para VentasFactory
+Aplicar **todos** los archivos nuevos y modificados de esta versión, especialmente:
+- `lib/dashboard-token.ts` (NUEVO — requerido para que `/api/resumen` acepte el token del dashboard)
+- `lib/resumen.ts` (NUEVO)
+- `app/api/resumen/route.ts` (MODIFICADO — sin esto, el dashboard sigue recibiendo 401)
 
 ### Sin migraciones SQL nuevas
 
