@@ -12,6 +12,7 @@ export default function InventarioInicialClient() {
   const [resultado, setResultado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  const [checkConfirmado, setCheckConfirmado] = useState(false);
 
   async function cargarProductos() {
     setCargando(true);
@@ -36,6 +37,7 @@ export default function InventarioInicialClient() {
     setError(null);
     setResultado(null);
     setConfirmando(false);
+    setCheckConfirmado(false);
     try {
       const res = await fetch("/api/inventario/reset", { method: "POST" });
       const data = await res.json();
@@ -112,40 +114,53 @@ export default function InventarioInicialClient() {
             <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
           )}
 
-          {!confirmando ? (
+          <div className="flex flex-col gap-3">
             <button
               type="button"
-              onClick={() => setConfirmando(true)}
+              onClick={() => { setConfirmando(true); setCheckConfirmado(false); }}
               disabled={reseteando || productos.length === 0}
               className="self-start rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
               Llevar todo el inventario a cero
             </button>
-          ) : (
-            <div className="flex flex-col gap-2 rounded-md border border-red-300 bg-red-50 p-4">
-              <p className="text-sm font-semibold text-red-800">
-                ¿Confirmas que deseas llevar todo el inventario a cero?
-              </p>
-              <p className="text-xs text-red-700">Esta acción no se puede deshacer automáticamente.</p>
-              <div className="flex gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  disabled={reseteando}
-                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  {reseteando ? "Procesando..." : "Sí, llevar a cero"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmando(false)}
-                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100"
-                >
-                  Cancelar
-                </button>
+
+            {confirmando && (
+              <div className="flex flex-col gap-3 rounded-md border border-red-300 bg-red-50 p-4">
+                <p className="text-sm font-semibold text-red-800">
+                  ¿Está seguro que desea llevar a cero su inventario?
+                </p>
+                <p className="text-xs text-red-700">
+                  Esta acción ajustará el stock de todos los productos a cero y quedará registrada en el historial. No se puede deshacer automáticamente.
+                </p>
+                <label className="flex items-center gap-2 text-sm text-red-900 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={checkConfirmado}
+                    onChange={(e) => setCheckConfirmado(e.target.checked)}
+                    className="w-4 h-4 accent-red-600"
+                  />
+                  Sí, estoy seguro y deseo llevar el inventario a cero
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    disabled={!checkConfirmado || reseteando}
+                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {reseteando ? "Procesando..." : "Llevar todo el inventario a cero"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setConfirmando(false); setCheckConfirmado(false); }}
+                    className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </>
       )}
     </div>
