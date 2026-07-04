@@ -12,7 +12,7 @@ export default async function VentasPage() {
       <p className="mb-4 text-sm text-zinc-600">
         Registra cada venta con sus productos, costo total y forma de pago.
       </p>
-      <VentasClient rol={sesion.rol} />
+      <VentasClient rol={sesion.rol} puedeDescuento={sesion.rol === "ADMIN" || sesion.permisos.descuento} />
     </div>
   );
 }

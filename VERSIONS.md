@@ -129,6 +129,61 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v1.3 — 2026-07-04
+
+### Resumen
+- Modo de entrega por defecto configurable (Local/Delivery) en Admin/Configuración
+- Eliminar campo "Modalidad de entrega" de la UI de ventas (columna se mantiene en BD)
+- Sub-selector de tipo de delivery: Motorizado de la Empresa, Wink, Yummy
+  - Empresa: monto libre
+  - Wink: precio por defecto configurable ($3), editable
+  - Yummy: campo deshabilitado (sin costo)
+- % de descuento en ventas (aplica al subtotal de productos, no al delivery)
+  - Controlado por permiso `ve_descuento` por usuario en Admin/Acceso al Sistema
+  - ADMIN tiene el permiso siempre habilitado
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/020_ventas_descuento_tipo_delivery.sql` | Agrega columnas ve_descuento, descuento_porcentaje, tipo_delivery + config keys |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `lib/types.ts` | Agrega `descuento` a `PERMISO_TABS`/`PERMISOS_VACIOS`; agrega `TIPOS_DELIVERY`, `TipoDelivery`, `TIPO_DELIVERY_LABELS`; agrega `tipoDelivery` y `descuentoPorcentaje` a `Venta` |
+| `lib/auth.ts` | Incluye `ve_descuento` en SELECT de sesión y mapeo de permisos |
+| `lib/ventas.ts` | Agrega `tipoDelivery` y `descuentoPorcentaje` a `VentaBody` |
+| `app/api/usuarios/route.ts` | GET/POST incluyen `ve_descuento`; ADMIN lo recibe `true` |
+| `app/api/usuarios/[id]/route.ts` | PUT incluye `ve_descuento` |
+| `app/api/ventas/route.ts` | GET y POST incluyen `tipo_delivery` y `descuento_porcentaje` |
+| `app/api/ventas/[id]/route.ts` | PUT incluye `tipo_delivery` y `descuento_porcentaje` |
+| `app/(main)/ventas/page.tsx` | Pasa `puedeDescuento` a VentasClient |
+| `components/VentasClient.tsx` | Default modoEntrega desde config; elimina UI "Modalidad de compra"; sub-selector tipo_delivery; campo descuento si tiene permiso; totales con descuento |
+| `components/ConfiguracionClient.tsx` | Agrega selectores modo_entrega_default y wink_costo_default |
+
+### Migraciones SQL (ejecutar en Neon en orden)
+
+**020_ventas_descuento_tipo_delivery.sql**
+```sql
+ALTER TABLE usuarios
+  ADD COLUMN IF NOT EXISTS ve_descuento BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ventas
+  ADD COLUMN IF NOT EXISTS descuento_porcentaje DECIMAL(5,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS tipo_delivery TEXT;
+
+INSERT INTO configuracion (clave, valor) VALUES ('modo_entrega_default', 'DELIVERY')
+  ON CONFLICT (clave) DO NOTHING;
+INSERT INTO configuracion (clave, valor) VALUES ('wink_costo_default', '3')
+  ON CONFLICT (clave) DO NOTHING;
+```
+
+### Sin cambios de variables de entorno
+
+---
+
 ## v1.2 — 2026-07-04
 
 ### Resumen

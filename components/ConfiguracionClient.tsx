@@ -4,10 +4,16 @@ import { useEffect, useState, FormEvent } from "react";
 
 type Config = {
   imagen_retencion_dias: string;
+  modo_entrega_default: string;
+  wink_costo_default: string;
 };
 
 export default function ConfiguracionClient() {
-  const [config, setConfig] = useState<Config>({ imagen_retencion_dias: "7" });
+  const [config, setConfig] = useState<Config>({
+    imagen_retencion_dias: "7",
+    modo_entrega_default: "DELIVERY",
+    wink_costo_default: "3",
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -43,6 +49,40 @@ export default function ConfiguracionClient() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-w-sm">
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-zinc-700">
+          Modo de entrega por defecto
+        </label>
+        <p className="text-xs text-zinc-500">
+          Valor inicial del modo de entrega al registrar una venta nueva.
+        </p>
+        <select
+          value={config.modo_entrega_default}
+          onChange={(e) => setConfig({ ...config, modo_entrega_default: e.target.value })}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-40"
+        >
+          <option value="DELIVERY">Delivery</option>
+          <option value="LOCAL">Local</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-zinc-700">
+          Costo por defecto Wink ($)
+        </label>
+        <p className="text-xs text-zinc-500">
+          Precio predeterminado al seleccionar Wink como tipo de delivery.
+        </p>
+        <input
+          type="number"
+          step="0.01"
+          min={0}
+          value={config.wink_costo_default}
+          onChange={(e) => setConfig({ ...config, wink_costo_default: e.target.value })}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-24"
+        />
+      </div>
+
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium text-zinc-700">
           Días de retención de imágenes (punto de venta)

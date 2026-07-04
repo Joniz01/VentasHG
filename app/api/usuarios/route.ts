@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   const result = await pool.query(
     `SELECT id, nombre, usuario, rol, activo,
-            ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes
+            ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento
      FROM usuarios
      ORDER BY nombre ASC`
   );
@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       ventas: row.ve_ventas,
       reportes: row.ve_reportes,
       pedidosPendientes: row.ve_pedidos_pendientes,
+      descuento: row.ve_descuento,
     },
   }));
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   if (isBootstrap) {
     rol = "ADMIN";
-    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true };
+    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true };
   } else {
     const sesion = await getSesionFromRequest(request);
     if (!sesion || sesion.rol !== "ADMIN") {
@@ -60,14 +61,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
     }
     if (rol === "ADMIN") {
-      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true };
+      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true };
     }
   }
 
   try {
     const result = await pool.query(
-      `INSERT INTO usuarios (nombre, usuario, clave_hash, rol, ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO usuarios (nombre, usuario, clave_hash, rol, ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
       [
         body.nombre.trim(),
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
         permisos.ventas,
         permisos.reportes,
         permisos.pedidosPendientes,
+        permisos.descuento,
       ]
     );
 

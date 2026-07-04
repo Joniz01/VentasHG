@@ -10,7 +10,9 @@ export type VentaBody = {
   direccion?: string | null;
   modalidadCompra?: string | null;
   modoEntrega?: string | null;
+  tipoDelivery?: string | null;
   costoDelivery: number;
+  descuentoPorcentaje?: number;
   observaciones?: string | null;
   despachoPendiente?: boolean;
   horaEntrega?: string | null;

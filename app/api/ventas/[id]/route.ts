@@ -37,12 +37,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const ventaResult = await client.query(
       `UPDATE ventas
        SET fecha = $1, tasa_dia = $2, cliente = $3, cliente_ci = $4, cliente_telefono = $5, direccion = $6,
-           modalidad_compra = $7, modo_entrega = $8, costo_delivery = $9, observaciones = $10,
-           despacho_pendiente = $11, hora_entrega = $12, hora_preparacion = $13, hora_retiro = $14,
-           delivery_asignado = $15, motorizado_id = $16, cuenta_por_cobrar = $17, fecha_limite_pago = $18,
-           cuenta_cobrada = CASE WHEN $17 THEN cuenta_cobrada ELSE FALSE END,
-           cuenta_cobrada_at = CASE WHEN $17 THEN cuenta_cobrada_at ELSE NULL END
-       WHERE id = $19
+           modalidad_compra = $7, modo_entrega = $8, tipo_delivery = $9, costo_delivery = $10,
+           descuento_porcentaje = $11, observaciones = $12,
+           despacho_pendiente = $13, hora_entrega = $14, hora_preparacion = $15, hora_retiro = $16,
+           delivery_asignado = $17, motorizado_id = $18, cuenta_por_cobrar = $19, fecha_limite_pago = $20,
+           cuenta_cobrada = CASE WHEN $19 THEN cuenta_cobrada ELSE FALSE END,
+           cuenta_cobrada_at = CASE WHEN $19 THEN cuenta_cobrada_at ELSE NULL END
+       WHERE id = $21
        RETURNING id`,
       [
         body.fecha,
@@ -52,8 +53,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
         body.clienteTelefono || null,
         body.direccion || null,
         body.modalidadCompra || null,
-        body.modoEntrega || "LOCAL",
+        body.modoEntrega || "DELIVERY",
+        body.modoEntrega === "DELIVERY" ? body.tipoDelivery || null : null,
         Number(body.costoDelivery),
+        Number(body.descuentoPorcentaje) || 0,
         body.observaciones || null,
         Boolean(body.despachoPendiente),
         body.despachoPendiente ? body.horaEntrega : null,

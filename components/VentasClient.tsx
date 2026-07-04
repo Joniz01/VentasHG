@@ -7,9 +7,12 @@ import {
   METODOS_PAGO_USD,
   METODO_PAGO_LABELS,
   MODOS_ENTREGA,
+  TIPOS_DELIVERY,
+  TIPO_DELIVERY_LABELS,
   CLIENTES_CONFIG_DEFAULT,
   type MetodoPago,
   type ModoEntrega,
+  type TipoDelivery,
   type Cliente,
   type ClientesConfig,
   type Motorizado,
@@ -84,9 +87,10 @@ function combinarFechaHora(fecha: string, hora: string): Date | null {
 
 type Props = {
   rol?: Rol | null;
+  puedeDescuento?: boolean;
 };
 
-export default function VentasClient({ rol = null }: Props) {
+export default function VentasClient({ rol = null, puedeDescuento = false }: Props) {
   const [vista, setVista] = useState<"ventas" | "notas" | "clientes">("ventas");
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
@@ -106,8 +110,11 @@ export default function VentasClient({ rol = null }: Props) {
   const [clienteTelefono, setClienteTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
   const [modalidadCompra, setModalidadCompra] = useState("");
-  const [modoEntrega, setModoEntrega] = useState<ModoEntrega>("LOCAL");
+  const [modoEntrega, setModoEntrega] = useState<ModoEntrega>("DELIVERY");
+  const [tipoDelivery, setTipoDelivery] = useState<TipoDelivery>("EMPRESA");
   const [costoDelivery, setCostoDelivery] = useState("0");
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState("0");
+  const [winkCostoDefault, setWinkCostoDefault] = useState("3");
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
@@ -180,6 +187,17 @@ export default function VentasClient({ rol = null }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
     handleConsultarTasaBcv();
+    fetch("/api/configuracion")
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg.modo_entrega_default === "LOCAL" || cfg.modo_entrega_default === "DELIVERY") {
+          setModoEntrega(cfg.modo_entrega_default as ModoEntrega);
+        }
+        if (cfg.wink_costo_default) {
+          setWinkCostoDefault(cfg.wink_costo_default);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -261,8 +279,10 @@ export default function VentasClient({ rol = null }: Props) {
       ventaTotalUsd += precioUnit * cantidad;
     }
 
+    const descuento = Math.min(Math.max(Number(descuentoPorcentaje) || 0, 0), 100);
+    const ventaTotalConDescuentoUsd = ventaTotalUsd * (1 - descuento / 100);
     const costoDeliveryUsd = Number(costoDelivery) || 0;
-    const totalAPagarUsd = ventaTotalUsd + costoDeliveryUsd;
+    const totalAPagarUsd = ventaTotalConDescuentoUsd + costoDeliveryUsd;
 
     // Resuelve cada pago en orden: los pagos automáticos toman el restante
     // (en $) después de descontar los pagos previos, y los manuales se
@@ -311,16 +331,19 @@ export default function VentasClient({ rol = null }: Props) {
 
     return {
       ventaTotalUsd,
+      ventaTotalConDescuentoUsd,
+      descuento,
       costoDeliveryUsd,
       totalAPagarUsd,
       totalPagos,
       totalPagosEnUsd,
       ventaTotalBs: usdToBs(ventaTotalUsd, tasa),
+      ventaTotalConDescuentoBs: usdToBs(ventaTotalConDescuentoUsd, tasa),
       costoDeliveryBs: usdToBs(costoDeliveryUsd, tasa),
       totalAPagarBs: usdToBs(totalAPagarUsd, tasa),
       montoSugerido,
     };
-  }, [items, pagos, productosById, tasa, costoDelivery]);
+  }, [items, pagos, productosById, tasa, costoDelivery, descuentoPorcentaje]);
 
   const minutosPreparacionNum =
     minutosPrep === "otro" ? Number(minutosPrepCustom) || 0 : Number(minutosPrep);
@@ -435,8 +458,10 @@ export default function VentasClient({ rol = null }: Props) {
     setClienteTelefono("");
     setDireccion("");
     setModalidadCompra("");
-    setModoEntrega("LOCAL");
+    setModoEntrega("DELIVERY");
+    setTipoDelivery("EMPRESA");
     setCostoDelivery("0");
+    setDescuentoPorcentaje("0");
     setObservaciones("");
     setItems([{ ...EMPTY_ITEM }]);
     setPagos([{ ...EMPTY_PAGO }]);
@@ -463,7 +488,9 @@ export default function VentasClient({ rol = null }: Props) {
     setDireccion(venta.direccion ?? "");
     setModalidadCompra(venta.modalidadCompra ?? "");
     setModoEntrega(venta.modoEntrega);
+    setTipoDelivery((venta.tipoDelivery as TipoDelivery) ?? "EMPRESA");
     setCostoDelivery(String(venta.costoDelivery));
+    setDescuentoPorcentaje(String(venta.descuentoPorcentaje ?? 0));
     setObservaciones(venta.observaciones ?? "");
     setItems(
       venta.items.map((item) => ({
@@ -611,7 +638,9 @@ export default function VentasClient({ rol = null }: Props) {
         direccion: direccion.trim(),
         modalidadCompra: modalidadCompra.trim(),
         modoEntrega,
-        costoDelivery: Number(costoDelivery) || 0,
+        tipoDelivery: modoEntrega === "DELIVERY" ? tipoDelivery : null,
+        costoDelivery: modoEntrega === "DELIVERY" ? Number(costoDelivery) || 0 : 0,
+        descuentoPorcentaje: puedeDescuento ? Number(descuentoPorcentaje) || 0 : 0,
         observaciones: observaciones.trim(),
         despachoPendiente,
         horaEntrega: despachoPendiente && horaEntregaDate ? horaEntregaDate.toISOString() : null,
@@ -850,15 +879,6 @@ export default function VentasClient({ rol = null }: Props) {
               required={clientesConfig.direccionObligatoria}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700">Modalidad de compra</label>
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              value={modalidadCompra}
-              onChange={(e) => setModalidadCompra(e.target.value)}
-              placeholder="Ej: Mayor, Detal..."
-            />
-          </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
             <label className="text-sm font-medium text-zinc-700">Observaciones</label>
             <input
@@ -873,7 +893,7 @@ export default function VentasClient({ rol = null }: Props) {
 
         <div className="flex flex-col gap-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
           <h3 className="text-sm font-semibold text-blue-800">Parámetros de entrega</h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
               <select
@@ -888,18 +908,41 @@ export default function VentasClient({ rol = null }: Props) {
                 ))}
               </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-zinc-700">Costo delivery</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                value={costoDelivery}
-                onChange={(e) => setCostoDelivery(e.target.value)}
-                disabled={modoEntrega !== "DELIVERY"}
-              />
-            </div>
+            {modoEntrega === "DELIVERY" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Tipo de delivery</label>
+                <select
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  value={tipoDelivery}
+                  onChange={(e) => {
+                    const tipo = e.target.value as TipoDelivery;
+                    setTipoDelivery(tipo);
+                    if (tipo === "WINK") setCostoDelivery(winkCostoDefault);
+                    else if (tipo === "YUMMY") setCostoDelivery("0");
+                  }}
+                >
+                  {TIPOS_DELIVERY.map((t) => (
+                    <option key={t} value={t}>
+                      {TIPO_DELIVERY_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {modoEntrega === "DELIVERY" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Costo delivery</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-100 disabled:text-zinc-400"
+                  value={costoDelivery}
+                  onChange={(e) => setCostoDelivery(e.target.value)}
+                  disabled={tipoDelivery === "YUMMY"}
+                />
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">¿Despacho pendiente?</label>
@@ -1136,6 +1179,27 @@ export default function VentasClient({ rol = null }: Props) {
           </div>
         </div>
 
+        {puedeDescuento && (
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-zinc-700 whitespace-nowrap">% de descuento</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={descuentoPorcentaje}
+              onChange={(e) => setDescuentoPorcentaje(e.target.value)}
+              placeholder="0"
+            />
+            {totales.descuento > 0 && (
+              <span className="text-xs text-green-700 font-medium">
+                Descuento: −{totales.descuento.toFixed(2)}% (−${(totales.ventaTotalUsd - totales.ventaTotalConDescuentoUsd).toFixed(2)})
+              </span>
+            )}
+          </div>
+        )}
+
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-zinc-700">Forma de pago</h3>
@@ -1258,6 +1322,13 @@ export default function VentasClient({ rol = null }: Props) {
             {totales.ventaTotalBs.toFixed(2)} Bs{" "}
             <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
           </div>
+          {totales.descuento > 0 && (
+            <div>
+              <span className="font-medium text-green-700">Con descuento ({totales.descuento}%): </span>
+              {totales.ventaTotalConDescuentoBs.toFixed(2)} Bs{" "}
+              <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span>
+            </div>
+          )}
           {modoEntrega === "DELIVERY" && (
             <div>
               <span className="font-medium text-zinc-600">Costo delivery: </span>

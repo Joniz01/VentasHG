@@ -11,6 +11,7 @@ export const PERMISO_TABS = [
   { key: "ventas", label: "Ventas" },
   { key: "reportes", label: "Reportes" },
   { key: "pedidosPendientes", label: "Pedidos Pendientes" },
+  { key: "descuento", label: "Aplicar Descuento" },
 ] as const;
 
 export type PermisoTab = (typeof PERMISO_TABS)[number]["key"];
@@ -22,6 +23,7 @@ export const PERMISOS_VACIOS: PermisosUsuario = {
   ventas: false,
   reportes: false,
   pedidosPendientes: false,
+  descuento: false,
 };
 
 export type Usuario = {
@@ -203,6 +205,15 @@ export type PagoVenta = {
   monto: number;
 };
 
+export const TIPOS_DELIVERY = ["EMPRESA", "WINK", "YUMMY"] as const;
+export type TipoDelivery = (typeof TIPOS_DELIVERY)[number];
+
+export const TIPO_DELIVERY_LABELS: Record<TipoDelivery, string> = {
+  EMPRESA: "Motorizado de la Empresa",
+  WINK: "Wink",
+  YUMMY: "Yummy",
+};
+
 export type Venta = {
   id: number;
   fecha: string;
@@ -213,7 +224,9 @@ export type Venta = {
   direccion: string | null;
   modalidadCompra: string | null;
   modoEntrega: ModoEntrega;
+  tipoDelivery: TipoDelivery | null;
   costoDelivery: number;
+  descuentoPorcentaje: number;
   observaciones: string | null;
   despachoPendiente: boolean;
   horaEntrega: string | null;
