@@ -6,6 +6,7 @@ import ConfiguracionClient from "@/components/ConfiguracionClient";
 import MotorizadosConfigClient from "@/components/MotorizadosConfigClient";
 import UsuariosConfigClient from "@/components/UsuariosConfigClient";
 import AdminAccesoClient from "@/components/AdminAccesoClient";
+import InventarioInicialClient from "@/components/InventarioInicialClient";
 
 type Props = {
   usuarioActualId: number;
@@ -17,6 +18,7 @@ const TABS = [
   { key: "usuarios", label: "Usuarios" },
   { key: "alarmas", label: "Alarmas" },
   { key: "configuracion", label: "Configuración" },
+  { key: "inventario", label: "Inventario Inicial" },
   { key: "acceso", label: "Acceso al Sistema" },
 ] as const;
 
@@ -81,6 +83,16 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             Ajusta los parámetros generales del sistema.
           </p>
           <ConfiguracionClient />
+        </div>
+      )}
+
+      {tab === "inventario" && (
+        <div>
+          <h2 className="mb-4 text-lg font-semibold">Inventario Inicial</h2>
+          <p className="mb-4 text-sm text-zinc-600">
+            Inicialización de operaciones: lleva el inventario de todos los productos a cero.
+          </p>
+          <InventarioInicialClient />
         </div>
       )}
 
