@@ -7,30 +7,51 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ## ⚠️ PENDIENTE PARA VENTASFACTORY (al 2026-07-04)
 
-Aplicar **v1.8 + v1.9** completas. Sin esto el Dashboard Consolidado muestra 401 y el permiso de Dashboard no existe.
+Aplicar **v1.8 + v1.9** completas. El archivo más crítico es `app/api/resumen/route.ts` — sin él el Dashboard Consolidado de ventas-hg muestra "No se pudo conectar (401)" para ventasfactory.
 
-Archivos a copiar desde ventas-hg:
+### Archivos a copiar/reemplazar desde ventas-hg
 
-| Archivo | Tipo | Motivo |
-|---------|------|--------|
-| `lib/resumen.ts` | NUEVO | Función `getResumenLocal()` compartida |
-| `app/api/resumen/route.ts` | REEMPLAZAR | Sin auth (datos solo agregados); sin esto retorna 401 |
-| `lib/types.ts` | MODIFICAR | Agrega permiso `dashboard` |
-| `lib/auth.ts` | MODIFICAR | Lee `ve_dashboard` de la sesión |
-| `app/api/usuarios/route.ts` | MODIFICAR | Incluye `ve_dashboard` en GET/POST |
-| `app/api/usuarios/[id]/route.ts` | MODIFICAR | Incluye `ve_dashboard` en PUT |
-| `app/api/dashboard/route.ts` | MODIFICAR | Verifica permiso `dashboard` |
-| `app/(main)/dashboard/page.tsx` | MODIFICAR | Usa `requirePermiso("dashboard")` |
-| `components/NavTabs.tsx` | MODIFICAR | Dashboard tab controlada por permiso |
+| Archivo | Tipo | Prioridad | Motivo |
+|---------|------|-----------|--------|
+| `lib/resumen.ts` | NUEVO | 🔴 CRÍTICO | Función `getResumenLocal()` requerida por /api/resumen |
+| `app/api/resumen/route.ts` | REEMPLAZAR | 🔴 CRÍTICO | Sin auth; sin esto el dashboard devuelve 401 siempre |
+| `lib/types.ts` | MODIFICAR | 🟡 IMPORTANTE | Agrega permiso `dashboard` a PERMISO_TABS y PERMISOS_VACIOS |
+| `lib/auth.ts` | MODIFICAR | 🟡 IMPORTANTE | Lee `ve_dashboard` con fallback si migración pendiente |
+| `app/api/usuarios/route.ts` | MODIFICAR | 🟡 IMPORTANTE | Incluye `ve_dashboard` en GET/POST con fallback |
+| `app/api/usuarios/[id]/route.ts` | MODIFICAR | 🟡 IMPORTANTE | Incluye `ve_dashboard` en PUT con fallback |
+| `app/api/dashboard/route.ts` | MODIFICAR | 🟡 IMPORTANTE | Verifica permiso `dashboard` (además de ADMIN) |
+| `app/(main)/dashboard/page.tsx` | MODIFICAR | 🟡 IMPORTANTE | Usa `requirePermiso("dashboard")` |
+| `components/NavTabs.tsx` | MODIFICAR | 🟡 IMPORTANTE | Tab Dashboard usa `permiso: "dashboard"` |
 
-Migración SQL a ejecutar en Neon:
+### Contenido exacto del archivo crítico
+
+**`app/api/resumen/route.ts`** — reemplazar completamente con:
+```typescript
+import { NextResponse } from "next/server";
+import { getResumenLocal } from "@/lib/resumen";
+
+export async function GET() {
+  try {
+    const data = await getResumenLocal();
+    return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Error interno" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### Migración SQL (ejecutar en Neon de ventasfactory)
 ```sql
--- 023_ve_dashboard.sql
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ve_dashboard BOOLEAN NOT NULL DEFAULT FALSE;
 UPDATE usuarios SET ve_dashboard = TRUE WHERE rol = 'ADMIN';
 ```
 
-Después de aplicar: **eliminar `DASHBOARD_API_KEY`** de las variables de entorno de Vercel (ya no es necesaria).
+### Variables de entorno Vercel (ventasfactory)
+- Eliminar `DASHBOARD_API_KEY` — ya no es necesaria
+- `EMPRESA_NOMBRE` debe estar seteado (ej. `"Factory HG"`)
 
 Ver detalle completo en las secciones **v1.8** y **v1.9** más abajo.
 
