@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const desde = searchParams.get("desde");
+  const hasta = searchParams.get("hasta");
+
+  if (!desde || !hasta) {
+    return NextResponse.json({ error: "desde y hasta requeridos" }, { status: 400 });
+  }
+
+  const result = await pool.query(
+    `SELECT data FROM reporte_imagenes WHERE desde = $1 AND hasta = $2`,
+    [desde, hasta]
+  );
+
+  if (!result.rows[0]) return NextResponse.json({ data: null });
+  return NextResponse.json({ data: result.rows[0].data });
+}
+
 export async function POST(req: NextRequest) {
   const { data, desde, hasta } = await req.json();
   if (!data || typeof data !== "string" || !desde || !hasta) {
@@ -14,8 +32,15 @@ export async function POST(req: NextRequest) {
     [desde, hasta, data]
   );
 
-  // Eliminar imágenes de más de 7 días
-  await pool.query(`DELETE FROM reporte_imagenes WHERE created_at < NOW() - INTERVAL '7 days'`);
+  // Leer días de retención desde configuración
+  const configResult = await pool.query(
+    `SELECT valor FROM configuracion WHERE clave = 'imagen_retencion_dias'`
+  );
+  const dias = parseInt(configResult.rows[0]?.valor ?? "7", 10);
+  await pool.query(
+    `DELETE FROM reporte_imagenes WHERE created_at < NOW() - ($1 || ' days')::INTERVAL`,
+    [dias]
+  );
 
   return NextResponse.json({ ok: true });
 }

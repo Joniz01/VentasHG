@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AlarmasConfigClient from "@/components/AlarmasConfigClient";
+import ConfiguracionClient from "@/components/ConfiguracionClient";
 import MotorizadosConfigClient from "@/components/MotorizadosConfigClient";
 import UsuariosConfigClient from "@/components/UsuariosConfigClient";
 import AdminAccesoClient from "@/components/AdminAccesoClient";
@@ -13,9 +14,10 @@ type Props = {
 };
 
 const TABS = [
-  { key: "usuarios", label: "Administración de usuarios" },
-  { key: "alarmas", label: "Configuración de Alarmas" },
-  { key: "acceso", label: "Admin Acceso al Sistema" },
+  { key: "usuarios", label: "Usuarios" },
+  { key: "alarmas", label: "Alarmas" },
+  { key: "configuracion", label: "Configuración" },
+  { key: "acceso", label: "Acceso al Sistema" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -69,6 +71,16 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             Configura el sonido y comportamiento de las alarmas de Pedidos Pendientes.
           </p>
           <AlarmasConfigClient />
+        </div>
+      )}
+
+      {tab === "configuracion" && (
+        <div>
+          <h2 className="mb-4 text-lg font-semibold">Configuración del sistema</h2>
+          <p className="mb-4 text-sm text-zinc-600">
+            Ajusta los parámetros generales del sistema.
+          </p>
+          <ConfiguracionClient />
         </div>
       )}
 
