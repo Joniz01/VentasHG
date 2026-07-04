@@ -5,6 +5,24 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## ⚠️ PENDIENTE PARA VENTASFACTORY (al 2026-07-04)
+
+Aplicar **v1.8** completa. Sin esto el Dashboard Consolidado de ventas-hg muestra "No se pudo conectar (401)" para ventasfactory.
+
+Archivos críticos a copiar desde ventas-hg:
+
+| Archivo | Tipo | Motivo |
+|---------|------|--------|
+| `lib/dashboard-token.ts` | NUEVO | Token derivado de DATABASE_URL para autenticación automática |
+| `lib/resumen.ts` | NUEVO | Función `getResumenLocal()` compartida |
+| `app/api/resumen/route.ts` | REEMPLAZAR | Acepta token derivado; sin esto sigue retornando 401 |
+
+Después de aplicar: **eliminar `DASHBOARD_API_KEY`** de las variables de entorno de Vercel en ventasfactory (ya no es necesaria).
+
+Ver detalle completo en la sección **v1.8** más abajo.
+
+---
+
 ## v1.1 — 2026-07-04
 
 ### Resumen
