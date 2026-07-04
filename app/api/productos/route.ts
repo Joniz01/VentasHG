@@ -9,7 +9,7 @@ export async function GET() {
             p.tipo_producto, p.stock_actual, p.variada_raciones
      FROM productos p
      LEFT JOIN categorias c ON c.id = p.categoria_id
-     ORDER BY p.nombre ASC`
+     ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`
   );
 
   const productoIds = result.rows.map((row) => row.id);

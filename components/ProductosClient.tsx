@@ -27,6 +27,7 @@ export default function ProductosClient() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
+  const [nuevaCategoriaOrden, setNuevaCategoriaOrden] = useState("99");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -39,12 +40,11 @@ export default function ProductosClient() {
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
   const productosOrdenados = useMemo(() => {
-    if (orden === "nombre") return productos;
-
-    return [...productos].sort((a, b) => {
-      const categoriaCompare = (a.categoriaNombre ?? "").localeCompare(b.categoriaNombre ?? "");
-      return categoriaCompare !== 0 ? categoriaCompare : a.nombre.localeCompare(b.nombre);
-    });
+    if (orden === "nombre") {
+      return [...productos].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
+    // orden === "categoria": respetar el orden que devuelve el API (c.orden ASC, nombre ASC)
+    return productos;
   }, [productos, orden]);
 
   async function loadProductos() {
@@ -93,6 +93,7 @@ export default function ProductosClient() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setNuevaCategoriaNombre("");
+    setNuevaCategoriaOrden("99");
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -115,7 +116,7 @@ export default function ProductosClient() {
         const catRes = await fetch("/api/categorias", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nombre: nuevaCategoriaNombre.trim() }),
+          body: JSON.stringify({ nombre: nuevaCategoriaNombre.trim(), orden: Number(nuevaCategoriaOrden) || 99 }),
         });
         if (!catRes.ok) {
           const data = await catRes.json();
@@ -223,12 +224,23 @@ export default function ProductosClient() {
             <option value={NUEVA_CATEGORIA}>+ Nueva categoría...</option>
           </select>
           {form.categoriaId === NUEVA_CATEGORIA && (
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              value={nuevaCategoriaNombre}
-              onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
-              placeholder="Nombre de la nueva categoría"
-            />
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={nuevaCategoriaNombre}
+                onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
+                placeholder="Nombre de la nueva categoría"
+              />
+              <input
+                type="number"
+                min={1}
+                className="w-20 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={nuevaCategoriaOrden}
+                onChange={(e) => setNuevaCategoriaOrden(e.target.value)}
+                title="Orden (1=primero, 99=al final)"
+                placeholder="Orden"
+              />
+            </div>
           )}
         </div>
         <div className="flex flex-col gap-1">
