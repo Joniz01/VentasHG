@@ -129,6 +129,46 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v1.8 — 2026-07-04
+
+### Resumen
+- Dashboard Consolidado funcional para empresa1 sin necesidad de API key HTTP
+- Colores Cashea corregidos a amarillo (color real de la marca)
+- Fix crash en Admin/Configuración cuando migración Cashea no está aplicada
+- Fix error "Unexpected end of JSON input" en Reportes/Cashea
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `lib/resumen.ts` | Función `getResumenLocal()` que consulta DB directamente (reutilizada por `/api/resumen` y `/api/dashboard`) |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `app/api/dashboard/route.ts` | Empresa1 consulta DB directamente via `getResumenLocal()` (sin HTTP ni API key); empresa2 hace fetch HTTP con reintentos (con key → sin key si 401/403) |
+| `app/api/resumen/route.ts` | Refactorizado para usar `getResumenLocal()`; API key solo se valida si `DASHBOARD_API_KEY` está configurado (no bloquea si no está seteado) |
+| `components/AlarmasConfigClient.tsx` | Fix TypeScript: añade `casheaVencimientoHora` al Exclude del tipo; ícono Cashea `bg-yellow-400 text-black` |
+| `components/CasheaAlerta.tsx` | Badge `bg-yellow-400 text-black` (era naranja) |
+| `components/CasheaPanel.tsx` | Clases orange → yellow |
+| `components/ReportesClient.tsx` | Tab Cashea con colores yellow |
+| `components/ConfiguracionClient.tsx` | Fix crash: `setConfig(prev => ({ ...prev, ...d }))` + guard `?? ""` en split; sección Cashea con tema yellow |
+| `app/api/reportes/cashea/route.ts` | Try/catch devuelve `{ items: [] }` si tabla no existe |
+| `app/api/reportes/cashea/[id]/route.ts` | Try/catch devuelve 503 si tabla no existe |
+
+### Variables de entorno para Dashboard (opcionales)
+
+| Variable | Proyecto | Descripción |
+|----------|----------|-------------|
+| `EMPRESA_NOMBRE` | ambos | Nombre que aparece en el dashboard consolidado (ej. `"Hechizo Gourmet Polanco"`) |
+| `EMPRESA2_URL` | ventas-hg | URL base de la segunda instancia (ej. `https://ventasfactory.vercel.app`) |
+| `DASHBOARD_API_KEY` | ambos (misma clave) | Opcional: protege `/api/resumen` con API key; si no está seteado, el endpoint es público |
+
+### Sin migraciones SQL nuevas
+
+---
+
 ## v1.7 — 2026-07-04
 
 ### Resumen
