@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const permisos =
     body.rol === "ADMIN"
-      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true }
+      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true }
       : body.permisos ?? PERMISOS_VACIOS;
 
   try {
@@ -40,8 +40,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
       ? await pool.query(
           `UPDATE usuarios
            SET nombre = $1, usuario = $2, clave_hash = $3, rol = $4, activo = $5,
-               ve_productos = $6, ve_ventas = $7, ve_reportes = $8, ve_pedidos_pendientes = $9, ve_descuento = $10
-           WHERE id = $11
+               ve_productos = $6, ve_ventas = $7, ve_reportes = $8, ve_pedidos_pendientes = $9,
+               ve_descuento = $10, ve_dashboard = $11
+           WHERE id = $12
            RETURNING id`,
           [
             body.nombre.trim(),
@@ -54,14 +55,16 @@ export async function PUT(request: NextRequest, { params }: Params) {
             permisos.reportes,
             permisos.pedidosPendientes,
             permisos.descuento,
+            permisos.dashboard,
             id,
           ]
         )
       : await pool.query(
           `UPDATE usuarios
            SET nombre = $1, usuario = $2, rol = $3, activo = $4,
-               ve_productos = $5, ve_ventas = $6, ve_reportes = $7, ve_pedidos_pendientes = $8, ve_descuento = $9
-           WHERE id = $10
+               ve_productos = $5, ve_ventas = $6, ve_reportes = $7, ve_pedidos_pendientes = $8,
+               ve_descuento = $9, ve_dashboard = $10
+           WHERE id = $11
            RETURNING id`,
           [
             body.nombre.trim(),
@@ -73,6 +76,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
             permisos.reportes,
             permisos.pedidosPendientes,
             permisos.descuento,
+            permisos.dashboard,
             id,
           ]
         );

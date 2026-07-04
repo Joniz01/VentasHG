@@ -7,19 +7,32 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ## ⚠️ PENDIENTE PARA VENTASFACTORY (al 2026-07-04)
 
-Aplicar **v1.8** completa. Sin esto el Dashboard Consolidado de ventas-hg muestra "No se pudo conectar (401)" para ventasfactory.
+Aplicar **v1.8 + v1.9** completas. Sin esto el Dashboard Consolidado muestra 401 y el permiso de Dashboard no existe.
 
-Archivos críticos a copiar desde ventas-hg:
+Archivos a copiar desde ventas-hg:
 
 | Archivo | Tipo | Motivo |
 |---------|------|--------|
-| `lib/dashboard-token.ts` | NUEVO | Token derivado de DATABASE_URL para autenticación automática |
 | `lib/resumen.ts` | NUEVO | Función `getResumenLocal()` compartida |
-| `app/api/resumen/route.ts` | REEMPLAZAR | Acepta token derivado; sin esto sigue retornando 401 |
+| `app/api/resumen/route.ts` | REEMPLAZAR | Sin auth (datos solo agregados); sin esto retorna 401 |
+| `lib/types.ts` | MODIFICAR | Agrega permiso `dashboard` |
+| `lib/auth.ts` | MODIFICAR | Lee `ve_dashboard` de la sesión |
+| `app/api/usuarios/route.ts` | MODIFICAR | Incluye `ve_dashboard` en GET/POST |
+| `app/api/usuarios/[id]/route.ts` | MODIFICAR | Incluye `ve_dashboard` en PUT |
+| `app/api/dashboard/route.ts` | MODIFICAR | Verifica permiso `dashboard` |
+| `app/(main)/dashboard/page.tsx` | MODIFICAR | Usa `requirePermiso("dashboard")` |
+| `components/NavTabs.tsx` | MODIFICAR | Dashboard tab controlada por permiso |
 
-Después de aplicar: **eliminar `DASHBOARD_API_KEY`** de las variables de entorno de Vercel en ventasfactory (ya no es necesaria).
+Migración SQL a ejecutar en Neon:
+```sql
+-- 023_ve_dashboard.sql
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ve_dashboard BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE usuarios SET ve_dashboard = TRUE WHERE rol = 'ADMIN';
+```
 
-Ver detalle completo en la sección **v1.8** más abajo.
+Después de aplicar: **eliminar `DASHBOARD_API_KEY`** de las variables de entorno de Vercel (ya no es necesaria).
+
+Ver detalle completo en las secciones **v1.8** y **v1.9** más abajo.
 
 ---
 
@@ -144,6 +157,45 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 | `NEXT_PUBLIC_EMPRESA_NOMBRE` | `Factory HG` | Mismo valor que EMPRESA_NOMBRE, visible en cliente (para mensaje WhatsApp) |
 
 ---
+
+---
+
+## v1.9 — 2026-07-04
+
+### Resumen
+- Permiso `dashboard` por usuario, controlado en Admin/Acceso al Sistema
+- `/api/resumen` sin autenticación (exposición solo de métricas agregadas; sin datos sensibles)
+- Fix definitivo del 401 en dashboard consolidado entre instancias con distintas bases de datos
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/023_ve_dashboard.sql` | Agrega columna `ve_dashboard` a usuarios; ADMIN existentes la reciben automáticamente |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `lib/types.ts` | Agrega `{ key: "dashboard", label: "Dashboard Consolidado" }` a PERMISO_TABS y `dashboard: false` a PERMISOS_VACIOS |
+| `lib/auth.ts` | Lee `COALESCE(ve_dashboard, FALSE)` en sesión |
+| `app/api/usuarios/route.ts` | GET/POST incluyen `ve_dashboard`; ADMIN siempre `true` |
+| `app/api/usuarios/[id]/route.ts` | PUT incluye `ve_dashboard`; ADMIN siempre `true` |
+| `app/api/dashboard/route.ts` | Verifica `sesion.permisos.dashboard` (además de ADMIN) |
+| `app/(main)/dashboard/page.tsx` | `requirePermiso("dashboard")` en vez de `"reportes"` |
+| `components/NavTabs.tsx` | Tab Dashboard usa `permiso: "dashboard"` como los demás tabs |
+| `app/api/resumen/route.ts` | Sin autenticación; solo llama `getResumenLocal()` |
+
+### Migración SQL (ejecutar en Neon)
+
+**023_ve_dashboard.sql**
+```sql
+ALTER TABLE usuarios
+  ADD COLUMN IF NOT EXISTS ve_dashboard BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE usuarios SET ve_dashboard = TRUE WHERE rol = 'ADMIN';
+```
+
+### Sin cambios de variables de entorno
 
 ---
 

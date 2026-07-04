@@ -56,7 +56,8 @@ export type SesionUsuario = {
 export async function getUsuarioFromSession(token: string): Promise<SesionUsuario | null> {
   const result = await pool.query(
     `SELECT u.id, u.nombre, u.usuario, u.rol,
-            u.ve_productos, u.ve_ventas, u.ve_reportes, u.ve_pedidos_pendientes, u.ve_descuento
+            u.ve_productos, u.ve_ventas, u.ve_reportes, u.ve_pedidos_pendientes, u.ve_descuento,
+            COALESCE(u.ve_dashboard, FALSE) AS ve_dashboard
      FROM sesiones s
      JOIN usuarios u ON u.id = s.usuario_id
      WHERE s.token = $1 AND s.expires_at > now() AND u.activo = TRUE`,
@@ -77,6 +78,7 @@ export async function getUsuarioFromSession(token: string): Promise<SesionUsuari
       reportes: row.ve_reportes,
       pedidosPendientes: row.ve_pedidos_pendientes,
       descuento: row.ve_descuento,
+      dashboard: row.ve_dashboard,
     },
   };
 }

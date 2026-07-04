@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSesionFromRequest } from "@/lib/auth";
 import { getResumenLocal, ResumenData } from "@/lib/resumen";
-import { getDashboardToken } from "@/lib/dashboard-token";
-
-async function fetchResumen(baseUrl: string, token: string): Promise<ResumenData> {
+async function fetchResumen(baseUrl: string): Promise<ResumenData> {
   const empresa = baseUrl.replace(/https?:\/\//, "").replace(/\/$/, "");
   const empty = (): ResumenData => ({
     empresa,
@@ -15,8 +13,7 @@ async function fetchResumen(baseUrl: string, token: string): Promise<ResumenData
   });
 
   try {
-    const url = `${baseUrl}/api/resumen?apikey=${encodeURIComponent(token)}`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(`${baseUrl}/api/resumen`, { cache: "no-store" });
     if (!res.ok) {
       return { ...empty(), error: `No se pudo conectar (${res.status})` };
     }
@@ -29,14 +26,10 @@ async function fetchResumen(baseUrl: string, token: string): Promise<ResumenData
 export async function GET(request: NextRequest) {
   try {
     const sesion = await getSesionFromRequest(request);
-    if (!sesion || sesion.rol !== "ADMIN") {
+    if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.dashboard)) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // Token compartido: derivado de DATABASE_URL (idéntico en ambas instancias)
-    // DASHBOARD_API_KEY solo se usa si EMPRESA2_URL apunta a un proyecto externo
-    // con clave diferente. Para proyectos que comparten la BD, el token derivado funciona.
-    const token = process.env.DASHBOARD_API_KEY || getDashboardToken();
     const empresa2Url = process.env.EMPRESA2_URL ?? "";
 
     const empresa1Promise = getResumenLocal().catch(
@@ -53,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     const fetches: Promise<ResumenData>[] = [empresa1Promise];
     if (empresa2Url) {
-      fetches.push(fetchResumen(empresa2Url, token));
+      fetches.push(fetchResumen(empresa2Url));
     }
 
     const empresas = await Promise.all(fetches);

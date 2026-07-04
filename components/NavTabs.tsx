@@ -11,7 +11,7 @@ const TABS: { href: string; label: string; permiso?: keyof PermisosUsuario }[] =
   { href: "/ventas", label: "Ventas", permiso: "ventas" },
   { href: "/reportes", label: "Reportes", permiso: "reportes" },
   { href: "/pedidos-pendientes", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
-  { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard", label: "Dashboard", permiso: "dashboard" },
   { href: "/delivery", label: "Delivery" },
   { href: "/admin", label: "Admin" },
 ];
@@ -39,7 +39,6 @@ export default function NavTabs({ rol, permisos }: Props) {
 
   const tabs = TABS.filter((tab) => {
     if (tab.href === "/admin") return rol === "ADMIN";
-    if (tab.href === "/dashboard") return rol === "ADMIN";
     if (tab.href === "/delivery") return true;
     if (rol === "ADMIN") return true;
     if (!tab.permiso || !permisos) return false;
