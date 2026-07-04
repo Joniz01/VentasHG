@@ -9,15 +9,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const result = await pool.query(
-    `SELECT id, nombre, usuario, rol, activo,
-            ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento,
-            COALESCE(ve_dashboard, FALSE) AS ve_dashboard
-     FROM usuarios
-     ORDER BY nombre ASC`
-  );
+  let rows: Record<string, unknown>[] = [];
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, usuario, rol, activo,
+              ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento,
+              COALESCE(ve_dashboard, FALSE) AS ve_dashboard
+       FROM usuarios ORDER BY nombre ASC`
+    );
+    rows = result.rows;
+  } catch {
+    // Migración 023 pendiente
+    const result = await pool.query(
+      `SELECT id, nombre, usuario, rol, activo,
+              ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento
+       FROM usuarios ORDER BY nombre ASC`
+    );
+    rows = result.rows;
+  }
 
-  const usuarios = result.rows.map((row) => ({
+  const usuarios = rows.map((row) => ({
     id: row.id,
     nombre: row.nombre,
     usuario: row.usuario,
@@ -29,7 +40,7 @@ export async function GET(request: NextRequest) {
       reportes: row.ve_reportes,
       pedidosPendientes: row.ve_pedidos_pendientes,
       descuento: row.ve_descuento,
-      dashboard: row.ve_dashboard,
+      dashboard: row.ve_dashboard ?? row.rol === "ADMIN",
     },
   }));
 
@@ -68,25 +79,30 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await pool.query(
-      `INSERT INTO usuarios (nombre, usuario, clave_hash, rol, ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento, ve_dashboard)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id`,
-      [
-        body.nombre.trim(),
-        body.usuario.trim(),
-        hashPassword(body.clave),
-        rol,
-        permisos.productos,
-        permisos.ventas,
-        permisos.reportes,
-        permisos.pedidosPendientes,
-        permisos.descuento,
-        permisos.dashboard,
-      ]
-    );
-
-    return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
+    let insertId: number;
+    try {
+      const r = await pool.query(
+        `INSERT INTO usuarios (nombre, usuario, clave_hash, rol, ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento, ve_dashboard)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+        [body.nombre.trim(), body.usuario.trim(), hashPassword(body.clave), rol,
+         permisos.productos, permisos.ventas, permisos.reportes, permisos.pedidosPendientes, permisos.descuento, permisos.dashboard]
+      );
+      insertId = r.rows[0].id;
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("ve_dashboard")) {
+        // Migración 023 pendiente — insertar sin ve_dashboard
+        const r = await pool.query(
+          `INSERT INTO usuarios (nombre, usuario, clave_hash, rol, ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+          [body.nombre.trim(), body.usuario.trim(), hashPassword(body.clave), rol,
+           permisos.productos, permisos.ventas, permisos.reportes, permisos.pedidosPendientes, permisos.descuento]
+        );
+        insertId = r.rows[0].id;
+      } else {
+        throw e;
+      }
+    }
+    return NextResponse.json({ id: insertId }, { status: 201 });
   } catch (err) {
     const message =
       err instanceof Error && err.message.includes("duplicate")

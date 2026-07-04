@@ -35,51 +35,44 @@ export async function PUT(request: NextRequest, { params }: Params) {
       ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true }
       : body.permisos ?? PERMISOS_VACIOS;
 
+  const nombre = body.nombre!.trim();
+  const usuario = body.usuario!.trim();
+  const rol = body.rol;
+  const activo = body.activo ?? true;
+  const claveHash = body.clave?.trim() ? hashPassword(body.clave) : null;
+
+  const runUpdate = async (withDashboard: boolean) => {
+    if (claveHash) {
+      return pool.query(
+        withDashboard
+          ? `UPDATE usuarios SET nombre=$1,usuario=$2,clave_hash=$3,rol=$4,activo=$5,ve_productos=$6,ve_ventas=$7,ve_reportes=$8,ve_pedidos_pendientes=$9,ve_descuento=$10,ve_dashboard=$11 WHERE id=$12 RETURNING id`
+          : `UPDATE usuarios SET nombre=$1,usuario=$2,clave_hash=$3,rol=$4,activo=$5,ve_productos=$6,ve_ventas=$7,ve_reportes=$8,ve_pedidos_pendientes=$9,ve_descuento=$10 WHERE id=$11 RETURNING id`,
+        withDashboard
+          ? [nombre,usuario,claveHash,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,permisos.dashboard,id]
+          : [nombre,usuario,claveHash,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,id]
+      );
+    }
+    return pool.query(
+      withDashboard
+        ? `UPDATE usuarios SET nombre=$1,usuario=$2,rol=$3,activo=$4,ve_productos=$5,ve_ventas=$6,ve_reportes=$7,ve_pedidos_pendientes=$8,ve_descuento=$9,ve_dashboard=$10 WHERE id=$11 RETURNING id`
+        : `UPDATE usuarios SET nombre=$1,usuario=$2,rol=$3,activo=$4,ve_productos=$5,ve_ventas=$6,ve_reportes=$7,ve_pedidos_pendientes=$8,ve_descuento=$9 WHERE id=$10 RETURNING id`,
+      withDashboard
+        ? [nombre,usuario,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,permisos.dashboard,id]
+        : [nombre,usuario,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,id]
+    );
+  };
+
   try {
-    const result = body.clave?.trim()
-      ? await pool.query(
-          `UPDATE usuarios
-           SET nombre = $1, usuario = $2, clave_hash = $3, rol = $4, activo = $5,
-               ve_productos = $6, ve_ventas = $7, ve_reportes = $8, ve_pedidos_pendientes = $9,
-               ve_descuento = $10, ve_dashboard = $11
-           WHERE id = $12
-           RETURNING id`,
-          [
-            body.nombre.trim(),
-            body.usuario.trim(),
-            hashPassword(body.clave),
-            body.rol,
-            body.activo ?? true,
-            permisos.productos,
-            permisos.ventas,
-            permisos.reportes,
-            permisos.pedidosPendientes,
-            permisos.descuento,
-            permisos.dashboard,
-            id,
-          ]
-        )
-      : await pool.query(
-          `UPDATE usuarios
-           SET nombre = $1, usuario = $2, rol = $3, activo = $4,
-               ve_productos = $5, ve_ventas = $6, ve_reportes = $7, ve_pedidos_pendientes = $8,
-               ve_descuento = $9, ve_dashboard = $10
-           WHERE id = $11
-           RETURNING id`,
-          [
-            body.nombre.trim(),
-            body.usuario.trim(),
-            body.rol,
-            body.activo ?? true,
-            permisos.productos,
-            permisos.ventas,
-            permisos.reportes,
-            permisos.pedidosPendientes,
-            permisos.descuento,
-            permisos.dashboard,
-            id,
-          ]
-        );
+    let result;
+    try {
+      result = await runUpdate(true);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("ve_dashboard")) {
+        result = await runUpdate(false); // Migración 023 pendiente
+      } else {
+        throw e;
+      }
+    }
 
     if (result.rowCount === 0) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });

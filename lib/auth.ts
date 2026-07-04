@@ -54,31 +54,47 @@ export type SesionUsuario = {
 };
 
 export async function getUsuarioFromSession(token: string): Promise<SesionUsuario | null> {
-  const result = await pool.query(
-    `SELECT u.id, u.nombre, u.usuario, u.rol,
-            u.ve_productos, u.ve_ventas, u.ve_reportes, u.ve_pedidos_pendientes, u.ve_descuento,
-            COALESCE(u.ve_dashboard, FALSE) AS ve_dashboard
-     FROM sesiones s
-     JOIN usuarios u ON u.id = s.usuario_id
-     WHERE s.token = $1 AND s.expires_at > now() AND u.activo = TRUE`,
-    [token]
-  );
+  let row: Record<string, unknown> | undefined;
 
-  const row = result.rows[0];
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.nombre, u.usuario, u.rol,
+              u.ve_productos, u.ve_ventas, u.ve_reportes, u.ve_pedidos_pendientes, u.ve_descuento,
+              COALESCE(u.ve_dashboard, FALSE) AS ve_dashboard
+       FROM sesiones s
+       JOIN usuarios u ON u.id = s.usuario_id
+       WHERE s.token = $1 AND s.expires_at > now() AND u.activo = TRUE`,
+      [token]
+    );
+    row = result.rows[0];
+  } catch {
+    // Migración 023 pendiente: ve_dashboard no existe aún
+    const result = await pool.query(
+      `SELECT u.id, u.nombre, u.usuario, u.rol,
+              u.ve_productos, u.ve_ventas, u.ve_reportes, u.ve_pedidos_pendientes, u.ve_descuento
+       FROM sesiones s
+       JOIN usuarios u ON u.id = s.usuario_id
+       WHERE s.token = $1 AND s.expires_at > now() AND u.activo = TRUE`,
+      [token]
+    );
+    row = result.rows[0];
+  }
+
   if (!row) return null;
 
   return {
-    id: row.id,
-    nombre: row.nombre,
-    usuario: row.usuario,
-    rol: row.rol,
+    id: row.id as number,
+    nombre: row.nombre as string,
+    usuario: row.usuario as string,
+    rol: row.rol as Rol,
     permisos: {
-      productos: row.ve_productos,
-      ventas: row.ve_ventas,
-      reportes: row.ve_reportes,
-      pedidosPendientes: row.ve_pedidos_pendientes,
-      descuento: row.ve_descuento,
-      dashboard: row.ve_dashboard,
+      productos: row.ve_productos as boolean,
+      ventas: row.ve_ventas as boolean,
+      reportes: row.ve_reportes as boolean,
+      pedidosPendientes: row.ve_pedidos_pendientes as boolean,
+      descuento: row.ve_descuento as boolean,
+      // Si la columna no existe aún, ADMIN recibe true por defecto
+      dashboard: (row.ve_dashboard ?? row.rol === "ADMIN") as boolean,
     },
   };
 }
