@@ -3,14 +3,27 @@ import { pool } from "@/lib/db";
 import { TIPOS_PRODUCTO } from "@/lib/types";
 
 export async function GET() {
-  const result = await pool.query(
-    `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
-            p.categoria_id, c.nombre AS categoria_nombre,
-            p.tipo_producto, p.stock_actual, p.variada_raciones
-     FROM productos p
-     LEFT JOIN categorias c ON c.id = p.categoria_id
-     ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`
-  );
+  // Intenta ordenar por c.orden si existe; si no (migración pendiente), ordena por nombre
+  let result;
+  try {
+    result = await pool.query(
+      `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
+              p.categoria_id, c.nombre AS categoria_nombre,
+              p.tipo_producto, p.stock_actual, p.variada_raciones
+       FROM productos p
+       LEFT JOIN categorias c ON c.id = p.categoria_id
+       ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`
+    );
+  } catch {
+    result = await pool.query(
+      `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
+              p.categoria_id, c.nombre AS categoria_nombre,
+              p.tipo_producto, p.stock_actual, p.variada_raciones
+       FROM productos p
+       LEFT JOIN categorias c ON c.id = p.categoria_id
+       ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC`
+    );
+  }
 
   const productoIds = result.rows.map((row) => row.id);
 

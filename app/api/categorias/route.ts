@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
 export async function GET() {
-  const result = await pool.query(
-    `SELECT id, nombre, orden FROM categorias ORDER BY orden ASC, nombre ASC`
-  );
+  let result;
+  try {
+    result = await pool.query(
+      `SELECT id, nombre, COALESCE(orden, 99) AS orden FROM categorias ORDER BY COALESCE(orden, 99) ASC, nombre ASC`
+    );
+  } catch {
+    result = await pool.query(
+      `SELECT id, nombre, 99 AS orden FROM categorias ORDER BY nombre ASC`
+    );
+  }
 
   return NextResponse.json(
     result.rows.map((row) => ({ id: row.id, nombre: row.nombre, orden: row.orden }))
@@ -24,15 +31,26 @@ export async function POST(request: NextRequest) {
 
   const ordenNum = orden != null ? Number(orden) : 99;
 
-  const result = await pool.query(
-    `INSERT INTO categorias (nombre, orden)
-     VALUES ($1, $2)
-     ON CONFLICT (nombre) DO UPDATE SET nombre = EXCLUDED.nombre, orden = EXCLUDED.orden
-     RETURNING id, nombre, orden`,
-    [nombre.trim(), ordenNum]
-  );
+  let row;
+  try {
+    const result = await pool.query(
+      `INSERT INTO categorias (nombre, orden)
+       VALUES ($1, $2)
+       ON CONFLICT (nombre) DO UPDATE SET nombre = EXCLUDED.nombre, orden = EXCLUDED.orden
+       RETURNING id, nombre, orden`,
+      [nombre.trim(), ordenNum]
+    );
+    row = result.rows[0];
+  } catch {
+    const result = await pool.query(
+      `INSERT INTO categorias (nombre)
+       VALUES ($1)
+       ON CONFLICT (nombre) DO UPDATE SET nombre = EXCLUDED.nombre
+       RETURNING id, nombre, 99 AS orden`,
+      [nombre.trim()]
+    );
+    row = result.rows[0];
+  }
 
-  const row = result.rows[0];
-
-  return NextResponse.json({ id: row.id, nombre: row.nombre, orden: row.orden }, { status: 201 });
+  return NextResponse.json({ id: row.id, nombre: row.nombre, orden: row.orden ?? 99 }, { status: 201 });
 }
