@@ -74,7 +74,7 @@ export default function CasheaAlerta() {
     <Link
       href="/reportes?tab=cashea"
       title="Pagos Cashea vencidos pendientes de liquidación"
-      className="flex h-7 min-w-7 items-center justify-center gap-1 rounded-full bg-orange-500 px-1.5 text-xs font-bold text-white hover:bg-orange-600"
+      className="flex h-7 min-w-7 items-center justify-center gap-1 rounded-full bg-yellow-400 px-1.5 text-xs font-bold text-black hover:bg-yellow-300"
     >
       <span>C</span>
       <span>{count}</span>

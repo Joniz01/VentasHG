@@ -129,7 +129,7 @@ export default function AlarmasConfigClient() {
       <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-zinc-800">
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">C</span>
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-black">C</span>
             Alerta de Pagos Cashea Vencidos
           </span>
         </h3>

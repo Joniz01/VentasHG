@@ -100,9 +100,9 @@ export default function CasheaPanel() {
             <span className="font-medium text-zinc-600">Inicial cobrado pendiente: </span>
             <span className="font-semibold">${totalInicialPendiente.toFixed(2)}</span>
           </div>
-          <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm">
-            <span className="font-medium text-orange-800">Financiado por Cashea (pendiente): </span>
-            <span className="font-semibold text-orange-900">${totalFinanciadoPendiente.toFixed(2)}</span>
+          <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm">
+            <span className="font-medium text-yellow-800">Financiado por Cashea (pendiente): </span>
+            <span className="font-semibold text-yellow-900">${totalFinanciadoPendiente.toFixed(2)}</span>
           </div>
         </div>
       )}
@@ -150,7 +150,7 @@ export default function CasheaPanel() {
                   <td className="px-4 py-2 text-right whitespace-nowrap font-medium">
                     ${item.montoInicial.toFixed(2)}
                   </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap text-orange-700 font-medium">
+                  <td className="px-4 py-2 text-right whitespace-nowrap text-yellow-700 font-medium">
                     ${item.montoFinanciado.toFixed(2)}
                   </td>
                   <td className="px-4 py-2 text-center whitespace-nowrap">
@@ -169,7 +169,7 @@ export default function CasheaPanel() {
                         Liquidado
                       </span>
                     ) : (
-                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
                         Pendiente
                       </span>
                     )}

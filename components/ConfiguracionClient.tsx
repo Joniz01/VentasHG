@@ -151,9 +151,9 @@ export default function ConfiguracionClient() {
         />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-orange-200 bg-orange-50 p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">C</span>
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-black">C</span>
           Cashea
         </h3>
 
@@ -161,7 +161,7 @@ export default function ConfiguracionClient() {
           <label className="text-sm font-medium text-zinc-700">% de cuota inicial (opciones)</label>
           <div className="flex flex-wrap gap-1.5 mb-1">
             {porcentajesArr.map((v) => (
-              <span key={v} className="flex items-center gap-1 rounded-full border border-orange-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
+              <span key={v} className="flex items-center gap-1 rounded-full border border-yellow-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
                 {v}%
                 <button type="button" onClick={() => removePorcentaje(v)} className="text-red-500 hover:text-red-700 leading-none">&times;</button>
               </span>
@@ -198,7 +198,7 @@ export default function ConfiguracionClient() {
           <label className="text-sm font-medium text-zinc-700">Días de financiamiento (opciones)</label>
           <div className="flex flex-wrap gap-1.5 mb-1">
             {diasArr.map((v) => (
-              <span key={v} className="flex items-center gap-1 rounded-full border border-orange-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
+              <span key={v} className="flex items-center gap-1 rounded-full border border-yellow-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
                 {v} días
                 <button type="button" onClick={() => removeDias(v)} className="text-red-500 hover:text-red-700 leading-none">&times;</button>
               </span>

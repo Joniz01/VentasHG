@@ -1311,7 +1311,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   </button>
                 </div>
                 {pago.metodo === "CASHEA" && (
-                  <div className="ml-0 rounded-lg border border-orange-200 bg-orange-50 p-3 flex flex-col gap-2">
+                  <div className="ml-0 rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex flex-col gap-2">
                     <div className="flex flex-wrap gap-3">
                       <div className="flex flex-col gap-1">
                         <label className="text-xs font-medium text-zinc-600">% Cuota inicial</label>
@@ -1348,7 +1348,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       return (
                         <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
                           <span>Inicial cobrado: <strong>${inicial.toFixed(2)}</strong></span>
-                          <span>Financiado por Cashea: <strong className="text-orange-700">${financiado.toFixed(2)}</strong></span>
+                          <span>Financiado por Cashea: <strong className="text-yellow-700">${financiado.toFixed(2)}</strong></span>
                           <span>Vence: <strong>{vence}</strong></span>
                         </div>
                       );

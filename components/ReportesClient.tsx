@@ -255,11 +255,11 @@ export default function ReportesClient() {
           onClick={() => setTab("cashea")}
           className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium ${
             tab === "cashea"
-              ? "border-b-2 border-orange-500 text-orange-600"
+              ? "border-b-2 border-yellow-500 text-yellow-700"
               : "text-zinc-500 hover:text-zinc-700"
           }`}
         >
-          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">C</span>
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-black">C</span>
           Cashea
         </button>
       </div>
