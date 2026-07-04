@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import type { DeliveryPagoItem, Motorizado } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+import Paginador from "@/components/Paginador";
 
 type EstadoFiltro = "TODOS" | "PAGADO" | "PENDIENTE";
 
@@ -12,6 +13,9 @@ export default function DeliveryPagosPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(10);
 
   const [estado, setEstado] = useState<EstadoFiltro>("TODOS");
   const [ventaId, setVentaId] = useState("");
@@ -174,7 +178,8 @@ export default function DeliveryPagosPanel() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+      <div className="rounded-lg border border-zinc-200 bg-white">
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
           <thead className="bg-zinc-50">
             <tr>
@@ -203,7 +208,9 @@ export default function DeliveryPagosPanel() {
               </tr>
             )}
             {!loading &&
-              items.map((item) => (
+              items
+                .slice((pagina - 1) * porPagina, pagina * porPagina)
+                .map((item) => (
                 <tr key={item.ventaId}>
                   <td className="px-4 py-2 whitespace-nowrap font-medium">#{item.ventaId}</td>
                   <td className="px-4 py-2 whitespace-nowrap">{formatFecha(item.fecha)}</td>
@@ -239,6 +246,15 @@ export default function DeliveryPagosPanel() {
               ))}
           </tbody>
         </table>
+        </div>
+        <Paginador
+          total={items.length}
+          pagina={pagina}
+          porPagina={porPagina}
+          opcionesPorPagina={[10, 15, 20, 25, 50]}
+          onPagina={setPagina}
+          onPorPagina={setPorPagina}
+        />
       </div>
     </div>
   );

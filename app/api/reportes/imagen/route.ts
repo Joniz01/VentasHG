@@ -19,6 +19,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: result.rows[0].data });
 }
 
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const desde = searchParams.get("desde");
+  const hasta = searchParams.get("hasta");
+  if (!desde || !hasta) return NextResponse.json({ error: "desde y hasta requeridos" }, { status: 400 });
+  await pool.query(`DELETE FROM reporte_imagenes WHERE desde = $1 AND hasta = $2`, [desde, hasta]);
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
   const { data, desde, hasta } = await req.json();
   if (!data || typeof data !== "string" || !desde || !hasta) {

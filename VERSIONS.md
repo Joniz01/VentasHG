@@ -127,6 +127,33 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+---
+
+## v1.2 — 2026-07-04
+
+### Resumen
+- Imagen punto de venta: ampliar al click (lightbox), botón eliminar
+- Paginación con selector de cantidad en Reportes (ventas por cliente, ventas por producto), Pagos a Delivery, Productos, Ventas
+
+### Archivos NUEVOS
+| Archivo | Descripción |
+|---------|-------------|
+| `components/Paginador.tsx` | Componente reutilizable de paginación con selector de ítems por página |
+
+### Archivos MODIFICADOS
+| Archivo | Cambios |
+|---------|---------|
+| `app/api/reportes/imagen/route.ts` | Agrega método DELETE para eliminar imagen por (desde, hasta) |
+| `app/(clean)/reportes/vista/ImagenPuntoToggle.tsx` | Lightbox al hacer click en la imagen |
+| `components/ReportesClient.tsx` | Lightbox + botón eliminar imagen; paginación 10/15/20/25/50 en "por cliente" y "por producto" |
+| `components/DeliveryPagosPanel.tsx` | Paginación 10/15/20/25/50 en la tabla de pagos |
+| `components/ProductosClient.tsx` | Paginación 15/25/50/100 (default 25) en la tabla de productos |
+| `components/VentasClient.tsx` | Paginación 15/25/50/100 (default 25) en la lista de ventas |
+
+### Sin cambios de BD ni de env vars
+
+---
+
 ## v1.0 — baseline
 
 Estado inicial del proyecto antes del registro de versiones.

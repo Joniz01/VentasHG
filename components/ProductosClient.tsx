@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState, FormEvent } from "react";
+import Paginador from "@/components/Paginador";
 import type { Categoria, Producto, TipoProducto } from "@/lib/types";
 import { TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
 import ProductoExtrasPanel from "@/components/ProductoExtrasPanel";
@@ -32,6 +33,8 @@ export default function ProductosClient() {
   const [expandedPanel, setExpandedPanel] = useState<"extras" | "componentes" | null>(null);
   const [orden, setOrden] = useState<"nombre" | "categoria">("nombre");
   const [tab, setTab] = useState<"productos" | "inventario">("productos");
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(25);
 
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
@@ -393,7 +396,9 @@ export default function ProductosClient() {
                     </td>
                   </tr>
                 )}
-                {productosOrdenados.map((producto) => (
+                {productosOrdenados
+                  .slice((pagina - 1) * porPagina, pagina * porPagina)
+                  .map((producto) => (
                   <Fragment key={producto.id}>
                     <tr>
                       <td className="px-4 py-2 font-medium">{producto.nombre}</td>
@@ -473,6 +478,14 @@ export default function ProductosClient() {
                 ))}
               </tbody>
             </table>
+            <Paginador
+              total={productosOrdenados.length}
+              pagina={pagina}
+              porPagina={porPagina}
+              opcionesPorPagina={[15, 25, 50, 100]}
+              onPagina={setPagina}
+              onPorPagina={setPorPagina}
+            />
           </div>
         </>
       )}

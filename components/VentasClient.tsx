@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, FormEvent } from "react";
+import Paginador from "@/components/Paginador";
 import {
   METODOS_PAGO,
   METODOS_PAGO_USD,
@@ -87,6 +88,8 @@ type Props = {
 
 export default function VentasClient({ rol = null }: Props) {
   const [vista, setVista] = useState<"ventas" | "notas" | "clientes">("ventas");
+  const [paginaVentas, setPaginaVentas] = useState(1);
+  const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
@@ -1376,7 +1379,8 @@ export default function VentasClient({ rol = null }: Props) {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+      <div className="rounded-lg border border-zinc-200 bg-white">
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
           <thead className="bg-zinc-50">
             <tr>
@@ -1408,7 +1412,9 @@ export default function VentasClient({ rol = null }: Props) {
                 </td>
               </tr>
             )}
-            {ventasFiltradas.map((venta) => {
+            {ventasFiltradas
+              .slice((paginaVentas - 1) * porPaginaVentas, paginaVentas * porPaginaVentas)
+              .map((venta) => {
               const ventaTotalUsd = venta.items.reduce(
                 (acc, i) => acc + i.precioUnit * i.cantidad,
                 0
@@ -1520,6 +1526,15 @@ export default function VentasClient({ rol = null }: Props) {
             })}
           </tbody>
         </table>
+        </div>
+        <Paginador
+          total={ventasFiltradas.length}
+          pagina={paginaVentas}
+          porPagina={porPaginaVentas}
+          opcionesPorPagina={[15, 25, 50, 100]}
+          onPagina={setPaginaVentas}
+          onPorPagina={setPorPaginaVentas}
+        />
       </div>
     </>
       )}
