@@ -7,19 +7,17 @@ import ImagenPuntoToggle from "./ImagenPuntoToggle";
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams: Promise<{ desde?: string; hasta?: string; img?: string }>;
+  searchParams: Promise<{ desde?: string; hasta?: string }>;
 }
 
 export default async function ReporteVistaPage({ searchParams }: Props) {
-  const { desde, hasta, img } = await searchParams;
+  const { desde, hasta } = await searchParams;
 
   if (!desde || !hasta) notFound();
 
   const [reporte, imagenResult] = await Promise.all([
     getReporte(desde, hasta),
-    img
-      ? pool.query(`SELECT data FROM reporte_imagenes WHERE id = $1`, [img])
-      : Promise.resolve({ rows: [] }),
+    pool.query(`SELECT data FROM reporte_imagenes WHERE desde = $1 AND hasta = $2`, [desde, hasta]),
   ]);
 
   const imagenData: string | null = imagenResult.rows[0]?.data ?? null;

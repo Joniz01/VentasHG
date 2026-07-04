@@ -41,7 +41,6 @@ export default function ReportesClient() {
   const [includePendientes, setIncludePendientes] = useState(false);
   const [imagenPunto, setImagenPunto] = useState<string | null>(null);
   const [imagenExpandida, setImagenExpandida] = useState(false);
-  const [imagenId, setImagenId] = useState<string | null>(null);
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const reporteRef = useRef<HTMLDivElement>(null);
   const inputImagenRef = useRef<HTMLInputElement>(null);
@@ -89,23 +88,38 @@ export default function ReportesClient() {
     }
   }
 
+  function comprimirImagen(dataUrl: string): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxW = 1200;
+        const scale = img.width > maxW ? maxW / img.width : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = dataUrl;
+    });
+  }
+
   function cargarImagenPunto(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!reporte) return;
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const data = ev.target?.result as string;
+      const raw = ev.target?.result as string;
+      const data = await comprimirImagen(raw);
       setImagenPunto(data);
       setImagenExpandida(false);
-      try { localStorage.setItem("reporte_imagen_punto", data); } catch {}
       try {
-        const res = await fetch("/api/reportes/imagen", {
+        await fetch("/api/reportes/imagen", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data }),
+          body: JSON.stringify({ data, desde: reporte.desde, hasta: reporte.hasta }),
         });
-        const json = await res.json();
-        if (json.id) setImagenId(json.id);
       } catch {}
     };
     reader.readAsDataURL(file);
@@ -118,9 +132,7 @@ export default function ReportesClient() {
 
   function buildVistaUrl() {
     if (!reporte) return "";
-    let url = `${window.location.origin}/reportes/vista?desde=${reporte.desde}&hasta=${reporte.hasta}`;
-    if (imagenId) url += `&img=${imagenId}`;
-    return url;
+    return `${window.location.origin}/reportes/vista?desde=${reporte.desde}&hasta=${reporte.hasta}`;
   }
 
   function copiarEnlace() {
