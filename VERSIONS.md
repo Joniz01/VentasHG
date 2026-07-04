@@ -129,6 +129,26 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v1.7 — 2026-07-04
+
+### Resumen
+- Guard de navegación en Ventas restaurado y mejorado
+  - Intercepta clicks en links del nav (navegación client-side de Next.js) en fase de captura
+  - Cancelar → se queda en la página con los datos intactos
+  - Aceptar → navega a la página solicitada
+  - Sigue protegiendo cierre/recarga de pestaña con `beforeunload`
+- Fixes de resiliencia: APIs Cashea y Categorías toleran migraciones pendientes
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `components/VentasClient.tsx` | Guard de navegación via `document.addEventListener('click', ..., true)` en fase de captura; usa `dirtyRef` para leer estado sin re-registrar el listener |
+
+### Sin migraciones SQL ni variables de entorno nuevas
+
+---
+
 ## v1.6 — 2026-07-04
 
 ### Resumen
