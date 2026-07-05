@@ -22,19 +22,47 @@ type UsageRow = {
   avg_latency_ms: number;
 };
 
-type TestResult = { ok: boolean; provider?: string; text?: string; error?: string };
+type TestResult = { ok: boolean; provider?: string; text?: string; latency?: number; error?: string };
 
-const EMPTY_FORM = { provider: "gemini" as "gemini" | "groq", key_label: "", api_key: "", quota_limit: "" };
+type EditState = {
+  key_label: string;
+  api_key: string;
+  quota_limit: string;
+  showKey: boolean;
+};
+
+const EMPTY_FORM = { provider: "gemini" as "gemini" | "groq", key_label: "", api_key: "", quota_limit: "", showKey: false };
+
+function EyeIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+}
 
 export default function LLMAdminPanel() {
   const [keys, setKeys]       = useState<LLMKey[]>([]);
   const [usage, setUsage]     = useState<UsageRow[]>([]);
   const [form, setForm]       = useState(EMPTY_FORM);
-  const [testResult, setTest] = useState<TestResult | null>(null);
-  const [testing, setTesting] = useState(false);
+  const [globalTest, setGlobalTest] = useState<TestResult | null>(null);
+  const [globalTesting, setGlobalTesting] = useState(false);
+  const [keyTests, setKeyTests] = useState<Record<number, TestResult | null>>({});
+  const [keyTesting, setKeyTesting] = useState<Record<number, boolean>>({});
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [migPending, setMigPending] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editState, setEditState] = useState<EditState>({ key_label: "", api_key: "", quota_limit: "", showKey: false });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const fetchKeys = useCallback(async () => {
     const r = await fetch("/api/admin/llm/keys");
@@ -90,13 +118,57 @@ export default function LLMAdminPanel() {
   }
 
   async function testConnection() {
-    setTest(null);
-    setTesting(true);
+    setGlobalTest(null);
+    setGlobalTesting(true);
     const r = await fetch("/api/admin/llm/test", { method: "POST" });
     const data = await r.json();
-    setTest(data);
-    setTesting(false);
+    setGlobalTest(data);
+    setGlobalTesting(false);
     fetchUsage();
+  }
+
+  async function testKey(id: number) {
+    setKeyTests(prev => ({ ...prev, [id]: null }));
+    setKeyTesting(prev => ({ ...prev, [id]: true }));
+    const r = await fetch(`/api/admin/llm/test/${id}`, { method: "POST" });
+    const data = await r.json();
+    setKeyTests(prev => ({ ...prev, [id]: data }));
+    setKeyTesting(prev => ({ ...prev, [id]: false }));
+    fetchUsage();
+  }
+
+  function startEdit(k: LLMKey) {
+    setEditingId(k.id);
+    setEditState({
+      key_label: k.key_label,
+      api_key: "",
+      quota_limit: k.quota_limit !== null ? String(k.quota_limit) : "",
+      showKey: false,
+    });
+    setEditError(null);
+  }
+
+  async function saveEdit(id: number) {
+    setEditError(null);
+    setEditSaving(true);
+    const body: Record<string, unknown> = {
+      key_label: editState.key_label,
+      quota_limit: editState.quota_limit ? Number(editState.quota_limit) : null,
+    };
+    if (editState.api_key.trim()) body.api_key = editState.api_key.trim();
+    const r = await fetch(`/api/admin/llm/keys/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setEditSaving(false);
+    if (!r.ok) {
+      const d = await r.json();
+      setEditError(d.error ?? "Error al guardar");
+      return;
+    }
+    setEditingId(null);
+    fetchKeys();
   }
 
   if (migPending) {
@@ -141,14 +213,24 @@ export default function LLMAdminPanel() {
           </div>
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs text-zinc-500">API Key</label>
-            <input
-              type="password"
-              placeholder="Pega aquí la API key"
-              value={form.api_key}
-              onChange={e => setForm({ ...form, api_key: e.target.value })}
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-sm font-mono"
-              required
-            />
+            <div className="relative">
+              <input
+                type={form.showKey ? "text" : "password"}
+                placeholder="Pega aquí la API key"
+                value={form.api_key}
+                onChange={e => setForm({ ...form, api_key: e.target.value })}
+                className="w-full rounded border border-zinc-300 px-3 py-2 pr-10 text-sm font-mono"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, showKey: !f.showKey }))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                tabIndex={-1}
+              >
+                <EyeIcon open={form.showKey} />
+              </button>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs text-zinc-500">Límite tokens/día (vacío = sin límite)</label>
@@ -192,54 +274,145 @@ export default function LLMAdminPanel() {
                     <th className="p-2 text-right">Tokens usados</th>
                     <th className="p-2 text-right">Límite</th>
                     <th className="p-2 text-center">Estado</th>
+                    <th className="p-2 text-center">Test</th>
                     <th className="p-2 text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pKeys.map(k => {
                     const pct = k.quota_limit ? Math.round((k.quota_used / k.quota_limit) * 100) : null;
+                    const isEditing = editingId === k.id;
+                    const kr = keyTests[k.id];
                     return (
-                      <tr key={k.id} className="border-t border-zinc-100 hover:bg-zinc-50">
-                        <td className="p-2 font-medium">{k.key_label}</td>
-                        <td className="p-2 text-right font-mono">
-                          {k.quota_used.toLocaleString()}
-                          {pct !== null && (
-                            <span className={`ml-1 text-xs ${pct >= 90 ? "text-red-500" : pct >= 70 ? "text-yellow-500" : "text-zinc-400"}`}>
-                              ({pct}%)
+                      <>
+                        <tr key={k.id} className="border-t border-zinc-100 hover:bg-zinc-50">
+                          <td className="p-2 font-medium">{k.key_label}</td>
+                          <td className="p-2 text-right font-mono">
+                            {k.quota_used.toLocaleString()}
+                            {pct !== null && (
+                              <span className={`ml-1 text-xs ${pct >= 90 ? "text-red-500" : pct >= 70 ? "text-yellow-500" : "text-zinc-400"}`}>
+                                ({pct}%)
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 text-right text-zinc-400 font-mono">
+                            {k.quota_limit ? k.quota_limit.toLocaleString() : "—"}
+                          </td>
+                          <td className="p-2 text-center">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${k.is_active ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-500"}`}>
+                              {k.is_active ? "Activa" : "Inactiva"}
                             </span>
-                          )}
-                        </td>
-                        <td className="p-2 text-right text-zinc-400 font-mono">
-                          {k.quota_limit ? k.quota_limit.toLocaleString() : "—"}
-                        </td>
-                        <td className="p-2 text-center">
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${k.is_active ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-500"}`}>
-                            {k.is_active ? "Activa" : "Inactiva"}
-                          </span>
-                        </td>
-                        <td className="p-2">
-                          <div className="flex justify-center gap-1">
+                          </td>
+                          <td className="p-2 text-center">
                             <button
-                              onClick={() => toggleKey(k.id, k.is_active)}
-                              className="rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100"
+                              onClick={() => testKey(k.id)}
+                              disabled={keyTesting[k.id]}
+                              className="rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-50"
                             >
-                              {k.is_active ? "Desactivar" : "Activar"}
+                              {keyTesting[k.id] ? "…" : "Probar"}
                             </button>
-                            <button
-                              onClick={() => resetQuota(k.id)}
-                              className="rounded border border-yellow-200 bg-yellow-50 px-2 py-1 text-xs text-yellow-700 hover:bg-yellow-100"
-                            >
-                              Reset cuota
-                            </button>
-                            <button
-                              onClick={() => deleteKey(k.id)}
-                              className="rounded border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="p-2">
+                            <div className="flex justify-center gap-1">
+                              <button
+                                onClick={() => isEditing ? setEditingId(null) : startEdit(k)}
+                                className="rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100"
+                              >
+                                {isEditing ? "Cancelar" : "Editar"}
+                              </button>
+                              <button
+                                onClick={() => toggleKey(k.id, k.is_active)}
+                                className="rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100"
+                              >
+                                {k.is_active ? "Desactivar" : "Activar"}
+                              </button>
+                              <button
+                                onClick={() => resetQuota(k.id)}
+                                className="rounded border border-yellow-200 bg-yellow-50 px-2 py-1 text-xs text-yellow-700 hover:bg-yellow-100"
+                              >
+                                Reset
+                              </button>
+                              <button
+                                onClick={() => deleteKey(k.id)}
+                                className="rounded border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {kr !== null && kr !== undefined && (
+                          <tr key={`test-${k.id}`} className="border-t border-zinc-100 bg-zinc-50">
+                            <td colSpan={6} className="px-3 py-1.5 text-xs">
+                              {kr.ok
+                                ? <span className="text-green-600">✓ OK — "{kr.text}" · {kr.latency}ms</span>
+                                : <span className="text-red-600">✗ Error: {kr.error}</span>}
+                            </td>
+                          </tr>
+                        )}
+                        {isEditing && (
+                          <tr key={`edit-${k.id}`} className="border-t border-blue-100 bg-blue-50">
+                            <td colSpan={6} className="p-3">
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div>
+                                  <label className="mb-1 block text-xs text-zinc-500">Etiqueta</label>
+                                  <input
+                                    value={editState.key_label}
+                                    onChange={e => setEditState(s => ({ ...s, key_label: e.target.value }))}
+                                    className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-xs text-zinc-500">Nueva API Key (vacío = no cambiar)</label>
+                                  <div className="relative">
+                                    <input
+                                      type={editState.showKey ? "text" : "password"}
+                                      placeholder="Dejar vacío para no cambiar"
+                                      value={editState.api_key}
+                                      onChange={e => setEditState(s => ({ ...s, api_key: e.target.value }))}
+                                      className="w-full rounded border border-zinc-300 px-2 py-1.5 pr-8 text-sm font-mono"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditState(s => ({ ...s, showKey: !s.showKey }))}
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                                      tabIndex={-1}
+                                    >
+                                      <EyeIcon open={editState.showKey} />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-xs text-zinc-500">Límite tokens/día</label>
+                                  <input
+                                    type="number"
+                                    placeholder="vacío = sin límite"
+                                    value={editState.quota_limit}
+                                    onChange={e => setEditState(s => ({ ...s, quota_limit: e.target.value }))}
+                                    className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm"
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <button
+                                  onClick={() => saveEdit(k.id)}
+                                  disabled={editSaving}
+                                  className="rounded bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+                                >
+                                  {editSaving ? "Guardando…" : "Guardar cambios"}
+                                </button>
+                                <button
+                                  onClick={() => setEditingId(null)}
+                                  className="rounded border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-100"
+                                >
+                                  Cancelar
+                                </button>
+                                {editError && <span className="text-xs text-red-600">{editError}</span>}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>
@@ -249,20 +422,20 @@ export default function LLMAdminPanel() {
         </div>
       ))}
 
-      {/* Test de conexión */}
+      {/* Test de conexión global */}
       <div className="flex items-center gap-3">
         <button
           onClick={testConnection}
-          disabled={testing || keys.filter(k => k.is_active).length === 0}
+          disabled={globalTesting || keys.filter(k => k.is_active).length === 0}
           className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
         >
-          {testing ? "Probando…" : "Probar conexión"}
+          {globalTesting ? "Probando…" : "Probar conexión (global)"}
         </button>
-        {testResult && (
-          <span className={`text-sm ${testResult.ok ? "text-green-600" : "text-red-600"}`}>
-            {testResult.ok
-              ? `✓ OK — respondió ${testResult.provider}: "${testResult.text}"`
-              : `✗ Error: ${testResult.error}`}
+        {globalTest && (
+          <span className={`text-sm ${globalTest.ok ? "text-green-600" : "text-red-600"}`}>
+            {globalTest.ok
+              ? `✓ OK — respondió ${globalTest.provider}: "${globalTest.text}"`
+              : `✗ Error: ${globalTest.error}`}
           </span>
         )}
       </div>

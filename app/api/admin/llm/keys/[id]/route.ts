@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSesionFromRequest } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { encryptKey } from "@/lib/llm/llm-config";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,7 +18,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const body = await request.json();
-  const { is_active, quota_limit, key_label } = body;
+  const { is_active, quota_limit, key_label, api_key } = body;
 
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -26,6 +27,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (is_active   !== undefined) { fields.push(`is_active = $${idx++}`);   values.push(Boolean(is_active)); }
   if (quota_limit !== undefined) { fields.push(`quota_limit = $${idx++}`); values.push(quota_limit === null ? null : Number(quota_limit)); }
   if (key_label   !== undefined) { fields.push(`key_label = $${idx++}`);   values.push(String(key_label).trim()); }
+  if (api_key     !== undefined) {
+    const encKey = process.env.LLM_ENCRYPTION_KEY;
+    if (!encKey || encKey.length !== 32) {
+      return NextResponse.json({ error: "LLM_ENCRYPTION_KEY no configurada (32 chars)" }, { status: 500 });
+    }
+    fields.push(`api_key = $${idx++}`);
+    values.push(encryptKey(String(api_key).trim()));
+  }
 
   if (!fields.length) {
     return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
