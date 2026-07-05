@@ -7,6 +7,7 @@ import MotorizadosConfigClient from "@/components/MotorizadosConfigClient";
 import UsuariosConfigClient from "@/components/UsuariosConfigClient";
 import AdminAccesoClient from "@/components/AdminAccesoClient";
 import InventarioInicialClient from "@/components/InventarioInicialClient";
+import LLMAdminPanel from "@/components/LLMAdminPanel";
 
 type Props = {
   usuarioActualId: number;
@@ -20,6 +21,7 @@ const TABS = [
   { key: "configuracion", label: "Configuración" },
   { key: "inventario", label: "Inventario Inicial" },
   { key: "acceso", label: "Acceso al Sistema" },
+  { key: "llm", label: "IA / LLM" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -103,6 +105,17 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             Administra el acceso de tu propia cuenta.
           </p>
           <AdminAccesoClient nombre={nombre} usuario={usuario} />
+        </div>
+      )}
+
+      {tab === "llm" && (
+        <div>
+          <h2 className="mb-1 text-lg font-semibold">Inteligencia Artificial — LLM</h2>
+          <p className="mb-4 text-sm text-zinc-600">
+            Configura las API keys de Gemini y Groq. Gemini es el proveedor principal;
+            Groq actúa como failback automático ante errores de cuota o disponibilidad.
+          </p>
+          <LLMAdminPanel />
         </div>
       )}
     </div>

@@ -181,6 +181,62 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v2.0 — 2026-07-04
+
+### Resumen
+- Módulo LLM con soporte Gemini (principal) + Groq (failback automático)
+- Keys encriptadas en DB con AES-256-CBC
+- Failback automático ante errores 429/5xx/timeout; errores 400 no hacen failback
+- Cuota diaria por key con autoreset
+- Log de uso completo (tokens, latencia, proveedor, estado)
+- Panel de administración en Admin → pestaña "IA / LLM"
+- Si la migración no está aplicada, el panel muestra aviso en lugar de crashear
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/024_llm.sql` | Tablas `llm_api_keys` y `llm_usage_log` |
+| `lib/llm/llm-config.ts` | Encriptación AES-256-CBC, timeouts, modelos default, códigos failback |
+| `lib/llm/llm-service.ts` | `callLLM()` — punto de entrada único con failback Gemini→Groq |
+| `lib/llm/key-manager.ts` | `getActiveKey()` con rotación entre múltiples keys; `incrementQuotaUsed()` |
+| `lib/llm/usage-logger.ts` | `logUsage()` + `getUsageSummary()` con validación SQL injection |
+| `lib/llm/providers/gemini.ts` | Cliente fetch Gemini con timeout via AbortController |
+| `lib/llm/providers/groq.ts` | Cliente fetch Groq con timeout y try/catch para log de error |
+| `app/api/admin/llm/keys/route.ts` | GET lista / POST crear key (solo ADMIN) |
+| `app/api/admin/llm/keys/[id]/route.ts` | PATCH activar/editar / DELETE (solo ADMIN) |
+| `app/api/admin/llm/keys/[id]/reset-quota/route.ts` | POST reset manual de cuota (solo ADMIN) |
+| `app/api/admin/llm/usage/route.ts` | GET resumen de uso por día/proveedor (solo ADMIN) |
+| `app/api/admin/llm/test/route.ts` | POST prueba de conexión desde Admin (solo ADMIN) |
+| `components/LLMAdminPanel.tsx` | Panel de gestión: keys, test, tabla de uso |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `components/AdminTabsClient.tsx` | Nueva pestaña "IA / LLM" con `LLMAdminPanel` |
+
+### Migración SQL (ejecutar en Neon)
+
+**024_llm.sql** — ver archivo completo en `db/migrations/`
+
+### Variable de entorno requerida
+
+| Variable | Descripción |
+|----------|-------------|
+| `LLM_ENCRYPTION_KEY` | Exactamente 32 caracteres; encripta las API keys en DB. Sin esto el endpoint no acepta keys nuevas. |
+
+### Variables opcionales
+
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `GEMINI_MODEL` | `gemini-1.5-flash` | Modelo Gemini a usar |
+| `GROQ_MODEL` | `llama3-8b-8192` | Modelo Groq a usar |
+| `GEMINI_TIMEOUT_MS` | `15000` | Timeout Gemini en ms |
+| `GROQ_TIMEOUT_MS` | `10000` | Timeout Groq en ms |
+
+---
+
 ## v1.9 — 2026-07-04
 
 ### Resumen
