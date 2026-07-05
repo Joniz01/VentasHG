@@ -47,7 +47,11 @@ export async function POST(request: NextRequest, { params }: Params) {
         signal: controller.signal,
       });
       clearTimeout(timer);
-      if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { statusCode: res.status });
+      if (!res.ok) {
+        let detail = "";
+        try { const d = await res.json(); detail = d?.error?.message ?? JSON.stringify(d); } catch { /* ignore */ }
+        throw Object.assign(new Error(`HTTP ${res.status}${detail ? ": " + detail : ""}`), { statusCode: res.status });
+      }
       const data = await res.json();
       text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     } else {
@@ -61,7 +65,11 @@ export async function POST(request: NextRequest, { params }: Params) {
         signal: controller.signal,
       });
       clearTimeout(timer);
-      if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { statusCode: res.status });
+      if (!res.ok) {
+        let detail = "";
+        try { const d = await res.json(); detail = d?.error?.message ?? JSON.stringify(d); } catch { /* ignore */ }
+        throw Object.assign(new Error(`HTTP ${res.status}${detail ? ": " + detail : ""}`), { statusCode: res.status });
+      }
       const data = await res.json();
       text = data?.choices?.[0]?.message?.content ?? "";
     }
