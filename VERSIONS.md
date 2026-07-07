@@ -181,6 +181,41 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v2.1 — 2026-07-07
+
+### Resumen
+- Botón "Probar" individual por API key en el panel LLM
+- Ojo (show/hide) en el campo API key al agregar nueva key
+- Modo edición inline por key: etiqueta, nueva key (opcional, con ojo), límite de tokens
+- PATCH `/api/admin/llm/keys/[id]` acepta `api_key` para actualizar y re-encriptar la key
+- Mensajes de error detallados del proveedor (antes solo mostraba código HTTP)
+- Modelos actualizados: Gemini `gemini-2.0-flash`, Groq `llama-3.1-8b-instant`
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `app/api/admin/llm/test/[id]/route.ts` | POST prueba una key específica por ID (descifra, llama al proveedor, loguea) |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `app/api/admin/llm/keys/[id]/route.ts` | PATCH ahora acepta `api_key` → re-encripta y guarda |
+| `components/LLMAdminPanel.tsx` | Ojo en form agregar; botón Probar por fila con resultado inline; modo edición por fila con ojo en key |
+| `lib/llm/llm-config.ts` | Default Gemini → `gemini-2.0-flash`; Default Groq → `llama-3.1-8b-instant` |
+
+### Sin migraciones SQL nuevas
+
+### Variables opcionales actualizadas
+
+| Variable | Default actualizado | Descripción |
+|----------|---------------------|-------------|
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Modelo Gemini (antes `gemini-1.5-flash`) |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | Modelo Groq (antes `llama3-8b-8192`) |
+
+---
+
 ## v2.0 — 2026-07-04
 
 ### Resumen
@@ -207,7 +242,7 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 | `app/api/admin/llm/keys/[id]/route.ts` | PATCH activar/editar / DELETE (solo ADMIN) |
 | `app/api/admin/llm/keys/[id]/reset-quota/route.ts` | POST reset manual de cuota (solo ADMIN) |
 | `app/api/admin/llm/usage/route.ts` | GET resumen de uso por día/proveedor (solo ADMIN) |
-| `app/api/admin/llm/test/route.ts` | POST prueba de conexión desde Admin (solo ADMIN) |
+| `app/api/admin/llm/test/route.ts` | POST prueba de conexión global desde Admin (solo ADMIN) |
 | `components/LLMAdminPanel.tsx` | Panel de gestión: keys, test, tabla de uso |
 
 ### Archivos MODIFICADOS
@@ -230,8 +265,8 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 | Variable | Default | Descripción |
 |----------|---------|-------------|
-| `GEMINI_MODEL` | `gemini-1.5-flash` | Modelo Gemini a usar |
-| `GROQ_MODEL` | `llama3-8b-8192` | Modelo Groq a usar |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Modelo Gemini a usar |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | Modelo Groq a usar |
 | `GEMINI_TIMEOUT_MS` | `15000` | Timeout Gemini en ms |
 | `GROQ_TIMEOUT_MS` | `10000` | Timeout Groq en ms |
 
