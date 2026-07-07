@@ -881,44 +881,47 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
       {vista === "ventas" && modoVista === "pasos" && (
         <>
-          {/* Barra de indicadores — visible solo cuando todas las secciones están cerradas */}
+          {/* Barra de indicadores — chips horizontales en una sola línea */}
           {seccionesAbiertas.size === 0 && (
-            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-3">
-              <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3">
-                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Venta Hoy</p>
-                <p className="mt-1 text-xl font-bold text-zinc-900">
-                  {ventaHoy != null ? `$${ventaHoy.toFixed(2)}` : "—"}
-                </p>
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
+                <span className="text-xs font-medium text-zinc-500">Hoy</span>
+                <span className="text-sm font-bold text-zinc-900">{ventaHoy != null ? `$${ventaHoy.toFixed(2)}` : "—"}</span>
               </div>
-              <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3">
-                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Tasa BCV</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.0001"
-                    min="0"
-                    className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-lg font-bold text-zinc-900"
-                    value={tasaDelDia}
-                    onChange={(e) => setTasaDelDia(e.target.value)}
-                    placeholder="0.00"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleConsultarTasaBcv}
-                    disabled={consultandoTasa}
-                    className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
-                  >
-                    {consultandoTasa ? "..." : "BCV"}
-                  </button>
-                </div>
-                {tasaBcvFecha && <p className="text-xs text-zinc-400 mt-0.5">{formatFecha(tasaBcvFecha)}</p>}
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
+                <span className="text-xs font-medium text-zinc-500">BCV</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  className="w-20 bg-transparent text-sm font-bold text-zinc-900 outline-none"
+                  value={tasaDelDia}
+                  onChange={(e) => setTasaDelDia(e.target.value)}
+                  placeholder="0.00"
+                />
+                <button
+                  type="button"
+                  onClick={handleConsultarTasaBcv}
+                  disabled={consultandoTasa}
+                  className="text-xs font-medium text-zinc-400 hover:text-zinc-700 disabled:opacity-50"
+                >
+                  {consultandoTasa ? "..." : "↻"}
+                </button>
               </div>
-              <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3">
-                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">CxC Pendiente</p>
-                <p className="mt-1 text-xl font-bold text-zinc-900">
-                  {cxcPendiente != null ? `$${cxcPendiente.toFixed(2)}` : "—"}
-                </p>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
+                <span className="text-xs font-medium text-zinc-500">CxC</span>
+                <span className="text-sm font-bold text-zinc-900">{cxcPendiente != null ? `$${cxcPendiente.toFixed(2)}` : "—"}</span>
               </div>
+            </div>
+          )}
+
+          {/* Banner modo edición */}
+          {editingId && (
+            <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5">
+              <span className="text-sm font-medium text-amber-800">✏️ Editando venta #{editingId}</span>
+              <button type="button" onClick={cancelEdit} className="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">
+                Cancelar
+              </button>
             </div>
           )}
 
@@ -1396,6 +1399,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
       {vista === "ventas" && modoVista === "clasico" && (
     <>
+      {editingId && (
+        <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5">
+          <span className="text-sm font-medium text-amber-800">✏️ Editando venta #{editingId}</span>
+          <button type="button" onClick={cancelEdit} className="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">
+            Cancelar
+          </button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-4">
         <div className="flex flex-col gap-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
         <h3 className="text-sm font-semibold text-blue-800">Información del cliente</h3>
@@ -2296,7 +2307,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   <td className="px-4 py-2 text-right">
                     <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => startEdit(venta)}
+                        onClick={() => { startEdit(venta); setVista("ventas"); }}
                         className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
                       >
                         Editar
