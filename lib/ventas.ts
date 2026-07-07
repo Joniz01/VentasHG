@@ -278,6 +278,7 @@ export async function insertarItemsYPagos(
   }
 
   for (const pago of body.pagos ?? []) {
+    if (pago.metodo === "CASHEA") continue; // Cashea se registra en cashea_pagos, no en pagos_venta
     const montoNum = Number(pago.monto);
     if (Number.isNaN(montoNum) || montoNum <= 0) continue;
 
