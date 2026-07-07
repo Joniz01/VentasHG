@@ -17,12 +17,18 @@ function esVencida(item: CasheaPagoItem): boolean {
   return !item.liquidado && item.fechaVencimiento <= toIsoDate(new Date());
 }
 
+type ConfirmState = {
+  ventaId: number;
+  tasa: string;
+};
+
 export default function CasheaPanel() {
   const [items, setItems] = useState<CasheaPagoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [estado, setEstado] = useState<EstadoFiltro>("PENDIENTE");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   async function loadItems(filtro: EstadoFiltro) {
     setLoading(true);
@@ -46,6 +52,10 @@ export default function CasheaPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
+  function abrirConfirm(item: CasheaPagoItem) {
+    setConfirm({ ventaId: item.ventaId, tasa: String(item.tasaDelDia ?? "") });
+  }
+
   async function handleToggleLiquidado(item: CasheaPagoItem) {
     setUpdatingId(item.ventaId);
     setError(null);
@@ -64,6 +74,7 @@ export default function CasheaPanel() {
             : it
         )
       );
+      setConfirm(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar");
     } finally {
@@ -82,7 +93,7 @@ export default function CasheaPanel() {
           <button
             key={e}
             type="button"
-            onClick={() => setEstado(e)}
+            onClick={() => { setEstado(e); setConfirm(null); }}
             className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
               estado === e
                 ? "border-zinc-900 bg-zinc-900 text-white"
@@ -141,49 +152,128 @@ export default function CasheaPanel() {
             )}
             {!loading && items.map((item) => {
               const vencida = esVencida(item);
+              const isConfirming = confirm?.ventaId === item.ventaId;
+              const tasa = isConfirming ? Number(confirm.tasa) || 0 : 0;
+              const montoBs = tasa > 0 ? item.montoFinanciado * tasa : null;
+              const inicialBs = tasa > 0 ? item.montoInicial * tasa : null;
+
               return (
-                <tr key={item.ventaId} className={vencida ? "bg-red-50" : ""}>
-                  <td className="px-4 py-2 whitespace-nowrap font-medium">#{item.ventaId}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{formatFecha(item.fecha)}</td>
-                  <td className="px-4 py-2 whitespace-nowrap font-medium">{item.cliente}</td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">{item.porcentaje}%</td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap font-medium">
-                    ${item.montoInicial.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap text-yellow-700 font-medium">
-                    ${item.montoFinanciado.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-center whitespace-nowrap">
-                    <span className={vencida ? "font-semibold text-red-700" : ""}>
-                      {formatFecha(item.fechaVencimiento)}
-                    </span>
-                    {vencida && (
-                      <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
-                        Vencido
+                <>
+                  <tr key={item.ventaId} className={vencida ? "bg-red-50" : ""}>
+                    <td className="px-4 py-2 whitespace-nowrap font-medium">#{item.ventaId}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{formatFecha(item.fecha)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap font-medium">{item.cliente}</td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap">{item.porcentaje}%</td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap font-medium">
+                      ${item.montoInicial.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap text-yellow-700 font-medium">
+                      ${item.montoFinanciado.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 text-center whitespace-nowrap">
+                      <span className={vencida ? "font-semibold text-red-700" : ""}>
+                        {formatFecha(item.fechaVencimiento)}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-center whitespace-nowrap">
-                    {item.liquidado ? (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                        Liquidado
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
-                        Pendiente
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => handleToggleLiquidado(item)}
-                      disabled={updatingId === item.ventaId}
-                      className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
-                    >
-                      {item.liquidado ? "Marcar pendiente" : "Marcar liquidado"}
-                    </button>
-                  </td>
-                </tr>
+                      {vencida && (
+                        <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
+                          Vencido
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-center whitespace-nowrap">
+                      {item.liquidado ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          Liquidado
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                          Pendiente
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap">
+                      {item.liquidado ? (
+                        <button
+                          onClick={() => handleToggleLiquidado(item)}
+                          disabled={updatingId === item.ventaId}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
+                        >
+                          Marcar pendiente
+                        </button>
+                      ) : isConfirming ? (
+                        <button
+                          type="button"
+                          onClick={() => setConfirm(null)}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                        >
+                          Cancelar
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => abrirConfirm(item)}
+                          disabled={updatingId === item.ventaId}
+                          className="rounded-md border border-green-300 bg-green-50 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                        >
+                          Marcar pagado
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* Panel de confirmación inline */}
+                  {isConfirming && (
+                    <tr key={`confirm-${item.ventaId}`}>
+                      <td colSpan={9} className="px-4 py-3 bg-green-50 border-t border-green-200">
+                        <div className="flex flex-wrap items-end gap-4">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-medium text-zinc-600">Tasa del día (Bs/USD)</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              min="0"
+                              value={confirm.tasa}
+                              onChange={(e) => setConfirm((c) => c ? { ...c, tasa: e.target.value } : c)}
+                              className="w-32 rounded-md border border-zinc-300 px-2 py-1.5 text-sm font-medium"
+                              autoFocus
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium text-zinc-500">Inicial cobrado</span>
+                            <span className="text-sm font-bold text-zinc-800">
+                              ${item.montoInicial.toFixed(2)}
+                              {inicialBs != null && (
+                                <span className="ml-1.5 font-normal text-zinc-500">= Bs {inicialBs.toFixed(2)}</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium text-yellow-700">Financiado por Cashea</span>
+                            <span className="text-sm font-bold text-yellow-800">
+                              ${item.montoFinanciado.toFixed(2)}
+                              {montoBs != null && (
+                                <span className="ml-1.5 font-normal text-yellow-600">= Bs {montoBs.toFixed(2)}</span>
+                              )}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleToggleLiquidado(item)}
+                            disabled={updatingId === item.ventaId || !confirm.tasa || Number(confirm.tasa) <= 0}
+                            className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
+                          >
+                            {updatingId === item.ventaId ? "Guardando..." : "Confirmar pago"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirm(null)}
+                            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               );
             })}
           </tbody>
