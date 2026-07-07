@@ -34,6 +34,7 @@ export type VentaBody = {
     montoFinanciado: number;
     dias: number;
     fechaVencimiento: string;
+    metodoInicial?: string | null;
   } | null;
 };
 
@@ -290,15 +291,16 @@ export async function insertarItemsYPagos(
   if (body.casheaDatos) {
     const cd = body.casheaDatos;
     await client.query(
-      `INSERT INTO cashea_pagos (venta_id, porcentaje, monto_inicial, monto_financiado, dias, fecha_vencimiento)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO cashea_pagos (venta_id, porcentaje, monto_inicial, monto_financiado, dias, fecha_vencimiento, metodo_inicial)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (venta_id) DO UPDATE
          SET porcentaje = EXCLUDED.porcentaje,
              monto_inicial = EXCLUDED.monto_inicial,
              monto_financiado = EXCLUDED.monto_financiado,
              dias = EXCLUDED.dias,
-             fecha_vencimiento = EXCLUDED.fecha_vencimiento`,
-      [ventaId, cd.porcentaje, cd.montoInicial, cd.montoFinanciado, cd.dias, cd.fechaVencimiento]
+             fecha_vencimiento = EXCLUDED.fecha_vencimiento,
+             metodo_inicial = EXCLUDED.metodo_inicial`,
+      [ventaId, cd.porcentaje, cd.montoInicial, cd.montoFinanciado, cd.dias, cd.fechaVencimiento, cd.metodoInicial ?? null]
     );
   }
 }

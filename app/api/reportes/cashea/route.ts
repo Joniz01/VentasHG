@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       `SELECT cp.venta_id, v.fecha, v.cliente, v.tasa_del_dia,
               cp.porcentaje, cp.monto_inicial, cp.monto_financiado,
               cp.dias, cp.fecha_vencimiento, cp.liquidado, cp.liquidado_at,
-              cp.alarma_silenciada_hasta
+              cp.alarma_silenciada_hasta, cp.metodo_inicial
        FROM cashea_pagos cp
        JOIN ventas v ON v.id = cp.venta_id
        ${whereClause}
@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
       liquidadoAt: row.liquidado_at,
       alarmaSilenciadaHasta: row.alarma_silenciada_hasta,
       tasaDelDia: Number(row.tasa_del_dia),
+      metodoInicial: row.metodo_inicial ?? null,
     }));
 
     return NextResponse.json({ items });

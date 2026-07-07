@@ -119,6 +119,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [casheaDiasOpciones, setCasheaDiasOpciones] = useState<string[]>(["15"]);
   const [casheaPorcentaje, setCasheaPorcentaje] = useState("50");
   const [casheaDiasSeleccion, setCasheaDiasSeleccion] = useState("15");
+  const [casheaMetodoInicial, setCasheaMetodoInicial] = useState<string>("");
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
@@ -767,7 +768,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               const montoInicial = totalVenta * (pct / 100);
               const montoFinanciado = totalVenta - montoInicial;
               const fechaVenc = addDays(fecha, dias);
-              return { porcentaje: pct, montoInicial, montoFinanciado, dias, fechaVencimiento: fechaVenc };
+              return { porcentaje: pct, montoInicial, montoFinanciado, dias, fechaVencimiento: fechaVenc, metodoInicial: casheaMetodoInicial || null };
             })()
           : null,
       };
@@ -1125,6 +1126,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                     {casheaDiasOpciones.map((d) => <option key={d} value={d}>{d} días</option>)}
                                   </select>
                                 </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-zinc-600">Forma de pago de la inicial</label>
+                                  <select value={casheaMetodoInicial} onChange={(e) => setCasheaMetodoInicial(e.target.value)} className="rounded-md border border-zinc-300 px-2 py-1 text-sm">
+                                    <option value="">Seleccionar</option>
+                                    {METODOS_PAGO.filter((m) => m !== "CASHEA").map((m) => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
+                                  </select>
+                                </div>
                               </div>
                               {(() => {
                                 const pct = Number(casheaPorcentaje) || 50;
@@ -1135,7 +1143,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                 const vence = addDays(fecha, dias);
                                 return (
                                   <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
-                                    <span>Inicial: <strong>${inicial.toFixed(2)}</strong></span>
+                                    <span>Inicial: <strong>${inicial.toFixed(2)}</strong>{casheaMetodoInicial && <span className="ml-1 text-zinc-500">({METODO_PAGO_LABELS[casheaMetodoInicial as keyof typeof METODO_PAGO_LABELS]})</span>}</span>
                                     <span>Financiado: <strong className="text-yellow-700">${financiado.toFixed(2)}</strong></span>
                                     <span>Vence: <strong>{vence}</strong></span>
                                   </div>
@@ -1959,6 +1967,19 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           ))}
                         </select>
                       </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-zinc-600">Forma de pago de la inicial</label>
+                        <select
+                          value={casheaMetodoInicial}
+                          onChange={(e) => setCasheaMetodoInicial(e.target.value)}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
+                        >
+                          <option value="">Seleccionar</option>
+                          {METODOS_PAGO.filter((m) => m !== "CASHEA").map((m) => (
+                            <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     {(() => {
                       const pct = Number(casheaPorcentaje) || 50;
@@ -1969,7 +1990,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       const vence = addDays(fecha, dias);
                       return (
                         <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
-                          <span>Inicial cobrado: <strong>${inicial.toFixed(2)}</strong></span>
+                          <span>Inicial cobrado: <strong>${inicial.toFixed(2)}</strong>{casheaMetodoInicial && <span className="ml-1 text-zinc-500">({METODO_PAGO_LABELS[casheaMetodoInicial as keyof typeof METODO_PAGO_LABELS]})</span>}</span>
                           <span>Financiado por Cashea: <strong className="text-yellow-700">${financiado.toFixed(2)}</strong></span>
                           <span>Vence: <strong>{vence}</strong></span>
                         </div>

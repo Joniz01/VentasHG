@@ -193,6 +193,7 @@ export type CasheaPagoItem = {
   liquidadoAt: string | null;
   alarmaSilenciadaHasta: string | null;
   tasaDelDia: number;
+  metodoInicial: string | null;
 };
 
 export const MODOS_ENTREGA = ["LOCAL", "DELIVERY"] as const;

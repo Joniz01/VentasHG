@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CasheaPagoItem } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+import { METODO_PAGO_LABELS } from "@/lib/types";
 
 type EstadoFiltro = "PENDIENTE" | "LIQUIDADO" | "TODOS";
 
@@ -131,6 +132,7 @@ export default function CasheaPanel() {
               <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">% inicial</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Cobrado (inicial)</th>
+              <th className="px-4 py-2 text-left font-medium text-zinc-600">Pago inicial</th>
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Financiado</th>
               <th className="px-4 py-2 text-center font-medium text-zinc-600">Vence</th>
               <th className="px-4 py-2 text-center font-medium text-zinc-600">Estado</th>
@@ -140,12 +142,12 @@ export default function CasheaPanel() {
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">Cargando...</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-zinc-500">Cargando...</td>
               </tr>
             )}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={10} className="px-4 py-6 text-center text-zinc-500">
                   No hay pagos Cashea
                 </td>
               </tr>
@@ -166,6 +168,9 @@ export default function CasheaPanel() {
                     <td className="px-4 py-2 text-right whitespace-nowrap">{item.porcentaje}%</td>
                     <td className="px-4 py-2 text-right whitespace-nowrap font-medium">
                       ${item.montoInicial.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-zinc-600">
+                      {item.metodoInicial ? METODO_PAGO_LABELS[item.metodoInicial as keyof typeof METODO_PAGO_LABELS] ?? item.metodoInicial : <span className="text-zinc-400">—</span>}
                     </td>
                     <td className="px-4 py-2 text-right whitespace-nowrap text-yellow-700 font-medium">
                       ${item.montoFinanciado.toFixed(2)}
@@ -223,7 +228,7 @@ export default function CasheaPanel() {
                   {/* Panel de confirmación inline */}
                   {isConfirming && (
                     <tr key={`confirm-${item.ventaId}`}>
-                      <td colSpan={9} className="px-4 py-3 bg-green-50 border-t border-green-200">
+                      <td colSpan={10} className="px-4 py-3 bg-green-50 border-t border-green-200">
                         <div className="flex flex-wrap items-end gap-4">
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-medium text-zinc-600">Tasa del día (Bs/USD)</label>
