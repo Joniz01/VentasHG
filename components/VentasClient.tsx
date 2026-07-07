@@ -971,11 +971,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                         const extra = producto?.extras.find((ex) => String(ex.id) === item.extraId);
                         const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
                         return (
-                          <div key={index} className="flex flex-col gap-1">
-                            <div className="grid grid-cols-12 items-center gap-2">
+                          <div key={index} className="flex flex-col gap-2 rounded-md border border-zinc-100 bg-zinc-50 p-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-zinc-500">Producto {index + 1}</span>
+                              <button type="button" onClick={() => removeItem(index)} className="rounded-md border border-red-200 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50">Eliminar</button>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-sm font-medium text-zinc-700">Producto</label>
                               <input
                                 list="productos-list-pasos"
-                                className="col-span-6 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-4"
+                                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
                                 value={item.productoNombre}
                                 onChange={(e) => {
                                   const value = e.target.value;
@@ -987,39 +992,50 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                     variadaSelecciones: match?.tipoProducto === "VARIADA" ? Array.from({ length: match.variadaRaciones }, () => "") : [],
                                   });
                                 }}
-                                placeholder="Producto"
+                                placeholder="Buscar producto..."
                               />
-                              <select
-                                className="col-span-3 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3"
-                                value={item.extraId}
-                                onChange={(e) => updateItem(index, { extraId: e.target.value })}
-                                disabled={!producto || producto.extras.length === 0}
-                              >
-                                <option value="">Sin extra</option>
-                                {producto?.extras.map((ex) => <option key={ex.id} value={ex.id}>{ex.nombre} (+{ex.precioAdicional.toFixed(2)})</option>)}
-                              </select>
-                              <input
-                                type="number" step="1" min="0"
-                                className="col-span-2 rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                                value={item.cantidad}
-                                onChange={(e) => updateItem(index, { cantidad: ajustarCantidadConFlechas(item.cantidad, e.target.value) })}
-                                placeholder="Cant."
-                              />
-                              <div className="col-span-1 text-right text-sm text-zinc-600">{producto ? (precioUnit * cantidad).toFixed(2) : "-"}</div>
-                              <button type="button" onClick={() => removeItem(index)} className="col-span-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">X</button>
-                              {producto?.tipoProducto === "VARIADA" && (
-                                <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-2">
-                                  <span className="text-xs font-medium text-zinc-600">Raciones:</span>
-                                  {item.variadaSelecciones.map((seleccion, racionIndex) => (
-                                    <select key={racionIndex} className="rounded-md border border-zinc-300 px-2 py-1 text-sm" value={seleccion}
-                                      onChange={(e) => { const s = [...item.variadaSelecciones]; s[racionIndex] = e.target.value; updateItem(index, { variadaSelecciones: s }); }}>
-                                      <option value="">Ración {racionIndex + 1}</option>
-                                      {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual})</option>)}
-                                    </select>
-                                  ))}
-                                </div>
-                              )}
                             </div>
+                            {producto && producto.extras.length > 0 && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium text-zinc-700">Extra</label>
+                                <select
+                                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                                  value={item.extraId}
+                                  onChange={(e) => updateItem(index, { extraId: e.target.value })}
+                                >
+                                  <option value="">Sin extra</option>
+                                  {producto.extras.map((ex) => <option key={ex.id} value={ex.id}>{ex.nombre} (+{ex.precioAdicional.toFixed(2)})</option>)}
+                                </select>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                              <div className="flex flex-col gap-1 flex-1">
+                                <label className="text-sm font-medium text-zinc-700">Cantidad</label>
+                                <input
+                                  type="number" step="1" min="0"
+                                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                                  value={item.cantidad}
+                                  onChange={(e) => updateItem(index, { cantidad: ajustarCantidadConFlechas(item.cantidad, e.target.value) })}
+                                  placeholder="0"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1 flex-1">
+                                <label className="text-sm font-medium text-zinc-700">Subtotal</label>
+                                <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 font-medium">${producto ? (precioUnit * cantidad).toFixed(2) : "0.00"}</div>
+                              </div>
+                            </div>
+                            {producto?.tipoProducto === "VARIADA" && (
+                              <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-white p-2">
+                                <span className="text-xs font-medium text-zinc-600">Raciones:</span>
+                                {item.variadaSelecciones.map((seleccion, racionIndex) => (
+                                  <select key={racionIndex} className="rounded-md border border-zinc-300 px-2 py-1 text-sm" value={seleccion}
+                                    onChange={(e) => { const s = [...item.variadaSelecciones]; s[racionIndex] = e.target.value; updateItem(index, { variadaSelecciones: s }); }}>
+                                    <option value="">Ración {racionIndex + 1}</option>
+                                    {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual})</option>)}
+                                  </select>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
