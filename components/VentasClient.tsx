@@ -91,7 +91,7 @@ type Props = {
 };
 
 export default function VentasClient({ rol = null, puedeDescuento = false }: Props) {
-  const [vista, setVista] = useState<"ventas" | "notas" | "clientes">("ventas");
+  const [vista, setVista] = useState<"ventas" | "historial" | "notas" | "clientes">("ventas");
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
@@ -295,8 +295,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     fetch("/api/resumen")
       .then((r) => r.json())
       .then((d) => {
-        if (d?.hoy?.total_ventas_usd != null) setVentaHoy(Number(d.hoy.total_ventas_usd));
-        if (d?.cxcPendiente != null) setCxcPendiente(Number(d.cxcPendiente));
+        if (d?.hoy?.total_usd != null) setVentaHoy(Number(d.hoy.total_usd));
+        if (d?.cxcPendiente?.total_usd != null) setCxcPendiente(Number(d.cxcPendiente.total_usd));
       })
       .catch(() => {});
   }, []);
@@ -842,6 +842,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         </button>
         <button
           type="button"
+          onClick={() => setVista("historial")}
+          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+            vista === "historial"
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 hover:bg-zinc-100"
+          }`}
+        >
+          Historial
+        </button>
+        <button
+          type="button"
           onClick={() => setVista("notas")}
           className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
             vista === "notas"
@@ -872,7 +883,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         <>
           {/* Barra de indicadores — visible solo cuando todas las secciones están cerradas */}
           {seccionesAbiertas.size === 0 && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-3">
               <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3">
                 <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Venta Hoy</p>
                 <p className="mt-1 text-xl font-bold text-zinc-900">
@@ -905,7 +916,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3">
                 <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">CxC Pendiente</p>
                 <p className="mt-1 text-xl font-bold text-zinc-900">
-                  {cxcPendiente != null ? `$${Number(cxcPendiente).toFixed(2)}` : "—"}
+                  {cxcPendiente != null ? `$${cxcPendiente.toFixed(2)}` : "—"}
                 </p>
               </div>
             </div>
@@ -2058,7 +2069,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           )}
         </div>
       </form>
+    </>
+      )}
 
+      {vista === "historial" && (
+      <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="text"
@@ -2293,7 +2308,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           onPorPagina={setPorPaginaVentas}
         />
       </div>
-    </>
+      </div>
       )}
     </div>
   );
