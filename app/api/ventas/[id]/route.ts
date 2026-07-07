@@ -78,6 +78,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     await client.query(`DELETE FROM venta_items WHERE venta_id = $1`, [id]);
     await client.query(`DELETE FROM pagos_venta WHERE venta_id = $1`, [id]);
+    await client.query(`DELETE FROM cashea_pagos WHERE venta_id = $1`, [id]);
 
     await guardarCliente(client, body);
     await insertarItemsYPagos(client, Number(id), body);
@@ -89,7 +90,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
     await client.query("ROLLBACK");
     const message = err instanceof Error ? err.message : "Error al actualizar la venta";
     const status = message === "Venta no encontrada" ? 404 : 400;
-    return NextResponse.json({ error: message }, { status });
+    const detail = (err as Record<string, unknown>)?.detail ?? null;
+    const hint = (err as Record<string, unknown>)?.hint ?? null;
+    const where = (err as Record<string, unknown>)?.where ?? null;
+    const table = (err as Record<string, unknown>)?.table ?? null;
+    console.error("[PUT /api/ventas/:id]", { message, detail, hint, where, table, err });
+    return NextResponse.json({ error: message, detail, hint, where, table }, { status });
   } finally {
     client.release();
   }
