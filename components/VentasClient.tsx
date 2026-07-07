@@ -1176,13 +1176,26 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       )}
                     </div>
                   )}
-                  <div className="grid grid-cols-1 gap-1 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-2">
-                    <div><span className="font-medium text-zinc-600">Total venta: </span>{totales.ventaTotalBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span></div>
-                    {totales.descuento > 0 && <div><span className="font-medium text-green-700">Con descuento: </span>{totales.ventaTotalConDescuentoBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span></div>}
-                    {modoEntrega === "DELIVERY" && <div><span className="font-medium text-zinc-600">Delivery: </span>{totales.costoDeliveryBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span></div>}
-                    <div><span className="font-medium text-zinc-600">Total a pagar: </span>{totales.totalAPagarBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span></div>
-                    <div><span className="font-medium text-zinc-600">Total pagado: </span>{totales.totalPagos.toFixed(2)} Bs <span className="text-zinc-500">(${totales.totalPagosEnUsd.toFixed(2)})</span></div>
-                  </div>
+                  {(() => {
+                    const tieneCashea = pagos.some((p) => p.metodo === "CASHEA");
+                    const totalBase = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+                    const pct = Number(casheaPorcentaje) || 50;
+                    const casheaInicialUsd = tieneCashea ? totalBase * pct / 100 : 0;
+                    const casheaFinanciadoUsd = tieneCashea ? totalBase - casheaInicialUsd : 0;
+                    const tasa = Number(tasaDelDia) || 1;
+                    const pagadoUsd = tieneCashea ? casheaInicialUsd : totales.totalPagosEnUsd;
+                    const pagadoBs = pagadoUsd * tasa;
+                    return (
+                      <div className="grid grid-cols-1 gap-1 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-2">
+                        <div><span className="font-medium text-zinc-600">Total venta: </span>{totales.ventaTotalBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span></div>
+                        {totales.descuento > 0 && <div><span className="font-medium text-green-700">Con descuento: </span>{totales.ventaTotalConDescuentoBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span></div>}
+                        {modoEntrega === "DELIVERY" && <div><span className="font-medium text-zinc-600">Delivery: </span>{totales.costoDeliveryBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span></div>}
+                        <div><span className="font-medium text-zinc-600">Total a pagar: </span>{totales.totalAPagarBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span></div>
+                        <div><span className="font-medium text-zinc-600">Total pagado: </span>{pagadoBs.toFixed(2)} Bs <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span></div>
+                        {tieneCashea && <div className="sm:col-span-2"><span className="font-medium text-yellow-700">CxC Cashea: </span><span className="font-semibold text-yellow-800">{(casheaFinanciadoUsd * tasa).toFixed(2)} Bs</span> <span className="text-zinc-500">(${casheaFinanciadoUsd.toFixed(2)})</span></div>}
+                      </div>
+                    );
+                  })()}
                   <div className="flex justify-end">
                     <button type="button" onClick={() => abrirSiguiente("paso2")} className="flex items-center gap-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700">
                       Siguiente <span>→</span>
@@ -2061,37 +2074,56 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-2 rounded-md bg-white p-3 text-sm sm:grid-cols-2">
-          <div>
-            <span className="font-medium text-zinc-600">Total venta: </span>
-            {totales.ventaTotalBs.toFixed(2)} Bs{" "}
-            <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
-          </div>
-          {totales.descuento > 0 && (
-            <div>
-              <span className="font-medium text-green-700">Con descuento ({totales.descuento}%): </span>
-              {totales.ventaTotalConDescuentoBs.toFixed(2)} Bs{" "}
-              <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span>
+        {(() => {
+          const tieneCashea = pagos.some((p) => p.metodo === "CASHEA");
+          const totalBase = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+          const pct = Number(casheaPorcentaje) || 50;
+          const casheaInicialUsd = tieneCashea ? totalBase * pct / 100 : 0;
+          const casheaFinanciadoUsd = tieneCashea ? totalBase - casheaInicialUsd : 0;
+          const tasa = Number(tasaDelDia) || 1;
+          const pagadoUsd = tieneCashea ? casheaInicialUsd : totales.totalPagosEnUsd;
+          const pagadoBs = pagadoUsd * tasa;
+          return (
+            <div className="grid grid-cols-1 gap-2 rounded-md bg-white p-3 text-sm sm:grid-cols-2">
+              <div>
+                <span className="font-medium text-zinc-600">Total venta: </span>
+                {totales.ventaTotalBs.toFixed(2)} Bs{" "}
+                <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
+              </div>
+              {totales.descuento > 0 && (
+                <div>
+                  <span className="font-medium text-green-700">Con descuento ({totales.descuento}%): </span>
+                  {totales.ventaTotalConDescuentoBs.toFixed(2)} Bs{" "}
+                  <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span>
+                </div>
+              )}
+              {modoEntrega === "DELIVERY" && (
+                <div>
+                  <span className="font-medium text-zinc-600">Costo delivery: </span>
+                  {totales.costoDeliveryBs.toFixed(2)} Bs{" "}
+                  <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span>
+                </div>
+              )}
+              <div>
+                <span className="font-medium text-zinc-600">Total a pagar: </span>
+                {totales.totalAPagarBs.toFixed(2)} Bs{" "}
+                <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span>
+              </div>
+              <div>
+                <span className="font-medium text-zinc-600">Total pagado: </span>
+                {pagadoBs.toFixed(2)} Bs{" "}
+                <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span>
+              </div>
+              {tieneCashea && (
+                <div className="sm:col-span-2">
+                  <span className="font-medium text-yellow-700">CxC Cashea: </span>
+                  <span className="font-semibold text-yellow-800">{(casheaFinanciadoUsd * tasa).toFixed(2)} Bs</span>{" "}
+                  <span className="text-zinc-500">(${casheaFinanciadoUsd.toFixed(2)})</span>
+                </div>
+              )}
             </div>
-          )}
-          {modoEntrega === "DELIVERY" && (
-            <div>
-              <span className="font-medium text-zinc-600">Costo delivery: </span>
-              {totales.costoDeliveryBs.toFixed(2)} Bs{" "}
-              <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span>
-            </div>
-          )}
-          <div>
-            <span className="font-medium text-zinc-600">Total a pagar: </span>
-            {totales.totalAPagarBs.toFixed(2)} Bs{" "}
-            <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span>
-          </div>
-          <div>
-            <span className="font-medium text-zinc-600">Total pagado: </span>
-            {totales.totalPagos.toFixed(2)} Bs{" "}
-            <span className="text-zinc-500">(${totales.totalPagosEnUsd.toFixed(2)})</span>
-          </div>
-        </div>
+          );
+        })()}
         </div>
 
         {error && (
