@@ -8,6 +8,7 @@ import {
   validarVenta,
   type VentaBody,
 } from "@/lib/ventas";
+import { notificarNuevoPedido } from "@/lib/fcm";
 
 export async function GET() {
   const ventasResult = await pool.query(
@@ -191,6 +192,11 @@ export async function POST(request: NextRequest) {
     await insertarItemsYPagos(client, ventaId, body);
 
     await client.query("COMMIT");
+
+    // Notificación push al motorizado si el pedido tiene despacho pendiente
+    if (body.despachoPendiente && body.motorizadoId) {
+      notificarNuevoPedido(body.motorizadoId, ventaId, body.cliente).catch(() => {});
+    }
 
     return NextResponse.json({ id: ventaId }, { status: 201 });
   } catch (err) {
