@@ -195,78 +195,179 @@ function MovimientosProducto({
   );
 }
 
+type InventariosKpis = {
+  productosEnStock: number;
+  valorInventario: number;
+  sinStock: number;
+  unidadesTotales: number;
+  entradasMesUsd: number;
+  movimientosMes: number;
+};
+
 export default function InventariosClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [kpis, setKpis] = useState<InventariosKpis | null>(null);
+  const [kpisLoading, setKpisLoading] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
 
   useEffect(() => {
     fetch("/api/productos")
       .then((r) => r.json())
       .then((data) => setProductos(data))
       .finally(() => setLoading(false));
+
+    fetch("/api/inventarios/kpis")
+      .then((r) => r.json())
+      .then((data) => setKpis(data))
+      .finally(() => setKpisLoading(false));
   }, []);
 
   function handleStockChange(id: number, nuevoStock: number) {
     setProductos((prev) =>
       prev.map((p) => (p.id === id ? { ...p, stockActual: nuevoStock } : p))
     );
+    // Refrescar KPIs tras un movimiento
+    fetch("/api/inventarios/kpis")
+      .then((r) => r.json())
+      .then((data) => setKpis(data));
   }
 
   const productosInventario = productos.filter((p) => p.tipoProducto === "NORMAL");
 
+  const kpiCards = [
+    {
+      label: "Productos en Stock",
+      value: kpisLoading ? "…" : String(kpis?.productosEnStock ?? 0),
+      sub: "con unidades disponibles",
+      color: "text-zinc-900",
+    },
+    {
+      label: "Valor del Inventario",
+      value: kpisLoading ? "…" : `$${(kpis?.valorInventario ?? 0).toFixed(2)}`,
+      sub: "stock × costo",
+      color: "text-emerald-700",
+    },
+    {
+      label: "Sin Stock",
+      value: kpisLoading ? "…" : String(kpis?.sinStock ?? 0),
+      sub: "productos en 0 unidades",
+      color: (kpis?.sinStock ?? 0) > 0 ? "text-red-600" : "text-zinc-900",
+    },
+    {
+      label: "Unidades Totales",
+      value: kpisLoading ? "…" : String(kpis?.unidadesTotales ?? 0),
+      sub: "suma de todo el stock",
+      color: "text-blue-700",
+    },
+    {
+      label: "Entradas del Mes",
+      value: kpisLoading ? "…" : `$${(kpis?.entradasMesUsd ?? 0).toFixed(2)}`,
+      sub: "inversión en reabastecimiento",
+      color: "text-violet-700",
+    },
+    {
+      label: "Movimientos del Mes",
+      value: kpisLoading ? "…" : String(kpis?.movimientosMes ?? 0),
+      sub: "entradas y ajustes",
+      color: "text-amber-700",
+    },
+  ];
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-      <table className="min-w-full divide-y divide-zinc-200 text-sm">
-        <thead className="bg-zinc-50">
-          <tr>
-            <th className="px-4 py-2 text-left font-medium text-zinc-600">Producto</th>
-            <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
-            <th className="px-4 py-2 text-right font-medium text-zinc-600">Stock actual</th>
-            <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-100">
-          {loading && (
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
-                Cargando...
-              </td>
-            </tr>
+    <div className="flex flex-col gap-6">
+      {/* Botón pill toggle */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setShowGrid((v) => !v)}
+          className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+            showGrid
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+          }`}
+        >
+          Movimientos de Inventario
+          {productosInventario.length > 0 && (
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${showGrid ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-600"}`}>
+              {productosInventario.length}
+            </span>
           )}
-          {!loading && productosInventario.length === 0 && (
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
-                No hay productos con inventario individual
-              </td>
-            </tr>
-          )}
-          {productosInventario.map((producto) => (
-            <Fragment key={producto.id}>
+        </button>
+      </div>
+
+      {/* KPIs — se ocultan cuando el grid está abierto */}
+      {!showGrid && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {kpiCards.map((card) => (
+            <div
+              key={card.label}
+              className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white px-4 py-3"
+            >
+              <span className="text-xs font-medium text-zinc-500">{card.label}</span>
+              <span className={`truncate text-lg font-bold leading-tight ${card.color}`}>{card.value}</span>
+              <span className="text-xs text-zinc-400">{card.sub}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Grid de movimientos */}
+      {showGrid && (
+        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+          <table className="min-w-full divide-y divide-zinc-200 text-sm">
+            <thead className="bg-zinc-50">
               <tr>
-                <td className="px-4 py-2 font-medium">{producto.nombre}</td>
-                <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
-                <td className="px-4 py-2 text-right">{producto.stockActual}</td>
-                <td className="px-4 py-2 text-right">
-                  <button
-                    onClick={() => setExpandedId(expandedId === producto.id ? null : producto.id)}
-                    className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                  >
-                    {expandedId === producto.id ? "Ocultar" : "Movimientos"}
-                  </button>
-                </td>
+                <th className="px-4 py-2 text-left font-medium text-zinc-600">Producto</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
+                <th className="px-4 py-2 text-right font-medium text-zinc-600">Stock actual</th>
+                <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
               </tr>
-              {expandedId === producto.id && (
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {loading && (
                 <tr>
-                  <td colSpan={4} className="bg-zinc-50 px-4 py-3">
-                    <MovimientosProducto producto={producto} onStockChange={handleStockChange} />
+                  <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                    Cargando...
                   </td>
                 </tr>
               )}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
+              {!loading && productosInventario.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                    No hay productos con inventario individual
+                  </td>
+                </tr>
+              )}
+              {productosInventario.map((producto) => (
+                <Fragment key={producto.id}>
+                  <tr>
+                    <td className="px-4 py-2 font-medium">{producto.nombre}</td>
+                    <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
+                    <td className="px-4 py-2 text-right">{producto.stockActual}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={() => setExpandedId(expandedId === producto.id ? null : producto.id)}
+                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                      >
+                        {expandedId === producto.id ? "Ocultar" : "Movimientos"}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedId === producto.id && (
+                    <tr>
+                      <td colSpan={4} className="bg-zinc-50 px-4 py-3">
+                        <MovimientosProducto producto={producto} onStockChange={handleStockChange} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
