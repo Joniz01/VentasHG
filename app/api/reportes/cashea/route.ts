@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await pool.query(
-      `SELECT cp.venta_id, v.fecha, v.cliente, v.tasa_del_dia,
+      `SELECT cp.venta_id, v.fecha, v.cliente, v.tasa_dia AS tasa_del_dia,
               cp.porcentaje, cp.monto_inicial, cp.monto_financiado,
               cp.dias, cp.fecha_vencimiento, cp.liquidado, cp.liquidado_at,
               cp.alarma_silenciada_hasta, cp.metodo_inicial
@@ -38,8 +38,9 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({ items });
-  } catch {
-    // Tabla cashea_pagos aún no existe (migración pendiente)
-    return NextResponse.json({ items: [] });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[GET /api/reportes/cashea]", msg);
+    return NextResponse.json({ items: [], error: msg });
   }
 }
