@@ -176,6 +176,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [busqueda, setBusqueda] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [soloPendientesPago, setSoloPendientesPago] = useState(false);
+  const [casheaConfirm, setCasheaConfirm] = useState<{ ventaId: number; tasa: string } | null>(null);
+  const [casheaUpdating, setCasheaUpdating] = useState<number | null>(null);
   const [filtroFechaDesde, setFiltroFechaDesde] = useState(() => today());
   const [filtroFechaHasta, setFiltroFechaHasta] = useState(() => today());
 
@@ -807,6 +809,25 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al eliminar la venta");
+    }
+  }
+
+  async function handleLiquidarCashea(ventaId: number) {
+    setCasheaUpdating(ventaId);
+    try {
+      const res = await fetch(`/api/reportes/cashea/${ventaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ liquidado: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al liquidar Cashea");
+      setCasheaConfirm(null);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al liquidar Cashea");
+    } finally {
+      setCasheaUpdating(null);
     }
   }
 
@@ -2339,7 +2360,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       "Local"
                     )}
                   </td>
-                  <td className="px-4 py-2 text-center whitespace-nowrap">
+                  <td className="px-4 py-2 text-center">
                     <div className="flex flex-col items-center gap-1">
                       {cd && (
                         cd.liquidado ? (
@@ -2347,11 +2368,56 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                             <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-yellow-400 text-[8px] font-bold text-black">C</span>
                             Liquidado
                           </span>
+                        ) : casheaConfirm?.ventaId === venta.id ? (
+                          <div className="flex flex-col gap-1.5 rounded-md border border-green-200 bg-green-50 p-2 text-left min-w-[180px]">
+                            <div className="flex items-center gap-1 text-xs font-medium text-yellow-800">
+                              <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-yellow-400 text-[8px] font-bold text-black">C</span>
+                              ${cd.montoFinanciado.toFixed(2)} financiado
+                            </div>
+                            <label className="text-xs text-zinc-500">Tasa del día (Bs/USD)</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              min="0"
+                              autoFocus
+                              value={casheaConfirm.tasa}
+                              onChange={(e) => setCasheaConfirm((c) => c ? { ...c, tasa: e.target.value } : c)}
+                              className="w-full rounded border border-zinc-300 px-2 py-1 text-xs"
+                            />
+                            {Number(casheaConfirm.tasa) > 0 && (
+                              <p className="text-xs font-medium text-zinc-700">
+                                = Bs {(cd.montoFinanciado * Number(casheaConfirm.tasa)).toFixed(2)}
+                              </p>
+                            )}
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleLiquidarCashea(venta.id)}
+                                disabled={casheaUpdating === venta.id || !casheaConfirm.tasa || Number(casheaConfirm.tasa) <= 0}
+                                className="flex-1 rounded bg-green-700 px-2 py-1 text-xs font-medium text-white hover:bg-green-800 disabled:opacity-50"
+                              >
+                                {casheaUpdating === venta.id ? "..." : "Confirmar"}
+                              </button>
+                              <button
+                                onClick={() => setCasheaConfirm(null)}
+                                className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
                         ) : (
-                          <span className="flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
-                            <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-yellow-400 text-[8px] font-bold text-black">C</span>
-                            ${cd.montoFinanciado.toFixed(2)} pendiente
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                              <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-yellow-400 text-[8px] font-bold text-black">C</span>
+                              ${cd.montoFinanciado.toFixed(2)} pendiente
+                            </span>
+                            <button
+                              onClick={() => setCasheaConfirm({ ventaId: venta.id, tasa: String(venta.tasaDelDia) })}
+                              className="rounded-md border border-green-300 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 hover:bg-green-100"
+                            >
+                              Marcar Pagada
+                            </button>
+                          </div>
                         )
                       )}
                       {venta.cuentaPorCobrar && (
