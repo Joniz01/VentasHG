@@ -54,6 +54,15 @@ export async function GET() {
       )
     : { rows: [] };
 
+  const casheaResult = ventaIds.length
+    ? await pool.query(
+        `SELECT venta_id, porcentaje, monto_inicial, monto_financiado, dias, fecha_vencimiento, liquidado, liquidado_at, metodo_inicial
+         FROM cashea_pagos
+         WHERE venta_id = ANY($1::int[])`,
+        [ventaIds]
+      ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
   const ventas = ventasResult.rows.map((row) => ({
     id: row.id,
     fecha: row.fecha,
@@ -108,6 +117,20 @@ export async function GET() {
         metodo: pago.metodo,
         monto: Number(pago.monto),
       })),
+    casheaDatos: (() => {
+      const cp = casheaResult.rows.find((r) => r.venta_id === row.id);
+      if (!cp) return null;
+      return {
+        porcentaje: Number(cp.porcentaje),
+        montoInicial: Number(cp.monto_inicial),
+        montoFinanciado: Number(cp.monto_financiado),
+        dias: Number(cp.dias),
+        fechaVencimiento: cp.fecha_vencimiento,
+        liquidado: cp.liquidado,
+        liquidadoAt: cp.liquidado_at,
+        metodoInicial: cp.metodo_inicial ?? null,
+      };
+    })(),
   }));
 
   return NextResponse.json(ventas);

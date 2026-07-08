@@ -2273,6 +2273,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               );
               const costoDeliveryUsd = venta.costoDelivery;
 
+              const cd = venta.casheaDatos;
               let totalPagadoBs = 0;
               let totalPagadoUsd = 0;
               for (const pago of venta.pagos) {
@@ -2282,8 +2283,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   totalPagadoBs += pago.monto;
                 }
               }
-              const totalPagadoEnBs = totalPagadoBs + usdToBs(totalPagadoUsd, venta.tasaDelDia);
-              const totalPagadoEnUsd = totalPagadoUsd + bsToUsd(totalPagadoBs, venta.tasaDelDia);
+              const totalPagadoEnBs = cd
+                ? usdToBs(cd.montoInicial, venta.tasaDelDia)
+                : totalPagadoBs + usdToBs(totalPagadoUsd, venta.tasaDelDia);
+              const totalPagadoEnUsd = cd
+                ? cd.montoInicial
+                : totalPagadoUsd + bsToUsd(totalPagadoBs, venta.tasaDelDia);
 
               return (
                 <tr key={venta.id}>
@@ -2335,27 +2340,37 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     )}
                   </td>
                   <td className="px-4 py-2 text-center whitespace-nowrap">
-                    {venta.cuentaPorCobrar ? (
-                      <div className="flex flex-col items-center gap-1">
-                        {venta.cuentaCobrada ? (
-                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                            Pagada
+                    <div className="flex flex-col items-center gap-1">
+                      {cd && (
+                        cd.liquidado ? (
+                          <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-yellow-400 text-[8px] font-bold text-black">C</span>
+                            Liquidado
                           </span>
                         ) : (
-                          <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
-                            Pendiente
+                          <span className="flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                            <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-yellow-400 text-[8px] font-bold text-black">C</span>
+                            ${cd.montoFinanciado.toFixed(2)} pendiente
                           </span>
-                        )}
-                        <button
-                          onClick={() => handleToggleCuentaCobrada(venta)}
-                          className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                        >
-                          {venta.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
-                        </button>
-                      </div>
-                    ) : (
-                      "-"
-                    )}
+                        )
+                      )}
+                      {venta.cuentaPorCobrar && (
+                        <>
+                          {venta.cuentaCobrada ? (
+                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Pagada</span>
+                          ) : (
+                            <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">Pendiente</span>
+                          )}
+                          <button
+                            onClick={() => handleToggleCuentaCobrada(venta)}
+                            className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                          >
+                            {venta.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
+                          </button>
+                        </>
+                      )}
+                      {!cd && !venta.cuentaPorCobrar && "-"}
+                    </div>
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex justify-end gap-2">

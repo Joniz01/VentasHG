@@ -263,6 +263,16 @@ export type Venta = {
   createdAt: string;
   items: VentaItem[];
   pagos: PagoVenta[];
+  casheaDatos: {
+    porcentaje: number;
+    montoInicial: number;
+    montoFinanciado: number;
+    dias: number;
+    fechaVencimiento: string;
+    liquidado: boolean;
+    liquidadoAt: string | null;
+    metodoInicial: string | null;
+  } | null;
 };
 
 export type VentaItemInput = {
