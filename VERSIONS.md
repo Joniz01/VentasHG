@@ -181,6 +181,36 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v2.3 — 2026-07-08
+
+### Resumen
+- **Tab Productos — 6 KPIs**: al entrar a Productos se muestran 6 indicadores: Productos Activos, Valor del Inventario (USD), Sin Stock, Unidades Vendidas Hoy, Producto Más Vendido, Margen Bruto Promedio
+- **Sub-tabs pill**: botones "Crear Producto" y "Productos Creados" estilo pill (igual a Ventas) ubicados encima de los KPIs
+- **Comportamiento toggle**: por defecto solo se ven los KPIs; al pulsar un botón los KPIs se contraen y aparece el contenido; volver a pulsar el botón activo regresa a la vista de KPIs
+- **Botón renombrado**: "Agregar producto" → "Crear Producto"
+- **Tab principal Inventarios**: nueva ruta `/inventarios` al mismo nivel que Productos/Ventas, con su propio componente `InventariosClient` que carga los datos de forma independiente
+- **Nueva ruta API**: `GET /api/productos/kpis` — consulta los 6 KPIs en una sola query SQL
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `app/api/productos/kpis/route.ts` | GET — consulta los 6 KPIs de productos en una query |
+| `app/(main)/inventarios/page.tsx` | Página de la nueva tab Inventarios |
+| `components/InventariosClient.tsx` | Componente cliente de Inventarios (carga `/api/productos` de forma autónoma) |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `components/ProductosClient.tsx` | 6 KPI cards; sub-tabs pill toggle; orden: botones → KPIs → contenido; ningún sub-tab activo por defecto |
+| `components/NavTabs.tsx` | Agrega tab `Inventarios` entre Productos y Ventas (permiso: `productos`) |
+
+### Sin migraciones SQL nuevas
+### Sin nuevas variables de entorno
+
+---
+
 ## v2.2 — 2026-07-08
 
 ### Resumen
