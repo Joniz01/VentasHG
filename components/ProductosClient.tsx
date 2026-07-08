@@ -252,6 +252,37 @@ export default function ProductosClient() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Sub-tab buttons — encima de los KPIs */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setSubTab("crear")}
+          className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+            subTab === "crear"
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+          }`}
+        >
+          {editingId ? `Editando #${editingId}` : "Crear Producto"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab("listado")}
+          className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+            subTab === "listado"
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+          }`}
+        >
+          Productos Creados
+          {productos.length > 0 && (
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${subTab === "listado" ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-600"}`}>
+              {productos.length}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {kpiCards.map((card) => (
@@ -264,37 +295,6 @@ export default function ProductosClient() {
             <span className="text-xs text-zinc-400">{card.sub}</span>
           </div>
         ))}
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex gap-2 border-b border-zinc-200">
-        <button
-          type="button"
-          onClick={() => setSubTab("crear")}
-          className={`border-b-2 px-3 py-2 text-sm font-medium ${
-            subTab === "crear"
-              ? "border-zinc-900 text-zinc-900"
-              : "border-transparent text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          {editingId ? `Editando #${editingId}` : "Crear Producto"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubTab("listado")}
-          className={`border-b-2 px-3 py-2 text-sm font-medium ${
-            subTab === "listado"
-              ? "border-zinc-900 text-zinc-900"
-              : "border-transparent text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Productos Creados
-          {productos.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600">
-              {productos.length}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* Crear Producto */}
