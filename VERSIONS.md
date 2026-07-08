@@ -181,6 +181,50 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v2.2 — 2026-07-08
+
+### Resumen
+- **Paso 1 mobile layout**: filas de producto apiladas verticalmente (igual que Paso 3) para mejor usabilidad en móvil
+- **Historial → Editar**: al pulsar "Editar" cambia al tab Registro de Ventas y muestra banner ámbar "✏️ Editando venta #X" con botón Cancelar
+- **Indicadores como chips horizontales**: chips Hoy / BCV / CxC en una sola línea (overflow-x scroll)
+- **Cashea — forma de pago de la inicial**: selector dentro de la tarjeta amarilla Cashea para elegir el método de pago de la cuota inicial (excluye CASHEA)
+- **Cashea — resumen de pago**: "Total pagado" muestra solo la cuota inicial; línea "CxC Cashea" muestra el monto financiado en amarillo
+- **Fix enum**: excluir CASHEA del INSERT en `pagos_venta` (no es valor del enum `metodo_pago` de la BD)
+- **Historial — chip Cashea**: columna Cobro muestra chip con logo Cashea y monto pendiente + botón "Marcar Pagada" con panel tasa+Bs inline
+- **Reportes/Cashea — Marcar pagado**: panel de confirmación inline con tasa del día, montos en Bs y botón Confirmar
+- **Fix Reportes/Cashea**: ruta GET usaba columna inexistente `v.tasa_del_dia`; corregido a `v.tasa_dia AS tasa_del_dia`
+- **Columna "Pago inicial"** en tabla Reportes/Cashea mostrando el método de pago de la inicial
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/026_cashea_metodo_inicial.sql` | `ALTER TABLE cashea_pagos ADD COLUMN IF NOT EXISTS metodo_inicial TEXT;` |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `components/VentasClient.tsx` | Paso 1 mobile cards; switch-to-tab al editar; banner ámbar edición; chips indicadores; selector metodoInicial en Cashea; resumen Total pagado + CxC Cashea; historial chip Cashea + Marcar Pagada inline |
+| `components/CasheaPanel.tsx` | Panel confirmación inline para Marcar pagado; columna Pago inicial; colSpan 10 |
+| `lib/types.ts` | `CasheaPagoItem`: añade `tasaDelDia`, `metodoInicial`; `Venta.casheaDatos`: añade `metodoInicial` |
+| `lib/ventas.ts` | INSERT `cashea_pagos` incluye `metodo_inicial`; skip CASHEA en loop de `pagos_venta` |
+| `app/api/ventas/route.ts` | Query `casheaResult` con fallback; mapea `casheaDatos` por venta |
+| `app/api/ventas/[id]/route.ts` | DELETE `cashea_pagos` antes de reinsertar al editar; logging detallado de errores pg |
+| `app/api/reportes/cashea/route.ts` | Corrige columna a `v.tasa_dia`; mapea `tasaDelDia` y `metodoInicial`; logging de errores |
+
+### Migración SQL
+
+Ejecutar en Neon (manualmente vía SQL editor):
+
+```sql
+ALTER TABLE cashea_pagos ADD COLUMN IF NOT EXISTS metodo_inicial TEXT;
+```
+
+### Sin nuevas variables de entorno
+
+---
+
 ## v2.1 — 2026-07-07
 
 ### Resumen
