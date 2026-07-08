@@ -181,6 +181,31 @@ INSERT INTO configuracion (clave, valor) VALUES ('imagen_retencion_dias', '7')
 
 ---
 
+## v2.4 — 2026-07-08
+
+### Resumen
+- **Inventarios — 6 KPIs**: al entrar a Inventarios se muestran 6 indicadores: Productos en Stock, Valor del Inventario (USD), Productos sin Stock, Unidades Totales, Entradas del Mes (USD), Movimientos del Mes
+- **Botón pill toggle**: "Movimientos de Inventario" (mismo estilo que Productos) — al pulsar los KPIs se contraen y aparece el grid; volver a pulsar regresa a KPIs
+- **KPIs se refrescan** automáticamente tras registrar un movimiento de inventario
+- **Nueva ruta API**: `GET /api/inventarios/kpis` — consulta los 6 KPIs en una sola query SQL
+
+### Archivos NUEVOS
+
+| Archivo | Descripción |
+|---------|-------------|
+| `app/api/inventarios/kpis/route.ts` | GET — consulta los 6 KPIs de inventario en una query |
+
+### Archivos MODIFICADOS
+
+| Archivo | Cambios |
+|---------|---------|
+| `components/InventariosClient.tsx` | Agrega 6 KPI cards, estado `showGrid`, botón pill toggle, refresco de KPIs tras movimiento |
+
+### Sin migraciones SQL nuevas
+### Sin nuevas variables de entorno
+
+---
+
 ## v2.3 — 2026-07-08
 
 ### Resumen
