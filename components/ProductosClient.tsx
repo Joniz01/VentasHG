@@ -29,7 +29,7 @@ type ProductosKpis = {
   margenPromedio: number;
 };
 
-type SubTab = "crear" | "listado";
+type SubTab = "crear" | "listado" | null;
 
 export default function ProductosClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -44,7 +44,7 @@ export default function ProductosClient() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedPanel, setExpandedPanel] = useState<"extras" | "componentes" | null>(null);
   const [orden, setOrden] = useState<"nombre" | "categoria">("categoria");
-  const [subTab, setSubTab] = useState<SubTab>("crear");
+  const [subTab, setSubTab] = useState<SubTab>(null);
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(25);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
@@ -113,6 +113,7 @@ export default function ProductosClient() {
     });
     setNuevaCategoriaNombre("");
     setSubTab("crear");
+
   }
 
   function cancelEdit() {
@@ -256,7 +257,7 @@ export default function ProductosClient() {
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => setSubTab("crear")}
+          onClick={() => setSubTab(subTab === "crear" ? null : "crear")}
           className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
             subTab === "crear"
               ? "border-zinc-900 bg-zinc-900 text-white"
@@ -267,7 +268,7 @@ export default function ProductosClient() {
         </button>
         <button
           type="button"
-          onClick={() => setSubTab("listado")}
+          onClick={() => setSubTab(subTab === "listado" ? null : "listado")}
           className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
             subTab === "listado"
               ? "border-zinc-900 bg-zinc-900 text-white"
@@ -283,19 +284,21 @@ export default function ProductosClient() {
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {kpiCards.map((card) => (
-          <div
-            key={card.label}
-            className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white px-4 py-3"
-          >
-            <span className="text-xs font-medium text-zinc-500">{card.label}</span>
-            <span className={`truncate text-lg font-bold leading-tight ${card.color}`}>{card.value}</span>
-            <span className="text-xs text-zinc-400">{card.sub}</span>
-          </div>
-        ))}
-      </div>
+      {/* KPI Cards — se ocultan cuando hay un sub-tab activo */}
+      {subTab === null && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {kpiCards.map((card) => (
+            <div
+              key={card.label}
+              className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white px-4 py-3"
+            >
+              <span className="text-xs font-medium text-zinc-500">{card.label}</span>
+              <span className={`truncate text-lg font-bold leading-tight ${card.color}`}>{card.value}</span>
+              <span className="text-xs text-zinc-400">{card.sub}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Crear Producto */}
       {subTab === "crear" && (
