@@ -8,6 +8,7 @@ import CasheaAlerta from "@/components/CasheaAlerta";
 
 const TABS: { href: string; label: string; permiso?: keyof PermisosUsuario }[] = [
   { href: "/productos", label: "Productos", permiso: "productos" },
+  { href: "/inventarios", label: "Inventarios", permiso: "productos" },
   { href: "/ventas", label: "Ventas", permiso: "ventas" },
   { href: "/reportes", label: "Reportes", permiso: "reportes" },
   { href: "/pedidos-pendientes", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
