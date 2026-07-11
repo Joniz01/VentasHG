@@ -9,6 +9,7 @@ import {
   validarVenta,
   type VentaBody,
 } from "@/lib/ventas";
+import { notificarNuevoPedido } from "@/lib/fcm";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,6 +28,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
     await client.query("BEGIN");
 
     body.cliente = toTitleCase(body.cliente);
+
+    // Motorizado anterior para detectar cambio de asignación
+    const prevResult = await client.query(
+      `SELECT motorizado_id FROM ventas WHERE id = $1`,
+      [id]
+    );
+    const prevMotorizadoId = prevResult.rows[0]?.motorizado_id ?? null;
 
     const deliveryAsignado = body.despachoPendiente
       ? await resolveDeliveryAsignado(client, body)
@@ -84,6 +92,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
     await insertarItemsYPagos(client, Number(id), body);
 
     await client.query("COMMIT");
+
+    const nuevoMotorizadoId = body.despachoPendiente ? (body.motorizadoId || null) : null;
+    // Notificar al nuevo motorizado si cambió la asignación
+    if (nuevoMotorizadoId && nuevoMotorizadoId !== prevMotorizadoId) {
+      notificarNuevoPedido(nuevoMotorizadoId, Number(id), body.cliente).catch(() => {});
+    }
 
     return NextResponse.json({ id: Number(id) });
   } catch (err) {
