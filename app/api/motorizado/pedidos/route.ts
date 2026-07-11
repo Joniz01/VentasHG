@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
      FROM ventas
      WHERE despacho_pendiente = TRUE
        AND motorizado_id = $1
-       AND (pedido_entregado = FALSE OR fecha = CURRENT_DATE)
+       AND (pedido_entregado = FALSE OR fecha >= CURRENT_DATE - INTERVAL '1 day')
      ORDER BY pedido_entregado ASC, hora_entrega ASC NULLS LAST, id ASC`,
     [motorizadoId]
   );
