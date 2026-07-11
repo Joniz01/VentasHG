@@ -24,6 +24,10 @@ export const metadata: Metadata = {
   title: EMPRESA,
   description: "Control de productos, costos y ventas",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/icon-192.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
