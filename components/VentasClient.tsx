@@ -965,6 +965,24 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <span className="text-xs font-medium text-zinc-500">CxC</span>
                 <span className="text-sm font-bold text-zinc-900">{cxcPendiente != null ? `$${cxcPendiente.toFixed(2)}` : "—"}</span>
               </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
+                <span className="text-xs font-medium text-zinc-500">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="w-16 bg-transparent text-sm font-bold text-zinc-900 outline-none"
+                  placeholder="0.00"
+                  id="conversor-usd"
+                  onChange={(e) => {
+                    const usd = Number(e.target.value);
+                    const tasa = Number(tasaDelDia) || 0;
+                    const el = document.getElementById("conversor-bs-result");
+                    if (el) el.textContent = usd > 0 && tasa > 0 ? `= Bs ${(usd * tasa).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "";
+                  }}
+                />
+                <span id="conversor-bs-result" className="text-xs font-medium text-zinc-600 whitespace-nowrap" />
+              </div>
             </div>
           )}
 
