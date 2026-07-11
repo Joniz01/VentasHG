@@ -27,6 +27,7 @@ export default function ConfiguracionClient() {
     cashea_dias: "15,30",
     cashea_dias_default: "15",
     ventas_modo_vista: "clasico",
+    ventas_orden_pasos: "entrega_primero",
     ventas_paso1_abierto: "true",
     ventas_paso2_abierto: "true",
     ventas_paso3_abierto: "true",
@@ -248,7 +249,7 @@ export default function ConfiguracionClient() {
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-zinc-700">Modo de vista</label>
           <p className="text-xs text-zinc-500">
-            "Clásico" muestra todo expandido. "Pasos" divide el formulario en 4 secciones colapsables con navegación guiada.
+            "Clásico" muestra todo expandido. "Pasos" divide el formulario en 4 secciones colapsables con navegación guiada. Cada usuario puede sobreescribir este default en su perfil.
           </p>
           <div className="flex gap-2 mt-1">
             {[{ val: "clasico", label: "Clásico" }, { val: "pasos", label: "Pasos" }].map(({ val, label }) => (
@@ -268,13 +269,38 @@ export default function ConfiguracionClient() {
           </div>
         </div>
 
+        {/* Orden de pasos — siempre visible */}
+        <div className="flex flex-col gap-1 border-t border-zinc-200 pt-3 mt-1">
+          <label className="text-sm font-medium text-zinc-700">Orden de pasos (default global)</label>
+          <p className="text-xs text-zinc-500 mb-1">Cada usuario puede cambiarlo en su perfil.</p>
+          <div className="flex flex-col gap-1">
+            {[
+              { val: "default", label: "1 Productos · 2 Formas de pago · 3 Entrega · 4 Cliente" },
+              { val: "entrega_primero", label: "1 Productos · 2 Entrega · 3 Formas de pago · 4 Cliente" },
+            ].map(({ val, label }) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setConfig({ ...config, ventas_orden_pasos: val })}
+                className={`rounded border px-3 py-2 text-xs text-left font-medium ${
+                  config.ventas_orden_pasos === val
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-300 hover:bg-zinc-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {config.ventas_modo_vista === "pasos" && (
           <div className="flex flex-col gap-2 border-t border-zinc-200 pt-3 mt-1">
             <p className="text-xs text-zinc-500">Secciones abiertas por defecto en escritorio (en móvil siempre inician cerradas):</p>
             {[
               { key: "ventas_paso1_abierto", label: "1 — Productos del Pedido" },
-              { key: "ventas_paso2_abierto", label: "2 — Formas de pago" },
-              { key: "ventas_paso3_abierto", label: "3 — Parámetros de entrega" },
+              { key: "ventas_paso2_abierto", label: "2 — Formas de pago / Entrega (según orden)" },
+              { key: "ventas_paso3_abierto", label: "3 — Entrega / Formas de pago (según orden)" },
               { key: "ventas_paso4_abierto", label: "4 — Datos del Cliente" },
             ].map(({ key, label }) => (
               <div key={key} className="flex items-center justify-between">

@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Perfil = { nombre: string; usuario: string; telefono: string | null; correo: string | null };
-type Vista = "menu" | "perfil" | "clave";
+type Perfil = {
+  nombre: string;
+  usuario: string;
+  telefono: string | null;
+  correo: string | null;
+  ventas_modo_vista: string | null;
+  ventas_orden_pasos: string | null;
+};
+type Vista = "menu" | "perfil" | "clave" | "preferencias";
 
 export default function PerfilMenu() {
   const router = useRouter();
@@ -13,6 +20,8 @@ export default function PerfilMenu() {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [telefono, setTelefono] = useState("");
   const [correo, setCorreo] = useState("");
+  const [modoVista, setModoVista] = useState<string>("global");
+  const [ordenPasos, setOrdenPasos] = useState<string>("global");
   const [claveActual, setClaveActual] = useState("");
   const [claveNueva, setClaveNueva] = useState("");
   const [claveConfirm, setClaveConfirm] = useState("");
@@ -26,6 +35,8 @@ export default function PerfilMenu() {
         setPerfil(d);
         setTelefono(d.telefono ?? "");
         setCorreo(d.correo ?? "");
+        setModoVista(d.ventas_modo_vista ?? "global");
+        setOrdenPasos(d.ventas_orden_pasos ?? "global");
       });
   }, []);
 
@@ -54,6 +65,29 @@ export default function PerfilMenu() {
     });
     setMsg(res.ok ? { texto: "Guardado correctamente" } : { texto: "Error al guardar", error: true });
     if (res.ok) setPerfil((p) => p ? { ...p, telefono, correo } : p);
+  }
+
+  async function guardarPreferencias() {
+    const res = await fetch("/api/usuarios/perfil", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        telefono: perfil?.telefono,
+        correo: perfil?.correo,
+        ventas_modo_vista: modoVista === "global" ? null : modoVista,
+        ventas_orden_pasos: ordenPasos === "global" ? null : ordenPasos,
+      }),
+    });
+    setMsg(res.ok ? { texto: "Preferencias guardadas" } : { texto: "Error al guardar", error: true });
+    if (res.ok) {
+      setPerfil((p) => p ? {
+        ...p,
+        ventas_modo_vista: modoVista === "global" ? null : modoVista,
+        ventas_orden_pasos: ordenPasos === "global" ? null : ordenPasos,
+      } : p);
+      // Recargar la página para que VentasClient cargue la nueva preferencia
+      setTimeout(() => { window.location.reload(); }, 800);
+    }
   }
 
   async function cambiarClave() {
@@ -93,7 +127,7 @@ export default function PerfilMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-72 rounded-lg border border-zinc-200 bg-white shadow-lg">
+        <div className="absolute right-0 top-10 z-50 w-80 rounded-lg border border-zinc-200 bg-white shadow-lg">
           {vista === "menu" && (
             <div className="flex flex-col">
               <div className="border-b border-zinc-100 px-4 py-3">
@@ -103,6 +137,10 @@ export default function PerfilMenu() {
               <button onClick={() => { setVista("perfil"); setMsg(null); }}
                 className="px-4 py-2.5 text-left text-sm hover:bg-zinc-50">
                 Editar perfil (teléfono / correo)
+              </button>
+              <button onClick={() => { setVista("preferencias"); setMsg(null); }}
+                className="px-4 py-2.5 text-left text-sm hover:bg-zinc-50">
+                Preferencias de Ventas
               </button>
               <button onClick={() => { setVista("clave"); setMsg(null); }}
                 className="px-4 py-2.5 text-left text-sm hover:bg-zinc-50">
@@ -140,6 +178,76 @@ export default function PerfilMenu() {
               <button onClick={guardarPerfil}
                 className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
                 Guardar
+              </button>
+            </div>
+          )}
+
+          {vista === "preferencias" && (
+            <div className="flex flex-col gap-4 p-4">
+              <button onClick={() => { setVista("menu"); setMsg(null); }}
+                className="self-start text-xs text-zinc-400 hover:text-zinc-700">
+                ← Volver
+              </button>
+              <p className="font-semibold text-zinc-800">Preferencias de Ventas</p>
+              <p className="text-xs text-zinc-500">
+                Estas preferencias aplican solo a tu usuario y reemplazan la configuración global.
+                Selecciona &quot;Usar global&quot; para seguir el default del sistema.
+              </p>
+
+              {/* Modo de vista */}
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-zinc-700">Modo de vista del formulario</p>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { val: "global", label: "Usar global (default del sistema)" },
+                    { val: "clasico", label: "Clásico — todo expandido" },
+                    { val: "pasos", label: "Pasos — secciones colapsables" },
+                  ].map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setModoVista(val)}
+                      className={`rounded border px-3 py-2 text-xs text-left font-medium transition-colors ${
+                        modoVista === val
+                          ? "border-zinc-900 bg-zinc-900 text-white"
+                          : "border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Orden de pasos */}
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-zinc-700">Orden de los pasos (modo Pasos)</p>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { val: "global", label: "Usar global (default del sistema)" },
+                    { val: "default", label: "1 Productos · 2 Formas de pago · 3 Entrega · 4 Cliente" },
+                    { val: "entrega_primero", label: "1 Productos · 2 Entrega · 3 Formas de pago · 4 Cliente" },
+                  ].map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setOrdenPasos(val)}
+                      className={`rounded border px-3 py-2 text-xs text-left font-medium transition-colors ${
+                        ordenPasos === val
+                          ? "border-zinc-900 bg-zinc-900 text-white"
+                          : "border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {msg && <p className={`text-xs ${msg.error ? "text-red-600" : "text-green-600"}`}>{msg.texto}</p>}
+              <button onClick={guardarPreferencias}
+                className="rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+                Guardar preferencias
               </button>
             </div>
           )}

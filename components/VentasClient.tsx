@@ -141,6 +141,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   // Modo de vista y secciones colapsables
   const [modoVista, setModoVista] = useState<"clasico" | "pasos">("clasico");
   const [seccionesAbiertas, setSeccionesAbiertas] = useState<Set<string>>(new Set(["paso1", "paso2", "paso3", "paso4"]));
+  // Orden de pasos: "default" = Productos→Pago→Entrega→Cliente | "entrega_primero" = Productos→Entrega→Pago→Cliente
+  const [ordenPasos, setOrdenPasos] = useState<"default" | "entrega_primero">("entrega_primero");
   const [ventaHoy, setVentaHoy] = useState<number | null>(null);
   const [cxcPendiente, setCxcPendiente] = useState<number | null>(null);
 
@@ -155,7 +157,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   }
 
   function abrirSiguiente(actual: string) {
-    const orden = ["paso1", "paso2", "paso3", "paso4"];
+    const orden = ordenPasos === "entrega_primero"
+      ? ["paso1", "paso3", "paso2", "paso4"]
+      : ["paso1", "paso2", "paso3", "paso4"];
     const idx = orden.indexOf(actual);
     if (idx < 0 || idx >= orden.length - 1) return;
     setSeccionesAbiertas(prev => {
@@ -277,21 +281,31 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           const def = cfg.cashea_dias_default ?? opts[0] ?? "15";
           setCasheaDiasSeleccion(def);
         }
-        // Modo de vista y secciones
-        if (cfg.ventas_modo_vista === "pasos") {
-          setModoVista("pasos");
-          const mobile = typeof window !== "undefined" && window.innerWidth < 640;
-          if (mobile) {
-            setSeccionesAbiertas(new Set());
-          } else {
-            const abiertas = new Set<string>();
-            if (cfg.ventas_paso1_abierto !== "false") abiertas.add("paso1");
-            if (cfg.ventas_paso2_abierto !== "false") abiertas.add("paso2");
-            if (cfg.ventas_paso3_abierto !== "false") abiertas.add("paso3");
-            if (cfg.ventas_paso4_abierto !== "false") abiertas.add("paso4");
-            setSeccionesAbiertas(abiertas);
-          }
-        }
+        // Modo de vista y secciones — se aplica después de cargar preferencias de usuario
+        fetch("/api/usuarios/perfil")
+          .then((r) => r.json())
+          .then((user: { ventas_modo_vista?: string | null; ventas_orden_pasos?: string | null }) => {
+            const modo = user.ventas_modo_vista ?? cfg.ventas_modo_vista ?? "clasico";
+            const orden = user.ventas_orden_pasos ?? cfg.ventas_orden_pasos ?? "default";
+            if (modo === "pasos") {
+              setModoVista("pasos");
+              const mobile = typeof window !== "undefined" && window.innerWidth < 640;
+              if (mobile) {
+                setSeccionesAbiertas(new Set());
+              } else {
+                const abiertas = new Set<string>();
+                if (cfg.ventas_paso1_abierto !== "false") abiertas.add("paso1");
+                if (cfg.ventas_paso2_abierto !== "false") abiertas.add("paso2");
+                if (cfg.ventas_paso3_abierto !== "false") abiertas.add("paso3");
+                if (cfg.ventas_paso4_abierto !== "false") abiertas.add("paso4");
+                setSeccionesAbiertas(abiertas);
+              }
+            }
+            if (orden === "entrega_primero") {
+              setOrdenPasos("entrega_primero");
+            }
+          })
+          .catch(() => {});
       })
       .catch(() => {});
     // Cargar indicadores de hoy y CxC
@@ -1085,15 +1099,19 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               )}
             </div>
 
-            {/* PASO 2 — Formas de pago */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+            {/* PASO 2/3 — Formas de pago (posición según orden) */}
+            {ordenPasos === "entrega_primero" && seccionesAbiertas !== null && (
+              /* Parámetros de entrega va primero cuando orden es entrega_primero */
+              null
+            )}
+            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: ordenPasos === "entrega_primero" ? 3 : 2 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso2")}
                 className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] hover:bg-zinc-50"
               >
                 <span className="font-semibold text-sm text-zinc-800 flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">2</span>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">{ordenPasos === "entrega_primero" ? 3 : 2}</span>
                   Formas de pago
                   {!seccionesAbiertas.has("paso2") && pagos.some(p => p.metodo) && (
                     <span className="text-xs font-normal text-zinc-500 ml-1">
@@ -1226,15 +1244,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               )}
             </div>
 
-            {/* PASO 3 — Parámetros de entrega */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+            {/* PASO 3/2 — Parámetros de entrega (posición según orden) */}
+            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: ordenPasos === "entrega_primero" ? 2 : 3 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso3")}
                 className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] hover:bg-zinc-50"
               >
                 <span className="font-semibold text-sm text-zinc-800 flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">3</span>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">{ordenPasos === "entrega_primero" ? 2 : 3}</span>
                   Parámetros de entrega
                   {!seccionesAbiertas.has("paso3") && (
                     <span className="text-xs font-normal text-zinc-500 ml-1">
