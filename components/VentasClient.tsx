@@ -961,22 +961,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
           )}
 
-          {/* Botones globales — arriba */}
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
-              <button type="button" onClick={expandirTodo} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100">
-                Expandir todo
-              </button>
-              <button type="button" onClick={colapsarTodo} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100">
-                Colapsar todo
-              </button>
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
 
             {/* PASO 1 — Productos del Pedido */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: 1 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso1")}
@@ -1361,7 +1349,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
 
             {/* PASO 4 — Datos del Cliente */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: 4 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso4")}
@@ -1432,10 +1420,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               )}
             </div>
 
-            {error && <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>}
+            {error && <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700" style={{ order: 5 }}>{error}</div>}
 
-            {/* Botones globales — abajo */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
+            {/* Botones globales — siempre al final */}
+            <div className="flex items-center justify-between flex-wrap gap-2" style={{ order: 6 }}>
               <div className="flex gap-2">
                 <button type="button" onClick={expandirTodo} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100">Expandir todo</button>
                 <button type="button" onClick={colapsarTodo} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100">Colapsar todo</button>
