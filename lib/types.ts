@@ -163,6 +163,7 @@ export const METODOS_PAGO = [
   "EFECTIVO_USD",
   "ZELLE",
   "CASHEA",
+  "YUMMY",
 ] as const;
 
 export type MetodoPago = (typeof METODOS_PAGO)[number];
@@ -178,6 +179,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   EFECTIVO_USD: "Efectivo Dólares",
   ZELLE: "Zelle",
   CASHEA: "Cashea",
+  YUMMY: "Yummy",
 };
 
 export type CasheaPagoItem = {
@@ -194,6 +196,17 @@ export type CasheaPagoItem = {
   alarmaSilenciadaHasta: string | null;
   tasaDelDia: number;
   metodoInicial: string | null;
+};
+
+export type YummyPagoItem = {
+  ventaId: number;
+  fecha: string;
+  cliente: string;
+  monto: number;
+  dias: number;
+  fechaVencimiento: string;
+  liquidado: boolean;
+  liquidadoAt: string | null;
 };
 
 export const MODOS_ENTREGA = ["LOCAL", "DELIVERY"] as const;

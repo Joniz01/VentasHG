@@ -36,6 +36,11 @@ export type VentaBody = {
     fechaVencimiento: string;
     metodoInicial?: string | null;
   } | null;
+  yummyDatos?: {
+    monto: number;
+    dias: number;
+    fechaVencimiento: string;
+  } | null;
 };
 
 export function validarVenta(body: VentaBody): string | null {
@@ -279,6 +284,7 @@ export async function insertarItemsYPagos(
 
   for (const pago of body.pagos ?? []) {
     if (pago.metodo === "CASHEA") continue; // Cashea se registra en cashea_pagos, no en pagos_venta
+    if (pago.metodo === "YUMMY") continue;  // Yummy se registra en yummy_pagos, no en pagos_venta
     const montoNum = Number(pago.monto);
     if (Number.isNaN(montoNum) || montoNum <= 0) continue;
 
@@ -286,6 +292,19 @@ export async function insertarItemsYPagos(
       `INSERT INTO pagos_venta (venta_id, metodo, monto)
        VALUES ($1, $2, $3)`,
       [ventaId, pago.metodo, montoNum]
+    );
+  }
+
+  if (body.yummyDatos) {
+    const yd = body.yummyDatos;
+    await client.query(
+      `INSERT INTO yummy_pagos (venta_id, monto, dias, fecha_vencimiento)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (venta_id) DO UPDATE
+         SET monto = EXCLUDED.monto,
+             dias = EXCLUDED.dias,
+             fecha_vencimiento = EXCLUDED.fecha_vencimiento`,
+      [ventaId, yd.monto, yd.dias, yd.fechaVencimiento]
     );
   }
 

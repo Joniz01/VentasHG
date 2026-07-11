@@ -120,6 +120,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [casheaPorcentaje, setCasheaPorcentaje] = useState("50");
   const [casheaDiasSeleccion, setCasheaDiasSeleccion] = useState("15");
   const [casheaMetodoInicial, setCasheaMetodoInicial] = useState<string>("");
+  const [yummyDiasOpciones, setYummyDiasOpciones] = useState<string[]>(["2"]);
+  const [yummyDiasSeleccion, setYummyDiasSeleccion] = useState("2");
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [pagos, setPagos] = useState<PagoRow[]>([{ ...EMPTY_PAGO }]);
@@ -280,6 +282,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           setCasheaDiasOpciones(opts);
           const def = cfg.cashea_dias_default ?? opts[0] ?? "15";
           setCasheaDiasSeleccion(def);
+        }
+        if (cfg.yummy_dias) {
+          const opts = cfg.yummy_dias.split(",").map((s: string) => s.trim()).filter(Boolean);
+          setYummyDiasOpciones(opts);
+          const def = cfg.yummy_dias_default ?? opts[0] ?? "2";
+          setYummyDiasSeleccion(def);
         }
         // Modo de vista y secciones — se aplica después de cargar preferencias de usuario
         fetch("/api/usuarios/perfil")
@@ -596,6 +604,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setMotorizadoId("");
     setCasheaPorcentaje(casheaPorcentajes[0] ?? "50");
     setCasheaDiasSeleccion(casheaDiasOpciones[0] ?? "15");
+    setYummyDiasSeleccion(yummyDiasOpciones[0] ?? "2");
   }
 
   function startEdit(venta: Venta) {
@@ -785,6 +794,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               const montoFinanciado = totalVenta - montoInicial;
               const fechaVenc = addDays(fecha, dias);
               return { porcentaje: pct, montoInicial, montoFinanciado, dias, fechaVencimiento: fechaVenc, metodoInicial: casheaMetodoInicial || null };
+            })()
+          : null,
+        yummyDatos: validPagos.some((p) => p.metodo === "YUMMY")
+          ? (() => {
+              const dias = Number(yummyDiasSeleccion) || 2;
+              const monto = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+              const fechaVenc = addDays(fecha, dias);
+              return { monto, dias, fechaVencimiento: fechaVenc };
             })()
           : null,
       };
@@ -1126,10 +1143,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                             </select>
                             <input
                               type="number" step="0.01" min="0"
-                              readOnly={pago.metodo === "CASHEA"}
-                              className={`col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3 ${pago.metodo === "CASHEA" ? "bg-zinc-50 text-zinc-500" : ""}`}
-                              value={pago.metodo === "CASHEA" ? (() => { const pct = Number(casheaPorcentaje) || 50; const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd; return (total * pct / 100).toFixed(2); })() : pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
-                              onChange={(e) => { if (pago.metodo !== "CASHEA") updatePago(index, { monto: e.target.value, montoAuto: false }); }}
+                              readOnly={pago.metodo === "CASHEA" || pago.metodo === "YUMMY"}
+                              className={`col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3 ${(pago.metodo === "CASHEA" || pago.metodo === "YUMMY") ? "bg-zinc-50 text-zinc-500" : ""}`}
+                              value={pago.metodo === "CASHEA" ? (() => { const pct = Number(casheaPorcentaje) || 50; const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd; return (total * pct / 100).toFixed(2); })() : pago.metodo === "YUMMY" ? (totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd).toFixed(2) : pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
+                              onChange={(e) => { if (pago.metodo !== "CASHEA" && pago.metodo !== "YUMMY") updatePago(index, { monto: e.target.value, montoAuto: false }); }}
                               placeholder="Monto"
                             />
                             <button type="button" onClick={() => removePago(index)} className="col-span-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">X</button>
@@ -1153,7 +1170,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                   <label className="text-xs font-medium text-zinc-600">Forma de pago de la inicial</label>
                                   <select value={casheaMetodoInicial} onChange={(e) => setCasheaMetodoInicial(e.target.value)} className="rounded-md border border-zinc-300 px-2 py-1 text-sm">
                                     <option value="">Seleccionar</option>
-                                    {METODOS_PAGO.filter((m) => m !== "CASHEA").map((m) => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
+                                    {METODOS_PAGO.filter((m) => m !== "CASHEA" && m !== "YUMMY").map((m) => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
                                   </select>
                                 </div>
                               </div>
@@ -1168,6 +1185,29 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                   <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
                                     <span>Inicial: <strong>${inicial.toFixed(2)}</strong>{casheaMetodoInicial && <span className="ml-1 text-zinc-500">({METODO_PAGO_LABELS[casheaMetodoInicial as keyof typeof METODO_PAGO_LABELS]})</span>}</span>
                                     <span>Financiado: <strong className="text-yellow-700">${financiado.toFixed(2)}</strong></span>
+                                    <span>Vence: <strong>{vence}</strong></span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                          {pago.metodo === "YUMMY" && (
+                            <div className="ml-0 rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "#00c853", backgroundColor: "#f0faf4" }}>
+                              <div className="flex flex-wrap gap-3">
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-zinc-600">Días de pago</label>
+                                  <select value={yummyDiasSeleccion} onChange={(e) => setYummyDiasSeleccion(e.target.value)} className="rounded-md border border-zinc-300 px-2 py-1 text-sm w-24">
+                                    {yummyDiasOpciones.map((d) => <option key={d} value={d}>{d} días</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              {(() => {
+                                const dias = Number(yummyDiasSeleccion) || 2;
+                                const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+                                const vence = addDays(fecha, dias);
+                                return (
+                                  <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
+                                    <span>Monto por cobrar a Yummy: <strong style={{ color: "#007e33" }}>${total.toFixed(2)}</strong></span>
                                     <span>Vence: <strong>{vence}</strong></span>
                                   </div>
                                 );
@@ -1201,12 +1241,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   )}
                   {(() => {
                     const tieneCashea = pagos.some((p) => p.metodo === "CASHEA");
+                    const tieneYummy = pagos.some((p) => p.metodo === "YUMMY");
                     const totalBase = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
                     const pct = Number(casheaPorcentaje) || 50;
                     const casheaInicialUsd = tieneCashea ? totalBase * pct / 100 : 0;
                     const casheaFinanciadoUsd = tieneCashea ? totalBase - casheaInicialUsd : 0;
                     const tasa = Number(tasaDelDia) || 1;
-                    const pagadoUsd = tieneCashea ? casheaInicialUsd : totales.totalPagosEnUsd;
+                    const pagadoUsd = tieneCashea ? casheaInicialUsd : tieneYummy ? 0 : totales.totalPagosEnUsd;
                     const pagadoBs = pagadoUsd * tasa;
                     return (
                       <div className="grid grid-cols-1 gap-1 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-2">
@@ -1214,8 +1255,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                         {totales.descuento > 0 && <div><span className="font-medium text-green-700">Con descuento: </span>{totales.ventaTotalConDescuentoBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span></div>}
                         {modoEntrega === "DELIVERY" && <div><span className="font-medium text-zinc-600">Delivery: </span>{totales.costoDeliveryBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span></div>}
                         <div><span className="font-medium text-zinc-600">Total a pagar: </span>{totales.totalAPagarBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span></div>
-                        <div><span className="font-medium text-zinc-600">Total pagado: </span>{pagadoBs.toFixed(2)} Bs <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span></div>
+                        {!tieneYummy && <div><span className="font-medium text-zinc-600">Total pagado: </span>{pagadoBs.toFixed(2)} Bs <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span></div>}
                         {tieneCashea && <div className="sm:col-span-2"><span className="font-medium text-yellow-700">CxC Cashea: </span><span className="font-semibold text-yellow-800">{(casheaFinanciadoUsd * tasa).toFixed(2)} Bs</span> <span className="text-zinc-500">(${casheaFinanciadoUsd.toFixed(2)})</span></div>}
+                        {tieneYummy && <div className="sm:col-span-2"><span className="font-medium" style={{ color: "#007e33" }}>CxC Yummy: </span><span className="font-semibold" style={{ color: "#007e33" }}>{(totalBase * tasa).toFixed(2)} Bs</span> <span className="text-zinc-500">(${totalBase.toFixed(2)})</span></div>}
                       </div>
                     );
                   })()}
@@ -1948,8 +1990,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     type="number"
                     step="0.01"
                     min="0"
-                    readOnly={pago.metodo === "CASHEA"}
-                    className={`col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3 ${pago.metodo === "CASHEA" ? "bg-zinc-50 text-zinc-500" : ""}`}
+                    readOnly={pago.metodo === "CASHEA" || pago.metodo === "YUMMY"}
+                    className={`col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3 ${(pago.metodo === "CASHEA" || pago.metodo === "YUMMY") ? "bg-zinc-50 text-zinc-500" : ""}`}
                     value={
                       pago.metodo === "CASHEA"
                         ? (() => {
@@ -1957,14 +1999,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                             const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
                             return (total * pct / 100).toFixed(2);
                           })()
-                        : pago.montoAuto
-                          ? pago.metodo
-                            ? totales.montoSugerido(index).toFixed(2)
-                            : ""
-                          : pago.monto
+                        : pago.metodo === "YUMMY"
+                          ? (totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd).toFixed(2)
+                          : pago.montoAuto
+                            ? pago.metodo
+                              ? totales.montoSugerido(index).toFixed(2)
+                              : ""
+                            : pago.monto
                     }
                     onChange={(e) => {
-                      if (pago.metodo !== "CASHEA") updatePago(index, { monto: e.target.value, montoAuto: false });
+                      if (pago.metodo !== "CASHEA" && pago.metodo !== "YUMMY") updatePago(index, { monto: e.target.value, montoAuto: false });
                     }}
                     placeholder="Monto"
                   />
@@ -2011,7 +2055,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
                         >
                           <option value="">Seleccionar</option>
-                          {METODOS_PAGO.filter((m) => m !== "CASHEA").map((m) => (
+                          {METODOS_PAGO.filter((m) => m !== "CASHEA" && m !== "YUMMY").map((m) => (
                             <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
                           ))}
                         </select>
@@ -2028,6 +2072,35 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                         <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
                           <span>Inicial cobrado: <strong>${inicial.toFixed(2)}</strong>{casheaMetodoInicial && <span className="ml-1 text-zinc-500">({METODO_PAGO_LABELS[casheaMetodoInicial as keyof typeof METODO_PAGO_LABELS]})</span>}</span>
                           <span>Financiado por Cashea: <strong className="text-yellow-700">${financiado.toFixed(2)}</strong></span>
+                          <span>Vence: <strong>{vence}</strong></span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {pago.metodo === "YUMMY" && (
+                  <div className="ml-0 rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "#00c853", backgroundColor: "#f0faf4" }}>
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-zinc-600">Días de pago</label>
+                        <select
+                          value={yummyDiasSeleccion}
+                          onChange={(e) => setYummyDiasSeleccion(e.target.value)}
+                          className="rounded-md border border-zinc-300 px-2 py-1 text-sm w-24"
+                        >
+                          {yummyDiasOpciones.map((d) => (
+                            <option key={d} value={d}>{d} días</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {(() => {
+                      const dias = Number(yummyDiasSeleccion) || 2;
+                      const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
+                      const vence = addDays(fecha, dias);
+                      return (
+                        <div className="flex flex-wrap gap-3 text-xs text-zinc-700">
+                          <span>Monto por cobrar a Yummy: <strong style={{ color: "#007e33" }}>${total.toFixed(2)}</strong></span>
                           <span>Vence: <strong>{vence}</strong></span>
                         </div>
                       );
@@ -2099,12 +2172,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
         {(() => {
           const tieneCashea = pagos.some((p) => p.metodo === "CASHEA");
+          const tieneYummy = pagos.some((p) => p.metodo === "YUMMY");
           const totalBase = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd;
           const pct = Number(casheaPorcentaje) || 50;
           const casheaInicialUsd = tieneCashea ? totalBase * pct / 100 : 0;
           const casheaFinanciadoUsd = tieneCashea ? totalBase - casheaInicialUsd : 0;
           const tasa = Number(tasaDelDia) || 1;
-          const pagadoUsd = tieneCashea ? casheaInicialUsd : totales.totalPagosEnUsd;
+          const pagadoUsd = tieneCashea ? casheaInicialUsd : tieneYummy ? 0 : totales.totalPagosEnUsd;
           const pagadoBs = pagadoUsd * tasa;
           return (
             <div className="grid grid-cols-1 gap-2 rounded-md bg-white p-3 text-sm sm:grid-cols-2">
@@ -2132,16 +2206,25 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 {totales.totalAPagarBs.toFixed(2)} Bs{" "}
                 <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span>
               </div>
-              <div>
-                <span className="font-medium text-zinc-600">Total pagado: </span>
-                {pagadoBs.toFixed(2)} Bs{" "}
-                <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span>
-              </div>
+              {!tieneYummy && (
+                <div>
+                  <span className="font-medium text-zinc-600">Total pagado: </span>
+                  {pagadoBs.toFixed(2)} Bs{" "}
+                  <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span>
+                </div>
+              )}
               {tieneCashea && (
                 <div className="sm:col-span-2">
                   <span className="font-medium text-yellow-700">CxC Cashea: </span>
                   <span className="font-semibold text-yellow-800">{(casheaFinanciadoUsd * tasa).toFixed(2)} Bs</span>{" "}
                   <span className="text-zinc-500">(${casheaFinanciadoUsd.toFixed(2)})</span>
+                </div>
+              )}
+              {tieneYummy && (
+                <div className="sm:col-span-2">
+                  <span className="font-medium" style={{ color: "#007e33" }}>CxC Yummy: </span>
+                  <span className="font-semibold" style={{ color: "#007e33" }}>{(totalBase * tasa).toFixed(2)} Bs</span>{" "}
+                  <span className="text-zinc-500">(${totalBase.toFixed(2)})</span>
                 </div>
               )}
             </div>

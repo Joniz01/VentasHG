@@ -10,6 +10,8 @@ type Config = {
   cashea_porcentaje_default: string;
   cashea_dias: string;
   cashea_dias_default: string;
+  yummy_dias: string;
+  yummy_dias_default: string;
   ventas_modo_vista: string;
   ventas_orden_pasos: string;
   ventas_paso1_abierto: string;
@@ -27,6 +29,8 @@ export default function ConfiguracionClient() {
     cashea_porcentaje_default: "50",
     cashea_dias: "15,30",
     cashea_dias_default: "15",
+    yummy_dias: "2,3,4,5",
+    yummy_dias_default: "2",
     ventas_modo_vista: "clasico",
     ventas_orden_pasos: "entrega_primero",
     ventas_paso1_abierto: "true",
@@ -36,6 +40,7 @@ export default function ConfiguracionClient() {
   });
   const [nuevoPorcentaje, setNuevoPorcentaje] = useState("");
   const [nuevoDias, setNuevoDias] = useState("");
+  const [nuevoYummyDias, setNuevoYummyDias] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -75,6 +80,10 @@ export default function ConfiguracionClient() {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const yummyDiasArr = (config.yummy_dias ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   function addPorcentaje() {
     const val = nuevoPorcentaje.trim();
@@ -105,6 +114,22 @@ export default function ConfiguracionClient() {
       ...prev,
       cashea_dias: updated.join(","),
       cashea_dias_default: prev.cashea_dias_default === val ? (updated[0] ?? "") : prev.cashea_dias_default,
+    }));
+  }
+
+  function addYummyDias() {
+    const val = nuevoYummyDias.trim();
+    if (!val || yummyDiasArr.includes(val)) return;
+    setConfig((prev) => ({ ...prev, yummy_dias: [...yummyDiasArr, val].join(",") }));
+    setNuevoYummyDias("");
+  }
+
+  function removeYummyDias(val: string) {
+    const updated = yummyDiasArr.filter((v) => v !== val);
+    setConfig((prev) => ({
+      ...prev,
+      yummy_dias: updated.join(","),
+      yummy_dias_default: prev.yummy_dias_default === val ? (updated[0] ?? "") : prev.yummy_dias_default,
     }));
   }
 
@@ -238,6 +263,50 @@ export default function ConfiguracionClient() {
           >
             {diasArr.map((v) => (
               <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Yummy */}
+      <div className="flex flex-col gap-3 rounded-lg border p-4" style={{ borderColor: "#00c853", backgroundColor: "#f0faf4" }}>
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#00c853" }}>Y</span>
+          Yummy — Cuentas por Cobrar
+        </h3>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-zinc-700">Días de pago (opciones)</label>
+          <div className="flex flex-wrap gap-1.5 mb-1">
+            {yummyDiasArr.map((v) => (
+              <span key={v} className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-zinc-700 bg-white" style={{ borderColor: "#00c853" }}>
+                {v} días
+                <button type="button" onClick={() => removeYummyDias(v)} className="text-red-500 hover:text-red-700 leading-none">&times;</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            <input
+              type="number"
+              min={1}
+              value={nuevoYummyDias}
+              onChange={(e) => setNuevoYummyDias(e.target.value)}
+              placeholder="Ej: 7"
+              className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-sm"
+            />
+            <button type="button" onClick={addYummyDias} className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">Agregar</button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-zinc-700">Días por defecto</label>
+          <select
+            value={config.yummy_dias_default}
+            onChange={(e) => setConfig({ ...config, yummy_dias_default: e.target.value })}
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-28"
+          >
+            {yummyDiasArr.map((v) => (
+              <option key={v} value={v}>{v} días</option>
             ))}
           </select>
         </div>

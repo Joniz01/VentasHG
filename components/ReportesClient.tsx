@@ -8,6 +8,7 @@ import { METODO_PAGO_LABELS } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
 import CuentasPorCobrarPanel from "@/components/CuentasPorCobrarPanel";
 import CasheaPanel from "@/components/CasheaPanel";
+import YummyPanel from "@/components/YummyPanel";
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -31,8 +32,8 @@ function startOfMonth(date: Date) {
 export default function ReportesClient() {
   const searchParams = useSearchParams();
   const tabInicial = searchParams.get("tab");
-  const [tab, setTab] = useState<"ventas" | "deliveries" | "cuentasPorCobrar" | "cashea">(
-    tabInicial === "cuentasPorCobrar" || tabInicial === "deliveries" || tabInicial === "cashea" ? tabInicial : "ventas"
+  const [tab, setTab] = useState<"ventas" | "deliveries" | "cuentasPorCobrar" | "cashea" | "yummy">(
+    tabInicial === "cuentasPorCobrar" || tabInicial === "deliveries" || tabInicial === "cashea" || tabInicial === "yummy" ? tabInicial : "ventas"
   );
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -262,6 +263,18 @@ export default function ReportesClient() {
           <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-bold text-black">C</span>
           Cashea
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("yummy")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium ${
+            tab === "yummy"
+              ? "border-b-2 border-[#00c853] text-[#007e33]"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#00c853] text-[10px] font-bold text-white">Y</span>
+          Yummy
+        </button>
       </div>
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
@@ -269,6 +282,8 @@ export default function ReportesClient() {
       {tab === "cuentasPorCobrar" && <CuentasPorCobrarPanel />}
 
       {tab === "cashea" && <CasheaPanel />}
+
+      {tab === "yummy" && <YummyPanel />}
 
       {tab === "ventas" && (
       <>
