@@ -52,6 +52,7 @@ export default function ReportesClient() {
   const [porPaginaProducto, setPorPaginaProducto] = useState(10);
   const reporteRef = useRef<HTMLDivElement>(null);
   const inputImagenRef = useRef<HTMLInputElement>(null);
+  const inputCamaraRef = useRef<HTMLInputElement>(null);
 
   async function cargarImagenExistente(desdeParam: string, hastaParam: string) {
     try {
@@ -378,10 +379,19 @@ export default function ReportesClient() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => inputImagenRef.current?.click()}
+                onClick={() => inputCamaraRef.current?.click()}
+                title="Capturar con cámara"
                 className="flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
               >
-                🖼️ Imagen punto de venta
+                📷 Cámara
+              </button>
+              <button
+                type="button"
+                onClick={() => inputImagenRef.current?.click()}
+                title="Seleccionar desde galería"
+                className="flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+              >
+                🖼️ Galería
               </button>
               {imagenPunto && (
                 <button
@@ -394,6 +404,16 @@ export default function ReportesClient() {
                 </button>
               )}
             </div>
+            {/* Cámara — fuerza apertura de cámara trasera en móvil */}
+            <input
+              ref={inputCamaraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={cargarImagenPunto}
+            />
+            {/* Galería — abre selector de archivos/imágenes */}
             <input
               ref={inputImagenRef}
               type="file"
