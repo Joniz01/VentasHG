@@ -11,6 +11,7 @@ type Config = {
   cashea_dias: string;
   cashea_dias_default: string;
   ventas_modo_vista: string;
+  ventas_orden_pasos: string;
   ventas_paso1_abierto: string;
   ventas_paso2_abierto: string;
   ventas_paso3_abierto: string;
