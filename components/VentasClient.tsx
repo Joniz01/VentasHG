@@ -142,7 +142,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [modoVista, setModoVista] = useState<"clasico" | "pasos">("clasico");
   const [seccionesAbiertas, setSeccionesAbiertas] = useState<Set<string>>(new Set(["paso1", "paso2", "paso3", "paso4"]));
   // Orden de pasos: "default" = Productos→Pago→Entrega→Cliente | "entrega_primero" = Productos→Entrega→Pago→Cliente
-  const [ordenPasos, setOrdenPasos] = useState<"default" | "entrega_primero">("entrega_primero");
+  const [ordenPasos, setOrdenPasos] = useState<string>("entrega_primero");
   const [ventaHoy, setVentaHoy] = useState<number | null>(null);
   const [cxcPendiente, setCxcPendiente] = useState<number | null>(null);
 
@@ -1099,11 +1099,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               )}
             </div>
 
-            {/* PASO 2/3 — Formas de pago (posición según orden) */}
-            {ordenPasos === "entrega_primero" && seccionesAbiertas !== null && (
-              /* Parámetros de entrega va primero cuando orden es entrega_primero */
-              null
-            )}
+            {/* PASO 2/3 — Formas de pago (posición según orden de pasos del usuario) */}
             <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: ordenPasos === "entrega_primero" ? 3 : 2 }}>
               <button
                 type="button"
