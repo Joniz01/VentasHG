@@ -981,7 +981,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
 
             {/* PASO 1 — Productos del Pedido */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: 1 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: 1 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso1")}
@@ -1105,7 +1105,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
 
             {/* PASO 2/3 — Formas de pago (posición según orden de pasos del usuario) */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 3 : 2 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 3 : 2 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso2")}
@@ -1219,8 +1219,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     </div>
                   </div>
                   {pagos.every((p) => !p.metodo) && (
-                    <div className={`rounded-md border p-3 ${errorPlazoPago ? "border-red-300 bg-red-50" : "border-blue-300 bg-blue-200"}`}>
-                      <button type="button" onClick={() => setMostrarCuentaPorCobrar((prev) => !prev)} className={`flex w-full items-center justify-between text-left text-sm font-semibold ${errorPlazoPago ? "text-red-800" : "text-blue-900"}`}>
+                    <div className="rounded-md border p-3" style={errorPlazoPago ? { borderColor: "#FCA5A5", background: "#FEF2F2" } : { borderColor: "var(--erp-primary)", background: "var(--erp-primary-lt)" }}>
+                      <button type="button" onClick={() => setMostrarCuentaPorCobrar((prev) => !prev)} className="flex w-full items-center justify-between text-left text-sm font-semibold" style={{ color: errorPlazoPago ? "#991B1B" : "var(--erp-primary)" }}>
                         <span>Cuenta por cobrar: indica el plazo de pago</span>
                         <span className="text-xs">{mostrarCuentaPorCobrar ? "▲" : "▼"}</span>
                       </button>
@@ -1271,7 +1271,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
 
             {/* PASO 3/2 — Parámetros de entrega (posición según orden) */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 2 : 3 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 2 : 3 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso3")}
@@ -1392,7 +1392,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
 
             {/* PASO 4 — Datos del Cliente */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: 4 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: 4 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso4")}
