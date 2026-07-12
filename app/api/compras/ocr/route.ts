@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const { decryptKey } = await import("@/lib/llm/llm-config");
     const apiKey = decryptKey(api_key);
 
-    const modelName = "gemini-1.5-flash";
+    const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
     const geminiBody = {

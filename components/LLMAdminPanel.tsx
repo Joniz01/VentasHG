@@ -64,6 +64,38 @@ export default function LLMAdminPanel() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  // Prompts editables
+  const [prompts, setPrompts] = useState<Record<string, string>>({});
+  const [promptSaving, setPromptSaving] = useState<string | null>(null);
+  const [promptMsg, setPromptMsg] = useState<Record<string, string>>({});
+
+  const PROMPT_DEFS = [
+    { key: "compras_ocr_prompt", label: "Prompt OCR — Facturas de Compra", desc: "Instrucción enviada a Gemini al analizar una imagen de factura de compra." },
+  ];
+
+  const fetchPrompts = useCallback(async () => {
+    const r = await fetch("/api/configuracion");
+    if (r.ok) {
+      const data = await r.json();
+      const filtered: Record<string, string> = {};
+      for (const def of PROMPT_DEFS) {
+        filtered[def.key] = data[def.key] ?? "";
+      }
+      setPrompts(filtered);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function savePrompt(key: string) {
+    setPromptSaving(key);
+    try {
+      const r = await fetch("/api/configuracion", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [key]: prompts[key] }) });
+      if (!r.ok) throw new Error("Error al guardar");
+      setPromptMsg((p) => ({ ...p, [key]: "Guardado" }));
+      setTimeout(() => setPromptMsg((p) => ({ ...p, [key]: "" })), 2000);
+    } catch { setPromptMsg((p) => ({ ...p, [key]: "Error al guardar" })); }
+    finally { setPromptSaving(null); }
+  }
+
   const fetchKeys = useCallback(async () => {
     const r = await fetch("/api/admin/llm/keys");
     if (r.status === 503) { setMigPending(true); return; }
@@ -76,7 +108,7 @@ export default function LLMAdminPanel() {
     if (r.ok) setUsage(await r.json());
   }, []);
 
-  useEffect(() => { fetchKeys(); fetchUsage(); }, [fetchKeys, fetchUsage]);
+  useEffect(() => { fetchKeys(); fetchUsage(); fetchPrompts(); }, [fetchKeys, fetchUsage, fetchPrompts]);
 
   async function addKey(e: React.FormEvent) {
     e.preventDefault();
@@ -481,6 +513,39 @@ export default function LLMAdminPanel() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Prompts editables */}
+      <div className="mt-6 rounded-xl border border-zinc-200 p-4">
+        <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-zinc-400">Prompts de IA</h3>
+        <p className="mb-4 text-xs text-zinc-500">Instrucciones enviadas al modelo en cada función. Edítalas para ajustar el comportamiento.</p>
+        <div className="flex flex-col gap-5">
+          {PROMPT_DEFS.map((def) => (
+            <div key={def.key}>
+              <div className="mb-1 text-sm font-semibold text-zinc-700">{def.label}</div>
+              <div className="mb-2 text-xs text-zinc-400">{def.desc}</div>
+              <textarea
+                value={prompts[def.key] ?? ""}
+                onChange={(e) => setPrompts((p) => ({ ...p, [def.key]: e.target.value }))}
+                rows={5}
+                style={{ width: "100%", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "8px 12px", fontSize: 13, background: "var(--erp-bg)", color: "var(--erp-text)", resize: "vertical", fontFamily: "inherit" }}
+              />
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => savePrompt(def.key)}
+                  disabled={promptSaving === def.key}
+                  style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: promptSaving === def.key ? 0.7 : 1 }}
+                >
+                  {promptSaving === def.key ? "Guardando..." : "Guardar"}
+                </button>
+                {promptMsg[def.key] && (
+                  <span style={{ fontSize: 12, color: promptMsg[def.key] === "Guardado" ? "#166534" : "#B91C1C" }}>{promptMsg[def.key]}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
