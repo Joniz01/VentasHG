@@ -5,6 +5,43 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.2 — 2026-07-12
+
+### Resumen
+Wizard horizontal de ventas (stepper paso a paso), ícono oficial Zelle, panel unificado de Cuentas por Cobrar (CxC Directa + Cashea + Yummy) con página propia, KPI cards, filtros de fecha/tipo y chips de conteo. Toggle de visibilidad (ojito) en todos los campos de clave del sistema.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `app/(main)/cuentas-por-cobrar/page.tsx` | Página dedicada para Cuentas por Cobrar (CxC Directa, Cashea, Yummy) |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `components/VentasClient.tsx` | Wizard horizontal: stepper de 4 pasos (Productos → Entrega → Formas de Pago → Cliente), tiles de métodos de pago en lugar de selector, panel de totales en paso de pago, ícono SVG oficial de Zelle |
+| `components/CuentasPorCobrarPanel.tsx` | Panel unificado: carga CxC Directa + Cashea + Yummy en paralelo, KPI cards por tipo, chips de filtro con conteo, filtros de fecha (Desde/Hasta, Esta semana, Este mes, Limpiar), tabla normalizada |
+| `components/SidebarNav.tsx` | Enlace "Cuentas por Cobrar" apunta a `/cuentas-por-cobrar` |
+| `components/ReportesClient.tsx` | Elimina tabs CxC/Cashea/Yummy; solo quedan Ventas y Pagos a Delivery |
+| `components/LoginClient.tsx` | Ojito en campos de clave (login + bootstrap) |
+| `components/DeliveryLoginClient.tsx` | Ojito en campo de clave |
+| `components/AdminAccesoClient.tsx` | Ojito en campos de clave actual, nueva y confirmación |
+| `components/UsuariosConfigClient.tsx` | Ojito en campo de clave al crear/editar usuario |
+| `components/MotorizadosConfigClient.tsx` | Ojito en campo de clave al crear/editar motorizado |
+| `components/PerfilMenu.tsx` | Ojito en los 3 campos de cambio de contraseña |
+| `app/(main)/page.tsx` | Tile "Cuentas por Cobrar" apunta a `/cuentas-por-cobrar` |
+| `app/api/reportes/cuentas-por-cobrar/route.ts` | Query corregida: usa `cashea_pagos`/`yummy_pagos` para detectar tipo (ENUM no incluye CASHEA/YUMMY); incluye `costo_delivery` en total; try/catch con mensaje de error detallado |
+| `app/globals.css` | Inputs heredan colores de tokens ERP |
+| `lib/types.ts` | `CuentaPorCobrarItem` añade campo `tipoCxC` |
+
+### Migraciones SQL pendientes
+Ninguna — las tablas `cashea_pagos` y `yummy_pagos` ya existían (migraciones 021 y 029).
+
+### Notas técnicas
+- Cashea y Yummy tienen `cuenta_por_cobrar = FALSE` en `ventas` porque sí registran pagos. Su CxC se rastrea exclusivamente en `cashea_pagos.liquidado` y `yummy_pagos.liquidado`.
+- El ENUM `metodo_pago` en PostgreSQL solo tiene: PUNTO_VENTA, TRANSFERENCIA, PAGO_MOVIL, EFECTIVO_BS, EFECTIVO_USD, ZELLE. CASHEA y YUMMY no pertenecen a ese ENUM.
+
+---
+
 ## v3.0 — 2026-07-12
 
 ### Resumen
