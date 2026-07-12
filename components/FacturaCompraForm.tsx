@@ -376,6 +376,10 @@ export default function FacturaCompraForm({
             <label style={{ fontSize: 11, color: "var(--erp-text-3)", marginBottom: 4, display: "block" }}>Tasa del día (Bs/$)</label>
             <input type="number" value={tasaDia} onChange={(e) => setTasaDia(e.target.value)} placeholder="0.00" style={inp} />
           </div>
+          <div>
+            <label style={{ fontSize: 11, color: "var(--erp-text-3)", marginBottom: 4, display: "block" }}>Fecha vencimiento pago</label>
+            <input type="date" value={fechaVencimientoPago} onChange={(e) => setFechaVencimientoPago(e.target.value)} style={inp} />
+          </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={{ fontSize: 11, color: "var(--erp-text-3)", marginBottom: 4, display: "block" }}>Observaciones</label>
             <input value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Opcional" style={inp} />
@@ -457,7 +461,7 @@ export default function FacturaCompraForm({
           Cancelar
         </button>
         <button type="button" onClick={handleSubmit} disabled={saving} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "9px 24px", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-          {saving ? "Guardando..." : "Registrar Factura"}
+          {saving ? "Guardando..." : isEdit ? "Guardar Cambios" : "Registrar Factura"}
         </button>
       </div>
     </div>
