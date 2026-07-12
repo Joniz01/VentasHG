@@ -110,8 +110,9 @@ body {
 input,
 select,
 textarea {
-  background-color: #ffffff;
-  color: #171717;
+  background-color: var(--erp-surface);
+  color: var(--erp-text);
+  border-color: var(--erp-border);
 }
 
 @media print {

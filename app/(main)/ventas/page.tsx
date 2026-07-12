@@ -7,12 +7,6 @@ export default async function VentasPage() {
   const sesion = await requirePermiso("ventas");
 
   return (
-    <div>
-      <h2 className="mb-4 text-lg font-semibold">Ventas</h2>
-      <p className="mb-4 text-sm text-zinc-600">
-        Registra cada venta con sus productos, costo total y forma de pago.
-      </p>
-      <VentasClient rol={sesion.rol} puedeDescuento={sesion.rol === "ADMIN" || sesion.permisos.descuento} />
-    </div>
+    <VentasClient rol={sesion.rol} puedeDescuento={sesion.rol === "ADMIN" || sesion.permisos.descuento} />
   );
 }

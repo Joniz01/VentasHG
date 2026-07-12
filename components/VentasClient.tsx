@@ -881,51 +881,31 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-2 print:hidden">
-        <button
-          type="button"
-          onClick={() => setVista("ventas")}
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-            vista === "ventas"
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 hover:bg-zinc-100"
-          }`}
-        >
-          Registro de Ventas
-        </button>
-        <button
-          type="button"
-          onClick={() => setVista("historial")}
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-            vista === "historial"
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 hover:bg-zinc-100"
-          }`}
-        >
-          Historial
-        </button>
-        <button
-          type="button"
-          onClick={() => setVista("notas")}
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-            vista === "notas"
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 hover:bg-zinc-100"
-          }`}
-        >
-          Notas de Entrega
-        </button>
-        <button
-          type="button"
-          onClick={() => setVista("clientes")}
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-            vista === "clientes"
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 hover:bg-zinc-100"
-          }`}
-        >
-          Clientes
-        </button>
+      {/* ERP anchor tab bar */}
+      <div
+        className="flex gap-0 print:hidden border-b"
+        style={{ borderColor: "var(--erp-border)" }}
+      >
+        {(["ventas", "historial", "notas", "clientes"] as const).map((v) => {
+          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", notas: "Notas de Entrega", clientes: "Clientes" };
+          const active = vista === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setVista(v)}
+              className="px-4 py-2.5 text-[12.5px] font-medium transition-colors whitespace-nowrap"
+              style={{
+                color: active ? "var(--erp-primary)" : "var(--erp-text-2)",
+                borderBottom: active ? "2px solid var(--erp-primary)" : "2px solid transparent",
+                marginBottom: "-1px",
+                background: "transparent",
+              }}
+            >
+              {labels[v]}
+            </button>
+          );
+        })}
       </div>
 
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
@@ -937,13 +917,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           {/* Barra de indicadores — chips horizontales en una sola línea */}
           {seccionesAbiertas.size === 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex shrink-0 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
-                <span className="text-xs font-medium text-zinc-500">$</span>
+              <div className="flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>$</span>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
-                  className="w-16 bg-transparent text-sm font-bold text-zinc-900 outline-none"
+                  className="w-16 bg-transparent text-sm font-bold outline-none"
+                  style={{ color: "var(--erp-text)" }}
                   placeholder="0.00"
                   id="conversor-usd"
                   onChange={(e) => {
@@ -953,19 +934,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     if (el) el.textContent = usd > 0 && tasa > 0 ? `= Bs ${(usd * tasa).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "";
                   }}
                 />
-                <span id="conversor-bs-result" className="text-xs font-medium text-zinc-600 whitespace-nowrap" />
+                <span id="conversor-bs-result" className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--erp-text-2)" }} />
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
-                <span className="text-xs font-medium text-zinc-500">Hoy</span>
-                <span className="text-sm font-bold text-zinc-900">{ventaHoy != null ? `$${ventaHoy.toFixed(2)}` : "—"}</span>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Hoy</span>
+                <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{ventaHoy != null ? `$${ventaHoy.toFixed(2)}` : "—"}</span>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
-                <span className="text-xs font-medium text-zinc-500">BCV</span>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>BCV</span>
                 <input
                   type="number"
                   step="0.0001"
                   min="0"
-                  className="w-20 bg-transparent text-sm font-bold text-zinc-900 outline-none"
+                  className="w-20 bg-transparent text-sm font-bold outline-none"
+                  style={{ color: "var(--erp-text)" }}
                   value={tasaDelDia}
                   onChange={(e) => setTasaDelDia(e.target.value)}
                   placeholder="0.00"
@@ -979,9 +961,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   {consultandoTasa ? "..." : "↻"}
                 </button>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5">
-                <span className="text-xs font-medium text-zinc-500">CxC</span>
-                <span className="text-sm font-bold text-zinc-900">{cxcPendiente != null ? `$${cxcPendiente.toFixed(2)}` : "—"}</span>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>CxC</span>
+                <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{cxcPendiente != null ? `$${cxcPendiente.toFixed(2)}` : "—"}</span>
               </div>
             </div>
           )}
@@ -999,14 +981,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
 
             {/* PASO 1 — Productos del Pedido */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: 1 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: 1 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso1")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] hover:bg-zinc-50"
+                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
               >
-                <span className="font-semibold text-sm text-zinc-800 flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">1</span>
+                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>1</span>
                   Productos del Pedido
                   {!seccionesAbiertas.has("paso1") && items.some(i => i.productoId) && (
                     <span className="text-xs font-normal text-zinc-500 ml-1">
@@ -1017,7 +999,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <span className="text-zinc-400 text-sm">{seccionesAbiertas.has("paso1") ? "▲" : "▼"}</span>
               </button>
               {seccionesAbiertas.has("paso1") && (
-                <div className="px-4 pb-4 flex flex-col gap-3 border-t border-zinc-100">
+                <div className="px-4 pb-4 flex flex-col gap-3 border-t" style={{ borderColor: "var(--erp-border)" }}>
                   <div className="mt-3">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-sm font-medium text-zinc-700">Productos</span>
@@ -1114,7 +1096,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     Subtotal: <span className="font-bold">${totales.ventaTotalConDescuentoUsd.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-end">
-                    <button type="button" onClick={() => abrirSiguiente("paso1")} className="flex items-center gap-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700">
+                    <button type="button" onClick={() => abrirSiguiente("paso1")} className="flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80" style={{ background: "var(--erp-primary)" }}>
                       Siguiente <span>→</span>
                     </button>
                   </div>
@@ -1123,14 +1105,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
 
             {/* PASO 2/3 — Formas de pago (posición según orden de pasos del usuario) */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: ordenPasos === "entrega_primero" ? 3 : 2 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 3 : 2 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso2")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] hover:bg-zinc-50"
+                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
               >
-                <span className="font-semibold text-sm text-zinc-800 flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">{ordenPasos === "entrega_primero" ? 3 : 2}</span>
+                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>{ordenPasos === "entrega_primero" ? 3 : 2}</span>
                   Formas de pago
                   {!seccionesAbiertas.has("paso2") && pagos.some(p => p.metodo) && (
                     <span className="text-xs font-normal text-zinc-500 ml-1">
@@ -1141,7 +1123,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <span className="text-zinc-400 text-sm">{seccionesAbiertas.has("paso2") ? "▲" : "▼"}</span>
               </button>
               {seccionesAbiertas.has("paso2") && (
-                <div className="px-4 pb-4 flex flex-col gap-3 border-t border-zinc-100">
+                <div className="px-4 pb-4 flex flex-col gap-3 border-t" style={{ borderColor: "var(--erp-border)" }}>
                   <div className="mt-3">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-sm font-medium text-zinc-700">Forma de pago</span>
@@ -1280,7 +1262,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     );
                   })()}
                   <div className="flex justify-end">
-                    <button type="button" onClick={() => abrirSiguiente("paso2")} className="flex items-center gap-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700">
+                    <button type="button" onClick={() => abrirSiguiente("paso2")} className="flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80" style={{ background: "var(--erp-primary)" }}>
                       Siguiente <span>→</span>
                     </button>
                   </div>
@@ -1289,14 +1271,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
 
             {/* PASO 3/2 — Parámetros de entrega (posición según orden) */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: ordenPasos === "entrega_primero" ? 2 : 3 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 2 : 3 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso3")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] hover:bg-zinc-50"
+                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
               >
-                <span className="font-semibold text-sm text-zinc-800 flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">{ordenPasos === "entrega_primero" ? 2 : 3}</span>
+                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>{ordenPasos === "entrega_primero" ? 2 : 3}</span>
                   Parámetros de entrega
                   {!seccionesAbiertas.has("paso3") && (
                     <span className="text-xs font-normal text-zinc-500 ml-1">
@@ -1345,7 +1327,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     <div className="flex gap-2">
                       {[true, false].map((val) => (
                         <button key={String(val)} type="button" onClick={() => setDespachoPendiente(val)}
-                          className={`rounded-md border px-3 py-1.5 text-sm font-medium ${despachoPendiente === val ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 hover:bg-zinc-100"}`}>
+                          className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                          style={despachoPendiente === val ? { background: "var(--erp-primary)", borderColor: "var(--erp-primary)", color: "#fff" } : { borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
                           {val ? "Sí" : "No"}
                         </button>
                       ))}
@@ -1400,7 +1383,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     </div>
                   )}
                   <div className="flex justify-end">
-                    <button type="button" onClick={() => abrirSiguiente("paso3")} className="flex items-center gap-1 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700">
+                    <button type="button" onClick={() => abrirSiguiente("paso3")} className="flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80" style={{ background: "var(--erp-primary)" }}>
                       Siguiente <span>→</span>
                     </button>
                   </div>
@@ -1409,14 +1392,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
 
             {/* PASO 4 — Datos del Cliente */}
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden" style={{ order: 4 }}>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", order: 4 }}>
               <button
                 type="button"
                 onClick={() => toggleSeccion("paso4")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] hover:bg-zinc-50"
+                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
               >
-                <span className="font-semibold text-sm text-zinc-800 flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-white text-xs font-bold">4</span>
+                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>4</span>
                   Datos del Cliente
                   {!seccionesAbiertas.has("paso4") && cliente && (
                     <span className="text-xs font-normal text-zinc-500 ml-1">· {cliente}</span>
@@ -1489,7 +1472,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <button type="button" onClick={colapsarTodo} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100">Colapsar todo</button>
               </div>
               <div className="flex gap-2">
-                <button type="submit" disabled={saving} className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50">
+                <button type="submit" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50" style={{ background: "var(--erp-primary)" }}>
                   {editingId ? "Guardar cambios" : "Registrar venta"}
                 </button>
                 {editingId && (
@@ -1511,9 +1494,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           </button>
         </div>
       )}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-4">
-        <div className="flex flex-col gap-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
-        <h3 className="text-sm font-semibold text-blue-800">Información del cliente</h3>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border p-4" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+        <div className="flex flex-col gap-3 rounded-md border p-3" style={{ borderColor: "var(--erp-primary-lt)", background: "var(--erp-primary-lt)" }}>
+        <h3 className="text-sm font-semibold" style={{ color: "var(--erp-primary)" }}>Información del cliente</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Fecha</label>
@@ -1646,8 +1629,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
-          <h3 className="text-sm font-semibold text-blue-800">Parámetros de entrega</h3>
+        <div className="flex flex-col gap-3 rounded-md border p-3" style={{ borderColor: "var(--erp-primary-lt)", background: "var(--erp-primary-lt)" }}>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--erp-primary)" }}>Parámetros de entrega</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
@@ -1722,22 +1705,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               <button
                 type="button"
                 onClick={() => setDespachoPendiente(true)}
-                className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-                  despachoPendiente
-                    ? "border-zinc-900 bg-zinc-900 text-white"
-                    : "border-zinc-300 hover:bg-zinc-100"
-                }`}
+                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                style={despachoPendiente ? { background: "var(--erp-primary)", borderColor: "var(--erp-primary)", color: "#fff" } : { borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
               >
                 Sí
               </button>
               <button
                 type="button"
                 onClick={() => setDespachoPendiente(false)}
-                className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-                  !despachoPendiente
-                    ? "border-zinc-900 bg-zinc-900 text-white"
-                    : "border-zinc-300 hover:bg-zinc-100"
-                }`}
+                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                style={!despachoPendiente ? { background: "var(--erp-primary)", borderColor: "var(--erp-primary)", color: "#fff" } : { borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
               >
                 No
               </button>
@@ -2258,7 +2235,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           <button
             type="submit"
             disabled={saving}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+            className="rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50" style={{ background: "var(--erp-primary)" }}
           >
             {editingId ? "Guardar cambios" : "Registrar venta"}
           </button>
@@ -2355,7 +2332,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         </div>
       )}
 
-      <div className="rounded-lg border border-zinc-200 bg-white">
+      <div className="rounded-lg border" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
         <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
           <thead className="bg-zinc-50">
@@ -2454,7 +2431,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   </td>
                   <td className="px-4 py-2">
                     {venta.despachoPendiente && !venta.pedidoEntregado ? (
-                      <span className="rounded-md bg-zinc-900 px-2 py-1 font-bold text-white">
+                      <span className="rounded-md px-2 py-1 font-bold text-white" style={{ background: "var(--erp-primary)" }}>
                         {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
                       </span>
                     ) : venta.modoEntrega === "DELIVERY" ? (
