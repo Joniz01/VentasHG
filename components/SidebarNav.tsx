@@ -62,8 +62,8 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Cuentas por Cobrar",
     items: [
-      { href: "/reportes", icon: "💳", label: "Cashea / Yummy", permiso: "reportes", badge: "cxc" },
-      { href: "/delivery",  icon: "📬", label: "Deliveries" },
+      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar", permiso: "reportes", badge: "cxc" },
+      { href: "/delivery",           icon: "📬", label: "Deliveries" },
     ],
   },
   {
