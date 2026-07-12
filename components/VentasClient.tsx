@@ -66,10 +66,19 @@ const METODO_PAGO_ICONS: Record<string, string> = {
   PAGO_MOVIL: "📱",
   EFECTIVO_BS: "🪙",
   EFECTIVO_USD: "💵",
-  ZELLE: "💜",
+  ZELLE: "__zelle__",
   CASHEA: "🟡",
   YUMMY: "🟢",
 };
+
+function ZelleIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="40" height="40" rx="8" fill="#6D1ED4"/>
+      <path d="M10 12h14.5L10 26.5V30h20v-4H15.5L30 11.5V8H10v4z" fill="white"/>
+    </svg>
+  );
+}
 
 const EMPTY_ITEM: ItemRow = {
   productoId: "",
@@ -1178,7 +1187,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                   className="flex flex-col items-center gap-1.5 rounded-xl border p-2.5 transition-all"
                                   style={sel ? { borderColor: "var(--erp-primary)", background: "var(--erp-primary-lt)", color: "var(--erp-primary)" } : { borderColor: "var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
                                 >
-                                  <span className="text-xl leading-none">{METODO_PAGO_ICONS[m]}</span>
+                                  {METODO_PAGO_ICONS[m] === "__zelle__" ? <ZelleIcon size={26} /> : <span className="text-xl leading-none">{METODO_PAGO_ICONS[m]}</span>}
                                   <span className="text-[10px] font-medium text-center leading-tight">{METODO_PAGO_LABELS[m]}</span>
                                 </button>
                               );
