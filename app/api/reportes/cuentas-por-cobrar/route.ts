@@ -48,11 +48,10 @@ export async function GET(request: NextRequest) {
               v.alarma_vencimiento_silenciada_hasta,
               COALESCE(v.costo_delivery, 0) AS costo_delivery,
               COALESCE(SUM(vi.precio_unit * vi.cantidad), 0) AS subtotal_items,
-              BOOL_OR(pv.metodo = 'CASHEA') AS tiene_cashea,
-              BOOL_OR(pv.metodo = 'YUMMY')  AS tiene_yummy
+              EXISTS(SELECT 1 FROM cashea_pagos cp WHERE cp.venta_id = v.id) AS tiene_cashea,
+              EXISTS(SELECT 1 FROM yummy_pagos  yp WHERE yp.venta_id = v.id) AS tiene_yummy
        FROM ventas v
-       LEFT JOIN venta_items vi  ON vi.venta_id  = v.id
-       LEFT JOIN pagos_venta pv ON pv.venta_id = v.id
+       LEFT JOIN venta_items vi ON vi.venta_id = v.id
        WHERE ${conditions.join(" AND ")}
        GROUP BY v.id
        ORDER BY v.fecha DESC, v.id DESC`,
@@ -84,9 +83,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ items });
   } catch (err) {
-    console.error("CxC GET error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("CxC GET error:", msg);
     return NextResponse.json(
-      { error: "Error al consultar las cuentas por cobrar" },
+      { error: `DB error: ${msg}` },
       { status: 500 }
     );
   }
