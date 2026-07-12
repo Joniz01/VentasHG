@@ -26,6 +26,9 @@ export default function PerfilMenu() {
   const [claveNueva, setClaveNueva] = useState("");
   const [claveConfirm, setClaveConfirm] = useState("");
   const [msg, setMsg] = useState<{ texto: string; error?: boolean } | null>(null);
+  const [showClaveActual, setShowClaveActual] = useState(false);
+  const [showClaveNueva, setShowClaveNueva] = useState(false);
+  const [showClaveConfirm, setShowClaveConfirm] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +112,7 @@ export default function PerfilMenu() {
     if (res.ok) {
       setMsg({ texto: "Clave actualizada" });
       setClaveActual(""); setClaveNueva(""); setClaveConfirm("");
+      setShowClaveActual(false); setShowClaveNueva(false); setShowClaveConfirm(false);
     } else {
       setMsg({ texto: data.error ?? "Error al cambiar clave", error: true });
     }
