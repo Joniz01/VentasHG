@@ -460,6 +460,7 @@ export type CuentaPorCobrarItem = {
   cuentaCobrada: boolean;
   cuentaCobradaAt: string | null;
   alarmaSilenciadaHasta: string | null;
+  tipoCxC: "CASHEA" | "YUMMY" | "CxC Directa";
 };
 
 export type VentaPendientePago = {

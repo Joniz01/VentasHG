@@ -7,6 +7,13 @@ import { formatFecha } from "@/lib/pedidos";
 import { alarmaVencimientoActiva, esCuentaVencida, proximaAlarmaVencimiento } from "@/lib/cuentasPorCobrar";
 
 type EstadoFiltro = "TODOS" | "COBRADA" | "PENDIENTE";
+type TipoFiltro = "TODOS" | "CASHEA" | "YUMMY" | "CxC Directa";
+
+const TIPO_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  CASHEA:        { label: "Cashea",      bg: "#FEF9C3", color: "#854D0E" },
+  YUMMY:         { label: "Yummy",       bg: "#DCFCE7", color: "#166534" },
+  "CxC Directa": { label: "CxC Directa", bg: "var(--erp-primary-lt)", color: "var(--erp-primary)" },
+};
 
 export default function CuentasPorCobrarPanel() {
   const [items, setItems] = useState<CuentaPorCobrarItem[]>([]);
@@ -17,6 +24,7 @@ export default function CuentasPorCobrarPanel() {
   const [now, setNow] = useState(0);
 
   const [estado, setEstado] = useState<EstadoFiltro>("PENDIENTE");
+  const [tipo, setTipo] = useState<TipoFiltro>("TODOS");
   const [ventaId, setVentaId] = useState("");
   const [cliente, setCliente] = useState("");
 
@@ -62,7 +70,7 @@ export default function CuentasPorCobrarPanel() {
       }
     }
     loadConfig();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     setNow(Date.now());
     const interval = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(interval);
@@ -127,20 +135,26 @@ export default function CuentasPorCobrarPanel() {
     }
   }
 
-  const totalUsd = items.reduce((acc, item) => acc + item.totalUsd, 0);
-  const totalBs = items.reduce((acc, item) => acc + item.totalBs, 0);
-  const pendientes = items.filter((item) => !item.cuentaCobrada);
-  const totalPendienteUsd = pendientes.reduce((acc, item) => acc + item.totalUsd, 0);
-  const totalPendienteBs = pendientes.reduce((acc, item) => acc + item.totalBs, 0);
+  const filtered = tipo === "TODOS" ? items : items.filter((it) => it.tipoCxC === tipo);
+  const pendientes = filtered.filter((it) => !it.cuentaCobrada);
+  const totalPendienteUsd = pendientes.reduce((a, it) => a + it.totalUsd, 0);
+  const totalPendienteBs  = pendientes.reduce((a, it) => a + it.totalBs,  0);
+  const totalUsd = filtered.reduce((a, it) => a + it.totalUsd, 0);
+  const totalBs  = filtered.reduce((a, it) => a + it.totalBs,  0);
 
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4">
-        <div className="flex flex-wrap items-end gap-2">
+      {/* Filtros */}
+      <form
+        onSubmit={handleSubmit}
+        style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)" }}
+        className="rounded-xl p-4"
+      >
+        <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-zinc-600">Estado</label>
+            <label style={{ color: "var(--erp-text-2)" }} className="text-xs font-medium">Estado</label>
             <select
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14 }}
               value={estado}
               onChange={(e) => setEstado(e.target.value as EstadoFiltro)}
             >
@@ -150,9 +164,22 @@ export default function CuentasPorCobrarPanel() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-zinc-600">N° de pedido</label>
+            <label style={{ color: "var(--erp-text-2)" }} className="text-xs font-medium">Tipo</label>
+            <select
+              style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14 }}
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as TipoFiltro)}
+            >
+              <option value="TODOS">Todos</option>
+              <option value="CxC Directa">CxC Directa</option>
+              <option value="CASHEA">Cashea</option>
+              <option value="YUMMY">Yummy</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label style={{ color: "var(--erp-text-2)" }} className="text-xs font-medium">N° de pedido</label>
             <input
-              className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, width: 100 }}
               type="number"
               value={ventaId}
               onChange={(e) => setVentaId(e.target.value)}
@@ -160,9 +187,9 @@ export default function CuentasPorCobrarPanel() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-zinc-600">Cliente</label>
+            <label style={{ color: "var(--erp-text-2)" }} className="text-xs font-medium">Cliente</label>
             <input
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14 }}
               value={cliente}
               onChange={(e) => setCliente(e.target.value)}
               placeholder="Nombre del cliente"
@@ -171,7 +198,17 @@ export default function CuentasPorCobrarPanel() {
           <button
             type="submit"
             disabled={loading}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+            style={{
+              background: "var(--erp-primary)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 20px",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+            }}
           >
             {loading ? "Buscando..." : "Filtrar"}
           </button>
@@ -179,109 +216,179 @@ export default function CuentasPorCobrarPanel() {
       </form>
 
       {error && (
-        <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
+        <div style={{ background: "#FEF2F2", color: "#B91C1C", borderRadius: 8, padding: "10px 16px", fontSize: 14 }}>
+          {error}
+        </div>
       )}
 
+      {/* KPI chips */}
       <div className="flex flex-wrap gap-3">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm">
-          <span className="font-medium text-zinc-600">Total: </span>
-          {totalBs.toFixed(2)} Bs <span className="text-zinc-500">(${totalUsd.toFixed(2)})</span>
+        <div
+          style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12 }}
+          className="px-4 py-3 text-sm"
+        >
+          <span style={{ color: "var(--erp-text-2)", fontWeight: 500 }}>Total: </span>
+          <span style={{ color: "var(--erp-text)", fontWeight: 700 }}>{totalBs.toFixed(2)} Bs</span>
+          <span style={{ color: "var(--erp-text-3)" }}> (${totalUsd.toFixed(2)})</span>
         </div>
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm">
-          <span className="font-medium text-yellow-800">Total pendiente: </span>
-          {totalPendienteBs.toFixed(2)} Bs{" "}
-          <span className="text-yellow-700">(${totalPendienteUsd.toFixed(2)})</span>
+        <div
+          style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12 }}
+          className="px-4 py-3 text-sm"
+        >
+          <span style={{ color: "#92400E", fontWeight: 500 }}>Pendiente: </span>
+          <span style={{ color: "#78350F", fontWeight: 700 }}>{totalPendienteBs.toFixed(2)} Bs</span>
+          <span style={{ color: "#B45309" }}> (${totalPendienteUsd.toFixed(2)})</span>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-        <table className="min-w-full divide-y divide-zinc-200 text-sm">
-          <thead className="bg-zinc-50">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Pedido #</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Fecha</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Teléfono</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Monto</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Fecha límite</th>
-              <th className="px-4 py-2 text-center font-medium text-zinc-600">Estado</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {!loading && items.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
-                  No hay cuentas por cobrar que coincidan con los filtros
-                </td>
+      {/* Tabla */}
+      <div
+        style={{ border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden", background: "var(--erp-surface)" }}
+      >
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ minWidth: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "var(--erp-bg)" }}>
+                {["Pedido #", "Fecha", "Cliente", "Teléfono", "Tipo", "Monto total", "Fecha límite", "Estado", "Acciones"].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: "10px 14px",
+                      textAlign: h === "Monto total" ? "right" : h === "Estado" || h === "Acciones" ? "center" : "left",
+                      color: "var(--erp-text-2)",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      borderBottom: "1px solid var(--erp-border)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
-            )}
-            {loading && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-zinc-500">
-                  Cargando...
-                </td>
-              </tr>
-            )}
-            {!loading &&
-              items.map((item) => (
-                <tr key={item.ventaId}>
-                  <td className="px-4 py-2 whitespace-nowrap font-medium">#{item.ventaId}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{formatFecha(item.fecha)}</td>
-                  <td className="px-4 py-2 whitespace-nowrap font-medium">{item.cliente}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{item.clienteTelefono ?? "-"}</td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {item.totalBs.toFixed(2)} Bs{" "}
-                    <span className="text-zinc-500">(${item.totalUsd.toFixed(2)})</span>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    {item.fechaLimitePago ? formatFecha(item.fechaLimitePago) : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-center whitespace-nowrap">
-                    {item.cuentaCobrada ? (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                        Pagada
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
-                        Pendiente
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end gap-2">
-                      {esCuentaVencida(item, now) && (
-                        <button
-                          type="button"
-                          onClick={() => handleSilenciarAlarma(item)}
-                          disabled={updatingId === item.ventaId}
-                          title={
-                            alarmaVencimientoActiva(item, now, vencimientoHora)
-                              ? "Plazo vencido: clic para silenciar la alarma hasta el próximo aviso"
-                              : "Alarma silenciada hasta el próximo aviso"
-                          }
-                          className={`rounded-full px-2 py-1 text-xs font-medium disabled:opacity-50 ${
-                            alarmaVencimientoActiva(item, now, vencimientoHora)
-                              ? "bg-red-600 text-white hover:bg-red-700"
-                              : "bg-zinc-200 text-zinc-500 hover:bg-zinc-300"
-                          }`}
-                        >
-                          🔔
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleToggleCobrada(item)}
-                        disabled={updatingId === item.ventaId}
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
-                      >
-                        {item.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: "32px 16px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                    No hay cuentas por cobrar que coincidan con los filtros
                   </td>
                 </tr>
-              ))}
-          </tbody>
-        </table>
+              )}
+              {loading && (
+                <tr>
+                  <td colSpan={9} style={{ padding: "32px 16px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                    Cargando...
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                filtered.map((item, idx) => {
+                  const badge = TIPO_BADGE[item.tipoCxC];
+                  const vencida = esCuentaVencida(item, now);
+                  const alarmaActiva = alarmaVencimientoActiva(item, now, vencimientoHora);
+                  return (
+                    <tr
+                      key={item.ventaId}
+                      style={{
+                        borderBottom: idx < filtered.length - 1 ? "1px solid var(--erp-border)" : "none",
+                        background: "var(--erp-surface)",
+                      }}
+                    >
+                      <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
+                        #{item.ventaId}
+                      </td>
+                      <td style={{ padding: "10px 14px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
+                        {formatFecha(item.fecha)}
+                      </td>
+                      <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
+                        {item.cliente}
+                      </td>
+                      <td style={{ padding: "10px 14px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
+                        {item.clienteTelefono ?? "-"}
+                      </td>
+                      <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
+                        <span
+                          style={{
+                            background: badge.bg,
+                            color: badge.color,
+                            borderRadius: 999,
+                            padding: "2px 10px",
+                            fontSize: 11,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "right", whiteSpace: "nowrap", color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>
+                        <span style={{ fontWeight: 700 }}>{item.totalBs.toFixed(2)} Bs</span>
+                        <span style={{ color: "var(--erp-text-3)", marginLeft: 4 }}>(${item.totalUsd.toFixed(2)})</span>
+                      </td>
+                      <td style={{ padding: "10px 14px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
+                        {item.fechaLimitePago ? formatFecha(item.fechaLimitePago) : "-"}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
+                        {item.cuentaCobrada ? (
+                          <span style={{ background: "#DCFCE7", color: "#166534", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>
+                            Pagada
+                          </span>
+                        ) : (
+                          <span style={{ background: "#FEF9C3", color: "#854D0E", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>
+                            Pendiente
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          {vencida && (
+                            <button
+                              type="button"
+                              onClick={() => handleSilenciarAlarma(item)}
+                              disabled={updatingId === item.ventaId}
+                              title={
+                                alarmaActiva
+                                  ? "Plazo vencido: clic para silenciar la alarma"
+                                  : "Alarma silenciada hasta el próximo aviso"
+                              }
+                              style={{
+                                background: alarmaActiva ? "var(--erp-accent)" : "var(--erp-border)",
+                                color: alarmaActiva ? "#fff" : "var(--erp-text-3)",
+                                border: "none",
+                                borderRadius: 999,
+                                padding: "4px 8px",
+                                fontSize: 12,
+                                cursor: "pointer",
+                                opacity: updatingId === item.ventaId ? 0.5 : 1,
+                              }}
+                            >
+                              🔔
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleToggleCobrada(item)}
+                            disabled={updatingId === item.ventaId}
+                            style={{
+                              background: "transparent",
+                              border: "1px solid var(--erp-border)",
+                              borderRadius: 8,
+                              padding: "4px 12px",
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: "var(--erp-text-2)",
+                              cursor: "pointer",
+                              opacity: updatingId === item.ventaId ? 0.5 : 1,
+                            }}
+                          >
+                            {item.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

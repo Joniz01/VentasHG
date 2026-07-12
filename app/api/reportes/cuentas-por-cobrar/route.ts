@@ -45,7 +45,14 @@ export async function GET(request: NextRequest) {
     `SELECT v.id, v.fecha, v.cliente, v.cliente_ci, v.cliente_telefono, v.tasa_dia,
             v.fecha_limite_pago, v.cuenta_cobrada, v.cuenta_cobrada_at,
             v.alarma_vencimiento_silenciada_hasta,
-            COALESCE(SUM(vi.precio_unit * vi.cantidad), 0) AS total_usd
+            v.costo_delivery,
+            COALESCE(SUM(vi.precio_unit * vi.cantidad), 0) AS subtotal_items,
+            EXISTS(
+              SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id AND pv.metodo = 'CASHEA'
+            ) AS tiene_cashea,
+            EXISTS(
+              SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id AND pv.metodo = 'YUMMY'
+            ) AS tiene_yummy
      FROM ventas v
      LEFT JOIN venta_items vi ON vi.venta_id = v.id
      WHERE ${conditions.join(" AND ")}
@@ -55,8 +62,12 @@ export async function GET(request: NextRequest) {
   );
 
   const items = result.rows.map((row) => {
-    const totalUsd = Number(row.total_usd);
+    const subtotal = Number(row.subtotal_items);
+    const delivery = Number(row.costo_delivery ?? 0);
+    const totalUsd = subtotal + delivery;
     const tasa = Number(row.tasa_dia);
+    const tipoCxC: "CASHEA" | "YUMMY" | "CxC Directa" =
+      row.tiene_cashea ? "CASHEA" : row.tiene_yummy ? "YUMMY" : "CxC Directa";
     return {
       ventaId: row.id,
       fecha: row.fecha,
@@ -69,6 +80,7 @@ export async function GET(request: NextRequest) {
       cuentaCobrada: row.cuenta_cobrada,
       cuentaCobradaAt: row.cuenta_cobrada_at,
       alarmaSilenciadaHasta: row.alarma_vencimiento_silenciada_hasta,
+      tipoCxC,
     };
   });
 
