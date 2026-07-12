@@ -101,12 +101,6 @@ export default async function Home() {
             {hoy}
           </p>
         </div>
-        <div className="flex gap-5">
-          <div className="text-right">
-            <p className="text-xs" style={{ color: "rgba(255,255,255,.5)" }}>Módulo activo</p>
-            <p className="text-sm font-semibold text-white">Inicio · Launchpad</p>
-          </div>
-        </div>
       </div>
 
       {/* Tile groups */}
