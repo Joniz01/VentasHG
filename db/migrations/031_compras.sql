@@ -51,7 +51,7 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ve_compras BOOLEAN NOT NULL DEFAUL
 -- Prompt OCR de facturas de compra (editable desde admin)
 INSERT INTO configuracion (clave, valor) VALUES (
   'compras_ocr_prompt',
-  'Extrae de esta imagen de factura de compra la siguiente información en formato JSON válido (sin markdown, solo JSON puro):
+  'Extrae de esta imagen de factura de compra la siguiente información en formato JSON válido, sin markdown, solo JSON puro:
 {
   "proveedor": { "nombre": "...", "rif": "..." },
   "numero_factura": "...",
@@ -61,5 +61,5 @@ INSERT INTO configuracion (clave, valor) VALUES (
   ],
   "total_bs": 0
 }
-Si un campo no es legible, usa null. Los montos deben ser numéricos sin símbolo de moneda.'
-) ON CONFLICT (clave) DO NOTHING;
+Instrucciones: En facturas venezolanas, debajo de la palabra SENIAT generalmente aparece el RIF o Cédula del proveedor (inicia con V- o J-), seguido del nombre del proveedor y luego la dirección. Extrae esos datos para el objeto "proveedor". Si la factura no tiene línea de cantidad explícita para un ítem, asume cantidad 1. Los montos deben ser numéricos sin símbolo de moneda (reemplaza comas decimales por punto). Si un campo no es legible, usa null.'
+) ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor;

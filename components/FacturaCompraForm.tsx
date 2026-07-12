@@ -165,16 +165,24 @@ export default function FacturaCompraForm({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const d = data.data ?? {};
-        if (d.proveedor) setProveedorQ(d.proveedor);
-        if (d.numero_factura) setNumeroFactura(d.numero_factura);
-        if (d.fecha) setFecha(d.fecha.slice(0, 10));
+        // proveedor puede ser string o { nombre, rif }
+        if (d.proveedor) {
+          if (typeof d.proveedor === "string") {
+            setProveedorQ(d.proveedor);
+          } else {
+            if (d.proveedor.nombre) setProveedorQ(d.proveedor.nombre);
+            if (d.proveedor.rif) setProveedorRif(d.proveedor.rif);
+          }
+        }
+        if (d.numero_factura) setNumeroFactura(String(d.numero_factura));
+        if (d.fecha) setFecha(String(d.fecha).slice(0, 10));
         if (Array.isArray(d.items) && d.items.length > 0) {
-          setItems(d.items.map((it: { nombre?: string; cantidad?: number; costo?: number }) => ({
+          setItems(d.items.map((it: { nombre?: string; cantidad?: number; costo_unitario_bs?: number; costo?: number }) => ({
             key: nextKey(),
             productoId: null,
             nombreProducto: it.nombre ?? "",
             cantidad: String(it.cantidad ?? 1),
-            costoUnitBs: String(it.costo ?? ""),
+            costoUnitBs: String(it.costo_unitario_bs ?? it.costo ?? ""),
           })));
         }
       } catch (err) {
