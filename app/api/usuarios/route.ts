@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
       pedidosPendientes: row.ve_pedidos_pendientes,
       descuento: row.ve_descuento,
       dashboard: row.ve_dashboard ?? row.rol === "ADMIN",
+      compras: row.ve_compras ?? false,
     },
   }));
 
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   if (isBootstrap) {
     rol = "ADMIN";
-    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true };
+    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true };
   } else {
     const sesion = await getSesionFromRequest(request);
     if (!sesion || sesion.rol !== "ADMIN") {
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
     }
     if (rol === "ADMIN") {
-      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true };
+      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true };
     }
   }
 

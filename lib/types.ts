@@ -13,6 +13,7 @@ export const PERMISO_TABS = [
   { key: "pedidosPendientes", label: "Pedidos Pendientes" },
   { key: "descuento", label: "Aplicar Descuento" },
   { key: "dashboard", label: "Dashboard Consolidado" },
+  { key: "compras", label: "Compras" },
 ] as const;
 
 export type PermisoTab = (typeof PERMISO_TABS)[number]["key"];
@@ -26,6 +27,7 @@ export const PERMISOS_VACIOS: PermisosUsuario = {
   pedidosPendientes: false,
   descuento: false,
   dashboard: false,
+  compras: false,
 };
 
 export type Usuario = {

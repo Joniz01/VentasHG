@@ -37,7 +37,7 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Compras & Producción",
     tiles: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra", sub: "Proveedores y recepciones", color: "#15803D", new: true },
+      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra", sub: "Facturas y proveedores", color: "#15803D", permiso: "compras", new: true },
       { href: "/mrp",     icon: "⚙️", label: "MRP · Planificación", sub: "Requerimientos de materiales", color: "#9333EA", new: true },
     ],
   },

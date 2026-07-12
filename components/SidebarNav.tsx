@@ -44,7 +44,7 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Compras",
     items: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra" },
+      { href: "/compras", icon: "🛍️", label: "Compras", permiso: "compras" },
     ],
   },
   {
