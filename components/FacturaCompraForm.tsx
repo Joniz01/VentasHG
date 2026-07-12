@@ -172,6 +172,7 @@ export default function FacturaCompraForm({
           } else {
             if (d.proveedor.nombre) setProveedorQ(d.proveedor.nombre);
             if (d.proveedor.rif) setProveedorRif(d.proveedor.rif);
+            if (d.proveedor.direccion) setProveedorDir(d.proveedor.direccion);
           }
         }
         if (d.numero_factura) setNumeroFactura(String(d.numero_factura));
