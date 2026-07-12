@@ -123,13 +123,37 @@ export default function FacturaCompraForm({
   }
 
   // ── OCR ──────────────────────────────────────────────────────────────────
+  const compressImage = (file: File): Promise<{ dataUrl: string; base64: string }> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const MAX = 1200;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+            else { width = Math.round((width * MAX) / height); height = MAX; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          resolve({ dataUrl, base64: dataUrl.split(",")[1] });
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
   const handleImageFile = useCallback(async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      const base64 = dataUrl.split(",")[1];
+    try {
+      const { dataUrl, base64 } = await compressImage(file);
       setImagenBase64(dataUrl);
-      setImagenMime(file.type || "image/jpeg");
+      setImagenMime("image/jpeg");
       setOcrError(null);
       setOcrLoading(true);
       try {
@@ -158,8 +182,9 @@ export default function FacturaCompraForm({
       } finally {
         setOcrLoading(false);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setOcrError(err instanceof Error ? err.message : "Error al procesar imagen");
+    }
   }, []);
 
   // ── Submit ────────────────────────────────────────────────────────────────
