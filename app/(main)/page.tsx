@@ -45,7 +45,7 @@ const GRUPOS: TileGroup[] = [
     label: "Nómina & Finanzas",
     tiles: [
       { href: "/nomina",   icon: "👷", label: "Nómina & Gastos",  sub: "Empleados y gastos operativos", color: "#9333EA", new: true },
-      { href: "/reportes", icon: "💳", label: "Cashea / Yummy",   sub: "Cuentas por cobrar",            color: "#B45309", permiso: "reportes" },
+      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar", sub: "CxC Directa, Cashea y Yummy", color: "#B45309", permiso: "reportes" },
       { href: "/delivery", icon: "📬", label: "Deliveries",       sub: "Pedidos a domicilio",            color: "#15803D" },
     ],
   },

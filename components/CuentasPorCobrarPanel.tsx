@@ -142,8 +142,46 @@ export default function CuentasPorCobrarPanel() {
   const totalUsd = filtered.reduce((a, it) => a + it.totalUsd, 0);
   const totalBs  = filtered.reduce((a, it) => a + it.totalBs,  0);
 
+  // KPI por tipo (siempre sobre items completos, no filtered)
+  const pendientesTodos = items.filter((it) => !it.cuentaCobrada);
+  const kpiTotalPendUsd = pendientesTodos.reduce((a, it) => a + it.totalUsd, 0);
+  const kpiTotalPendBs  = pendientesTodos.reduce((a, it) => a + it.totalBs,  0);
+  const casheaPend = pendientesTodos.filter((it) => it.tipoCxC === "CASHEA");
+  const yummyPend  = pendientesTodos.filter((it) => it.tipoCxC === "YUMMY");
+  const directaPend = pendientesTodos.filter((it) => it.tipoCxC === "CxC Directa");
+  const casheaPendUsd  = casheaPend.reduce((a, it) => a + it.totalUsd, 0);
+  const yummyPendUsd   = yummyPend.reduce((a, it) => a + it.totalUsd,  0);
+  const directaPendUsd = directaPend.reduce((a, it) => a + it.totalUsd, 0);
+
   return (
     <div className="flex flex-col gap-4">
+      {/* KPI cards */}
+      {!loading && items.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderTop: "3px solid var(--erp-primary)", borderRadius: 12 }} className="p-4">
+            <div style={{ color: "var(--erp-text-3)", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>Total pendiente</div>
+            <div style={{ color: "var(--erp-text)", fontSize: 22, fontWeight: 800 }}>${kpiTotalPendUsd.toFixed(0)}</div>
+            <div style={{ color: "var(--erp-text-2)", fontSize: 11, marginTop: 2 }}>Bs {kpiTotalPendBs.toFixed(2)}</div>
+            <div style={{ color: "var(--erp-text-3)", fontSize: 11, marginTop: 4 }}>{pendientesTodos.length} cuentas</div>
+          </div>
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderTop: "3px solid #A855F7", borderRadius: 12 }} className="p-4">
+            <div style={{ color: "var(--erp-text-3)", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>Cashea pendiente</div>
+            <div style={{ color: "#A855F7", fontSize: 22, fontWeight: 800 }}>${casheaPendUsd.toFixed(0)}</div>
+            <div style={{ color: "var(--erp-text-3)", fontSize: 11, marginTop: 4 }}>{casheaPend.length} cuentas</div>
+          </div>
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderTop: "3px solid #16A34A", borderRadius: 12 }} className="p-4">
+            <div style={{ color: "var(--erp-text-3)", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>Yummy pendiente</div>
+            <div style={{ color: "#16A34A", fontSize: 22, fontWeight: 800 }}>${yummyPendUsd.toFixed(0)}</div>
+            <div style={{ color: "var(--erp-text-3)", fontSize: 11, marginTop: 4 }}>{yummyPend.length} cuentas</div>
+          </div>
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderTop: "3px solid var(--erp-accent)", borderRadius: 12 }} className="p-4">
+            <div style={{ color: "var(--erp-text-3)", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>CxC Directa</div>
+            <div style={{ color: "var(--erp-accent)", fontSize: 22, fontWeight: 800 }}>${directaPendUsd.toFixed(0)}</div>
+            <div style={{ color: "var(--erp-text-3)", fontSize: 11, marginTop: 4 }}>{directaPend.length} cuentas</div>
+          </div>
+        </div>
+      )}
+
       {/* Filtros */}
       <form
         onSubmit={handleSubmit}
