@@ -60,6 +60,17 @@ function startOfMonth(fecha: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
+const METODO_PAGO_ICONS: Record<string, string> = {
+  PUNTO_VENTA: "💳",
+  TRANSFERENCIA: "🏦",
+  PAGO_MOVIL: "📱",
+  EFECTIVO_BS: "🪙",
+  EFECTIVO_USD: "💵",
+  ZELLE: "💜",
+  CASHEA: "🟡",
+  YUMMY: "🟢",
+};
+
 const EMPTY_ITEM: ItemRow = {
   productoId: "",
   productoNombre: "",
@@ -140,11 +151,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
   const [consultandoTasa, setConsultandoTasa] = useState(false);
 
-  // Modo de vista y secciones colapsables
-  const [modoVista, setModoVista] = useState<"clasico" | "pasos">("clasico");
+  // Modo de vista y wizard
+  const [modoVista, setModoVista] = useState<"clasico" | "pasos">("pasos");
   const [seccionesAbiertas, setSeccionesAbiertas] = useState<Set<string>>(new Set(["paso1", "paso2", "paso3", "paso4"]));
   // Orden de pasos: "default" = Productos→Pago→Entrega→Cliente | "entrega_primero" = Productos→Entrega→Pago→Cliente
   const [ordenPasos, setOrdenPasos] = useState<string>("entrega_primero");
+  // Wizard step (1-4) — used in pasos mode
+  const [pasoActual, setPasoActual] = useState(1);
   const [ventaHoy, setVentaHoy] = useState<number | null>(null);
   const [cxcPendiente, setCxcPendiente] = useState<number | null>(null);
 
@@ -293,7 +306,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         fetch("/api/usuarios/perfil")
           .then((r) => r.json())
           .then((user: { ventas_modo_vista?: string | null; ventas_orden_pasos?: string | null }) => {
-            const modo = user.ventas_modo_vista ?? cfg.ventas_modo_vista ?? "clasico";
+            const modo = user.ventas_modo_vista ?? cfg.ventas_modo_vista ?? "pasos";
             const orden = user.ventas_orden_pasos ?? cfg.ventas_orden_pasos ?? "default";
             if (modo === "pasos") {
               setModoVista("pasos");
@@ -605,6 +618,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setCasheaPorcentaje(casheaPorcentajes[0] ?? "50");
     setCasheaDiasSeleccion(casheaDiasOpciones[0] ?? "15");
     setYummyDiasSeleccion(yummyDiasOpciones[0] ?? "2");
+    setPasoActual(1);
   }
 
   function startEdit(venta: Venta) {
@@ -914,8 +928,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
       {vista === "ventas" && modoVista === "pasos" && (
         <>
-          {/* Barra de indicadores — chips horizontales en una sola línea */}
-          {seccionesAbiertas.size === 0 && (
+          {/* Barra de indicadores — siempre visible */}
+          {(
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>$</span>
@@ -972,35 +986,71 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           {editingId && (
             <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5">
               <span className="text-sm font-medium text-amber-800">✏️ Editando venta #{editingId}</span>
-              <button type="button" onClick={cancelEdit} className="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">
-                Cancelar
-              </button>
+              <button type="button" onClick={cancelEdit} className="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">Cancelar</button>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          {/* ── Horizontal stepper ── */}
+          {(() => {
+            const steps = ordenPasos === "entrega_primero"
+              ? ["Productos", "Entrega", "Formas de Pago", "Cliente"]
+              : ["Productos", "Formas de Pago", "Entrega", "Cliente"];
+            return (
+              <div className="flex items-start">
+                {steps.map((label, i) => {
+                  const num = i + 1;
+                  const active = pasoActual === num;
+                  const done = pasoActual > num;
+                  return (
+                    <div key={i} className="flex items-center flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setPasoActual(num)}
+                        className="flex flex-col items-center gap-1 flex-1 min-w-0 py-1"
+                      >
+                        <span
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors"
+                          style={done ? { background: "#22c55e", color: "#fff" } : active ? { background: "var(--erp-primary)", color: "#fff" } : { background: "var(--erp-border)", color: "var(--erp-text-3)" }}
+                        >
+                          {done ? "✓" : num}
+                        </span>
+                        <span
+                          className="text-[10px] font-medium text-center leading-tight px-1 truncate w-full"
+                          style={{ color: active ? "var(--erp-primary)" : done ? "#16a34a" : "var(--erp-text-3)" }}
+                        >
+                          {label}
+                        </span>
+                      </button>
+                      {i < steps.length - 1 && (
+                        <div className="h-px w-4 shrink-0 mx-0.5 mt-[-10px]" style={{ background: done ? "#22c55e" : "var(--erp-border)" }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+            {/* ── PASO ACTIVO content card ── */}
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)" }}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: "var(--erp-border)" }}>
+                <span className="font-semibold text-sm" style={{ color: "var(--erp-text)" }}>
+                  {(() => {
+                    const titles = ordenPasos === "entrega_primero"
+                      ? ["Productos del Pedido", "Parámetros de Entrega", "Formas de Pago", "Datos del Cliente"]
+                      : ["Productos del Pedido", "Formas de Pago", "Parámetros de Entrega", "Datos del Cliente"];
+                    return titles[pasoActual - 1];
+                  })()}
+                </span>
+              </div>
+              <div className="px-4 pb-4 pt-3 flex flex-col gap-3">
 
             {/* PASO 1 — Productos del Pedido */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: 1 }}>
-              <button
-                type="button"
-                onClick={() => toggleSeccion("paso1")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
-              >
-                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>1</span>
-                  Productos del Pedido
-                  {!seccionesAbiertas.has("paso1") && items.some(i => i.productoId) && (
-                    <span className="text-xs font-normal text-zinc-500 ml-1">
-                      · {items.filter(i => i.productoId).length} producto(s) · ${totales.ventaTotalUsd.toFixed(2)}
-                    </span>
-                  )}
-                </span>
-                <span className="text-zinc-400 text-sm">{seccionesAbiertas.has("paso1") ? "▲" : "▼"}</span>
-              </button>
-              {seccionesAbiertas.has("paso1") && (
-                <div className="px-4 pb-4 flex flex-col gap-3 border-t" style={{ borderColor: "var(--erp-border)" }}>
-                  <div className="mt-3">
+            {pasoActual === 1 && (
+              <div className="flex flex-col gap-3">
+                  <div>
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-sm font-medium text-zinc-700">Productos</span>
                       <button type="button" onClick={addItem} className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">+ Agregar producto</button>
@@ -1092,67 +1142,64 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       {totales.descuento > 0 && <span className="text-xs text-green-700 font-medium">−{totales.descuento.toFixed(2)}% (−${(totales.ventaTotalUsd - totales.ventaTotalConDescuentoUsd).toFixed(2)})</span>}
                     </div>
                   )}
-                  <div className="text-sm font-medium text-zinc-700 text-right">
-                    Subtotal: <span className="font-bold">${totales.ventaTotalConDescuentoUsd.toFixed(2)}</span>
+                  <div className="text-sm font-medium text-right" style={{ color: "var(--erp-text-2)" }}>
+                    Subtotal: <span className="font-bold" style={{ color: "var(--erp-text)" }}>${totales.ventaTotalConDescuentoUsd.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-end">
-                    <button type="button" onClick={() => abrirSiguiente("paso1")} className="flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80" style={{ background: "var(--erp-primary)" }}>
-                      Siguiente <span>→</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* PASO 2/3 — Formas de pago (posición según orden de pasos del usuario) */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 3 : 2 }}>
-              <button
-                type="button"
-                onClick={() => toggleSeccion("paso2")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
-              >
-                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>{ordenPasos === "entrega_primero" ? 3 : 2}</span>
-                  Formas de pago
-                  {!seccionesAbiertas.has("paso2") && pagos.some(p => p.metodo) && (
-                    <span className="text-xs font-normal text-zinc-500 ml-1">
-                      · {pagos.filter(p => p.metodo).map(p => p.metodo).join(" + ")}
-                    </span>
-                  )}
-                </span>
-                <span className="text-zinc-400 text-sm">{seccionesAbiertas.has("paso2") ? "▲" : "▼"}</span>
-              </button>
-              {seccionesAbiertas.has("paso2") && (
-                <div className="px-4 pb-4 flex flex-col gap-3 border-t" style={{ borderColor: "var(--erp-border)" }}>
-                  <div className="mt-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium text-zinc-700">Forma de pago</span>
-                      <button type="button" onClick={addPago} className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">+ Agregar pago</button>
+            {/* PASO 2/3 — Formas de pago */}
+            {pasoActual === (ordenPasos === "entrega_primero" ? 3 : 2) && (
+              <div className="flex flex-col gap-4">
+                  {/* Payment method tiles */}
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--erp-text-3)" }}>Selecciona forma de pago</span>
+                      {pagos.length > 1 && <button type="button" onClick={addPago} className="text-xs font-medium" style={{ color: "var(--erp-primary)" }}>+ Agregar método</button>}
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                       {pagos.map((pago, index) => (
                         <div key={index} className="flex flex-col gap-2">
-                          <div className="grid grid-cols-12 items-center gap-2">
-                            <select
-                              className="col-span-7 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-8"
-                              value={pago.metodo}
-                              onChange={(e) => updatePago(index, { metodo: e.target.value as MetodoPago | "", montoAuto: true })}
-                            >
-                              <option value="">Selecciona forma de pago</option>
-                              {METODOS_PAGO.map((m) => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
-                            </select>
-                            <input
-                              type="number" step="0.01" min="0"
-                              readOnly={pago.metodo === "CASHEA" || pago.metodo === "YUMMY"}
-                              className={`col-span-4 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3 ${(pago.metodo === "CASHEA" || pago.metodo === "YUMMY") ? "bg-zinc-50 text-zinc-500" : ""}`}
-                              value={pago.metodo === "CASHEA" ? (() => { const pct = Number(casheaPorcentaje) || 50; const total = totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd; return (total * pct / 100).toFixed(2); })() : pago.metodo === "YUMMY" ? (totales.ventaTotalConDescuentoUsd + totales.costoDeliveryUsd).toFixed(2) : pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
-                              onChange={(e) => { if (pago.metodo !== "CASHEA" && pago.metodo !== "YUMMY") updatePago(index, { monto: e.target.value, montoAuto: false }); }}
-                              placeholder="Monto"
-                            />
-                            <button type="button" onClick={() => removePago(index)} className="col-span-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">X</button>
+                          {pagos.length > 1 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Método {index + 1}</span>
+                              <button type="button" onClick={() => removePago(index)} className="text-xs text-red-500">Eliminar</button>
+                            </div>
+                          )}
+                          {/* Tiles grid */}
+                          <div className="grid grid-cols-4 gap-2">
+                            {METODOS_PAGO.map((m) => {
+                              const sel = pago.metodo === m;
+                              return (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  onClick={() => updatePago(index, { metodo: m, montoAuto: true })}
+                                  className="flex flex-col items-center gap-1.5 rounded-xl border p-2.5 transition-all"
+                                  style={sel ? { borderColor: "var(--erp-primary)", background: "var(--erp-primary-lt)", color: "var(--erp-primary)" } : { borderColor: "var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                                >
+                                  <span className="text-xl leading-none">{METODO_PAGO_ICONS[m]}</span>
+                                  <span className="text-[10px] font-medium text-center leading-tight">{METODO_PAGO_LABELS[m]}</span>
+                                </button>
+                              );
+                            })}
                           </div>
+                          {/* Monto input — shown when method is selected */}
+                          {pago.metodo && pago.metodo !== "CASHEA" && pago.metodo !== "YUMMY" && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Monto ($)</span>
+                              <input
+                                type="number" step="0.01" min="0"
+                                className="w-32 rounded-md border px-3 py-2 text-sm"
+                                value={pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
+                                onChange={(e) => updatePago(index, { monto: e.target.value, montoAuto: false })}
+                                placeholder="Monto"
+                              />
+                            </div>
+                          )}
+                          {/* keep the old code for CASHEA and YUMMY details below */}
                           {pago.metodo === "CASHEA" && (
-                            <div className="ml-0 rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex flex-col gap-2">
+                            <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex flex-col gap-2">
                               <div className="flex flex-wrap gap-3">
                                 <div className="flex flex-col gap-1">
                                   <label className="text-xs font-medium text-zinc-600">% Cuota inicial</label>
@@ -1192,7 +1239,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                             </div>
                           )}
                           {pago.metodo === "YUMMY" && (
-                            <div className="ml-0 rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "#00c853", backgroundColor: "#f0faf4" }}>
+                            <div className="rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "#00c853", backgroundColor: "#f0faf4" }}>
                               <div className="flex flex-wrap gap-3">
                                 <div className="flex flex-col gap-1">
                                   <label className="text-xs font-medium text-zinc-600">Días de pago</label>
@@ -1216,8 +1263,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           )}
                         </div>
                       ))}
+                      {pagos.length < 3 && (
+                        <button type="button" onClick={addPago} className="self-start text-xs font-medium px-3 py-1.5 rounded-md border transition-colors" style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}>
+                          + Agregar otro método
+                        </button>
+                      )}
                     </div>
                   </div>
+                  {/* Cuenta por cobrar */}
                   {pagos.every((p) => !p.metodo) && (
                     <div className="rounded-md border p-3" style={errorPlazoPago ? { borderColor: "#FCA5A5", background: "#FEF2F2" } : { borderColor: "var(--erp-primary)", background: "var(--erp-primary-lt)" }}>
                       <button type="button" onClick={() => setMostrarCuentaPorCobrar((prev) => !prev)} className="flex w-full items-center justify-between text-left text-sm font-semibold" style={{ color: errorPlazoPago ? "#991B1B" : "var(--erp-primary)" }}>
@@ -1239,6 +1292,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       )}
                     </div>
                   )}
+                  {/* Totals panel */}
                   {(() => {
                     const tieneCashea = pagos.some((p) => p.metodo === "CASHEA");
                     const tieneYummy = pagos.some((p) => p.metodo === "YUMMY");
@@ -1246,50 +1300,34 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     const pct = Number(casheaPorcentaje) || 50;
                     const casheaInicialUsd = tieneCashea ? totalBase * pct / 100 : 0;
                     const casheaFinanciadoUsd = tieneCashea ? totalBase - casheaInicialUsd : 0;
-                    const tasa = Number(tasaDelDia) || 1;
+                    const tasaN = Number(tasaDelDia) || 1;
                     const pagadoUsd = tieneCashea ? casheaInicialUsd : tieneYummy ? 0 : totales.totalPagosEnUsd;
-                    const pagadoBs = pagadoUsd * tasa;
+                    const pagadoBs = pagadoUsd * tasaN;
                     return (
-                      <div className="grid grid-cols-1 gap-1 rounded-md bg-zinc-50 p-3 text-sm sm:grid-cols-2">
-                        <div><span className="font-medium text-zinc-600">Total venta: </span>{totales.ventaTotalBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span></div>
-                        {totales.descuento > 0 && <div><span className="font-medium text-green-700">Con descuento: </span>{totales.ventaTotalConDescuentoBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span></div>}
-                        {modoEntrega === "DELIVERY" && <div><span className="font-medium text-zinc-600">Delivery: </span>{totales.costoDeliveryBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span></div>}
-                        <div><span className="font-medium text-zinc-600">Total a pagar: </span>{totales.totalAPagarBs.toFixed(2)} Bs <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span></div>
-                        {!tieneYummy && <div><span className="font-medium text-zinc-600">Total pagado: </span>{pagadoBs.toFixed(2)} Bs <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span></div>}
-                        {tieneCashea && <div className="sm:col-span-2"><span className="font-medium text-yellow-700">CxC Cashea: </span><span className="font-semibold text-yellow-800">{(casheaFinanciadoUsd * tasa).toFixed(2)} Bs</span> <span className="text-zinc-500">(${casheaFinanciadoUsd.toFixed(2)})</span></div>}
-                        {tieneYummy && <div className="sm:col-span-2"><span className="font-medium" style={{ color: "#007e33" }}>CxC Yummy: </span><span className="font-semibold" style={{ color: "#007e33" }}>{(totalBase * tasa).toFixed(2)} Bs</span> <span className="text-zinc-500">(${totalBase.toFixed(2)})</span></div>}
+                      <div className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)", background: "var(--erp-bg)" }}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--erp-text-3)" }}>Resumen</span>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                          <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Subtotal venta</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${totales.ventaTotalUsd.toFixed(2)}</span></div>
+                          {totales.descuento > 0 && <div className="flex justify-between col-span-2"><span className="text-green-600">Descuento</span><span className="font-medium text-green-600 tabular-nums">−${(totales.ventaTotalUsd - totales.ventaTotalConDescuentoUsd).toFixed(2)}</span></div>}
+                          {modoEntrega === "DELIVERY" && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Delivery</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${totales.costoDeliveryUsd.toFixed(2)}</span></div>}
+                          <div className="flex justify-between col-span-2 border-t pt-1.5" style={{ borderColor: "var(--erp-border)" }}>
+                            <span className="font-semibold" style={{ color: "var(--erp-text)" }}>Total a pagar</span>
+                            <span className="font-bold tabular-nums" style={{ color: "var(--erp-primary)" }}>${totales.totalAPagarUsd.toFixed(2)} · {totales.totalAPagarBs.toFixed(2)} Bs</span>
+                          </div>
+                          {!tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Total pagado</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${pagadoUsd.toFixed(2)} · {pagadoBs.toFixed(2)} Bs</span></div>}
+                          {tieneCashea && <div className="flex justify-between col-span-2"><span className="text-yellow-700">CxC Cashea</span><span className="font-semibold text-yellow-700 tabular-nums">${casheaFinanciadoUsd.toFixed(2)}</span></div>}
+                          {tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "#007e33" }}>CxC Yummy</span><span className="font-semibold tabular-nums" style={{ color: "#007e33" }}>${totalBase.toFixed(2)}</span></div>}
+                        </div>
                       </div>
                     );
                   })()}
-                  <div className="flex justify-end">
-                    <button type="button" onClick={() => abrirSiguiente("paso2")} className="flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80" style={{ background: "var(--erp-primary)" }}>
-                      Siguiente <span>→</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* PASO 3/2 — Parámetros de entrega (posición según orden) */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: ordenPasos === "entrega_primero" ? 2 : 3 }}>
-              <button
-                type="button"
-                onClick={() => toggleSeccion("paso3")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
-              >
-                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>{ordenPasos === "entrega_primero" ? 2 : 3}</span>
-                  Parámetros de entrega
-                  {!seccionesAbiertas.has("paso3") && (
-                    <span className="text-xs font-normal text-zinc-500 ml-1">
-                      · {modoEntrega === "DELIVERY" ? `Delivery · ${TIPO_DELIVERY_LABELS[tipoDelivery]}` : "Local"}
-                    </span>
-                  )}
-                </span>
-                <span className="text-zinc-400 text-sm">{seccionesAbiertas.has("paso3") ? "▲" : "▼"}</span>
-              </button>
-              {seccionesAbiertas.has("paso3") && (
-                <div className="px-4 pb-4 flex flex-col gap-3 border-t border-zinc-100 mt-0 pt-3">
+
+            {/* PASO 3/2 — Parámetros de entrega */}
+            {pasoActual === (ordenPasos === "entrega_primero" ? 2 : 3) && (
+              <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
@@ -1318,7 +1356,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     {modoEntrega === "DELIVERY" && (
                       <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-700">Costo delivery</label>
-                        <input type="number" step="0.01" min="0" className="rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-100 disabled:text-zinc-400" value={costoDelivery} onChange={(e) => setCostoDelivery(e.target.value)} disabled={tipoDelivery === "YUMMY"} />
+                        <input type="number" step="0.01" min="0" className="rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50" value={costoDelivery} onChange={(e) => setCostoDelivery(e.target.value)} disabled={tipoDelivery === "YUMMY"} />
                       </div>
                     )}
                   </div>
@@ -1382,34 +1420,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       {horaRetiroDate && <div className="flex flex-col justify-end text-sm text-zinc-600 sm:col-span-4">Alarma retiro: <span className="font-medium">{pad(horaRetiroDate.getHours())}:{pad(horaRetiroDate.getMinutes())}</span></div>}
                     </div>
                   )}
-                  <div className="flex justify-end">
-                    <button type="button" onClick={() => abrirSiguiente("paso3")} className="flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80" style={{ background: "var(--erp-primary)" }}>
-                      Siguiente <span>→</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* PASO 4 — Datos del Cliente */}
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: "3px", background: "var(--erp-surface)", order: 4 }}>
-              <button
-                type="button"
-                onClick={() => toggleSeccion("paso4")}
-                className="flex w-full items-center justify-between px-4 py-3 text-left min-h-[48px] transition-colors hover:opacity-80"
-              >
-                <span className="font-semibold text-sm flex items-center gap-2" style={{ color: "var(--erp-text)" }}>
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--erp-primary)" }}>4</span>
-                  Datos del Cliente
-                  {!seccionesAbiertas.has("paso4") && cliente && (
-                    <span className="text-xs font-normal text-zinc-500 ml-1">· {cliente}</span>
-                  )}
-                </span>
-                <span className="text-zinc-400 text-sm">{seccionesAbiertas.has("paso4") ? "▲" : "▼"}</span>
-              </button>
-              {seccionesAbiertas.has("paso4") && (
-                <div className="px-4 pb-4 border-t border-zinc-100 mt-0">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-3">
+            {pasoActual === 4 && (
+              <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-zinc-700">Fecha</label>
                       <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
@@ -1459,26 +1476,44 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       <input className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Opcional" />
                     </div>
                   </div>
+              </div>
+            )}
+
+              </div>{/* end px-4 pb-4 content card */}
+            </div>{/* end content card */}
+
+            {error && <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>}
+
+            {/* Wizard navigation */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setPasoActual(p => Math.max(1, p - 1))}
+                className="rounded-md border px-4 py-2 text-sm font-medium transition-colors"
+                style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
+                disabled={pasoActual === 1}
+              >
+                ← Anterior
+              </button>
+              {pasoActual < 4 ? (
+                <button
+                  type="button"
+                  onClick={() => setPasoActual(p => Math.min(4, p + 1))}
+                  className="flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80"
+                  style={{ background: "var(--erp-primary)" }}
+                >
+                  Siguiente →
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button type="submit" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50" style={{ background: "var(--erp-primary)" }}>
+                    {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Registrar venta"}
+                  </button>
+                  {editingId && (
+                    <button type="button" onClick={cancelEdit} className="rounded-md border px-4 py-2 text-sm font-medium transition-colors" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
+                  )}
                 </div>
               )}
-            </div>
-
-            {error && <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700" style={{ order: 5 }}>{error}</div>}
-
-            {/* Botones globales — siempre al final */}
-            <div className="flex items-center justify-between flex-wrap gap-2" style={{ order: 6 }}>
-              <div className="flex gap-2">
-                <button type="button" onClick={expandirTodo} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100">Expandir todo</button>
-                <button type="button" onClick={colapsarTodo} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100">Colapsar todo</button>
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50" style={{ background: "var(--erp-primary)" }}>
-                  {editingId ? "Guardar cambios" : "Registrar venta"}
-                </button>
-                {editingId && (
-                  <button type="button" onClick={cancelEdit} className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100">Cancelar</button>
-                )}
-              </div>
             </div>
           </form>
         </>
