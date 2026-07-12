@@ -73,7 +73,7 @@ export default function FacturaCompraForm({
       try {
         const r = await fetch(`/api/proveedores?q=${encodeURIComponent(val)}`);
         const d = await r.json();
-        setProvSugs(d.items ?? []);
+        setProvSugs((d.items ?? []).map((p: { id: number; nombre: string; rifCi: string | null; telefono: string | null; direccion: string | null }) => ({ id: p.id, nombre: p.nombre, rif: p.rifCi, telefono: p.telefono, direccion: p.direccion })));
         setShowProvSugs(true);
       } catch { /* ignore */ }
     }, 300);
@@ -165,15 +165,48 @@ export default function FacturaCompraForm({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const d = data.data ?? {};
-        // proveedor puede ser string o { nombre, rif }
-        if (d.proveedor) {
-          if (typeof d.proveedor === "string") {
-            setProveedorQ(d.proveedor);
-          } else {
-            if (d.proveedor.nombre) setProveedorQ(d.proveedor.nombre);
-            if (d.proveedor.rif) setProveedorRif(d.proveedor.rif);
-            if (d.proveedor.direccion) setProveedorDir(d.proveedor.direccion);
-          }
+        // proveedor puede ser string o { nombre, rif, direccion }
+        const ocrNombre = typeof d.proveedor === "string" ? d.proveedor : (d.proveedor?.nombre ?? "");
+        const ocrRif = typeof d.proveedor === "object" ? (d.proveedor?.rif ?? "") : "";
+        const ocrDir = typeof d.proveedor === "object" ? (d.proveedor?.direccion ?? "") : "";
+
+        // Buscar proveedor existente por RIF primero, luego por nombre
+        let encontrado = false;
+        if (ocrRif) {
+          try {
+            const pr = await fetch(`/api/proveedores?rif=${encodeURIComponent(ocrRif)}`);
+            const pd = await pr.json();
+            const match = pd.items ? pd.items[0] : (Array.isArray(pd) ? pd[0] : null);
+            if (match) {
+              setProveedorQ(match.nombre);
+              setProveedorId(match.id);
+              setProveedorRif(match.rifCi ?? ocrRif);
+              setProveedorTel(match.telefono ?? "");
+              setProveedorDir(match.direccion ?? ocrDir);
+              encontrado = true;
+            }
+          } catch { /* ignorar */ }
+        }
+        if (!encontrado && ocrNombre) {
+          try {
+            const pr = await fetch(`/api/proveedores?q=${encodeURIComponent(ocrNombre)}`);
+            const pd = await pr.json();
+            const list = pd.items ?? (Array.isArray(pd) ? pd : []);
+            const exact = list.find((p: { nombre: string }) => p.nombre.toLowerCase() === ocrNombre.toLowerCase()) ?? list[0];
+            if (exact) {
+              setProveedorQ(exact.nombre);
+              setProveedorId(exact.id);
+              setProveedorRif(exact.rifCi ?? ocrRif);
+              setProveedorTel(exact.telefono ?? "");
+              setProveedorDir(exact.direccion ?? ocrDir);
+              encontrado = true;
+            }
+          } catch { /* ignorar */ }
+        }
+        if (!encontrado) {
+          if (ocrNombre) setProveedorQ(ocrNombre);
+          if (ocrRif) setProveedorRif(ocrRif);
+          if (ocrDir) setProveedorDir(ocrDir);
         }
         if (d.numero_factura) setNumeroFactura(String(d.numero_factura));
         if (d.fecha) setFecha(String(d.fecha).slice(0, 10));

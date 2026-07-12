@@ -10,17 +10,22 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get("q");
 
   try {
-    const result = await pool.query(
-      `SELECT id, nombre, rif_ci, direccion, telefono
-       FROM proveedores
-       WHERE activo = TRUE ${q ? "AND lower(nombre) LIKE lower($1)" : ""}
-       ORDER BY nombre ASC LIMIT 50`,
-      q ? [`%${q}%`] : []
-    );
-    return NextResponse.json(result.rows.map((r) => ({
+    const rif = searchParams.get("rif");
+    let queryText: string;
+    let queryParams: string[];
+    if (rif) {
+      queryText = `SELECT id, nombre, rif_ci, direccion, telefono FROM proveedores WHERE activo = TRUE AND lower(rif_ci) = lower($1) LIMIT 1`;
+      queryParams = [rif.trim()];
+    } else {
+      queryText = `SELECT id, nombre, rif_ci, direccion, telefono FROM proveedores WHERE activo = TRUE ${q ? "AND lower(nombre) LIKE lower($1)" : ""} ORDER BY nombre ASC LIMIT 50`;
+      queryParams = q ? [`%${q}%`] : [];
+    }
+    const result = await pool.query(queryText, queryParams);
+    const items = result.rows.map((r) => ({
       id: r.id, nombre: r.nombre, rifCi: r.rif_ci,
       direccion: r.direccion, telefono: r.telefono,
-    })));
+    }));
+    return NextResponse.json({ items });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
