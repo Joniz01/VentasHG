@@ -14,16 +14,29 @@ type UnifiedItem = {
   clienteTelefono: string | null;
   totalUsd: number;
   totalBs: number;
-  pendiente: boolean;       // !cuentaCobrada or !liquidado
+  pendiente: boolean;
   tipoCxC: TipoCxC;
   fechaVencimiento: string | null;
 };
 
-const TIPO_BADGE: Record<TipoCxC, { label: string; bg: string; color: string }> = {
-  CASHEA:        { label: "Cashea",      bg: "#FEF9C3", color: "#854D0E" },
-  YUMMY:         { label: "Yummy",       bg: "#DCFCE7", color: "#166534" },
-  "CxC Directa": { label: "CxC Directa", bg: "var(--erp-primary-lt)", color: "var(--erp-primary)" },
+const TIPO_BADGE: Record<TipoCxC, { label: string; bg: string; color: string; dot: string }> = {
+  CASHEA:        { label: "Cashea",      bg: "#FEF9C3", color: "#854D0E", dot: "#A855F7" },
+  YUMMY:         { label: "Yummy",       bg: "#DCFCE7", color: "#166534", dot: "#16A34A" },
+  "CxC Directa": { label: "CxC Directa", bg: "var(--erp-primary-lt)", color: "var(--erp-primary)", dot: "var(--erp-primary)" },
 };
+
+function toIso(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+function startOfWeek(d: Date) {
+  const day = new Date(d);
+  const diff = day.getDay() === 0 ? 6 : day.getDay() - 1;
+  day.setDate(day.getDate() - diff);
+  return day;
+}
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
 
 export default function CuentasPorCobrarPanel() {
   const [items, setItems] = useState<UnifiedItem[]>([]);
@@ -34,15 +47,24 @@ export default function CuentasPorCobrarPanel() {
   const [estado, setEstado] = useState<EstadoFiltro>("PENDIENTE");
   const [tipo, setTipo] = useState<TipoFiltro>("TODOS");
   const [clienteQ, setClienteQ] = useState("");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
 
   async function loadItems() {
     setLoading(true);
     setError(null);
     try {
+      const cxcParams = new URLSearchParams();
+      if (desde) cxcParams.set("desde", desde);
+      if (hasta) cxcParams.set("hasta", hasta);
+
+      const casheaParams = new URLSearchParams();
+      const yummyParams = new URLSearchParams();
+
       const [cxcRes, casheaRes, yummyRes] = await Promise.all([
-        fetch("/api/reportes/cuentas-por-cobrar"),
-        fetch("/api/reportes/cashea"),
-        fetch("/api/reportes/yummy"),
+        fetch(`/api/reportes/cuentas-por-cobrar?${cxcParams}`),
+        fetch(`/api/reportes/cashea?${casheaParams}`),
+        fetch(`/api/reportes/yummy?${yummyParams}`),
       ]);
 
       const [cxcData, casheaData, yummyData] = await Promise.all([
@@ -102,9 +124,20 @@ export default function CuentasPorCobrarPanel() {
         fechaVencimiento: it.fechaVencimiento,
       }));
 
-      const all = [...directas, ...casheas, ...yummies].sort(
-        (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
-      );
+      // Filtra por rango de fecha si aplica (cashea/yummy por fecha de venta)
+      const inRange = (fecha: string) => {
+        if (!desde && !hasta) return true;
+        if (desde && fecha < desde) return false;
+        if (hasta && fecha > hasta) return false;
+        return true;
+      };
+
+      const all = [
+        ...directas,
+        ...casheas.filter((it) => inRange(it.fecha)),
+        ...yummies.filter((it) => inRange(it.fecha)),
+      ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
       setItems(all);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar las cuentas por cobrar");
@@ -118,6 +151,24 @@ export default function CuentasPorCobrarPanel() {
     loadItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function handleSemana() {
+    const hoy = new Date();
+    setDesde(toIso(startOfWeek(hoy)));
+    setHasta(toIso(hoy));
+  }
+  function handleMes() {
+    const hoy = new Date();
+    setDesde(toIso(startOfMonth(hoy)));
+    setHasta(toIso(hoy));
+  }
+  function handleLimpiar() {
+    setDesde("");
+    setHasta("");
+    setEstado("PENDIENTE");
+    setTipo("TODOS");
+    setClienteQ("");
+  }
 
   async function handleToggle(item: UnifiedItem) {
     setUpdatingId(item.ventaId);
@@ -168,12 +219,37 @@ export default function CuentasPorCobrarPanel() {
     return true;
   });
 
-  // KPIs sobre todos los items (sin filtro de estado)
+  // Conteos para los chips (sobre el estado seleccionado, sin filtro de tipo)
+  const filteredForCount = items.filter((it) => {
+    if (estado === "PENDIENTE" && !it.pendiente) return false;
+    if (estado === "COBRADA" && it.pendiente) return false;
+    if (clienteQ && !it.cliente.toLowerCase().includes(clienteQ.toLowerCase())) return false;
+    return true;
+  });
+  const countTodos   = filteredForCount.length;
+  const countCashea  = filteredForCount.filter((it) => it.tipoCxC === "CASHEA").length;
+  const countYummy   = filteredForCount.filter((it) => it.tipoCxC === "YUMMY").length;
+  const countDirecta = filteredForCount.filter((it) => it.tipoCxC === "CxC Directa").length;
+
+  // KPIs sobre todos los items pendientes
   const pendientesTodos = items.filter((it) => it.pendiente);
-  const kpiTotal = pendientesTodos.reduce((a, it) => a + it.totalUsd, 0);
-  const kpiCashea = pendientesTodos.filter((it) => it.tipoCxC === "CASHEA");
-  const kpiYummy  = pendientesTodos.filter((it) => it.tipoCxC === "YUMMY");
+  const kpiTotal   = pendientesTodos.reduce((a, it) => a + it.totalUsd, 0);
+  const kpiCashea  = pendientesTodos.filter((it) => it.tipoCxC === "CASHEA");
+  const kpiYummy   = pendientesTodos.filter((it) => it.tipoCxC === "YUMMY");
   const kpiDirecta = pendientesTodos.filter((it) => it.tipoCxC === "CxC Directa");
+
+  const chipBase: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 6,
+    padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 600,
+    cursor: "pointer", border: "1px solid var(--erp-border)",
+    background: "var(--erp-surface)", color: "var(--erp-text-2)",
+    transition: "all 0.15s",
+  };
+  const chipActive: React.CSSProperties = {
+    ...chipBase,
+    background: "var(--erp-primary)", color: "#fff",
+    border: "1px solid var(--erp-primary)",
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -181,10 +257,10 @@ export default function CuentasPorCobrarPanel() {
       {!loading && items.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { label: "Total pendiente", value: kpiTotal, count: pendientesTodos.length, color: "var(--erp-primary)" },
-            { label: "Cashea pendiente", value: kpiCashea.reduce((a, it) => a + it.totalUsd, 0), count: kpiCashea.length, color: "#A855F7" },
-            { label: "Yummy pendiente",  value: kpiYummy.reduce((a, it) => a + it.totalUsd, 0),  count: kpiYummy.length,  color: "#16A34A" },
-            { label: "CxC Directa",      value: kpiDirecta.reduce((a, it) => a + it.totalUsd, 0), count: kpiDirecta.length, color: "var(--erp-accent)" },
+            { label: "Total pendiente", value: kpiTotal,   count: pendientesTodos.length, color: "var(--erp-primary)" },
+            { label: "Cashea",          value: kpiCashea.reduce((a, it) => a + it.totalUsd, 0),  count: kpiCashea.length,  color: "#A855F7" },
+            { label: "Yummy",           value: kpiYummy.reduce((a, it) => a + it.totalUsd, 0),   count: kpiYummy.length,   color: "#16A34A" },
+            { label: "CxC Directa",     value: kpiDirecta.reduce((a, it) => a + it.totalUsd, 0), count: kpiDirecta.length, color: "var(--erp-accent)" },
           ].map((kpi) => (
             <div key={kpi.label} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderTop: `3px solid ${kpi.color}`, borderRadius: 12 }} className="p-4">
               <div style={{ color: "var(--erp-text-3)", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{kpi.label}</div>
@@ -196,37 +272,38 @@ export default function CuentasPorCobrarPanel() {
       )}
 
       {/* Filtros */}
-      <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12 }} className="p-4">
+      <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12 }} className="p-4 flex flex-col gap-3">
+        {/* Fila 1: fechas + estado + cliente */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label style={{ color: "var(--erp-text-2)" }} className="text-xs font-medium">Estado</label>
-            <select style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14 }} value={estado} onChange={(e) => setEstado(e.target.value as EstadoFiltro)}>
+            <label style={{ color: "var(--erp-text-2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Desde</label>
+            <input type="date" style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} value={desde} onChange={(e) => setDesde(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label style={{ color: "var(--erp-text-2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Hasta</label>
+            <input type="date" style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} value={hasta} onChange={(e) => setHasta(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label style={{ color: "var(--erp-text-2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Estado</label>
+            <select style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} value={estado} onChange={(e) => setEstado(e.target.value as EstadoFiltro)}>
               <option value="TODOS">Todos</option>
               <option value="PENDIENTE">Pendientes</option>
               <option value="COBRADA">Pagadas</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label style={{ color: "var(--erp-text-2)" }} className="text-xs font-medium">Tipo</label>
-            <select style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14 }} value={tipo} onChange={(e) => setTipo(e.target.value as TipoFiltro)}>
-              <option value="TODOS">Todos</option>
-              <option value="CxC Directa">CxC Directa</option>
-              <option value="CASHEA">Cashea</option>
-              <option value="YUMMY">Yummy</option>
-            </select>
+            <label style={{ color: "var(--erp-text-2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Cliente</label>
+            <input style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, background: "var(--erp-surface)", color: "var(--erp-text)" }} value={clienteQ} onChange={(e) => setClienteQ(e.target.value)} placeholder="Buscar cliente" />
           </div>
-          <div className="flex flex-col gap-1">
-            <label style={{ color: "var(--erp-text-2)" }} className="text-xs font-medium">Cliente</label>
-            <input style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14 }} value={clienteQ} onChange={(e) => setClienteQ(e.target.value)} placeholder="Nombre del cliente" />
-          </div>
-          <button
-            type="button"
-            onClick={loadItems}
-            disabled={loading}
-            style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1 }}
-          >
-            {loading ? "Cargando..." : "Actualizar"}
+        </div>
+        {/* Fila 2: accesos rápidos */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={handleSemana} style={{ ...chipBase, fontSize: 12 }}>Esta semana</button>
+          <button type="button" onClick={handleMes}    style={{ ...chipBase, fontSize: 12 }}>Este mes</button>
+          <button type="button" onClick={loadItems} disabled={loading} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1 }}>
+            {loading ? "Cargando..." : "Buscar"}
           </button>
+          <button type="button" onClick={handleLimpiar} style={{ ...chipBase, fontSize: 12 }}>✕ Limpiar</button>
         </div>
       </div>
 
@@ -234,14 +311,34 @@ export default function CuentasPorCobrarPanel() {
         <div style={{ background: "#FEF2F2", color: "#B91C1C", borderRadius: 8, padding: "10px 16px", fontSize: 13 }}>{error}</div>
       )}
 
+      {/* Chips de tipo */}
+      <div className="flex flex-wrap gap-2">
+        {([
+          { key: "TODOS",       label: `Todos (${countTodos})`,           dot: null },
+          { key: "CASHEA",      label: `Cashea (${countCashea})`,         dot: "#A855F7" },
+          { key: "YUMMY",       label: `Yummy (${countYummy})`,           dot: "#16A34A" },
+          { key: "CxC Directa", label: `CxC Directa (${countDirecta})`,   dot: "var(--erp-primary)" },
+        ] as { key: TipoFiltro; label: string; dot: string | null }[]).map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={() => setTipo(chip.key)}
+            style={tipo === chip.key ? chipActive : chipBase}
+          >
+            {chip.dot && <span style={{ width: 8, height: 8, borderRadius: "50%", background: chip.dot, display: "inline-block", flexShrink: 0 }} />}
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
       {/* Tabla */}
       <div style={{ border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden", background: "var(--erp-surface)" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ minWidth: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--erp-bg)" }}>
-                {["Pedido #", "Fecha", "Cliente", "Tipo", "Monto total", "Vencimiento", "Estado", "Acciones"].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: h === "Monto total" ? "right" : h === "Estado" || h === "Acciones" ? "center" : "left", color: "var(--erp-text-2)", fontWeight: 600, whiteSpace: "nowrap", borderBottom: "1px solid var(--erp-border)" }}>
+                {["#Venta", "Fecha", "Cliente", "Tipo", "Monto $", "Vencimiento", "Estado", "Acciones"].map((h) => (
+                  <th key={h} style={{ padding: "10px 14px", textAlign: h === "Monto $" ? "right" : h === "Estado" || h === "Acciones" ? "center" : "left", color: "var(--erp-text-2)", fontWeight: 600, whiteSpace: "nowrap", borderBottom: "1px solid var(--erp-border)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {h}
                   </th>
                 ))}
@@ -259,7 +356,7 @@ export default function CuentasPorCobrarPanel() {
                 const isUpdating = updatingId === item.ventaId;
                 return (
                   <tr key={`${item.tipoCxC}-${item.ventaId}`} style={{ borderBottom: idx < filtered.length - 1 ? "1px solid var(--erp-border)" : "none", background: "var(--erp-surface)" }}>
-                    <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--erp-text)", whiteSpace: "nowrap" }}>#{item.ventaId}</td>
+                    <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--erp-primary)", whiteSpace: "nowrap" }}>#{item.ventaId}</td>
                     <td style={{ padding: "10px 14px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{formatFecha(item.fecha)}</td>
                     <td style={{ padding: "10px 14px", fontWeight: 500, color: "var(--erp-text)", whiteSpace: "nowrap" }}>{item.cliente}</td>
                     <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
@@ -267,24 +364,18 @@ export default function CuentasPorCobrarPanel() {
                     </td>
                     <td style={{ padding: "10px 14px", textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                       <span style={{ fontWeight: 700, color: "var(--erp-text)" }}>${item.totalUsd.toFixed(2)}</span>
-                      {item.totalBs > 0 && <span style={{ color: "var(--erp-text-3)", marginLeft: 4, fontSize: 11 }}>Bs {item.totalBs.toFixed(0)}</span>}
                     </td>
                     <td style={{ padding: "10px 14px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
                       {item.fechaVencimiento ? formatFecha(item.fechaVencimiento) : "-"}
                     </td>
                     <td style={{ padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
-                      {item.pendiente ? (
-                        <span style={{ background: "#FEF9C3", color: "#854D0E", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>Pendiente</span>
-                      ) : (
-                        <span style={{ background: "#DCFCE7", color: "#166534", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>Pagada</span>
-                      )}
+                      {item.pendiente
+                        ? <span style={{ background: "#FEF9C3", color: "#854D0E", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>Pendiente</span>
+                        : <span style={{ background: "#DCFCE7", color: "#166534", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>Pagada</span>
+                      }
                     </td>
                     <td style={{ padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
-                      <button
-                        onClick={() => handleToggle(item)}
-                        disabled={isUpdating}
-                        style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 500, color: "var(--erp-text-2)", cursor: "pointer", opacity: isUpdating ? 0.5 : 1 }}
-                      >
+                      <button onClick={() => handleToggle(item)} disabled={isUpdating} style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 500, color: "var(--erp-text-2)", cursor: "pointer", opacity: isUpdating ? 0.5 : 1 }}>
                         {item.pendiente ? "Marcar pagada" : "Marcar pendiente"}
                       </button>
                     </td>
