@@ -5,6 +5,33 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.0 — 2026-07-12
+
+### Resumen
+Layout ERP completo: shell bar fija + sidebar colapsable con 8 módulos, sistema de 3 temas de color (Corporate, Naranja & Verde, Hechizo Gourmet) cada uno con variante oscura, persistido en localStorage. Páginas placeholder para módulos futuros (Compras, MRP, Nómina). Migración 030 para categorización de productos (Para la Venta / Materia Prima).
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `lib/theme-context.tsx` | ThemeProvider + useTheme hook para sistema de temas |
+| `components/ShellBar.tsx` | Barra superior fija: logo, módulo activo, selector de tema, perfil |
+| `components/SidebarNav.tsx` | Sidebar con 8 grupos de navegación (reemplaza NavTabs) |
+| `app/(main)/compras/page.tsx` | Placeholder módulo Compras |
+| `app/(main)/mrp/page.tsx` | Placeholder módulo MRP |
+| `app/(main)/nomina/page.tsx` | Placeholder módulo Nómina & Gastos |
+| `db/migrations/030_product_flags.sql` | Columnas `es_venta` y `es_materia_prima` en tabla `productos` |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `app/(main)/layout.tsx` | Reemplaza header+NavTabs por ShellBar+SidebarNav+ThemeProvider; content con offset para shell y sidebar |
+| `app/globals.css` | Tokens CSS para 6 variantes de tema (`--erp-shell`, `--erp-primary`, `--erp-accent`, etc.) |
+
+### Migraciones SQL pendientes (ejecutar en Neon)
+- `db/migrations/030_product_flags.sql` — columnas de categorización de productos
+
+---
+
 ## v2.5 — 2026-07-12
 
 ### Resumen

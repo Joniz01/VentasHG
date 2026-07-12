@@ -4,6 +4,94 @@
   --background: #ffffff;
   --foreground: #171717;
   color-scheme: light;
+
+  /* ── ERP Theme Tokens — Corporate (default) ── */
+  --erp-shell:        #0F1B2D;
+  --erp-shell-text:   #CBD5E1;
+  --erp-primary:      #1D4ED8;
+  --erp-primary-lt:   #DBEAFE;
+  --erp-accent:       #EA6B0A;
+  --erp-bg:           #F1F3F6;
+  --erp-surface:      #FFFFFF;
+  --erp-border:       #E2E8F0;
+  --erp-text:         #0F172A;
+  --erp-text-2:       #475569;
+  --erp-text-3:       #94A3B8;
+}
+
+/* ── Naranja & Verde ── */
+[data-theme="ng"] {
+  --erp-shell:       #12291A;
+  --erp-shell-text:  #A7F3D0;
+  --erp-primary:     #16A34A;
+  --erp-primary-lt:  #DCFCE7;
+  --erp-accent:      #EA580C;
+  --erp-bg:          #F0FDF4;
+  --erp-surface:     #FFFFFF;
+  --erp-border:      #BBF7D0;
+  --erp-text:        #052E16;
+  --erp-text-2:      #166534;
+  --erp-text-3:      #4ADE80;
+}
+
+/* ── Hechizo Gourmet ── */
+[data-theme="hg"] {
+  --erp-shell:       #1A1A1A;
+  --erp-shell-text:  #F5D77A;
+  --erp-primary:     #C81515;
+  --erp-primary-lt:  #FEE2E2;
+  --erp-accent:      #D4870A;
+  --erp-bg:          #FEF9F0;
+  --erp-surface:     #FFFFFF;
+  --erp-border:      #F5DEB3;
+  --erp-text:        #1A1A1A;
+  --erp-text-2:      #5C3A1E;
+  --erp-text-3:      #A07040;
+}
+
+/* ── Corporate Oscuro ── */
+[data-theme="dark"] {
+  --erp-shell:       #050D1A;
+  --erp-shell-text:  #94A3B8;
+  --erp-primary:     #3B82F6;
+  --erp-primary-lt:  #1E3A5F;
+  --erp-accent:      #F97316;
+  --erp-bg:          #0A0F1A;
+  --erp-surface:     #111827;
+  --erp-border:      #1F2937;
+  --erp-text:        #F1F5F9;
+  --erp-text-2:      #94A3B8;
+  --erp-text-3:      #4B5563;
+}
+
+/* ── Naranja & Verde Oscuro ── */
+[data-theme="ng-dark"] {
+  --erp-shell:       #0A1A0F;
+  --erp-shell-text:  #6EE7B7;
+  --erp-primary:     #22C55E;
+  --erp-primary-lt:  #052E16;
+  --erp-accent:      #F97316;
+  --erp-bg:          #0A1A0F;
+  --erp-surface:     #0F2518;
+  --erp-border:      #14532D;
+  --erp-text:        #D1FAE5;
+  --erp-text-2:      #6EE7B7;
+  --erp-text-3:      #166534;
+}
+
+/* ── Hechizo Gourmet Oscuro ── */
+[data-theme="hg-dark"] {
+  --erp-shell:       #0F0F0F;
+  --erp-shell-text:  #F5D77A;
+  --erp-primary:     #E03030;
+  --erp-primary-lt:  #3B0A0A;
+  --erp-accent:      #E8971A;
+  --erp-bg:          #1A1208;
+  --erp-surface:     #231A0C;
+  --erp-border:      #3D2A10;
+  --erp-text:        #FEF3E2;
+  --erp-text-2:      #D4A85A;
+  --erp-text-3:      #7A5530;
 }
 
 @theme inline {
