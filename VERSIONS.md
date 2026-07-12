@@ -5,6 +5,59 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v2.5 — 2026-07-12
+
+### Resumen
+Pago Yummy (cuentas por cobrar simple), conversor USD→Bs en barra de ventas, reordenamiento y 2 líneas de chips, PWA instalable (manifest + service worker), íconos PWA desde logo real, botones de cámara y galería para imagen punto de venta, preferencias de orden de pasos por usuario.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/029_yummy_pagos.sql` | Tabla `yummy_pagos` + config keys `yummy_dias` y `yummy_dias_default` |
+| `app/api/reportes/yummy/route.ts` | GET cuentas por cobrar Yummy (filtro estado) |
+| `app/api/reportes/yummy/[id]/route.ts` | PATCH liquidar/reabrir pago Yummy |
+| `components/YummyPanel.tsx` | Panel Yummy con branding verde, tabla CxC, toggle liquidado |
+| `public/manifest.json` | Web App Manifest para PWA (display: standalone) |
+| `public/sw.js` | Service worker con caché básico y fetch passthrough |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `lib/types.ts` | Agrega `"YUMMY"` a `METODOS_PAGO`, `METODO_PAGO_LABELS` y tipo `YummyPagoItem` |
+| `lib/ventas.ts` | `VentaBody` acepta `yummyDatos`; skip YUMMY en `pagos_venta`; insert en `yummy_pagos` |
+| `components/VentasClient.tsx` | Carga config Yummy (`yummy_dias`, `yummy_dias_default`); selector días cuando método=YUMMY; monto readonly; CxC Yummy en resumen; conversor USD→Bs como primer chip en barra de indicadores; chips en 2 líneas (`flex-wrap`) |
+| `components/ReportesClient.tsx` | Tab Yummy; importa `YummyPanel`; botones separados 📷 Cámara y 🖼️ Galería para imagen punto de venta |
+| `components/ConfiguracionClient.tsx` | Sección Yummy: opciones de días + día por defecto |
+| `app/(main)/layout.tsx` | `metadata.manifest`, `metadata.icons`; registro service worker inline |
+| `public/icons/icon-192.png` | Regenerado desde `logo.jpg` real (192×192) |
+| `public/icons/icon-512.png` | Regenerado desde `logo.jpg` real (512×512) |
+| `public/icons/maskable-512.png` | Regenerado con padding safe-zone desde `logo.jpg` |
+
+### Migración SQL requerida
+```sql
+-- Ejecutar en Neon SQL Editor
+CREATE TABLE IF NOT EXISTS yummy_pagos (
+  venta_id        INTEGER PRIMARY KEY REFERENCES ventas(id) ON DELETE CASCADE,
+  monto           DECIMAL(12,2) NOT NULL,
+  dias            INTEGER NOT NULL DEFAULT 2,
+  fecha_vencimiento DATE NOT NULL,
+  liquidado       BOOLEAN NOT NULL DEFAULT FALSE,
+  liquidado_at    TIMESTAMPTZ
+);
+
+INSERT INTO configuracion (clave, valor) VALUES
+  ('yummy_dias', '2,3,4,5'),
+  ('yummy_dias_default', '2')
+ON CONFLICT (clave) DO NOTHING;
+```
+
+### Notas
+- PWA instalable en Chrome/Edge (PC y Android). En Brave Android solo crea shortcut (limitación del navegador).
+- Yummy cubre el 100% del monto de la venta como cuenta por cobrar; no se registra en `pagos_venta`.
+- El conversor USD→Bs usa la tasa BCV cargada en el formulario en tiempo real.
+
+---
+
 ## ⚠️ PENDIENTE PARA VENTASFACTORY (al 2026-07-04)
 
 Aplicar **v1.8 + v1.9** completas. El archivo más crítico es `app/api/resumen/route.ts` — sin él el Dashboard Consolidado de ventas-hg muestra "No se pudo conectar (401)" para ventasfactory.
