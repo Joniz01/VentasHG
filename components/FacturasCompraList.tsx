@@ -11,7 +11,7 @@ type Factura = {
 };
 
 type DetalleItem = {
-  id: number; nombreProducto: string; cantidad: number; costoUnitBs: number; subtotalBs: number;
+  id: number; productoId: number | null; nombreProducto: string; cantidad: number; costoUnitBs: number; subtotalBs: number;
 };
 
 type Detalle = {
@@ -21,7 +21,8 @@ type Detalle = {
 };
 
 export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv = 0, isAdmin = false }: { puedeCrearProducto?: boolean; tasaBcv?: number; isAdmin?: boolean }) {
-  const [view, setView] = useState<"list" | "new">("list");
+  const [view, setView] = useState<"list" | "new" | "edit">("list");
+  const [editData, setEditData] = useState<Detalle | null>(null);
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +58,39 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
     } catch (err) { setError(err instanceof Error ? err.message : "Error"); }
   }
 
+  async function handleEdit(id: number) {
+    try {
+      const res = await fetch(`/api/compras/${id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setEditData(data);
+      setView("edit");
+    } catch (err) { setError(err instanceof Error ? err.message : "Error"); }
+  }
+
+  // KPI calculations from facturas array
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const facturasEsteMes = facturas.filter((f) => {
+    const d = new Date(f.fecha);
+    return d.getFullYear() === currentYear && d.getMonth() === currentMonth && f.estado === "ACTIVA";
+  });
+
+  const kpiTotalBs = facturasEsteMes.reduce((acc, f) => acc + f.totalBs, 0);
+  const kpiTotalUsd = facturasEsteMes.reduce((acc, f) => acc + f.totalUsd, 0);
+  const kpiCount = facturasEsteMes.length;
+
+  const kpiPorVencer = facturas.filter((f) => {
+    if (f.estado !== "ACTIVA") return false;
+    const fObj = f as Factura & { fecha_vencimiento_pago?: string };
+    if (!fObj.fecha_vencimiento_pago) return false;
+    const venc = new Date(fObj.fecha_vencimiento_pago);
+    return venc >= now && venc <= sevenDaysLater;
+  }).length;
+
   async function handleAnular(id: number) {
     if (!confirm("¿Anular esta factura? El inventario será revertido.")) return;
     setAnulando(true);
@@ -82,6 +116,18 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
     );
   }
 
+  if (view === "edit") {
+    return (
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <button type="button" onClick={() => setView("list")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--erp-text-2)", fontSize: 13 }}>← Volver</button>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--erp-text)" }}>Editar Factura de Compra</h2>
+        </div>
+        <FacturaCompraForm tasaBcv={tasaBcv} puedeCrearProducto={puedeCrearProducto} initialData={editData ?? undefined} onCancel={() => setView("list")} onCreated={() => { setView("list"); loadFacturas(); }} onUpdated={() => { setView("list"); loadFacturas(); }} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
@@ -90,6 +136,21 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
         <button type="button" onClick={() => setView("new")} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
           + Nueva Factura
         </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        {[
+          { label: "Total mes actual (Bs)", value: `Bs ${kpiTotalBs.toFixed(2)}`, color: "var(--erp-primary)" },
+          { label: "Total mes actual ($)", value: `$${kpiTotalUsd.toFixed(2)}`, color: "var(--erp-primary)" },
+          { label: "Facturas este mes", value: String(kpiCount), color: "var(--erp-text)" },
+          { label: "Por vencer (7 días)", value: String(kpiPorVencer), color: kpiPorVencer > 0 ? "#B45309" : "var(--erp-text)" },
+        ].map((kpi) => (
+          <div key={kpi.label} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: "14px 16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--erp-text-2)", marginBottom: 6, letterSpacing: "0.05em" }}>{kpi.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: kpi.color, fontVariantNumeric: "tabular-nums" }}>{kpi.value}</div>
+          </div>
+        ))}
       </div>
 
       {/* Filtros */}
@@ -139,7 +200,12 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                     <span style={{ background: f.estado === "ACTIVA" ? "#DCFCE7" : "#FEF2F2", color: f.estado === "ACTIVA" ? "#166534" : "#B91C1C", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>{f.estado}</span>
                   </td>
                   <td style={{ padding: "10px 14px" }}>
-                    <button type="button" onClick={() => loadDetalle(f.id)} style={{ background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "3px 10px", fontSize: 12, cursor: "pointer", color: "var(--erp-text-2)" }}>Ver</button>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => loadDetalle(f.id)} style={{ background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "3px 10px", fontSize: 12, cursor: "pointer", color: "var(--erp-text-2)" }}>Ver</button>
+                      {f.estado === "ACTIVA" && (
+                        <button type="button" onClick={() => handleEdit(f.id)} style={{ background: "none", border: "1px solid var(--erp-primary)", borderRadius: 6, padding: "3px 10px", fontSize: 12, cursor: "pointer", color: "var(--erp-primary)" }}>Editar</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -34,6 +34,34 @@ export default function ComprasLanding() {
             </div>
           </div>
         </div>
+
+        <Link
+          href="/compras/proveedores"
+          className="group flex flex-col gap-3 rounded-xl border p-6 transition-all hover:-translate-y-0.5 hover:shadow-md"
+          style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: 3 }}
+        >
+          <span className="text-3xl">👥</span>
+          <div>
+            <div className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Proveedores</div>
+            <div className="text-sm mt-1" style={{ color: "var(--erp-text-2)" }}>
+              Gestiona tus proveedores y sus condiciones de crédito
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/compras/recepciones"
+          className="group flex flex-col gap-3 rounded-xl border p-6 transition-all hover:-translate-y-0.5 hover:shadow-md"
+          style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)", borderTopColor: "var(--erp-primary)", borderTopWidth: 3 }}
+        >
+          <span className="text-3xl">📦</span>
+          <div>
+            <div className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Recepción de Mercancía</div>
+            <div className="text-sm mt-1" style={{ color: "var(--erp-text-2)" }}>
+              Registra mercancía recibida antes de tener la factura
+            </div>
+          </div>
+        </Link>
       </div>
     </div>
   );
