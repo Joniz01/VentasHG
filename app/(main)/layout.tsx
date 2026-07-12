@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "../globals.css";
 import ShellBar from "@/components/ShellBar";
 import SidebarNav from "@/components/SidebarNav";
+import Breadcrumb from "@/components/Breadcrumb";
 import { ThemeProvider } from "@/lib/theme-context";
 import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
 
@@ -77,6 +78,7 @@ export default async function MainLayout({
             className="min-h-screen pt-12 md:ml-[220px] px-5 py-6"
             style={{ background: "var(--erp-bg)" }}
           >
+            <Breadcrumb />
             {children}
           </main>
         </ThemeProvider>

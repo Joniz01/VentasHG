@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
@@ -68,8 +69,8 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
         ☰
       </button>
 
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 shrink-0">
+      {/* Logo — links to home */}
+      <Link href="/" className="flex items-center gap-2.5 shrink-0 hover:opacity-80 transition-opacity">
         <Image
           src="/logo.jpg"
           alt={empresa}
@@ -84,7 +85,7 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
             VentasHG ERP
           </span>
         </div>
-      </div>
+      </Link>
 
       <div
         className="h-5 w-px shrink-0 mx-1"

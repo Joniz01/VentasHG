@@ -22,6 +22,12 @@ type NavGroup = { label: string; items: NavItem[] };
 
 const GRUPOS: NavGroup[] = [
   {
+    label: "Principal",
+    items: [
+      { href: "/", icon: "🏠", label: "Inicio" },
+    ],
+  },
+  {
     label: "Punto de Venta",
     items: [
       { href: "/ventas",             icon: "🛒", label: "Registrar Venta",    permiso: "ventas" },
