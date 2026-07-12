@@ -82,3 +82,75 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export async function PUT(request: NextRequest, { params }: Params) {
+  const { id } = await params;
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+
+  const body = await request.json();
+  const {
+    fecha,
+    proveedorNombre,
+    proveedorRif,
+    proveedorId,
+    numeroFactura,
+    observaciones,
+    tasaDia,
+    items,
+    imagenFactura,
+    fechaVencimientoPago,
+  } = body;
+
+  if (!fecha || !proveedorNombre || !Array.isArray(items)) {
+    return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const cResult = await client.query(
+      `SELECT estado FROM compras WHERE id = $1 FOR UPDATE`, [id]
+    );
+    if (!cResult.rowCount) throw new Error("Compra no encontrada");
+    if (cResult.rows[0].estado === "ANULADA") throw new Error("No se puede editar una compra anulada");
+
+    await client.query(
+      `UPDATE compras
+       SET fecha = $1,
+           proveedor_nombre = $2,
+           proveedor_rif = $3,
+           proveedor_id = $4,
+           numero_factura = $5,
+           observaciones = $6,
+           tasa_dia = $7,
+           imagen_factura = $8,
+           fecha_vencimiento_pago = $9
+       WHERE id = $10`,
+      [fecha, proveedorNombre, proveedorRif ?? null, proveedorId ?? null,
+       numeroFactura ?? null, observaciones ?? null, tasaDia ?? null,
+       imagenFactura ?? null, fechaVencimientoPago ?? null, id]
+    );
+
+    await client.query(`DELETE FROM compra_items WHERE compra_id = $1`, [id]);
+
+    for (const item of items) {
+      const { productoId, nombreProducto, cantidad, costoUnitBs } = item;
+      const subtotalBs = Number(cantidad) * Number(costoUnitBs);
+      await client.query(
+        `INSERT INTO compra_items (compra_id, producto_id, nombre_producto, cantidad, costo_unit_bs, subtotal_bs)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, productoId ?? null, nombreProducto ?? null, cantidad, costoUnitBs, subtotalBs]
+      );
+    }
+
+    await client.query("COMMIT");
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+  } finally {
+    client.release();
+  }
+}
