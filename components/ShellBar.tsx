@@ -58,6 +58,16 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
       className="fixed top-0 left-0 right-0 z-50 flex h-12 items-center gap-3 px-4 shadow-md"
       style={{ background: "var(--erp-shell)" }}
     >
+      {/* Hamburger — mobile only */}
+      <button
+        className="md:hidden flex h-8 w-8 items-center justify-center rounded text-lg shrink-0"
+        style={{ color: "var(--erp-shell-text)" }}
+        onClick={() => window.dispatchEvent(new CustomEvent("toggle-sidebar"))}
+        aria-label="Abrir menú"
+      >
+        ☰
+      </button>
+
       {/* Logo */}
       <div className="flex items-center gap-2.5 shrink-0">
         <Image

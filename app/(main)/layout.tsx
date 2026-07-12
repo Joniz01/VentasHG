@@ -74,7 +74,7 @@ export default async function MainLayout({
 
           {/* Content — padded to clear shell (pt-12) and sidebar (ml-[220px]) */}
           <main
-            className="min-h-screen pt-12 ml-[220px] px-5 py-6"
+            className="min-h-screen pt-12 md:ml-[220px] px-5 py-6"
             style={{ background: "var(--erp-bg)" }}
           >
             {children}
