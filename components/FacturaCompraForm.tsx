@@ -11,7 +11,20 @@ type ItemLine = {
 };
 
 type ProductoSug = { id: number; nombre: string; stockActual: number };
-type ProveedorSug = { id: number; nombre: string; rif: string | null; telefono: string | null; direccion: string | null };
+type ProveedorSug = { id: number; nombre: string; rif: string | null; telefono: string | null; direccion: string | null; diasCredito: number };
+
+type FacturaDetalle = {
+  id: number;
+  fecha: string;
+  proveedorNombre: string;
+  proveedorRif?: string | null;
+  numeroFactura?: string | null;
+  observaciones?: string | null;
+  tasaDia: number;
+  fechaVencimientoPago?: string | null;
+  items: { id?: number; productoId: number | null; nombreProducto: string; cantidad: number; costoUnitBs: number }[];
+  imagenFactura?: string | null;
+};
 
 let keySeq = 0;
 function nextKey() { return ++keySeq; }
@@ -21,18 +34,23 @@ export default function FacturaCompraForm({
   puedeCrearProducto,
   onCancel,
   onCreated,
+  initialData,
+  onUpdated,
 }: {
   tasaBcv: number;
   puedeCrearProducto: boolean;
   onCancel: () => void;
   onCreated: () => void;
+  initialData?: FacturaDetalle;
+  onUpdated?: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const isEdit = !!initialData;
 
   // Proveedor
-  const [proveedorQ, setProveedorQ] = useState("");
+  const [proveedorQ, setProveedorQ] = useState(initialData?.proveedorNombre ?? "");
   const [proveedorId, setProveedorId] = useState<number | null>(null);
-  const [proveedorRif, setProveedorRif] = useState("");
+  const [proveedorRif, setProveedorRif] = useState(initialData?.proveedorRif ?? "");
   const [proveedorTel, setProveedorTel] = useState("");
   const [proveedorDir, setProveedorDir] = useState("");
   const [provSugs, setProvSugs] = useState<ProveedorSug[]>([]);
@@ -40,19 +58,24 @@ export default function FacturaCompraForm({
   const provTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Factura
-  const [fecha, setFecha] = useState(today);
-  const [numeroFactura, setNumeroFactura] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [tasaDia, setTasaDia] = useState(tasaBcv > 0 ? String(tasaBcv) : "");
+  const [fecha, setFecha] = useState(initialData?.fecha?.slice(0, 10) ?? today);
+  const [numeroFactura, setNumeroFactura] = useState(initialData?.numeroFactura ?? "");
+  const [observaciones, setObservaciones] = useState(initialData?.observaciones ?? "");
+  const [tasaDia, setTasaDia] = useState(initialData ? String(initialData.tasaDia) : (tasaBcv > 0 ? String(tasaBcv) : ""));
+  const [fechaVencimientoPago, setFechaVencimientoPago] = useState(initialData?.fechaVencimientoPago?.slice(0, 10) ?? "");
 
   // Items
-  const [items, setItems] = useState<ItemLine[]>([{ key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "" }]);
+  const [items, setItems] = useState<ItemLine[]>(
+    initialData?.items?.length
+      ? initialData.items.map((it) => ({ key: nextKey(), productoId: it.productoId, nombreProducto: it.nombreProducto, cantidad: String(it.cantidad), costoUnitBs: String(it.costoUnitBs) }))
+      : [{ key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "" }]
+  );
   const [prodSugs, setProdSugs] = useState<Record<number, ProductoSug[]>>({});
   const [showProdSugs, setShowProdSugs] = useState<Record<number, boolean>>({});
   const prodTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   // Imagen / OCR
-  const [imagenBase64, setImagenBase64] = useState<string | null>(null);
+  const [imagenBase64, setImagenBase64] = useState<string | null>(initialData?.imagenFactura ?? null);
   const [imagenMime, setImagenMime] = useState("image/jpeg");
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -87,6 +110,12 @@ export default function FacturaCompraForm({
     setProveedorDir(p.direccion ?? "");
     setProvSugs([]);
     setShowProvSugs(false);
+    if (p.diasCredito > 0) {
+      const base = fecha || today;
+      const d = new Date(base);
+      d.setDate(d.getDate() + p.diasCredito);
+      setFechaVencimientoPago(d.toISOString().slice(0, 10));
+    }
   }
 
   // ── Producto search ───────────────────────────────────────────────────────
@@ -236,8 +265,10 @@ export default function FacturaCompraForm({
     if (!validItems.length) { setSaveError("Debe agregar al menos un ítem"); return; }
     setSaving(true); setSaveError(null);
     try {
-      const res = await fetch("/api/compras", {
-        method: "POST",
+      const url = isEdit ? `/api/compras/${initialData!.id}` : "/api/compras";
+      const method = isEdit ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fecha,
@@ -247,6 +278,7 @@ export default function FacturaCompraForm({
           numeroFactura: numeroFactura.trim() || null,
           observaciones: observaciones.trim() || null,
           tasaDia: Number(tasaDia) || 0,
+          fechaVencimientoPago: fechaVencimientoPago || null,
           imagenFactura: imagenBase64,
           items: validItems.map((it) => ({
             productoId: it.productoId,
@@ -258,7 +290,7 @@ export default function FacturaCompraForm({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      onCreated();
+      if (isEdit) { onUpdated?.(); } else { onCreated(); }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Error al guardar");
     } finally {
