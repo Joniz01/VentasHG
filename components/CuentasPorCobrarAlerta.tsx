@@ -6,11 +6,26 @@ import type { AlarmasConfig, CuentaPorCobrarItem } from "@/lib/types";
 import { ALARMAS_CONFIG_DEFAULT } from "@/lib/types";
 import { alarmaVencimientoActiva } from "@/lib/cuentasPorCobrar";
 
+const CXC_DISMISSED_KEY = "cxc_alerta_dismissed_day";
+
+function isDismissedToday(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(CXC_DISMISSED_KEY) === new Date().toISOString().slice(0, 10);
+}
+
 export default function CuentasPorCobrarAlerta() {
   const [items, setItems] = useState<CuentaPorCobrarItem[]>([]);
   const [vencimientoHora, setVencimientoHora] = useState(ALARMAS_CONFIG_DEFAULT.vencimientoHora);
   const [now, setNow] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
   const loaded = useRef(false);
+
+  useEffect(() => {
+    setDismissed(isDismissedToday());
+    const handler = () => setDismissed(isDismissedToday());
+    window.addEventListener("cxc-visited", handler);
+    return () => window.removeEventListener("cxc-visited", handler);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -45,7 +60,7 @@ export default function CuentasPorCobrarAlerta() {
     return () => clearInterval(interval);
   }, []);
 
-  if (!now) return null;
+  if (!now || dismissed) return null;
 
   const count = items.filter((item) => alarmaVencimientoActiva(item, now, vencimientoHora)).length;
 

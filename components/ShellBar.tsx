@@ -52,6 +52,18 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
   const [cxcDismissed, setCxcDismissed] = useState(false);
   const ringingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  function isCxcDismissedToday(): boolean {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("cxc_alerta_dismissed_day") === new Date().toISOString().slice(0, 10);
+  }
+
+  useEffect(() => {
+    setCxcDismissed(isCxcDismissedToday());
+    const handler = () => setCxcDismissed(isCxcDismissedToday());
+    window.addEventListener("cxc-visited", handler);
+    return () => window.removeEventListener("cxc-visited", handler);
+  }, []);
+
   const checkCxc = useCallback(async () => {
     if (!sesionActiva) return;
     try {
@@ -59,13 +71,14 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
       if (!res.ok) return;
       const data = await res.json() as { vencidas: number };
       setCxcVencidas(data.vencidas);
-      if (data.vencidas > 0 && !cxcDismissed) {
+      const dismissed = isCxcDismissedToday();
+      if (data.vencidas > 0 && !dismissed) {
         setCxcRinging(true);
         if (ringingTimer.current) clearTimeout(ringingTimer.current);
         ringingTimer.current = setTimeout(() => setCxcRinging(false), 2000);
       }
     } catch { /* silencioso */ }
-  }, [sesionActiva, cxcDismissed]);
+  }, [sesionActiva]);
 
   useEffect(() => {
     checkCxc();
@@ -73,14 +86,8 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
     return () => { clearInterval(interval); if (ringingTimer.current) clearTimeout(ringingTimer.current); };
   }, [checkCxc]);
 
-  // Resetear dismissed cuando sale de la sección
-  useEffect(() => {
-    if (!pathname?.startsWith("/cuentas-por-cobrar")) {
-      setCxcDismissed(false);
-    }
-  }, [pathname]);
-
   function handleCxcBell() {
+    localStorage.setItem("cxc_alerta_dismissed_day", new Date().toISOString().slice(0, 10));
     setCxcDismissed(true);
     setCxcRinging(false);
     router.push("/cuentas-por-cobrar?filtro=vencidas");
@@ -197,18 +204,18 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
             .cxc-ring { animation: cxc-ring 0.6s ease-in-out; transform-origin: top center; }
           `}</style>
           <button
-            onClick={cxcVencidas > 0 ? handleCxcBell : undefined}
+            onClick={cxcVencidas > 0 && !cxcDismissed ? handleCxcBell : undefined}
             className="relative flex h-8 w-8 items-center justify-center rounded-full text-base transition-colors"
             style={{
-              color: cxcVencidas > 0 ? "#ef4444" : "var(--erp-shell-text)",
-              cursor: cxcVencidas > 0 ? "pointer" : "default",
+              color: cxcVencidas > 0 && !cxcDismissed ? "#ef4444" : "var(--erp-shell-text)",
+              cursor: cxcVencidas > 0 && !cxcDismissed ? "pointer" : "default",
             }}
-            title={cxcVencidas > 0 ? `${cxcVencidas} cuenta${cxcVencidas !== 1 ? "s" : ""} por cobrar vencida${cxcVencidas !== 1 ? "s" : ""}` : "Sin cuentas vencidas"}
+            title={cxcVencidas > 0 && !cxcDismissed ? `${cxcVencidas} cuenta${cxcVencidas !== 1 ? "s" : ""} por cobrar vencida${cxcVencidas !== 1 ? "s" : ""}` : "Sin cuentas vencidas"}
           >
-            <span className={cxcRinging ? "cxc-ring" : ""} style={{ display: "inline-block" }}>
+            <span className={cxcRinging && !cxcDismissed ? "cxc-ring" : ""} style={{ display: "inline-block" }}>
               💰
             </span>
-            {cxcVencidas > 0 && (
+            {cxcVencidas > 0 && !cxcDismissed && (
               <span
                 style={{
                   position: "absolute",
