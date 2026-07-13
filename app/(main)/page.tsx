@@ -23,8 +23,9 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Punto de Venta",
     tiles: [
-      { href: "/ventas",             icon: "🛒", label: "Registrar Venta",    sub: "Nueva transacción",     color: "#EA6B0A", permiso: "ventas" },
+      { href: "/ventas",             icon: "🛒", label: "Registrar Venta",    sub: "Nueva transacción",       color: "#EA6B0A", permiso: "ventas" },
       { href: "/pedidos-pendientes", icon: "📋", label: "Pedidos Pendientes", sub: "Por preparar o entregar", color: "#1D4ED8", permiso: "pedidosPendientes" },
+      { href: "/delivery",           icon: "📬", label: "Deliveries",         sub: "Pedidos a domicilio",     color: "#15803D" },
     ],
   },
   {
@@ -44,9 +45,15 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Nómina & Finanzas",
     tiles: [
-      { href: "/nomina",   icon: "👷", label: "Nómina & Gastos",  sub: "Empleados y gastos operativos", color: "#9333EA", new: true },
-      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar", sub: "CxC Directa, Cashea y Yummy", color: "#B45309", permiso: "reportes" },
-      { href: "/delivery", icon: "📬", label: "Deliveries",       sub: "Pedidos a domicilio",            color: "#15803D" },
+      { href: "/nomina",             icon: "👷", label: "Nómina & Gastos",    sub: "Empleados y gastos operativos", color: "#9333EA", new: true },
+      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar", sub: "CxC Directa, Cashea y Yummy",  color: "#B45309", permiso: "reportes" },
+    ],
+  },
+  {
+    label: "CRM",
+    tiles: [
+      { href: "/clientes", icon: "👤", label: "Clientes", sub: "Gestión de clientes", color: "#0891B2", new: true },
+      { href: "/crm",      icon: "🤝", label: "CRM",      sub: "Relación con clientes", color: "#0891B2", new: true },
     ],
   },
   {

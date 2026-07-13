@@ -16,8 +16,10 @@ const MODULE_NAMES: Record<string, string> = {
   "/mrp":                "MRP · Planificación",
   "/nomina":             "Nómina & Gastos",
   "/reportes":           "Reportes",
-  "/delivery":           "Delivery",
+  "/delivery":           "Deliveries",
   "/dashboard":          "Dashboard",
+  "/clientes":           "Clientes",
+  "/crm":                "CRM",
   "/admin":              "Configuración",
 };
 

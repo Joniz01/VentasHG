@@ -15,7 +15,9 @@ const PATH_MAP: Record<string, Crumb[]> = {
   "/nomina":             [{ label: "Nómina & Gastos" }],
   "/reportes":           [{ label: "Reportes" }],
   "/dashboard":          [{ label: "Reportes", href: "/reportes" }, { label: "Dashboard" }],
-  "/delivery":           [{ label: "Cuentas por Cobrar" }, { label: "Deliveries" }],
+  "/delivery":           [{ label: "Punto de Venta" }, { label: "Deliveries" }],
+  "/clientes":           [{ label: "CRM" }, { label: "Clientes" }],
+  "/crm":                [{ label: "CRM" }],
   "/admin":              [{ label: "Configuración" }],
   "/sin-acceso":         [{ label: "Sin acceso" }],
 };

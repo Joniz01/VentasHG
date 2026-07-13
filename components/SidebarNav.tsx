@@ -32,6 +32,7 @@ const GRUPOS: NavGroup[] = [
     items: [
       { href: "/ventas",             icon: "🛒", label: "Registrar Venta",    permiso: "ventas" },
       { href: "/pedidos-pendientes", icon: "📋", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
+      { href: "/delivery",           icon: "📬", label: "Deliveries" },
     ],
   },
   {
@@ -63,7 +64,13 @@ const GRUPOS: NavGroup[] = [
     label: "Cuentas por Cobrar",
     items: [
       { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar", permiso: "reportes", badge: "cxc" },
-      { href: "/delivery",           icon: "📬", label: "Deliveries" },
+    ],
+  },
+  {
+    label: "CRM",
+    items: [
+      { href: "/clientes", icon: "👤", label: "Clientes", permiso: "ventas" },
+      { href: "/crm",      icon: "🤝", label: "CRM" },
     ],
   },
   {

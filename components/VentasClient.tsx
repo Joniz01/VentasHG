@@ -25,7 +25,6 @@ import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
-import ClientesTab from "@/components/ClientesTab";
 
 type ItemRow = {
   productoId: string;
@@ -111,7 +110,7 @@ type Props = {
 };
 
 export default function VentasClient({ rol = null, puedeDescuento = false }: Props) {
-  const [vista, setVista] = useState<"ventas" | "historial" | "notas" | "clientes">("ventas");
+  const [vista, setVista] = useState<"ventas" | "historial" | "notas">("ventas");
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
@@ -909,8 +908,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         className="flex gap-0 print:hidden border-b"
         style={{ borderColor: "var(--erp-border)" }}
       >
-        {(["ventas", "historial", "notas", "clientes"] as const).map((v) => {
-          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", notas: "Notas de Entrega", clientes: "Clientes" };
+        {(["ventas", "historial", "notas"] as const).map((v) => {
+          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", notas: "Notas de Entrega" };
           const active = vista === v;
           return (
             <button
@@ -932,8 +931,6 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       </div>
 
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
-
-      {vista === "clientes" && <ClientesTab rol={rol} />}
 
       {vista === "ventas" && modoVista === "pasos" && (
         <>
