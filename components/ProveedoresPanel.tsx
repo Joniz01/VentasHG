@@ -5,7 +5,8 @@ import { useEffect, useState, useCallback } from "react";
 interface Proveedor {
   id: number | string;
   nombre: string;
-  rif_ci?: string;
+  rif_ci?: string;   // snake_case (creación manual)
+  rifCi?: string;    // camelCase (respuesta API)
   direccion?: string;
   telefono?: string;
   diasCredito?: number;
@@ -44,7 +45,7 @@ export default function ProveedoresPanel() {
       const res = await fetch(`/api/proveedores${q ? `?q=${encodeURIComponent(q)}` : ""}`);
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
-      setProveedores(Array.isArray(data) ? data : data.proveedores ?? []);
+      setProveedores(Array.isArray(data) ? data : (data.items ?? data.proveedores ?? []));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Error al cargar proveedores");
     } finally {
@@ -66,7 +67,7 @@ export default function ProveedoresPanel() {
     setEditingId(p.id);
     setFormData({
       nombre: p.nombre ?? "",
-      rifCi: p.rif_ci ?? "",
+      rifCi: p.rifCi ?? p.rif_ci ?? "",
       direccion: p.direccion ?? "",
       telefono: p.telefono ?? "",
       diasCredito: p.diasCredito != null ? String(p.diasCredito) : "0",
@@ -354,7 +355,7 @@ export default function ProveedoresPanel() {
                   }}
                 >
                   <td style={cellStyle}>{p.nombre}</td>
-                  <td style={{ ...cellStyle, color: "var(--erp-text-2)" }}>{p.rif_ci ?? "—"}</td>
+                  <td style={{ ...cellStyle, color: "var(--erp-text-2)" }}>{p.rifCi ?? p.rif_ci ?? "—"}</td>
                   <td style={{ ...cellStyle, color: "var(--erp-text-2)" }}>{p.telefono ?? "—"}</td>
                   <td style={{ ...cellStyle, color: "var(--erp-text-2)", textAlign: "center" }}>
                     {p.diasCredito != null ? p.diasCredito : "—"}
