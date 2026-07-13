@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       queryText = `SELECT id, nombre, rif_ci, direccion, telefono, dias_credito FROM proveedores WHERE activo = TRUE AND lower(rif_ci) = lower($1) LIMIT 1`;
       queryParams = [rif.trim()];
     } else {
-      queryText = `SELECT id, nombre, rif_ci, direccion, telefono, dias_credito FROM proveedores WHERE activo = TRUE ${q ? "AND lower(nombre) LIKE lower($1)" : ""} ORDER BY nombre ASC LIMIT 50`;
+      queryText = `SELECT id, nombre, rif_ci, direccion, telefono, dias_credito FROM proveedores WHERE activo = TRUE ${q ? "AND (lower(nombre) LIKE lower($1) OR lower(COALESCE(rif_ci,'')) LIKE lower($1))" : ""} ORDER BY nombre ASC LIMIT 50`;
       queryParams = q ? [`%${q}%`] : [];
     }
     const result = await pool.query(queryText, queryParams);
