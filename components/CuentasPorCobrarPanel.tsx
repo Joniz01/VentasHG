@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { formatFecha } from "@/lib/pedidos";
 
 type TipoCxC = "CxC Directa" | "CASHEA" | "YUMMY";
-type EstadoFiltro = "TODOS" | "PENDIENTE" | "COBRADA";
+type EstadoFiltro = "TODOS" | "PENDIENTE" | "COBRADA" | "VENCIDA";
+const CXC_DISMISSED_KEY = "cxc_alerta_dismissed_day";
 type TipoFiltro = "TODOS" | "CxC Directa" | "CASHEA" | "YUMMY";
 
 type UnifiedItem = {
@@ -48,13 +49,20 @@ export default function CuentasPorCobrarPanel() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
-  const [estado, setEstado] = useState<EstadoFiltro>("PENDIENTE");
+  const hoyIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const [estado, setEstado] = useState<EstadoFiltro>(soloVencidas ? "VENCIDA" : "PENDIENTE");
   const [tipo, setTipo] = useState<TipoFiltro>("TODOS");
   const [clienteQ, setClienteQ] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
 
-  const hoyIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Registrar visita para suprimir alertas el resto del día
+  useEffect(() => {
+    try { localStorage.setItem(CXC_DISMISSED_KEY, hoyIso); } catch { /* ignorar */ }
+    // Disparar evento para que ShellBar y SidebarNav se actualicen
+    window.dispatchEvent(new CustomEvent("cxc-visited"));
+  }, [hoyIso]);
 
   async function loadItems() {
     setLoading(true);
@@ -220,12 +228,12 @@ export default function CuentasPorCobrarPanel() {
   const filtered = items.filter((it) => {
     if (estado === "PENDIENTE" && !it.pendiente) return false;
     if (estado === "COBRADA" && it.pendiente) return false;
-    if (tipo !== "TODOS" && it.tipoCxC !== tipo) return false;
-    if (clienteQ && !it.cliente.toLowerCase().includes(clienteQ.toLowerCase())) return false;
-    if (soloVencidas) {
+    if (estado === "VENCIDA") {
       if (!it.pendiente) return false;
       if (!it.fechaVencimiento || it.fechaVencimiento >= hoyIso) return false;
     }
+    if (tipo !== "TODOS" && it.tipoCxC !== tipo) return false;
+    if (clienteQ && !it.cliente.toLowerCase().includes(clienteQ.toLowerCase())) return false;
     return true;
   });
 
@@ -264,7 +272,7 @@ export default function CuentasPorCobrarPanel() {
   return (
     <div className="flex flex-col gap-4">
       {/* Banner de filtro vencidas */}
-      {soloVencidas && (
+      {(soloVencidas || estado === "VENCIDA") && (
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "0.65rem 1rem" }}>
           <span style={{ fontSize: "1.1rem" }}>🔴</span>
           <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#b91c1c" }}>
@@ -308,6 +316,7 @@ export default function CuentasPorCobrarPanel() {
               <option value="TODOS">Todos</option>
               <option value="PENDIENTE">Pendientes</option>
               <option value="COBRADA">Pagadas</option>
+              <option value="VENCIDA">⚠️ Vencidas</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
