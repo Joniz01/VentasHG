@@ -112,6 +112,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Validar nombre duplicado
+  const existing = await pool.query(
+    `SELECT id FROM productos WHERE lower(nombre) = lower($1) LIMIT 1`,
+    [nombre.trim()]
+  );
+  if ((existing.rowCount ?? 0) > 0) {
+    return NextResponse.json(
+      { error: `Ya existe un producto con el nombre "${nombre.trim()}"` },
+      { status: 409 }
+    );
+  }
+
   const costoNum = Number(costo);
   const precioNum = Number(precioVenta);
 

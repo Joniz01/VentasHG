@@ -41,6 +41,20 @@ export async function POST(request: NextRequest) {
   if (!nombre?.trim()) return NextResponse.json({ error: "Nombre requerido" }, { status: 400 });
 
   try {
+    // Validar RIF/CI duplicado
+    if (rifCi?.trim()) {
+      const dupRif = await pool.query(
+        `SELECT id, nombre FROM proveedores WHERE lower(rif_ci) = lower($1) LIMIT 1`,
+        [rifCi.trim()]
+      );
+      if ((dupRif.rowCount ?? 0) > 0) {
+        return NextResponse.json(
+          { error: `Ya existe un proveedor con ese RIF/CI: ${dupRif.rows[0].nombre}` },
+          { status: 409 }
+        );
+      }
+    }
+
     const r = await pool.query(
       `INSERT INTO proveedores (nombre, rif_ci, direccion, telefono)
        VALUES ($1,$2,$3,$4) RETURNING id`,
