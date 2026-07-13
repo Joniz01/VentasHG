@@ -18,8 +18,11 @@ const MODULE_NAMES: Record<string, string> = {
   "/reportes":           "Reportes",
   "/delivery":           "Deliveries",
   "/dashboard":          "Dashboard",
-  "/clientes":           "Clientes",
-  "/crm":                "CRM",
+  "/clientes":            "Clientes",
+  "/crm":                 "CRM",
+  "/cuentas-por-pagar":   "Cuentas por Pagar",
+  "/analisis-financiero": "Análisis Financiero",
+  "/ia-analisis":         "IA Análisis",
   "/admin":              "Configuración",
 };
 

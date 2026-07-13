@@ -36,6 +36,13 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
+    label: "CRM",
+    items: [
+      { href: "/clientes", icon: "👤", label: "Clientes", permiso: "ventas" },
+      { href: "/crm",      icon: "🤝", label: "CRM" },
+    ],
+  },
+  {
     label: "Inventario",
     items: [
       { href: "/productos",   icon: "📦", label: "Productos",      permiso: "productos" },
@@ -61,23 +68,19 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Cuentas por Cobrar",
+    label: "Finanzas",
     items: [
-      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar", permiso: "reportes", badge: "cxc" },
+      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
+      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar" },
+      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero" },
     ],
   },
   {
-    label: "CRM",
+    label: "Reportes & AI KPI",
     items: [
-      { href: "/clientes", icon: "👤", label: "Clientes", permiso: "ventas" },
-      { href: "/crm",      icon: "🤝", label: "CRM" },
-    ],
-  },
-  {
-    label: "Reportes",
-    items: [
-      { href: "/dashboard", icon: "📈", label: "Dashboard", permiso: "dashboard" },
-      { href: "/reportes",  icon: "📑", label: "Reportes",  permiso: "reportes" },
+      { href: "/dashboard",   icon: "📈", label: "Dashboard",    permiso: "dashboard" },
+      { href: "/reportes",    icon: "📑", label: "Reportes",     permiso: "reportes" },
+      { href: "/ia-analisis", icon: "🤖", label: "IA Análisis" },
     ],
   },
   {

@@ -29,39 +29,42 @@ const GRUPOS: TileGroup[] = [
     ],
   },
   {
+    label: "CRM",
+    tiles: [
+      { href: "/clientes", icon: "👤", label: "Clientes", sub: "Gestión de clientes",    color: "#0891B2", new: true },
+      { href: "/crm",      icon: "🤝", label: "CRM",      sub: "Relación con clientes",  color: "#0891B2", new: true },
+    ],
+  },
+  {
     label: "Inventario",
     tiles: [
-      { href: "/productos",   icon: "📦", label: "Productos",      sub: "Catálogo y categorías", color: "#1D4ED8", permiso: "productos" },
+      { href: "/productos",   icon: "📦", label: "Productos",      sub: "Catálogo y categorías",  color: "#1D4ED8", permiso: "productos" },
       { href: "/inventarios", icon: "📊", label: "Stock & Costos", sub: "Niveles y valorización", color: "#1D4ED8", permiso: "productos" },
     ],
   },
   {
     label: "Compras & Producción",
     tiles: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra", sub: "Facturas y proveedores", color: "#15803D", permiso: "compras", new: true },
-      { href: "/mrp",     icon: "⚙️", label: "MRP · Planificación", sub: "Requerimientos de materiales", color: "#9333EA", new: true },
+      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra",   sub: "Facturas y proveedores",         color: "#15803D", permiso: "compras", new: true },
+      { href: "/mrp",     icon: "⚙️",  label: "MRP · Planificación", sub: "Requerimientos de materiales",   color: "#9333EA", new: true },
     ],
   },
   {
-    label: "Nómina & Finanzas",
+    label: "Finanzas",
     tiles: [
-      { href: "/nomina",             icon: "👷", label: "Nómina & Gastos",    sub: "Empleados y gastos operativos", color: "#9333EA", new: true },
-      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar", sub: "CxC Directa, Cashea y Yummy",  color: "#B45309", permiso: "reportes" },
+      { href: "/nomina",              icon: "👷", label: "Nómina & Gastos",      sub: "Empleados y gastos operativos",  color: "#9333EA", new: true },
+      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",   sub: "CxC Directa, Cashea y Yummy",   color: "#B45309", permiso: "reportes" },
+      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar",    sub: "Pagos y obligaciones",           color: "#B45309", new: true },
+      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero",  sub: "Indicadores y flujo de caja",    color: "#B45309", new: true },
     ],
   },
   {
-    label: "CRM",
+    label: "Reportes & AI KPI",
     tiles: [
-      { href: "/clientes", icon: "👤", label: "Clientes", sub: "Gestión de clientes", color: "#0891B2", new: true },
-      { href: "/crm",      icon: "🤝", label: "CRM",      sub: "Relación con clientes", color: "#0891B2", new: true },
-    ],
-  },
-  {
-    label: "Reportes & Admin",
-    tiles: [
-      { href: "/dashboard", icon: "📈", label: "Dashboard",      sub: "Métricas y gráficas", color: "#1D4ED8", permiso: "dashboard" },
-      { href: "/reportes",  icon: "📑", label: "Reportes",       sub: "Ventas y resúmenes",  color: "#1D4ED8", permiso: "reportes" },
-      { href: "/admin",     icon: "🔧", label: "Configuración",  sub: "Usuarios y config",   color: "#475569", rolReq: "ADMIN" },
+      { href: "/dashboard",     icon: "📈", label: "Dashboard",       sub: "Métricas y gráficas",       color: "#1D4ED8", permiso: "dashboard" },
+      { href: "/reportes",      icon: "📑", label: "Reportes",        sub: "Ventas y resúmenes",        color: "#1D4ED8", permiso: "reportes" },
+      { href: "/ia-analisis",   icon: "🤖", label: "IA Análisis",     sub: "Análisis inteligente con IA", color: "#7C3AED", new: true },
+      { href: "/admin",         icon: "🔧", label: "Configuración",   sub: "Usuarios y config",         color: "#475569", rolReq: "ADMIN" },
     ],
   },
 ];
