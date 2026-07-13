@@ -2,7 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { TIPOS_PRODUCTO } from "@/lib/types";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const q = searchParams.get("q");
+  const limit = Math.min(Number(searchParams.get("limit") ?? "200"), 200);
+
+  // Si viene ?q= devolver búsqueda rápida para autocomplete
+  if (q) {
+    const rows = await pool.query(
+      `SELECT p.id, p.nombre, p.stock_actual
+       FROM productos p
+       WHERE p.activo = TRUE AND lower(p.nombre) LIKE lower($1)
+       ORDER BY p.nombre ASC LIMIT $2`,
+      [`%${q}%`, limit]
+    );
+    return NextResponse.json({ productos: rows.rows.map(r => ({ id: r.id, nombre: r.nombre, stockActual: Number(r.stock_actual) })) });
+  }
+
   // Intenta ordenar por c.orden si existe; si no (migración pendiente), ordena por nombre
   let result;
   try {
