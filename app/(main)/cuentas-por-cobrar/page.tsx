@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import CuentasPorCobrarPanel from "@/components/CuentasPorCobrarPanel";
 import { requirePermiso } from "@/lib/auth";
 
@@ -14,7 +15,9 @@ export default async function CuentasPorCobrarPage() {
       <p className="mb-4 text-sm" style={{ color: "var(--erp-text-2)" }}>
         Ventas pendientes de cobro: CxC Directa, Cashea y Yummy.
       </p>
-      <CuentasPorCobrarPanel />
+      <Suspense fallback={<p style={{ color: "var(--erp-text-3)", fontSize: 14 }}>Cargando...</p>}>
+        <CuentasPorCobrarPanel />
+      </Suspense>
     </div>
   );
 }

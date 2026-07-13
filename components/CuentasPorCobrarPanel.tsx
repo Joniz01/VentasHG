@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { formatFecha } from "@/lib/pedidos";
 
 type TipoCxC = "CxC Directa" | "CASHEA" | "YUMMY";
@@ -39,6 +40,9 @@ function startOfMonth(d: Date) {
 }
 
 export default function CuentasPorCobrarPanel() {
+  const searchParams = useSearchParams();
+  const soloVencidas = searchParams.get("filtro") === "vencidas";
+
   const [items, setItems] = useState<UnifiedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +53,8 @@ export default function CuentasPorCobrarPanel() {
   const [clienteQ, setClienteQ] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+
+  const hoyIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   async function loadItems() {
     setLoading(true);
@@ -216,6 +222,10 @@ export default function CuentasPorCobrarPanel() {
     if (estado === "COBRADA" && it.pendiente) return false;
     if (tipo !== "TODOS" && it.tipoCxC !== tipo) return false;
     if (clienteQ && !it.cliente.toLowerCase().includes(clienteQ.toLowerCase())) return false;
+    if (soloVencidas) {
+      if (!it.pendiente) return false;
+      if (!it.fechaVencimiento || it.fechaVencimiento >= hoyIso) return false;
+    }
     return true;
   });
 
@@ -253,6 +263,15 @@ export default function CuentasPorCobrarPanel() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Banner de filtro vencidas */}
+      {soloVencidas && (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "0.65rem 1rem" }}>
+          <span style={{ fontSize: "1.1rem" }}>🔴</span>
+          <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#b91c1c" }}>
+            Mostrando solo cuentas por cobrar <strong>vencidas</strong> — fecha de vencimiento superada y pendientes de pago.
+          </span>
+        </div>
+      )}
       {/* KPI cards */}
       {!loading && items.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
