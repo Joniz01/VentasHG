@@ -5,6 +5,7 @@ import "../globals.css";
 import ShellBar from "@/components/ShellBar";
 import SidebarNav from "@/components/SidebarNav";
 import Breadcrumb from "@/components/Breadcrumb";
+import BackButton from "@/components/BackButton";
 import { ThemeProvider } from "@/lib/theme-context";
 import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
 
@@ -79,6 +80,7 @@ export default async function MainLayout({
             style={{ background: "var(--erp-bg)" }}
           >
             <Breadcrumb />
+            <BackButton />
             {children}
           </main>
         </ThemeProvider>
