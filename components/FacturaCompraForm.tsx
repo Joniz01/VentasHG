@@ -556,14 +556,72 @@ export default function FacturaCompraForm({
         ))}
       </div>
 
-      {/* Paso 0: Proveedor */}
+      {/* Paso 0: Escanear / Proveedor */}
       {step === 0 && (
         <div className="flex flex-col gap-4">
+
+          {/* OCR — sección principal del paso */}
           <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Buscar Proveedor</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+              Escanear Factura (Recomendado)
+            </div>
+
+            {/* Botones grandes cámara / galería */}
+            {!imagenBase64 && !ocrLoading && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <button type="button" onClick={() => cameraRef.current?.click()}
+                  style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 10, padding: "18px 10px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 26 }}>📷</span>
+                  Tomar foto
+                </button>
+                <button type="button" onClick={() => fileRef.current?.click()}
+                  style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "18px 10px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 26 }}>🖼️</span>
+                  Desde galería
+                </button>
+              </div>
+            )}
+
+            {/* Estado OCR */}
+            {ocrLoading && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "24px 0" }}>
+                <span style={{ fontSize: 32 }}>🔍</span>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--erp-primary)" }}>Analizando factura con IA...</div>
+                <div style={{ fontSize: 12, color: "var(--erp-text-3)" }}>Extrayendo proveedor, productos y datos</div>
+              </div>
+            )}
+
+            {/* Preview imagen + resultado */}
+            {imagenBase64 && !ocrLoading && (
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <img src={imagenBase64} alt="Factura" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)", flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  {ocrError
+                    ? <div style={{ fontSize: 12, color: "#B91C1C", background: "#FEF2F2", borderRadius: 6, padding: "6px 10px" }}>{ocrError}</div>
+                    : <div style={{ fontSize: 12, color: "#166534", background: "#DCFCE7", borderRadius: 6, padding: "6px 10px", fontWeight: 600 }}>✓ Factura procesada — revisa los datos abajo</div>
+                  }
+                  <button type="button" onClick={() => { setImagenBase64(null); setOcrError(null); }}
+                    style={{ marginTop: 6, fontSize: 11, color: "var(--erp-text-3)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                    Cambiar imagen
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {ocrError && !imagenBase64 && (
+              <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 8 }}>{ocrError}</div>
+            )}
+
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
+          </div>
+
+          {/* Proveedor — siempre visible debajo, pre-llenado si OCR lo encontró */}
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Proveedor</div>
             <div style={{ position: "relative" }}>
               <input value={proveedorQ} onChange={e => onProveedorInput(e.target.value)} onBlur={() => setTimeout(() => setShowProvSugs(false), 200)}
-                placeholder="Escribe nombre o RIF del proveedor..." style={inpStyle} autoFocus />
+                placeholder="Escribe nombre o RIF del proveedor..." style={inpStyle} />
               {showProvSugs && (
                 <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, zIndex: 50, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
                   {provSugs.length > 0 ? provSugs.map(p => (
@@ -579,7 +637,7 @@ export default function FacturaCompraForm({
             </div>
 
             {provConfirmado && (
-              <div style={{ marginTop: 12, background: "#DCFCE7", border: "1px solid #86EFAC", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ marginTop: 10, background: "#DCFCE7", border: "1px solid #86EFAC", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 16 }}>✓</span>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 13, color: "#166534" }}>{proveedorQ}</div>
@@ -592,7 +650,7 @@ export default function FacturaCompraForm({
             )}
 
             {provNuevo && provSearched && (
-              <div style={{ marginTop: 12, background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 14 }}>
+              <div style={{ marginTop: 10, background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-primary)", marginBottom: 10 }}>Proveedor nuevo — se creará al registrar la factura</div>
                 <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
                   <div>
@@ -615,9 +673,10 @@ export default function FacturaCompraForm({
               </div>
             )}
           </div>
+
           <div className="flex gap-3 justify-between">
             <button type="button" onClick={onCancel} style={btnSecondary}>Cancelar</button>
-            <button type="button" onClick={() => setStep(1)} disabled={!proveedorQ.trim()} style={btnPrimary(!proveedorQ.trim())}>Siguiente →</button>
+            <button type="button" onClick={() => setStep(1)} disabled={!proveedorQ.trim() || ocrLoading} style={btnPrimary(!proveedorQ.trim() || ocrLoading)}>Siguiente →</button>
           </div>
         </div>
       )}
