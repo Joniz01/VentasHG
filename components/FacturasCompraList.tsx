@@ -20,7 +20,7 @@ type Detalle = {
   estado: string; imagenFactura: string | null; items: DetalleItem[];
 };
 
-export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv = 0, isAdmin = false }: { puedeCrearProducto?: boolean; tasaBcv?: number; isAdmin?: boolean }) {
+export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv = 0, isAdmin = false, puedeEliminarCompras = false }: { puedeCrearProducto?: boolean; tasaBcv?: number; isAdmin?: boolean; puedeEliminarCompras?: boolean }) {
   const [view, setView] = useState<"list" | "new" | "edit">("list");
   const [editData, setEditData] = useState<Detalle | null>(null);
   const [facturas, setFacturas] = useState<Factura[]>([]);
@@ -90,6 +90,17 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
     const venc = new Date(fObj.fecha_vencimiento_pago);
     return venc >= now && venc <= sevenDaysLater;
   }).length;
+
+  async function handleEliminar(id: number) {
+    if (!confirm("¿Eliminar esta factura anulada? Esta acción no se puede deshacer.")) return;
+    try {
+      const res = await fetch(`/api/compras/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setDetalle(null);
+      loadFacturas();
+    } catch (err) { setError(err instanceof Error ? err.message : "Error"); }
+  }
 
   async function handleAnular(id: number) {
     if (!confirm("¿Anular esta factura? El inventario será revertido.")) return;
@@ -205,6 +216,9 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                       {f.estado === "ACTIVA" && (
                         <button type="button" onClick={() => handleEdit(f.id)} style={{ background: "none", border: "1px solid var(--erp-primary)", borderRadius: 6, padding: "3px 10px", fontSize: 12, cursor: "pointer", color: "var(--erp-primary)" }}>Editar</button>
                       )}
+                      {puedeEliminarCompras && f.estado === "ANULADA" && (
+                        <button type="button" onClick={() => handleEliminar(f.id)} style={{ background: "none", border: "1px solid #B91C1C", borderRadius: 6, padding: "3px 10px", fontSize: 12, cursor: "pointer", color: "#B91C1C" }}>Eliminar</button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -227,6 +241,11 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                 {isAdmin && detalle.estado === "ACTIVA" && (
                   <button type="button" onClick={() => handleAnular(detalle.id)} disabled={anulando} style={{ background: "#FEF2F2", color: "#B91C1C", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                     {anulando ? "..." : "Anular"}
+                  </button>
+                )}
+                {puedeEliminarCompras && detalle.estado === "ANULADA" && (
+                  <button type="button" onClick={() => handleEliminar(detalle.id)} style={{ background: "#7F1D1D", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    Eliminar
                   </button>
                 )}
                 <button type="button" onClick={() => setDetalle(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--erp-text-3)", fontSize: 20 }}>✕</button>

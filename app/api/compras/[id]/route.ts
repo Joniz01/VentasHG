@@ -83,6 +83,31 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 }
 
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
+  const sesion = await getSesionFromRequest(_req);
+  if (!sesion) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (sesion.rol !== "ADMIN" && !sesion.permisos.eliminarCompras) {
+    return NextResponse.json({ error: "Sin permiso para eliminar facturas" }, { status: 403 });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const cResult = await client.query(`SELECT estado FROM compras WHERE id = $1 FOR UPDATE`, [id]);
+    if (!cResult.rowCount) throw new Error("Factura no encontrada");
+    if (cResult.rows[0].estado !== "ANULADA") throw new Error("Solo se pueden eliminar facturas anuladas");
+    await client.query(`DELETE FROM compras WHERE id = $1`, [id]);
+    await client.query("COMMIT");
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+  } finally {
+    client.release();
+  }
+}
+
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const sesion = await getSesionFromRequest(request);

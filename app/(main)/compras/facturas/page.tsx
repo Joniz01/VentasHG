@@ -19,6 +19,7 @@ export default async function FacturasPage() {
         puedeCrearProducto={sesion.rol === "ADMIN" || sesion.permisos.productos}
         tasaBcv={tasaBcv}
         isAdmin={sesion.rol === "ADMIN"}
+        puedeEliminarCompras={sesion.rol === "ADMIN" || sesion.permisos.eliminarCompras}
       />
     </div>
   );

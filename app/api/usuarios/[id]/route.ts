@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const permisos =
     body.rol === "ADMIN"
-      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true }
+      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true }
       : body.permisos ?? PERMISOS_VACIOS;
 
   const nombre = body.nombre!.trim();
@@ -41,34 +41,52 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const activo = body.activo ?? true;
   const claveHash = body.clave?.trim() ? hashPassword(body.clave) : null;
 
-  const runUpdate = async (withDashboard: boolean) => {
-    if (claveHash) {
-      return pool.query(
-        withDashboard
-          ? `UPDATE usuarios SET nombre=$1,usuario=$2,clave_hash=$3,rol=$4,activo=$5,ve_productos=$6,ve_ventas=$7,ve_reportes=$8,ve_pedidos_pendientes=$9,ve_descuento=$10,ve_dashboard=$11 WHERE id=$12 RETURNING id`
-          : `UPDATE usuarios SET nombre=$1,usuario=$2,clave_hash=$3,rol=$4,activo=$5,ve_productos=$6,ve_ventas=$7,ve_reportes=$8,ve_pedidos_pendientes=$9,ve_descuento=$10 WHERE id=$11 RETURNING id`,
-        withDashboard
-          ? [nombre,usuario,claveHash,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,permisos.dashboard,id]
-          : [nombre,usuario,claveHash,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,id]
-      );
-    }
+  type UpdateOpts = { dashboard: boolean; compras: boolean; eliminarCompras: boolean };
+
+  const runUpdate = async (opts: UpdateOpts) => {
+    const cols: string[] = [];
+    const vals: unknown[] = [];
+
+    const add = (col: string, val: unknown) => { cols.push(`${col}=$${cols.length + 1}`); vals.push(val); };
+
+    add("nombre", nombre);
+    add("usuario", usuario);
+    if (claveHash) add("clave_hash", claveHash);
+    add("rol", rol);
+    add("activo", activo);
+    add("ve_productos", permisos.productos);
+    add("ve_ventas", permisos.ventas);
+    add("ve_reportes", permisos.reportes);
+    add("ve_pedidos_pendientes", permisos.pedidosPendientes);
+    add("ve_descuento", permisos.descuento);
+    if (opts.dashboard) add("ve_dashboard", permisos.dashboard);
+    if (opts.compras) add("ve_compras", permisos.compras);
+    if (opts.eliminarCompras) add("ve_eliminar_compras", permisos.eliminarCompras);
+
+    vals.push(id);
     return pool.query(
-      withDashboard
-        ? `UPDATE usuarios SET nombre=$1,usuario=$2,rol=$3,activo=$4,ve_productos=$5,ve_ventas=$6,ve_reportes=$7,ve_pedidos_pendientes=$8,ve_descuento=$9,ve_dashboard=$10 WHERE id=$11 RETURNING id`
-        : `UPDATE usuarios SET nombre=$1,usuario=$2,rol=$3,activo=$4,ve_productos=$5,ve_ventas=$6,ve_reportes=$7,ve_pedidos_pendientes=$8,ve_descuento=$9 WHERE id=$10 RETURNING id`,
-      withDashboard
-        ? [nombre,usuario,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,permisos.dashboard,id]
-        : [nombre,usuario,rol,activo,permisos.productos,permisos.ventas,permisos.reportes,permisos.pedidosPendientes,permisos.descuento,id]
+      `UPDATE usuarios SET ${cols.join(",")} WHERE id=$${vals.length} RETURNING id`,
+      vals
     );
   };
 
   try {
     let result;
     try {
-      result = await runUpdate(true);
+      result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: true });
     } catch (e) {
-      if (e instanceof Error && e.message.includes("ve_dashboard")) {
-        result = await runUpdate(false); // Migración 023 pendiente
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("ve_eliminar_compras")) {
+        try {
+          result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: false });
+        } catch (e2) {
+          const msg2 = e2 instanceof Error ? e2.message : "";
+          if (msg2.includes("ve_dashboard") || msg2.includes("ve_compras")) {
+            result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false });
+          } else throw e2;
+        }
+      } else if (msg.includes("ve_dashboard") || msg.includes("ve_compras")) {
+        result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false });
       } else {
         throw e;
       }

@@ -44,6 +44,8 @@ export default function ProductosClient() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedPanel, setExpandedPanel] = useState<"extras" | "componentes" | null>(null);
   const [orden, setOrden] = useState<"nombre" | "categoria">("categoria");
+  const [searchNombre, setSearchNombre] = useState("");
+  const [filterCategoriaId, setFilterCategoriaId] = useState<string>("");
   const [subTab, setSubTab] = useState<SubTab>(null);
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(25);
@@ -53,11 +55,19 @@ export default function ProductosClient() {
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
   const productosOrdenados = useMemo(() => {
-    if (orden === "nombre") {
-      return [...productos].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    let list = [...productos];
+    if (searchNombre.trim()) {
+      const q = searchNombre.trim().toLowerCase();
+      list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q));
     }
-    return productos;
-  }, [productos, orden]);
+    if (filterCategoriaId) {
+      list = list.filter((p) => String(p.categoriaId) === filterCategoriaId);
+    }
+    if (orden === "nombre") {
+      list.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
+    return list;
+  }, [productos, orden, searchNombre, filterCategoriaId]);
 
   async function loadProductos() {
     try {
@@ -473,16 +483,50 @@ export default function ProductosClient() {
           {error && (
             <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
           )}
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-zinc-700">Ordenar por</label>
-            <select
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              value={orden}
-              onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
-            >
-              <option value="nombre">Nombre</option>
-              <option value="categoria">Categoría</option>
-            </select>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase text-zinc-500">Buscar</label>
+              <input
+                type="search"
+                placeholder="Nombre o categoría..."
+                value={searchNombre}
+                onChange={(e) => { setSearchNombre(e.target.value); setPagina(1); }}
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-52"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase text-zinc-500">Categoría</label>
+              <select
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={filterCategoriaId}
+                onChange={(e) => { setFilterCategoriaId(e.target.value); setPagina(1); }}
+              >
+                <option value="">Todas</option>
+                {categorias.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase text-zinc-500">Ordenar por</label>
+              <select
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={orden}
+                onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
+              >
+                <option value="nombre">Nombre</option>
+                <option value="categoria">Categoría</option>
+              </select>
+            </div>
+            {(searchNombre || filterCategoriaId) && (
+              <button
+                type="button"
+                onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setPagina(1); }}
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-50"
+              >
+                Limpiar
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
