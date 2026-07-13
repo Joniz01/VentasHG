@@ -37,6 +37,7 @@ export default function ProveedoresPanel() {
   const [formData, setFormData] = useState<FormData>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<number | string | null>(null);
 
   const fetchProveedores = useCallback(async (q = "") => {
     setLoading(true);
@@ -73,6 +74,25 @@ export default function ProveedoresPanel() {
       diasCredito: p.diasCredito != null ? String(p.diasCredito) : "0",
     });
     setShowForm(true);
+  }
+
+  async function handleDelete(p: Proveedor) {
+    if (!confirm(`¿Eliminar el proveedor "${p.nombre}"?`)) return;
+    setDeletingId(p.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/proveedores/${p.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.desactivado) {
+        alert("El proveedor tiene facturas asociadas y fue desactivado en lugar de eliminado.");
+      }
+      await fetchProveedores(search);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Error al eliminar");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function closeForm() {
@@ -361,21 +381,21 @@ export default function ProveedoresPanel() {
                     {p.diasCredito != null ? p.diasCredito : "—"}
                   </td>
                   <td style={cellStyle}>
-                    <button
-                      onClick={() => openEdit(p)}
-                      style={{
-                        padding: "0.3rem 0.75rem",
-                        background: "transparent",
-                        color: "var(--erp-primary)",
-                        border: "1px solid var(--erp-primary)",
-                        borderRadius: "5px",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                        fontWeight: 500,
-                      }}
-                    >
-                      Editar
-                    </button>
+                    <div style={{ display: "flex", gap: "0.4rem" }}>
+                      <button
+                        onClick={() => openEdit(p)}
+                        style={{ padding: "0.3rem 0.75rem", background: "transparent", color: "var(--erp-primary)", border: "1px solid var(--erp-primary)", borderRadius: "5px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 500 }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p)}
+                        disabled={deletingId === p.id}
+                        style={{ padding: "0.3rem 0.75rem", background: "transparent", color: "#B91C1C", border: "1px solid #B91C1C", borderRadius: "5px", cursor: deletingId === p.id ? "not-allowed" : "pointer", fontSize: "0.8rem", fontWeight: 500, opacity: deletingId === p.id ? 0.5 : 1 }}
+                      >
+                        {deletingId === p.id ? "..." : "Eliminar"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

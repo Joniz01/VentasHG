@@ -19,6 +19,24 @@ export async function GET(request: NextRequest, { params }: Params) {
   } catch (err) { return NextResponse.json({ error: String(err) }, { status: 500 }); }
 }
 
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion || sesion.rol !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const { id } = await params;
+  try {
+    // Verificar si tiene compras asociadas
+    const compras = await pool.query(`SELECT 1 FROM compras WHERE proveedor_id = $1 LIMIT 1`, [id]);
+    if ((compras.rowCount ?? 0) > 0) {
+      // Desactivar en lugar de eliminar para mantener integridad
+      await pool.query(`UPDATE proveedores SET activo = FALSE WHERE id = $1`, [id]);
+      return NextResponse.json({ ok: true, desactivado: true });
+    }
+    const r = await pool.query(`DELETE FROM proveedores WHERE id = $1 RETURNING id`, [id]);
+    if (!r.rowCount) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    return NextResponse.json({ ok: true, desactivado: false });
+  } catch (err) { return NextResponse.json({ error: String(err) }, { status: 500 }); }
+}
+
 export async function PATCH(request: NextRequest, { params }: Params) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion || sesion.rol !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
