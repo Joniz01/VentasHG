@@ -218,6 +218,8 @@ export default function FacturaCompraForm({
           if (ocrNombre) setProveedorQ(ocrNombre);
           if (ocrRif) setProveedorRif(ocrRif);
           if (ocrDir) setProveedorDir(ocrDir);
+          // Marcar como "buscado" para que aparezca el mini-form de datos del proveedor nuevo
+          setProvSearched(true);
         }
         if (d.numero_factura) setNumeroFactura(String(d.numero_factura));
         if (d.fecha) setFecha(String(d.fecha).slice(0, 10));
@@ -566,18 +568,16 @@ export default function FacturaCompraForm({
               Escanear Factura (Recomendado)
             </div>
 
-            {/* Botones grandes cámara / galería */}
+            {/* Botones cámara / galería */}
             {!imagenBase64 && !ocrLoading && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => cameraRef.current?.click()}
-                  style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 10, padding: "18px 10px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 26 }}>📷</span>
-                  Tomar foto
+                  style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  📷 Cámara
                 </button>
                 <button type="button" onClick={() => fileRef.current?.click()}
-                  style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "18px 10px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 26 }}>🖼️</span>
-                  Desde galería
+                  style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  📁 Galería
                 </button>
               </div>
             )}
