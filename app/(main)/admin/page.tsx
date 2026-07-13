@@ -18,7 +18,7 @@ export default async function AdminPage() {
   if (sesion && sesion.rol === "ADMIN") {
     return (
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <h2 className="text-lg font-semibold">Administración</h2>
+        <h2 className="text-lg font-semibold">Configuración</h2>
         <AdminTabsClient
           usuarioActualId={sesion.id}
           nombre={sesion.nombre}
@@ -32,7 +32,7 @@ export default async function AdminPage() {
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4">
-      <h2 className="text-lg font-semibold">Administración</h2>
+      <h2 className="text-lg font-semibold">Configuración</h2>
       <p className="text-sm text-zinc-600">
         {hayUsuarios
           ? "Inicia sesión con tu cuenta para acceder al sistema."

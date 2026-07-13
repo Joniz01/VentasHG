@@ -54,7 +54,7 @@ const GRUPOS: TileGroup[] = [
     tiles: [
       { href: "/dashboard", icon: "📈", label: "Dashboard",      sub: "Métricas y gráficas", color: "#1D4ED8", permiso: "dashboard" },
       { href: "/reportes",  icon: "📑", label: "Reportes",       sub: "Ventas y resúmenes",  color: "#1D4ED8", permiso: "reportes" },
-      { href: "/admin",     icon: "🔧", label: "Administración", sub: "Usuarios y config",   color: "#475569", rolReq: "ADMIN" },
+      { href: "/admin",     icon: "🔧", label: "Configuración",  sub: "Usuarios y config",   color: "#475569", rolReq: "ADMIN" },
     ],
   },
 ];

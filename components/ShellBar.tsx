@@ -18,7 +18,7 @@ const MODULE_NAMES: Record<string, string> = {
   "/reportes":           "Reportes",
   "/delivery":           "Delivery",
   "/dashboard":          "Dashboard",
-  "/admin":              "Administración",
+  "/admin":              "Configuración",
 };
 
 const THEMES = [

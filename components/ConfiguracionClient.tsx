@@ -20,6 +20,137 @@ type Config = {
   ventas_paso4_abierto: string;
 };
 
+const SECTION_KEYS = ["general", "cashea", "yummy", "ventas"] as const;
+type SectionKey = typeof SECTION_KEYS[number];
+
+function SectionToggle({
+  id, title, icon, accent, open, onToggle, children,
+}: {
+  id: SectionKey;
+  title: string;
+  icon: string;
+  accent?: { border: string; bg: string; dot: string };
+  open: boolean;
+  onToggle: (id: SectionKey) => void;
+  children: React.ReactNode;
+}) {
+  const border = accent?.border ?? "var(--erp-border)";
+  const bg = accent?.bg ?? "var(--erp-surface)";
+  const dot = accent?.dot;
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${border}`,
+        borderRadius: "10px",
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => onToggle(id)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0.85rem 1rem",
+          background: bg,
+          border: "none",
+          cursor: "pointer",
+          gap: "0.5rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+          {dot && (
+            <span
+              style={{
+                display: "inline-flex",
+                width: 22,
+                height: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "50%",
+                background: dot,
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                color: "#fff",
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </span>
+          )}
+          {!dot && <span style={{ fontSize: "1rem" }}>{icon}</span>}
+          <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--erp-text)" }}>{title}</span>
+        </div>
+        <span style={{ fontSize: "1rem", color: "var(--erp-text-2)", transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            padding: "1rem",
+            borderTop: `1px solid ${border}`,
+            background: "var(--erp-bg)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.85rem",
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const inputSt: React.CSSProperties = {
+  padding: "0.4rem 0.65rem",
+  border: "1px solid var(--erp-border)",
+  borderRadius: "6px",
+  background: "var(--erp-bg)",
+  color: "var(--erp-text)",
+  fontSize: "0.875rem",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+function TagList({
+  items, onRemove, accentBorder,
+}: { items: string[]; onRemove: (v: string) => void; accentBorder?: string }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.4rem" }}>
+      {items.map((v) => (
+        <span
+          key={v}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.3rem",
+            padding: "0.15rem 0.55rem",
+            borderRadius: "20px",
+            border: `1px solid ${accentBorder ?? "var(--erp-border)"}`,
+            background: "var(--erp-bg)",
+            fontSize: "0.78rem",
+            fontWeight: 500,
+            color: "var(--erp-text)",
+          }}
+        >
+          {v}
+          <button
+            type="button"
+            onClick={() => onRemove(v)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#b91c1c", fontSize: "0.9rem", lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function ConfiguracionClient() {
   const [config, setConfig] = useState<Config>({
     imagen_retencion_dias: "7",
@@ -38,6 +169,14 @@ export default function ConfiguracionClient() {
     ventas_paso3_abierto: "true",
     ventas_paso4_abierto: "true",
   });
+
+  const [open, setOpen] = useState<Record<SectionKey, boolean>>({
+    general: true,
+    cashea: false,
+    yummy: false,
+    ventas: false,
+  });
+
   const [nuevoPorcentaje, setNuevoPorcentaje] = useState("");
   const [nuevoDias, setNuevoDias] = useState("");
   const [nuevoYummyDias, setNuevoYummyDias] = useState("");
@@ -51,6 +190,13 @@ export default function ConfiguracionClient() {
       .then((d) => { setConfig((prev) => ({ ...prev, ...d })); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  function toggleSection(id: SectionKey) {
+    setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function expandAll() { setOpen({ general: true, cashea: true, yummy: true, ventas: true }); }
+  function collapseAll() { setOpen({ general: false, cashea: false, yummy: false, ventas: false }); }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -72,266 +218,151 @@ export default function ConfiguracionClient() {
     }
   }
 
-  const porcentajesArr = (config.cashea_porcentajes ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const diasArr = (config.cashea_dias ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const yummyDiasArr = (config.yummy_dias ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const porcentajesArr = (config.cashea_porcentajes ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const diasArr = (config.cashea_dias ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const yummyDiasArr = (config.yummy_dias ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
   function addPorcentaje() {
     const val = nuevoPorcentaje.trim();
     if (!val || porcentajesArr.includes(val)) return;
-    setConfig((prev) => ({ ...prev, cashea_porcentajes: [...porcentajesArr, val].join(",") }));
+    setConfig((p) => ({ ...p, cashea_porcentajes: [...porcentajesArr, val].join(",") }));
     setNuevoPorcentaje("");
   }
-
   function removePorcentaje(val: string) {
     const updated = porcentajesArr.filter((v) => v !== val);
-    setConfig((prev) => ({
-      ...prev,
-      cashea_porcentajes: updated.join(","),
-      cashea_porcentaje_default: prev.cashea_porcentaje_default === val ? (updated[0] ?? "") : prev.cashea_porcentaje_default,
-    }));
+    setConfig((p) => ({ ...p, cashea_porcentajes: updated.join(","), cashea_porcentaje_default: p.cashea_porcentaje_default === val ? (updated[0] ?? "") : p.cashea_porcentaje_default }));
   }
-
   function addDias() {
     const val = nuevoDias.trim();
     if (!val || diasArr.includes(val)) return;
-    setConfig((prev) => ({ ...prev, cashea_dias: [...diasArr, val].join(",") }));
+    setConfig((p) => ({ ...p, cashea_dias: [...diasArr, val].join(",") }));
     setNuevoDias("");
   }
-
   function removeDias(val: string) {
     const updated = diasArr.filter((v) => v !== val);
-    setConfig((prev) => ({
-      ...prev,
-      cashea_dias: updated.join(","),
-      cashea_dias_default: prev.cashea_dias_default === val ? (updated[0] ?? "") : prev.cashea_dias_default,
-    }));
+    setConfig((p) => ({ ...p, cashea_dias: updated.join(","), cashea_dias_default: p.cashea_dias_default === val ? (updated[0] ?? "") : p.cashea_dias_default }));
   }
-
   function addYummyDias() {
     const val = nuevoYummyDias.trim();
     if (!val || yummyDiasArr.includes(val)) return;
-    setConfig((prev) => ({ ...prev, yummy_dias: [...yummyDiasArr, val].join(",") }));
+    setConfig((p) => ({ ...p, yummy_dias: [...yummyDiasArr, val].join(",") }));
     setNuevoYummyDias("");
   }
-
   function removeYummyDias(val: string) {
     const updated = yummyDiasArr.filter((v) => v !== val);
-    setConfig((prev) => ({
-      ...prev,
-      yummy_dias: updated.join(","),
-      yummy_dias_default: prev.yummy_dias_default === val ? (updated[0] ?? "") : prev.yummy_dias_default,
-    }));
+    setConfig((p) => ({ ...p, yummy_dias: updated.join(","), yummy_dias_default: p.yummy_dias_default === val ? (updated[0] ?? "") : p.yummy_dias_default }));
   }
 
-  if (loading) return <p className="text-sm text-zinc-500">Cargando...</p>;
+  if (loading) return <p style={{ fontSize: "0.875rem", color: "var(--erp-text-3)" }}>Cargando...</p>;
+
+  const allOpen = SECTION_KEYS.every((k) => open[k]);
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-w-sm">
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-zinc-700">
-          Modo de entrega por defecto
-        </label>
-        <p className="text-xs text-zinc-500">
-          Valor inicial del modo de entrega al registrar una venta nueva.
-        </p>
-        <select
-          value={config.modo_entrega_default}
-          onChange={(e) => setConfig({ ...config, modo_entrega_default: e.target.value })}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-40"
-        >
-          <option value="DELIVERY">Delivery</option>
-          <option value="LOCAL">Local</option>
-        </select>
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: 560 }}>
+      {/* Expand / collapse all */}
+      <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+        <button type="button" onClick={allOpen ? collapseAll : expandAll} style={{ padding: "0.3rem 0.8rem", border: "1px solid var(--erp-border)", borderRadius: "6px", background: "transparent", color: "var(--erp-text-2)", fontSize: "0.78rem", cursor: "pointer" }}>
+          {allOpen ? "Contraer todo" : "Expandir todo"}
+        </button>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-zinc-700">
-          Costo por defecto Wink ($)
-        </label>
-        <p className="text-xs text-zinc-500">
-          Precio predeterminado al seleccionar Wink como tipo de delivery.
-        </p>
-        <input
-          type="number"
-          step="0.01"
-          min={0}
-          value={config.wink_costo_default}
-          onChange={(e) => setConfig({ ...config, wink_costo_default: e.target.value })}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-24"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-zinc-700">
-          Días de retención de imágenes (punto de venta)
-        </label>
-        <p className="text-xs text-zinc-500">
-          Las imágenes del punto de venta se eliminan automáticamente después de este número de días.
-        </p>
-        <input
-          type="number"
-          min={1}
-          max={90}
-          value={config.imagen_retencion_dias}
-          onChange={(e) => setConfig({ ...config, imagen_retencion_dias: e.target.value })}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-24"
-        />
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-black">C</span>
-          Cashea
-        </h3>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-zinc-700">% de cuota inicial (opciones)</label>
-          <div className="flex flex-wrap gap-1.5 mb-1">
-            {porcentajesArr.map((v) => (
-              <span key={v} className="flex items-center gap-1 rounded-full border border-yellow-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
-                {v}%
-                <button type="button" onClick={() => removePorcentaje(v)} className="text-red-500 hover:text-red-700 leading-none">&times;</button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            <input
-              type="number"
-              min={1}
-              max={99}
-              value={nuevoPorcentaje}
-              onChange={(e) => setNuevoPorcentaje(e.target.value)}
-              placeholder="Ej: 40"
-              className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-sm"
-            />
-            <button type="button" onClick={addPorcentaje} className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">Agregar</button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-zinc-700">% por defecto</label>
-          <select
-            value={config.cashea_porcentaje_default}
-            onChange={(e) => setConfig({ ...config, cashea_porcentaje_default: e.target.value })}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-28"
-          >
-            {porcentajesArr.map((v) => (
-              <option key={v} value={v}>{v}%</option>
-            ))}
+      {/* General */}
+      <SectionToggle id="general" title="General" icon="⚙️" open={open.general} onToggle={toggleSection}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Modo de entrega por defecto</label>
+          <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>Valor inicial al registrar una venta nueva.</p>
+          <select style={{ ...inputSt, width: 160 }} value={config.modo_entrega_default} onChange={(e) => setConfig({ ...config, modo_entrega_default: e.target.value })}>
+            <option value="DELIVERY">Delivery</option>
+            <option value="LOCAL">Local</option>
           </select>
         </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Costo por defecto Wink ($)</label>
+          <input type="number" step="0.01" min={0} style={{ ...inputSt, width: 100 }} value={config.wink_costo_default} onChange={(e) => setConfig({ ...config, wink_costo_default: e.target.value })} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Días de retención de imágenes</label>
+          <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>Las imágenes del punto de venta se eliminan automáticamente después de este número de días.</p>
+          <input type="number" min={1} max={90} style={{ ...inputSt, width: 100 }} value={config.imagen_retencion_dias} onChange={(e) => setConfig({ ...config, imagen_retencion_dias: e.target.value })} />
+        </div>
+      </SectionToggle>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-zinc-700">Días de financiamiento (opciones)</label>
-          <div className="flex flex-wrap gap-1.5 mb-1">
-            {diasArr.map((v) => (
-              <span key={v} className="flex items-center gap-1 rounded-full border border-yellow-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
-                {v} días
-                <button type="button" onClick={() => removeDias(v)} className="text-red-500 hover:text-red-700 leading-none">&times;</button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            <input
-              type="number"
-              min={1}
-              value={nuevoDias}
-              onChange={(e) => setNuevoDias(e.target.value)}
-              placeholder="Ej: 45"
-              className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-sm"
-            />
-            <button type="button" onClick={addDias} className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">Agregar</button>
+      {/* Cashea */}
+      <SectionToggle
+        id="cashea" title="Cashea" icon="C"
+        accent={{ border: "#fde68a", bg: "#fefce8", dot: "#f59e0b" }}
+        open={open.cashea} onToggle={toggleSection}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>% de cuota inicial (opciones)</label>
+          <TagList items={porcentajesArr.map((v) => `${v}%`)} onRemove={(v) => removePorcentaje(v.replace("%", ""))} accentBorder="#fde68a" />
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <input type="number" min={1} max={99} value={nuevoPorcentaje} onChange={(e) => setNuevoPorcentaje(e.target.value)} placeholder="Ej: 40" style={{ ...inputSt, width: 80 }} />
+            <button type="button" onClick={addPorcentaje} style={{ padding: "0.35rem 0.8rem", border: "1px solid var(--erp-border)", borderRadius: "6px", background: "transparent", color: "var(--erp-text)", fontSize: "0.8rem", cursor: "pointer" }}>Agregar</button>
           </div>
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-zinc-700">Días por defecto</label>
-          <select
-            value={config.cashea_dias_default}
-            onChange={(e) => setConfig({ ...config, cashea_dias_default: e.target.value })}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-28"
-          >
-            {diasArr.map((v) => (
-              <option key={v} value={v}>{v}</option>
-            ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>% por defecto</label>
+          <select style={{ ...inputSt, width: 110 }} value={config.cashea_porcentaje_default} onChange={(e) => setConfig({ ...config, cashea_porcentaje_default: e.target.value })}>
+            {porcentajesArr.map((v) => <option key={v} value={v}>{v}%</option>)}
           </select>
         </div>
-      </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Días de financiamiento (opciones)</label>
+          <TagList items={diasArr.map((v) => `${v} días`)} onRemove={(v) => removeDias(v.replace(" días", ""))} accentBorder="#fde68a" />
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <input type="number" min={1} value={nuevoDias} onChange={(e) => setNuevoDias(e.target.value)} placeholder="Ej: 45" style={{ ...inputSt, width: 80 }} />
+            <button type="button" onClick={addDias} style={{ padding: "0.35rem 0.8rem", border: "1px solid var(--erp-border)", borderRadius: "6px", background: "transparent", color: "var(--erp-text)", fontSize: "0.8rem", cursor: "pointer" }}>Agregar</button>
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Días por defecto</label>
+          <select style={{ ...inputSt, width: 110 }} value={config.cashea_dias_default} onChange={(e) => setConfig({ ...config, cashea_dias_default: e.target.value })}>
+            {diasArr.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
+      </SectionToggle>
 
       {/* Yummy */}
-      <div className="flex flex-col gap-3 rounded-lg border p-4" style={{ borderColor: "#00c853", backgroundColor: "#f0faf4" }}>
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#00c853" }}>Y</span>
-          Yummy — Cuentas por Cobrar
-        </h3>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-zinc-700">Días de pago (opciones)</label>
-          <div className="flex flex-wrap gap-1.5 mb-1">
-            {yummyDiasArr.map((v) => (
-              <span key={v} className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-zinc-700 bg-white" style={{ borderColor: "#00c853" }}>
-                {v} días
-                <button type="button" onClick={() => removeYummyDias(v)} className="text-red-500 hover:text-red-700 leading-none">&times;</button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            <input
-              type="number"
-              min={1}
-              value={nuevoYummyDias}
-              onChange={(e) => setNuevoYummyDias(e.target.value)}
-              placeholder="Ej: 7"
-              className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-sm"
-            />
-            <button type="button" onClick={addYummyDias} className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">Agregar</button>
+      <SectionToggle
+        id="yummy" title="Yummy — Cuentas por Cobrar" icon="Y"
+        accent={{ border: "#86efac", bg: "#f0fdf4", dot: "#16a34a" }}
+        open={open.yummy} onToggle={toggleSection}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Días de pago (opciones)</label>
+          <TagList items={yummyDiasArr.map((v) => `${v} días`)} onRemove={(v) => removeYummyDias(v.replace(" días", ""))} accentBorder="#86efac" />
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <input type="number" min={1} value={nuevoYummyDias} onChange={(e) => setNuevoYummyDias(e.target.value)} placeholder="Ej: 7" style={{ ...inputSt, width: 80 }} />
+            <button type="button" onClick={addYummyDias} style={{ padding: "0.35rem 0.8rem", border: "1px solid var(--erp-border)", borderRadius: "6px", background: "transparent", color: "var(--erp-text)", fontSize: "0.8rem", cursor: "pointer" }}>Agregar</button>
           </div>
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-zinc-700">Días por defecto</label>
-          <select
-            value={config.yummy_dias_default}
-            onChange={(e) => setConfig({ ...config, yummy_dias_default: e.target.value })}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-28"
-          >
-            {yummyDiasArr.map((v) => (
-              <option key={v} value={v}>{v} días</option>
-            ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Días por defecto</label>
+          <select style={{ ...inputSt, width: 110 }} value={config.yummy_dias_default} onChange={(e) => setConfig({ ...config, yummy_dias_default: e.target.value })}>
+            {yummyDiasArr.map((v) => <option key={v} value={v}>{v} días</option>)}
           </select>
         </div>
-      </div>
+      </SectionToggle>
 
-      {/* Formulario de Ventas */}
-      <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-        <h3 className="text-sm font-semibold text-zinc-800">Formulario de Ventas</h3>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-zinc-700">Modo de vista</label>
-          <p className="text-xs text-zinc-500">
-            "Clásico" muestra todo expandido. "Pasos" divide el formulario en 4 secciones colapsables con navegación guiada. Cada usuario puede sobreescribir este default en su perfil.
+      {/* Ventas */}
+      <SectionToggle id="ventas" title="Formulario de Ventas" icon="🛒" open={open.ventas} onToggle={toggleSection}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Modo de vista</label>
+          <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>
+            "Clásico" muestra todo expandido. "Pasos" divide el formulario en 4 secciones colapsables.
           </p>
-          <div className="flex gap-2 mt-1">
+          <div style={{ display: "flex", gap: "0.5rem" }}>
             {[{ val: "clasico", label: "Clásico" }, { val: "pasos", label: "Pasos" }].map(({ val, label }) => (
               <button
-                key={val}
-                type="button"
+                key={val} type="button"
                 onClick={() => setConfig({ ...config, ventas_modo_vista: val })}
-                className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-                  config.ventas_modo_vista === val
-                    ? "border-zinc-900 bg-zinc-900 text-white"
-                    : "border-zinc-300 hover:bg-zinc-100"
-                }`}
+                style={{
+                  padding: "0.35rem 0.85rem", borderRadius: "6px", fontSize: "0.85rem", fontWeight: 500, cursor: "pointer",
+                  border: `1px solid ${config.ventas_modo_vista === val ? "var(--erp-primary)" : "var(--erp-border)"}`,
+                  background: config.ventas_modo_vista === val ? "var(--erp-primary)" : "transparent",
+                  color: config.ventas_modo_vista === val ? "#fff" : "var(--erp-text)",
+                }}
               >
                 {label}
               </button>
@@ -339,24 +370,23 @@ export default function ConfiguracionClient() {
           </div>
         </div>
 
-        {/* Orden de pasos — siempre visible */}
-        <div className="flex flex-col gap-1 border-t border-zinc-200 pt-3 mt-1">
-          <label className="text-sm font-medium text-zinc-700">Orden de pasos (default global)</label>
-          <p className="text-xs text-zinc-500 mb-1">Cada usuario puede cambiarlo en su perfil.</p>
-          <div className="flex flex-col gap-1">
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Orden de pasos (default global)</label>
+          <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>Cada usuario puede cambiarlo en su perfil.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
             {[
               { val: "default", label: "1 Productos · 2 Formas de pago · 3 Entrega · 4 Cliente" },
               { val: "entrega_primero", label: "1 Productos · 2 Entrega · 3 Formas de pago · 4 Cliente" },
             ].map(({ val, label }) => (
               <button
-                key={val}
-                type="button"
+                key={val} type="button"
                 onClick={() => setConfig({ ...config, ventas_orden_pasos: val })}
-                className={`rounded border px-3 py-2 text-xs text-left font-medium ${
-                  config.ventas_orden_pasos === val
-                    ? "border-zinc-900 bg-zinc-900 text-white"
-                    : "border-zinc-300 hover:bg-zinc-100"
-                }`}
+                style={{
+                  padding: "0.4rem 0.85rem", borderRadius: "6px", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer", textAlign: "left",
+                  border: `1px solid ${config.ventas_orden_pasos === val ? "var(--erp-primary)" : "var(--erp-border)"}`,
+                  background: config.ventas_orden_pasos === val ? "var(--erp-primary)" : "transparent",
+                  color: config.ventas_orden_pasos === val ? "#fff" : "var(--erp-text)",
+                }}
               >
                 {label}
               </button>
@@ -365,27 +395,27 @@ export default function ConfiguracionClient() {
         </div>
 
         {config.ventas_modo_vista === "pasos" && (
-          <div className="flex flex-col gap-2 border-t border-zinc-200 pt-3 mt-1">
-            <p className="text-xs text-zinc-500">Secciones abiertas por defecto en escritorio (en móvil siempre inician cerradas):</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Secciones abiertas por defecto (escritorio)</label>
             {[
               { key: "ventas_paso1_abierto", label: "1 — Productos del Pedido" },
-              { key: "ventas_paso2_abierto", label: "2 — Formas de pago / Entrega (según orden)" },
-              { key: "ventas_paso3_abierto", label: "3 — Entrega / Formas de pago (según orden)" },
+              { key: "ventas_paso2_abierto", label: "2 — Formas de pago / Entrega" },
+              { key: "ventas_paso3_abierto", label: "3 — Entrega / Formas de pago" },
               { key: "ventas_paso4_abierto", label: "4 — Datos del Cliente" },
             ].map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="text-sm text-zinc-700">{label}</span>
-                <div className="flex gap-1.5">
+              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.825rem", color: "var(--erp-text)" }}>{label}</span>
+                <div style={{ display: "flex", gap: "0.35rem" }}>
                   {[{ val: "true", label: "Abierto" }, { val: "false", label: "Cerrado" }].map(({ val, label: lbl }) => (
                     <button
-                      key={val}
-                      type="button"
+                      key={val} type="button"
                       onClick={() => setConfig({ ...config, [key]: val })}
-                      className={`rounded border px-2 py-0.5 text-xs font-medium ${
-                        config[key as keyof Config] === val
-                          ? "border-zinc-900 bg-zinc-900 text-white"
-                          : "border-zinc-300 hover:bg-zinc-100"
-                      }`}
+                      style={{
+                        padding: "0.2rem 0.65rem", borderRadius: "5px", fontSize: "0.775rem", fontWeight: 500, cursor: "pointer",
+                        border: `1px solid ${config[key as keyof Config] === val ? "var(--erp-primary)" : "var(--erp-border)"}`,
+                        background: config[key as keyof Config] === val ? "var(--erp-primary)" : "transparent",
+                        color: config[key as keyof Config] === val ? "#fff" : "var(--erp-text)",
+                      }}
                     >
                       {lbl}
                     </button>
@@ -395,20 +425,18 @@ export default function ConfiguracionClient() {
             ))}
           </div>
         )}
-      </div>
+      </SectionToggle>
 
-      <div className="flex items-center gap-3">
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem" }}>
         <button
           type="submit"
           disabled={saving}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+          style={{ padding: "0.45rem 1.25rem", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: "7px", fontSize: "0.875rem", fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
         >
           {saving ? "Guardando..." : "Guardar"}
         </button>
         {mensaje && (
-          <span className={`text-sm ${mensaje.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
-            {mensaje}
-          </span>
+          <span style={{ fontSize: "0.85rem", color: mensaje.startsWith("Error") ? "#b91c1c" : "#16a34a" }}>{mensaje}</span>
         )}
       </div>
     </form>

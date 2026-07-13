@@ -74,7 +74,7 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Administración",
+    label: "Configuración",
     items: [
       { href: "/admin", icon: "⚙️", label: "Admin", rolReq: "ADMIN" },
     ],

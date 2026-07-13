@@ -16,51 +16,107 @@ type Props = {
 };
 
 const TABS = [
-  { key: "usuarios", label: "Usuarios" },
-  { key: "alarmas", label: "Alarmas" },
-  { key: "configuracion", label: "Configuración" },
-  { key: "inventario", label: "Inventario Inicial" },
-  { key: "acceso", label: "Acceso al Sistema" },
-  { key: "llm", label: "IA / LLM" },
+  { key: "usuarios",      label: "Usuarios",           icon: "👥", desc: "Gestiona usuarios y permisos" },
+  { key: "alarmas",       label: "Alarmas",             icon: "🔔", desc: "Sonido y comportamiento de alertas" },
+  { key: "configuracion", label: "Configuración",       icon: "⚙️",  desc: "Parámetros generales del sistema" },
+  { key: "inventario",    label: "Inventario Inicial",  icon: "📦", desc: "Reiniciar inventario de productos" },
+  { key: "acceso",        label: "Acceso al Sistema",   icon: "🔐", desc: "Contraseña y sesión" },
+  { key: "llm",           label: "IA / LLM",            icon: "🤖", desc: "API keys de Gemini y Groq" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
 export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Props) {
-  const [tab, setTab] = useState<TabKey>("usuarios");
+  const [tab, setTab] = useState<TabKey | null>(null);
+
+  if (!tab) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: "0.75rem",
+          }}
+        >
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                gap: "0.4rem",
+                padding: "1rem 1.1rem",
+                background: "var(--erp-surface)",
+                border: "1px solid var(--erp-border)",
+                borderRadius: "10px",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--erp-primary)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 3px var(--erp-primary-lt)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--erp-border)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
+              }}
+            >
+              <span style={{ fontSize: "1.5rem", lineHeight: 1 }}>{t.icon}</span>
+              <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--erp-text)" }}>{t.label}</span>
+              <span style={{ fontSize: "0.775rem", color: "var(--erp-text-2)", lineHeight: 1.35 }}>{t.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const current = TABS.find((t) => t.key === tab)!;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-              tab === t.key
-                ? "border-zinc-900 bg-zinc-900 text-white"
-                : "border-zinc-300 hover:bg-zinc-100"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <button
+          type="button"
+          onClick={() => setTab(null)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.35rem",
+            padding: "0.35rem 0.75rem",
+            background: "transparent",
+            border: "1px solid var(--erp-border)",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "0.8rem",
+            color: "var(--erp-text-2)",
+          }}
+        >
+          ← Volver
+        </button>
+        <span style={{ fontSize: "1rem", fontWeight: 600, color: "var(--erp-text)" }}>
+          {current.icon} {current.label}
+        </span>
       </div>
 
       {tab === "usuarios" && (
-        <div className="flex flex-col gap-8">
+        <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
           <div>
-            <h2 className="mb-4 text-lg font-semibold">Usuarios del sistema</h2>
-            <p className="mb-4 text-sm text-zinc-600">
+            <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
               Crea y gestiona los usuarios con acceso al sistema y sus permisos por sección.
             </p>
             <UsuariosConfigClient usuarioActualId={usuarioActualId} />
           </div>
-
           <div>
-            <h2 className="mb-4 text-lg font-semibold">Motorizados (Delivery)</h2>
-            <p className="mb-4 text-sm text-zinc-600">
+            <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--erp-text)", marginBottom: "0.5rem" }}>
+              Motorizados (Delivery)
+            </h3>
+            <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
               Crea y gestiona los usuarios de los motorizados encargados de las entregas.
             </p>
             <MotorizadosConfigClient />
@@ -70,8 +126,7 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
 
       {tab === "alarmas" && (
         <div>
-          <h2 className="mb-4 text-lg font-semibold">Configuración de Alarmas</h2>
-          <p className="mb-4 text-sm text-zinc-600">
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
             Configura el sonido y comportamiento de las alarmas de Pedidos Pendientes.
           </p>
           <AlarmasConfigClient />
@@ -80,8 +135,7 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
 
       {tab === "configuracion" && (
         <div>
-          <h2 className="mb-4 text-lg font-semibold">Configuración del sistema</h2>
-          <p className="mb-4 text-sm text-zinc-600">
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
             Ajusta los parámetros generales del sistema.
           </p>
           <ConfiguracionClient />
@@ -90,8 +144,7 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
 
       {tab === "inventario" && (
         <div>
-          <h2 className="mb-4 text-lg font-semibold">Inventario Inicial</h2>
-          <p className="mb-4 text-sm text-zinc-600">
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
             Inicialización de operaciones: lleva el inventario de todos los productos a cero.
           </p>
           <InventarioInicialClient />
@@ -100,8 +153,7 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
 
       {tab === "acceso" && (
         <div>
-          <h2 className="mb-4 text-lg font-semibold">Admin Acceso al Sistema</h2>
-          <p className="mb-4 text-sm text-zinc-600">
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
             Administra el acceso de tu propia cuenta.
           </p>
           <AdminAccesoClient nombre={nombre} usuario={usuario} />
@@ -110,8 +162,7 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
 
       {tab === "llm" && (
         <div>
-          <h2 className="mb-1 text-lg font-semibold">Inteligencia Artificial — LLM</h2>
-          <p className="mb-4 text-sm text-zinc-600">
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
             Configura las API keys de Gemini y Groq. Gemini es el proveedor principal;
             Groq actúa como failback automático ante errores de cuota o disponibilidad.
           </p>
