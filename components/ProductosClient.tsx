@@ -60,7 +60,9 @@ export default function ProductosClient() {
       const q = searchNombre.trim().toLowerCase();
       list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q));
     }
-    if (filterCategoriaId) {
+    if (filterCategoriaId === "__sin__") {
+      list = list.filter((p) => !p.categoriaId);
+    } else if (filterCategoriaId) {
       list = list.filter((p) => String(p.categoriaId) === filterCategoriaId);
     }
     if (orden === "nombre") {
@@ -502,6 +504,7 @@ export default function ProductosClient() {
                 onChange={(e) => { setFilterCategoriaId(e.target.value); setPagina(1); }}
               >
                 <option value="">Todas</option>
+                <option value="__sin__">Sin categoría</option>
                 {categorias.map((c) => (
                   <option key={c.id} value={String(c.id)}>{c.nombre}</option>
                 ))}
