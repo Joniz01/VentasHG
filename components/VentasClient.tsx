@@ -957,10 +957,6 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <span id="conversor-bs-result" className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--erp-text-2)" }} />
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
-                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Venta Hoy</span>
-                <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{ventaHoy != null ? `$${ventaHoy.toFixed(2)}` : "—"}</span>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>BCV</span>
                 <input
                   type="number"
@@ -980,6 +976,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 >
                   {consultandoTasa ? "..." : "↻"}
                 </button>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Venta Hoy</span>
+                <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{ventaHoy != null ? `$${ventaHoy.toFixed(2)}` : "—"}</span>
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Ingresos</span>
