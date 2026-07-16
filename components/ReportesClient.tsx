@@ -43,6 +43,7 @@ export default function ReportesClient() {
   const [imagenExpandida, setImagenExpandida] = useState(false);
   const [imagenFullscreen, setImagenFullscreen] = useState(false);
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
+  const [resumenHoy, setResumenHoy] = useState<{ ventaHoy: number; ingresos: number } | null>(null);
   const [paginaCliente, setPaginaCliente] = useState(1);
   const [porPaginaCliente, setPorPaginaCliente] = useState(10);
   const [paginaProducto, setPaginaProducto] = useState(1);
@@ -153,6 +154,7 @@ export default function ReportesClient() {
     setError(null);
     setLoading(true);
     setDesde(desdeParam);
+    setResumenHoy(null);
     setHasta(hastaParam);
     try {
       const res = await fetch(
@@ -179,6 +181,14 @@ export default function ReportesClient() {
     setMesEspecifico("");
     const hoy = toIsoDate(new Date());
     generar(hoy, hoy);
+    fetch("/api/resumen")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.ventaHoy?.total_usd != null && d?.ingresos?.total_usd != null) {
+          setResumenHoy({ ventaHoy: Number(d.ventaHoy.total_usd), ingresos: Number(d.ingresos.total_usd) });
+        }
+      })
+      .catch(() => {});
   }
 
   function handleSemana() {
@@ -391,10 +401,28 @@ export default function ReportesClient() {
             <p className="text-sm text-zinc-600">
               Periodo: {reporte.desde} a {reporte.hasta}
             </p>
-            <p className="mt-1 text-lg font-semibold">
-              Total de ventas: ${reporte.totalVentasUsd.toFixed(2)} ({reporte.cantidadVentas}{" "}
-              {reporte.cantidadVentas === 1 ? "venta" : "ventas"})
-            </p>
+            {resumenHoy ? (
+              <div className="mt-2 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+                  <span className="text-sm font-medium text-zinc-500">Venta Hoy</span>
+                  <span className="text-sm font-semibold text-zinc-800">${resumenHoy.ventaHoy.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+                  <span className="text-sm font-medium text-zinc-500">Ingresos</span>
+                  <span className="text-sm font-semibold text-zinc-800">${resumenHoy.ingresos.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-md border border-green-200 bg-green-50 px-3 py-2">
+                  <span className="text-sm font-semibold text-green-700">Total Ingreso Hoy</span>
+                  <span className="text-sm font-bold text-green-700">${(resumenHoy.ventaHoy + resumenHoy.ingresos).toFixed(2)}</span>
+                </div>
+                <p className="text-xs text-zinc-400">({reporte.cantidadVentas} {reporte.cantidadVentas === 1 ? "venta" : "ventas"} registradas)</p>
+              </div>
+            ) : (
+              <p className="mt-1 text-lg font-semibold">
+                Total de ventas: ${reporte.totalVentasUsd.toFixed(2)} ({reporte.cantidadVentas}{" "}
+                {reporte.cantidadVentas === 1 ? "venta" : "ventas"})
+              </p>
+            )}
             {imagenPunto && imagenExpandida && (
               <div className="mt-3 border-t border-zinc-100 pt-3">
                 <div className="flex items-center justify-between mb-2">
