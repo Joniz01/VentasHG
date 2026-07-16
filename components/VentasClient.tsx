@@ -168,6 +168,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [pasoActual, setPasoActual] = useState(1);
   const [ventaHoy, setVentaHoy] = useState<number | null>(null);
   const [ingresos, setIngresos] = useState<number | null>(null);
+  const [metaTotalHoy, setMetaTotalHoy] = useState<number>(1);
 
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
@@ -343,6 +344,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       .then((d) => {
         if (d?.ventaHoy?.total_usd != null) setVentaHoy(Number(d.ventaHoy.total_usd));
         if (d?.ingresos?.total_usd != null) setIngresos(Number(d.ingresos.total_usd));
+      })
+      .catch(() => {});
+    fetch("/api/configuracion")
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg?.ventas_meta_total_hoy != null) setMetaTotalHoy(Number(cfg.ventas_meta_total_hoy));
       })
       .catch(() => {});
   }, []);
@@ -985,12 +992,21 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Ingresos</span>
                 <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{ingresos != null ? `$${ingresos.toFixed(2)}` : "—"}</span>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-primary)", background: "var(--erp-primary-lt)" }}>
-                <span className="text-xs font-medium" style={{ color: "var(--erp-primary)" }}>Total Hoy</span>
-                <span className="text-sm font-bold" style={{ color: "var(--erp-primary)" }}>
-                  {ventaHoy != null && ingresos != null ? `$${(ventaHoy + ingresos).toFixed(2)}` : "—"}
-                </span>
-              </div>
+              {(() => {
+                const totalHoy = ventaHoy != null && ingresos != null ? ventaHoy + ingresos : null;
+                const verde = totalHoy != null && totalHoy > metaTotalHoy;
+                const color = verde ? "#16a34a" : "var(--erp-primary)";
+                const bg = verde ? "#dcfce7" : "var(--erp-primary-lt)";
+                const border = verde ? "#16a34a" : "var(--erp-primary)";
+                return (
+                  <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: border, background: bg }}>
+                    <span className="text-xs font-medium" style={{ color }}>Total Hoy</span>
+                    <span className="text-sm font-bold" style={{ color }}>
+                      {totalHoy != null ? `$${totalHoy.toFixed(2)}` : "—"}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

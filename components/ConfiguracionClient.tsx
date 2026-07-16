@@ -18,6 +18,7 @@ type Config = {
   ventas_paso2_abierto: string;
   ventas_paso3_abierto: string;
   ventas_paso4_abierto: string;
+  ventas_meta_total_hoy: string;
 };
 
 const SECTION_KEYS = ["general", "cashea", "yummy", "ventas"] as const;
@@ -168,6 +169,7 @@ export default function ConfiguracionClient() {
     ventas_paso2_abierto: "true",
     ventas_paso3_abierto: "true",
     ventas_paso4_abierto: "true",
+    ventas_meta_total_hoy: "1",
   });
 
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
@@ -425,6 +427,29 @@ export default function ConfiguracionClient() {
             ))}
           </div>
         )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Meta Total Hoy (verde cuando supera)</label>
+          <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>
+            El indicador "Total Hoy" se muestra en verde cuando Venta Hoy + Ingresos supera este monto (en USD).
+          </p>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={config.ventas_meta_total_hoy}
+            onChange={(e) => setConfig({ ...config, ventas_meta_total_hoy: e.target.value })}
+            style={{
+              width: "140px",
+              padding: "0.35rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid var(--erp-border)",
+              background: "var(--erp-bg)",
+              color: "var(--erp-text)",
+              fontSize: "0.875rem",
+            }}
+          />
+        </div>
       </SectionToggle>
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem" }}>
