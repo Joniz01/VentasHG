@@ -985,6 +985,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Ingresos</span>
                 <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{ingresos != null ? `$${ingresos.toFixed(2)}` : "—"}</span>
               </div>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-primary)", background: "var(--erp-primary-lt)" }}>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-primary)" }}>Total Hoy</span>
+                <span className="text-sm font-bold" style={{ color: "var(--erp-primary)" }}>
+                  {ventaHoy != null && ingresos != null ? `$${(ventaHoy + ingresos).toFixed(2)}` : "—"}
+                </span>
+              </div>
             </div>
           )}
 
