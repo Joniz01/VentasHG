@@ -6,6 +6,8 @@ export type ResumenData = {
   semana: { cantidad: number; total_usd: number };
   mes: { cantidad: number; total_usd: number };
   cxcPendiente: { cantidad: number; total_usd: number };
+  ventaHoy: { cantidad: number; total_usd: number };
+  ingresos: { cantidad: number; total_usd: number };
   stock: { total_productos: number; sin_stock: number };
   error?: string;
 };
@@ -59,6 +61,28 @@ export async function getResumenLocal(): Promise<ResumenData> {
       FROM ventas v
       WHERE v.cuenta_por_cobrar = true AND v.cuenta_cobrada = false
     ),
+    venta_hoy AS (
+      SELECT
+        COUNT(*)::int AS cantidad,
+        COALESCE(SUM(
+          (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id)
+          + v.costo_delivery
+        ), 0) AS total_usd
+      FROM ventas v
+      WHERE v.fecha = CURRENT_DATE AND v.cuenta_por_cobrar = false
+    ),
+    ingresos AS (
+      SELECT
+        COUNT(*)::int AS cantidad,
+        COALESCE(SUM(
+          (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id)
+          + v.costo_delivery
+        ), 0) AS total_usd
+      FROM ventas v
+      WHERE v.cuenta_cobrada = true
+        AND v.cuenta_cobrada_at::date = CURRENT_DATE
+        AND v.fecha < CURRENT_DATE
+    ),
     stock AS (
       SELECT
         COUNT(*)::int AS total_productos,
@@ -71,6 +95,8 @@ export async function getResumenLocal(): Promise<ResumenData> {
       (SELECT row_to_json(semana) FROM semana) AS semana,
       (SELECT row_to_json(mes) FROM mes) AS mes,
       (SELECT row_to_json(cxc) FROM cxc) AS cxc_pendiente,
+      (SELECT row_to_json(venta_hoy) FROM venta_hoy) AS venta_hoy,
+      (SELECT row_to_json(ingresos) FROM ingresos) AS ingresos,
       (SELECT row_to_json(stock) FROM stock) AS stock
   `);
 
@@ -81,6 +107,8 @@ export async function getResumenLocal(): Promise<ResumenData> {
     semana: row.semana,
     mes: row.mes,
     cxcPendiente: row.cxc_pendiente,
+    ventaHoy: row.venta_hoy,
+    ingresos: row.ingresos,
     stock: row.stock,
   };
 }

@@ -167,7 +167,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   // Wizard step (1-4) — used in pasos mode
   const [pasoActual, setPasoActual] = useState(1);
   const [ventaHoy, setVentaHoy] = useState<number | null>(null);
-  const [cxcPendiente, setCxcPendiente] = useState<number | null>(null);
+  const [ingresos, setIngresos] = useState<number | null>(null);
 
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
@@ -337,12 +337,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           .catch(() => {});
       })
       .catch(() => {});
-    // Cargar indicadores de hoy y CxC
+    // Cargar indicadores de hoy, ingresos y CxC
     fetch("/api/resumen")
       .then((r) => r.json())
       .then((d) => {
-        if (d?.hoy?.total_usd != null) setVentaHoy(Number(d.hoy.total_usd));
-        if (d?.cxcPendiente?.total_usd != null) setCxcPendiente(Number(d.cxcPendiente.total_usd));
+        if (d?.ventaHoy?.total_usd != null) setVentaHoy(Number(d.ventaHoy.total_usd));
+        if (d?.ingresos?.total_usd != null) setIngresos(Number(d.ingresos.total_usd));
       })
       .catch(() => {});
   }, []);
@@ -957,7 +957,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 <span id="conversor-bs-result" className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--erp-text-2)" }} />
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
-                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Hoy</span>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Venta Hoy</span>
                 <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{ventaHoy != null ? `$${ventaHoy.toFixed(2)}` : "—"}</span>
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
@@ -982,8 +982,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 </button>
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
-                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>CxC</span>
-                <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{cxcPendiente != null ? `$${cxcPendiente.toFixed(2)}` : "—"}</span>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Ingresos</span>
+                <span className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>{ingresos != null ? `$${ingresos.toFixed(2)}` : "—"}</span>
               </div>
             </div>
           )}
