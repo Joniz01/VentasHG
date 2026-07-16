@@ -9,6 +9,8 @@ async function fetchResumen(baseUrl: string): Promise<ResumenData> {
     semana: { cantidad: 0, total_usd: 0 },
     mes: { cantidad: 0, total_usd: 0 },
     cxcPendiente: { cantidad: 0, total_usd: 0 },
+    ventaHoy: { cantidad: 0, total_usd: 0 },
+    ingresos: { cantidad: 0, total_usd: 0 },
     stock: { total_productos: 0, sin_stock: 0 },
   });
 
@@ -39,6 +41,8 @@ export async function GET(request: NextRequest) {
         semana: { cantidad: 0, total_usd: 0 },
         mes: { cantidad: 0, total_usd: 0 },
         cxcPendiente: { cantidad: 0, total_usd: 0 },
+        ventaHoy: { cantidad: 0, total_usd: 0 },
+        ingresos: { cantidad: 0, total_usd: 0 },
         stock: { total_productos: 0, sin_stock: 0 },
         error: "Error al consultar base de datos",
       })
