@@ -12,6 +12,9 @@ export type ResumenData = {
   error?: string;
 };
 
+// Fecha actual en timezone Venezuela (UTC-4)
+const HOY = `(NOW() AT TIME ZONE 'America/Caracas')::date`;
+
 export async function getResumenLocal(): Promise<ResumenData> {
   const result = await pool.query(`
     WITH
@@ -24,8 +27,8 @@ export async function getResumenLocal(): Promise<ResumenData> {
         ), 0) AS total_usd
       FROM ventas v
       WHERE
-        (NOT v.cuenta_por_cobrar AND v.fecha = CURRENT_DATE)
-        OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date = CURRENT_DATE)
+        (NOT v.cuenta_por_cobrar AND v.fecha = ${HOY})
+        OR (v.cuenta_cobrada = true AND (v.cuenta_cobrada_at AT TIME ZONE 'America/Caracas')::date = ${HOY})
     ),
     semana AS (
       SELECT
@@ -36,8 +39,8 @@ export async function getResumenLocal(): Promise<ResumenData> {
         ), 0) AS total_usd
       FROM ventas v
       WHERE
-        (NOT v.cuenta_por_cobrar AND v.fecha >= date_trunc('week', CURRENT_DATE)::date)
-        OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date >= date_trunc('week', CURRENT_DATE)::date)
+        (NOT v.cuenta_por_cobrar AND v.fecha >= date_trunc('week', ${HOY})::date)
+        OR (v.cuenta_cobrada = true AND (v.cuenta_cobrada_at AT TIME ZONE 'America/Caracas')::date >= date_trunc('week', ${HOY})::date)
     ),
     mes AS (
       SELECT
@@ -48,8 +51,8 @@ export async function getResumenLocal(): Promise<ResumenData> {
         ), 0) AS total_usd
       FROM ventas v
       WHERE
-        (NOT v.cuenta_por_cobrar AND v.fecha >= date_trunc('month', CURRENT_DATE)::date)
-        OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date >= date_trunc('month', CURRENT_DATE)::date)
+        (NOT v.cuenta_por_cobrar AND v.fecha >= date_trunc('month', ${HOY})::date)
+        OR (v.cuenta_cobrada = true AND (v.cuenta_cobrada_at AT TIME ZONE 'America/Caracas')::date >= date_trunc('month', ${HOY})::date)
     ),
     cxc AS (
       SELECT
@@ -69,7 +72,7 @@ export async function getResumenLocal(): Promise<ResumenData> {
           + v.costo_delivery
         ), 0) AS total_usd
       FROM ventas v
-      WHERE v.fecha = CURRENT_DATE AND v.cuenta_por_cobrar = false
+      WHERE v.fecha = ${HOY} AND v.cuenta_por_cobrar = false
     ),
     ingresos AS (
       SELECT
@@ -80,8 +83,8 @@ export async function getResumenLocal(): Promise<ResumenData> {
         ), 0) AS total_usd
       FROM ventas v
       WHERE v.cuenta_cobrada = true
-        AND v.cuenta_cobrada_at::date = CURRENT_DATE
-        AND v.fecha < CURRENT_DATE
+        AND (v.cuenta_cobrada_at AT TIME ZONE 'America/Caracas')::date = ${HOY}
+        AND v.fecha < ${HOY}
     ),
     stock AS (
       SELECT

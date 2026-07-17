@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 // Devuelve el conteo de cuentas por cobrar vencidas (pendientes con fecha_limite_pago < hoy)
 export async function GET() {
   try {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 
     // CxC Directa vencidas
     const cxc = await pool.query(

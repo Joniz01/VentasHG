@@ -16,7 +16,7 @@ export default async function ReporteVistaPage({ searchParams }: Props) {
 
   if (!desde || !hasta) notFound();
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
   const esHoy = desde === hasta && desde === hoy;
 
   const [reporte, imagenResult, resumen] = await Promise.all([
