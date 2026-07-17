@@ -180,6 +180,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     });
   }
 
+  function handleModoEntrega(modo: ModoEntrega) {
+    setModoEntrega(modo);
+    if (modo === "DELIVERY" || modo === "PICK_UP") {
+      setDespachoPendiente(true);
+    } else {
+      setDespachoPendiente(false);
+    }
+  }
+
   function abrirSiguiente(actual: string) {
     const orden = ordenPasos === "entrega_primero"
       ? ["paso1", "paso3", "paso2", "paso4"]
@@ -1363,8 +1372,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-zinc-700">Modo de entrega</label>
-                      <select className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={modoEntrega} onChange={(e) => setModoEntrega(e.target.value as ModoEntrega)}>
-                        {MODOS_ENTREGA.map((m) => <option key={m} value={m}>{m === "DELIVERY" ? "Delivery" : "Local"}</option>)}
+                      <select className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={modoEntrega} onChange={(e) => handleModoEntrega(e.target.value as ModoEntrega)}>
+                        <option value="LOCAL">Local</option>
+                        <option value="DELIVERY">Delivery</option>
+                        <option value="PICK_UP">Pick-Up</option>
                       </select>
                     </div>
                     {modoEntrega === "DELIVERY" && (
@@ -1392,19 +1403,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-zinc-700">¿Despacho pendiente?</label>
-                    <div className="flex gap-2">
-                      {[true, false].map((val) => (
-                        <button key={String(val)} type="button" onClick={() => setDespachoPendiente(val)}
-                          className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
-                          style={despachoPendiente === val ? { background: "var(--erp-primary)", borderColor: "var(--erp-primary)", color: "#fff" } : { borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
-                          {val ? "Sí" : "No"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {despachoPendiente && (
+
+                  {/* Hora y avisos — siempre visible para Delivery y Pick-Up */}
+                  {(modoEntrega === "DELIVERY" || modoEntrega === "PICK_UP") && (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                       <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
@@ -1441,13 +1442,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           <input type="number" min="1" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={minutosRetiroCustom} onChange={(e) => setMinutosRetiroCustom(e.target.value)} placeholder="Ej: 10" />
                         </div>
                       )}
-                      <div className="flex flex-col gap-1">
-                        <label className="text-sm font-medium text-zinc-700">Delivery asignado</label>
-                        <select className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={motorizadoId} onChange={(e) => setMotorizadoId(e.target.value)}>
-                          <option value="">Sin asignar</option>
-                          {motorizados.map((m) => <option key={m.id} value={m.id}>{m.apellido ? `${m.nombre} ${m.apellido}` : m.nombre}</option>)}
-                        </select>
-                      </div>
+                      {modoEntrega === "DELIVERY" && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-sm font-medium text-zinc-700">Delivery asignado</label>
+                          <select className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={motorizadoId} onChange={(e) => setMotorizadoId(e.target.value)}>
+                            <option value="">Sin asignar</option>
+                            {motorizados.map((m) => <option key={m.id} value={m.id}>{m.apellido ? `${m.nombre} ${m.apellido}` : m.nombre}</option>)}
+                          </select>
+                        </div>
+                      )}
                       {horaPreparacionDate && <div className="flex flex-col justify-end text-sm text-zinc-600 sm:col-span-4">Alarma preparación: <span className="font-medium">{pad(horaPreparacionDate.getHours())}:{pad(horaPreparacionDate.getMinutes())}</span></div>}
                       {horaRetiroDate && <div className="flex flex-col justify-end text-sm text-zinc-600 sm:col-span-4">Alarma retiro: <span className="font-medium">{pad(horaRetiroDate.getHours())}:{pad(horaRetiroDate.getMinutes())}</span></div>}
                     </div>
@@ -1704,13 +1707,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               <select
                 className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
                 value={modoEntrega}
-                onChange={(e) => setModoEntrega(e.target.value as ModoEntrega)}
+                onChange={(e) => handleModoEntrega(e.target.value as ModoEntrega)}
               >
-                {MODOS_ENTREGA.map((m) => (
-                  <option key={m} value={m}>
-                    {m === "DELIVERY" ? "Delivery" : "Local"}
-                  </option>
-                ))}
+                <option value="LOCAL">Local</option>
+                <option value="DELIVERY">Delivery</option>
+                <option value="PICK_UP">Pick-Up</option>
               </select>
             </div>
             {modoEntrega === "DELIVERY" && (
@@ -1766,29 +1767,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700">¿Despacho pendiente?</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setDespachoPendiente(true)}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
-                style={despachoPendiente ? { background: "var(--erp-primary)", borderColor: "var(--erp-primary)", color: "#fff" } : { borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
-              >
-                Sí
-              </button>
-              <button
-                type="button"
-                onClick={() => setDespachoPendiente(false)}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
-                style={!despachoPendiente ? { background: "var(--erp-primary)", borderColor: "var(--erp-primary)", color: "#fff" } : { borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
-              >
-                No
-              </button>
-            </div>
-          </div>
-
-          {despachoPendiente && (
+          {(modoEntrega === "DELIVERY" || modoEntrega === "PICK_UP") && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
@@ -1847,21 +1826,23 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   />
                 </div>
               )}
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-zinc-700">Delivery asignado</label>
-                <select
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                  value={motorizadoId}
-                  onChange={(e) => setMotorizadoId(e.target.value)}
-                >
-                  <option value="">Sin asignar</option>
-                  {motorizados.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.apellido ? `${m.nombre} ${m.apellido}` : m.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {modoEntrega === "DELIVERY" && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-zinc-700">Delivery asignado</label>
+                  <select
+                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    value={motorizadoId}
+                    onChange={(e) => setMotorizadoId(e.target.value)}
+                  >
+                    <option value="">Sin asignar</option>
+                    {motorizados.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.apellido ? `${m.nombre} ${m.apellido}` : m.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {horaPreparacionDate && (
                 <div className="flex flex-col justify-end text-sm text-zinc-600 sm:col-span-4">
                   La alarma de preparación sonará a las{" "}

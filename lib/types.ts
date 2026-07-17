@@ -213,7 +213,7 @@ export type YummyPagoItem = {
   liquidadoAt: string | null;
 };
 
-export const MODOS_ENTREGA = ["LOCAL", "DELIVERY"] as const;
+export const MODOS_ENTREGA = ["LOCAL", "DELIVERY", "PICK_UP"] as const;
 
 export type ModoEntrega = (typeof MODOS_ENTREGA)[number];
 
