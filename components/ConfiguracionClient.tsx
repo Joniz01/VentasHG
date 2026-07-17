@@ -379,6 +379,7 @@ export default function ConfiguracionClient() {
             {[
               { val: "default", label: "1 Productos · 2 Formas de pago · 3 Entrega · 4 Cliente" },
               { val: "entrega_primero", label: "1 Productos · 2 Entrega · 3 Formas de pago · 4 Cliente" },
+              { val: "cliente_primero", label: "1 Cliente · 2 Productos · 3 Entrega · 4 Formas de pago" },
             ].map(({ val, label }) => (
               <button
                 key={val} type="button"
@@ -394,6 +395,7 @@ export default function ConfiguracionClient() {
               </button>
             ))}
           </div>
+          <p style={{ fontSize: "0.75rem", color: "var(--erp-text-3)", margin: "0.35rem 0 0 0" }}>Esta opción será el default hasta que cada usuario defina su propia secuencia en su perfil.</p>
         </div>
 
         {config.ventas_modo_vista === "pasos" && (

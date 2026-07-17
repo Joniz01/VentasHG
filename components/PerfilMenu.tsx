@@ -231,6 +231,7 @@ export default function PerfilMenu() {
                     { val: "global", label: "Usar global (default del sistema)" },
                     { val: "default", label: "1 Productos · 2 Formas de pago · 3 Entrega · 4 Cliente" },
                     { val: "entrega_primero", label: "1 Productos · 2 Entrega · 3 Formas de pago · 4 Cliente" },
+                    { val: "cliente_primero", label: "1 Cliente · 2 Productos · 3 Entrega · 4 Formas de pago" },
                   ].map(({ val, label }) => (
                     <button
                       key={val}

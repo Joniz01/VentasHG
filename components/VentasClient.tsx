@@ -183,6 +183,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   function abrirSiguiente(actual: string) {
     const orden = ordenPasos === "entrega_primero"
       ? ["paso1", "paso3", "paso2", "paso4"]
+      : ordenPasos === "cliente_primero"
+      ? ["paso4", "paso1", "paso3", "paso2"]
       : ["paso1", "paso2", "paso3", "paso4"];
     const idx = orden.indexOf(actual);
     if (idx < 0 || idx >= orden.length - 1) return;
@@ -1022,6 +1024,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           {(() => {
             const steps = ordenPasos === "entrega_primero"
               ? ["Productos", "Entrega", "Formas de Pago", "Cliente"]
+              : ordenPasos === "cliente_primero"
+              ? ["Cliente", "Productos", "Entrega", "Formas de Pago"]
               : ["Productos", "Formas de Pago", "Entrega", "Cliente"];
             return (
               <div className="flex items-start">
@@ -1068,6 +1072,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   {(() => {
                     const titles = ordenPasos === "entrega_primero"
                       ? ["Productos del Pedido", "Parámetros de Entrega", "Formas de Pago", "Datos del Cliente"]
+                      : ordenPasos === "cliente_primero"
+                      ? ["Datos del Cliente", "Productos del Pedido", "Parámetros de Entrega", "Formas de Pago"]
                       : ["Productos del Pedido", "Formas de Pago", "Parámetros de Entrega", "Datos del Cliente"];
                     return titles[pasoActual - 1];
                   })()}
@@ -1076,7 +1082,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               <div className="px-4 pb-4 pt-3 flex flex-col gap-3">
 
             {/* PASO 1 — Productos del Pedido */}
-            {pasoActual === 1 && (
+            {((pasoActual === 1 && ordenPasos !== "cliente_primero") || (pasoActual === 2 && ordenPasos === "cliente_primero")) && (
               <div className="flex flex-col gap-3">
                   <div>
                     <div className="mb-2 flex items-center justify-between">
@@ -1177,7 +1183,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             )}
 
             {/* PASO 2/3 — Formas de pago */}
-            {pasoActual === (ordenPasos === "entrega_primero" ? 3 : 2) && (
+            {pasoActual === (ordenPasos === "entrega_primero" ? 3 : ordenPasos === "cliente_primero" ? 4 : 2) && (
               <div className="flex flex-col gap-4">
                   {/* Payment method tiles */}
                   <div>
@@ -1452,7 +1458,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             )}
 
             {/* PASO 4 — Datos del Cliente */}
-            {pasoActual === 4 && (
+            {pasoActual === (ordenPasos === "cliente_primero" ? 1 : 4) && (
               <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="flex flex-col gap-1">
