@@ -148,7 +148,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [fechaLimitePago, setFechaLimitePago] = useState("");
   const [mostrarCuentaPorCobrar, setMostrarCuentaPorCobrar] = useState(false);
   const [errorPlazoPago, setErrorPlazoPago] = useState(false);
-  const [despachoPendiente, setDespachoPendiente] = useState(false);
+  const [despachoPendiente, setDespachoPendiente] = useState(true); // DELIVERY is default modoEntrega
   const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
   const [horaEntrega, setHoraEntrega] = useState("");
   const [minutosPrep, setMinutosPrep] = useState("15");
