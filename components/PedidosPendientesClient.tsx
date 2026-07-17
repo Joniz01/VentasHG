@@ -240,10 +240,13 @@ export default function PedidosPendientesClient() {
                     <span className="font-medium">Hora de entrega: </span>
                     {formatHora(pedido.horaEntrega)}
                   </span>
-                  {pedido.fecha && (
+                  {(pedido.horaEntrega || pedido.fecha) && (
                     <span>
                       <span className="font-medium">Fecha: </span>
-                      {pedido.fecha.slice(8,10) + "/" + pedido.fecha.slice(5,7) + "/" + pedido.fecha.slice(0,4)}
+                      {(() => {
+                        const d = pedido.horaEntrega ? new Date(pedido.horaEntrega).toLocaleDateString("en-CA", { timeZone: "America/Caracas" }) : pedido.fecha;
+                        return d.slice(8,10) + "/" + d.slice(5,7) + "/" + d.slice(0,4);
+                      })()}
                     </span>
                   )}
                 </div>
