@@ -149,6 +149,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [mostrarCuentaPorCobrar, setMostrarCuentaPorCobrar] = useState(false);
   const [errorPlazoPago, setErrorPlazoPago] = useState(false);
   const [despachoPendiente, setDespachoPendiente] = useState(false);
+  const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
   const [horaEntrega, setHoraEntrega] = useState("");
   const [minutosPrep, setMinutosPrep] = useState("15");
   const [minutosPrepCustom, setMinutosPrepCustom] = useState("");
@@ -513,7 +514,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const minutosRetiroNum =
     minutosRetiro === "otro" ? Number(minutosRetiroCustom) || 0 : Number(minutosRetiro);
 
-  const horaEntregaDate = combinarFechaHora(fecha, horaEntrega);
+  const horaEntregaDate = combinarFechaHora(fechaEntrega || fecha, horaEntrega);
   const horaPreparacionDate = horaEntregaDate
     ? new Date(horaEntregaDate.getTime() - minutosPreparacionNum * 60000)
     : null;
@@ -633,6 +634,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setMostrarCuentaPorCobrar(false);
     setErrorPlazoPago(false);
     setDespachoPendiente(false);
+    setFechaEntrega(new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
     setHoraEntrega("");
     setMinutosPrep("15");
     setMinutosPrepCustom("");
@@ -686,6 +688,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       const entregaDate = new Date(venta.horaEntrega);
       const prepDate = new Date(venta.horaPreparacion);
       setDespachoPendiente(true);
+      setFechaEntrega(entregaDate.toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
       setHoraEntrega(`${pad(entregaDate.getHours())}:${pad(entregaDate.getMinutes())}`);
       const diffMin = Math.round((entregaDate.getTime() - prepDate.getTime()) / 60000);
       if ([5, 15, 30].includes(diffMin)) {
@@ -1408,6 +1411,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   {(modoEntrega === "DELIVERY" || modoEntrega === "PICK_UP") && (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                       <div className="flex flex-col gap-1">
+                        <label className="text-sm font-medium text-zinc-700">Fecha de entrega</label>
+                        <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
+                      </div>
+                      <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
                         <TimeInput12h value={horaEntrega} onChange={setHoraEntrega} required />
                       </div>
@@ -1769,6 +1776,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           </div>
           {(modoEntrega === "DELIVERY" || modoEntrega === "PICK_UP") && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700">Fecha de entrega</label>
+                <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
+              </div>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
                 <TimeInput12h value={horaEntrega} onChange={setHoraEntrega} required />
