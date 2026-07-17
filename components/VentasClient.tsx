@@ -684,7 +684,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setMostrarCuentaPorCobrar(venta.cuentaPorCobrar);
     setErrorPlazoPago(false);
 
-    if (venta.despachoPendiente && venta.horaEntrega && venta.horaPreparacion) {
+    const esDespacho = venta.modoEntrega === "DELIVERY" || venta.modoEntrega === "PICK_UP";
+    if (esDespacho && venta.horaEntrega && venta.horaPreparacion) {
       const entregaDate = new Date(venta.horaEntrega);
       const prepDate = new Date(venta.horaPreparacion);
       setDespachoPendiente(true);
@@ -714,7 +715,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       }
       setMotorizadoId(venta.motorizadoId ? String(venta.motorizadoId) : "");
     } else {
-      setDespachoPendiente(false);
+      setDespachoPendiente(esDespacho);
       setHoraEntrega("");
       setMinutosPrep("15");
       setMinutosPrepCustom("");
