@@ -333,9 +333,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                 setSeccionesAbiertas(abiertas);
               }
             }
-            if (orden === "entrega_primero") {
-              setOrdenPasos("entrega_primero");
-            }
+            setOrdenPasos(orden);
           })
           .catch(() => {});
       })
