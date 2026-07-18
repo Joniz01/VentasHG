@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/generar-nominas",
+      "schedule": "0 10 * * *"
+    }
+  ]
+}

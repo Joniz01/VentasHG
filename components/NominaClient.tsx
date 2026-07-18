@@ -8,6 +8,8 @@ import {
   FRECUENCIAS_RECURRENCIA,
   FRECUENCIA_INCIDENCIA_LABELS,
   FRECUENCIA_RECURRENCIA_LABELS,
+  MODOS_GENERACION_NOMINA,
+  MODO_GENERACION_NOMINA_LABELS,
   SEXOS,
   SEXO_LABELS,
   TIPOS_NOMINA,
@@ -18,6 +20,7 @@ import {
   type FrecuenciaIncidencia,
   type FrecuenciaRecurrencia,
   type Locacion,
+  type ModoGeneracionNomina,
   type Nomina,
   type NominaPago,
   type NominaResumen,
@@ -389,11 +392,35 @@ const EMPTY_INCIDENCIA_ROW: IncidenciaConfigRow = {
   montoBs: "",
 };
 
+function calcularFechaHastaSugerida(frecuencia: FrecuenciaRecurrencia, fechaDesde: string): string {
+  const d = new Date(`${fechaDesde}T00:00:00`);
+  if (frecuencia === "SEMANAL") d.setDate(d.getDate() + 6);
+  else if (frecuencia === "QUINCENAL") d.setDate(d.getDate() + 14);
+  else { d.setMonth(d.getMonth() + 1); d.setDate(d.getDate() - 1); }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function sugerirRangoPeriodo(nomina: Nomina): { fechaDesde: string; fechaHasta: string } {
+  const desde = nomina.ultimoPeriodoFechaHasta
+    ? (() => {
+        const d = new Date(`${nomina.ultimoPeriodoFechaHasta}T00:00:00`);
+        d.setDate(d.getDate() + 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      })()
+    : today();
+  return { fechaDesde: desde, fechaHasta: calcularFechaHastaSugerida(nomina.frecuencia, desde) };
+}
+
 function GenerarPeriodoForm({ nomina, onCreated }: { nomina: Nomina; onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ fechaDesde: today(), fechaHasta: today(), tasaDia: "" });
+  const [form, setForm] = useState(() => ({ ...sugerirRangoPeriodo(nomina), tasaDia: "" }));
+
+  function handleAbrir() {
+    setForm({ ...sugerirRangoPeriodo(nomina), tasaDia: "" });
+    setOpen(true);
+  }
 
   async function handleConsultarTasa() {
     const tasa = await consultarTasaBcv();
@@ -424,7 +451,7 @@ function GenerarPeriodoForm({ nomina, onCreated }: { nomina: Nomina; onCreated: 
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-xs rounded-md border px-2 py-1" style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}>
+      <button type="button" onClick={handleAbrir} className="text-xs rounded-md border px-2 py-1" style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}>
         + Generar Período
       </button>
     );
@@ -432,6 +459,11 @@ function GenerarPeriodoForm({ nomina, onCreated }: { nomina: Nomina; onCreated: 
 
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)" }}>
+      <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+        Esto ejecuta la Nómina para el rango indicado: calcula el pago de cada empleado asignado
+        (sueldo + incidencias vigentes en ese rango) y lo deja listo para marcar como pagado. Las fechas
+        ya vienen sugeridas según la frecuencia y la última corrida.
+      </p>
       {error && <div className="rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700">{error}</div>}
       <div className="flex gap-2 flex-wrap items-end">
         <div className="flex flex-col gap-1">
@@ -458,9 +490,16 @@ function GenerarPeriodoForm({ nomina, onCreated }: { nomina: Nomina; onCreated: 
   );
 }
 
+const TIPO_NOMINA_BADGE_COLOR: Record<TipoNomina, string> = {
+  NORMAL: "#1d4ed8",
+  SOLO_INCIDENCIAS: "#a16207",
+  SOLO_SUELDO: "#15803d",
+};
+
 function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tiposIncidencia: TipoIncidencia[]; onChange: () => void }) {
   const [expandido, setExpandido] = useState(false);
   const [row, setRow] = useState<IncidenciaConfigRow>({ ...EMPTY_INCIDENCIA_ROW });
+  const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
 
   function recalcularBs(montoUsd: string, tasa: string) {
     const usd = Number(montoUsd) || 0;
@@ -473,26 +512,54 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
     if (tasa) setRow((p) => ({ ...p, tasaRegistro: tasa, montoBs: recalcularBs(p.montoUsd, tasa) }));
   }
 
-  async function handleAgregarIncidencia() {
-    if (!row.tipoIncidenciaId) return;
-    await fetch(`/api/nominas/${nomina.id}/incidencias`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tipoIncidenciaId: Number(row.tipoIncidenciaId),
-        frecuencia: row.frecuencia,
-        fechaEfectiva: row.fechaEfectiva,
-        montoUsd: Number(row.montoUsd) || 0,
-        montoBs: Number(row.montoBs) || 0,
-        tasaRegistro: Number(row.tasaRegistro) || 0,
-      }),
+  function startEditIncidencia(i: Nomina["incidenciasConfig"][number]) {
+    setEditingConfigId(i.id);
+    setRow({
+      tipoIncidenciaId: String(i.tipoIncidenciaId),
+      frecuencia: i.frecuencia,
+      fechaEfectiva: i.fechaEfectiva,
+      tasaRegistro: String(i.tasaRegistro || ""),
+      montoUsd: String(i.montoUsd || ""),
+      montoBs: String(i.montoBs || ""),
     });
+  }
+
+  function cancelarEdicionIncidencia() {
+    setEditingConfigId(null);
+    setRow({ ...EMPTY_INCIDENCIA_ROW });
+  }
+
+  async function handleGuardarIncidencia() {
+    if (!row.tipoIncidenciaId) return;
+    const payload = {
+      tipoIncidenciaId: Number(row.tipoIncidenciaId),
+      frecuencia: row.frecuencia,
+      fechaEfectiva: row.fechaEfectiva,
+      montoUsd: Number(row.montoUsd) || 0,
+      montoBs: Number(row.montoBs) || 0,
+      tasaRegistro: Number(row.tasaRegistro) || 0,
+    };
+    if (editingConfigId) {
+      await fetch(`/api/nominas/incidencias/${editingConfigId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetch(`/api/nominas/${nomina.id}/incidencias`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+    setEditingConfigId(null);
     setRow({ ...EMPTY_INCIDENCIA_ROW });
     onChange();
   }
 
   async function handleQuitarIncidencia(configId: number) {
     await fetch(`/api/nominas/incidencias/${configId}`, { method: "DELETE" });
+    if (editingConfigId === configId) cancelarEdicionIncidencia();
     onChange();
   }
 
@@ -510,10 +577,16 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
         className="w-full px-4 py-3 flex items-center justify-between gap-3 flex-wrap text-left"
         style={{ background: "var(--erp-primary-lt)" }}
       >
-        <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>
-          {nomina.nombre}{" "}
-          <span className="text-xs font-normal" style={{ color: "var(--erp-text-2)" }}>
-            ({TIPO_NOMINA_LABELS[nomina.tipo]} · {FRECUENCIA_RECURRENCIA_LABELS[nomina.frecuencia]})
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>{nomina.nombre}</span>
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white"
+            style={{ background: TIPO_NOMINA_BADGE_COLOR[nomina.tipo] }}
+          >
+            {TIPO_NOMINA_LABELS[nomina.tipo]}
+          </span>
+          <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+            {FRECUENCIA_RECURRENCIA_LABELS[nomina.frecuencia]} · {MODO_GENERACION_NOMINA_LABELS[nomina.modoGeneracion]}
           </span>
         </span>
         <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>
@@ -528,60 +601,70 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
             <button type="button" onClick={handleDesactivar} className="text-xs text-red-600">Desactivar Nómina</button>
           </div>
 
-          <div className="rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)" }}>
-            <span className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Incidencias configuradas</span>
+          {nomina.tipo !== "SOLO_SUELDO" && (
+            <div className="rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)" }}>
+              <span className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Incidencias configuradas</span>
 
-            {nomina.incidenciasConfig.length > 0 && (
-              <ul className="flex flex-col gap-1">
-                {nomina.incidenciasConfig.map((i) => (
-                  <li key={i.id} className="flex items-center justify-between text-xs" style={{ color: "var(--erp-text-2)" }}>
-                    <span>
-                      {i.tipoIncidenciaNombre} — {FRECUENCIA_INCIDENCIA_LABELS[i.frecuencia]} — efectiva {formatFechaCorta(i.fechaEfectiva)} — ${i.montoUsd.toFixed(2)} (Bs{i.montoBs.toFixed(2)})
-                    </span>
-                    <button type="button" onClick={() => handleQuitarIncidencia(i.id)} className="text-red-600">Quitar</button>
-                  </li>
-                ))}
-              </ul>
-            )}
+              {nomina.incidenciasConfig.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {nomina.incidenciasConfig.map((i) => (
+                    <li key={i.id} className="flex items-center justify-between text-xs" style={{ color: "var(--erp-text-2)" }}>
+                      <span>
+                        {i.tipoIncidenciaNombre} — {FRECUENCIA_INCIDENCIA_LABELS[i.frecuencia]} — efectiva {formatFechaCorta(i.fechaEfectiva)} — ${i.montoUsd.toFixed(2)} (Bs{i.montoBs.toFixed(2)})
+                      </span>
+                      <span className="flex gap-2">
+                        <button type="button" onClick={() => startEditIncidencia(i)} style={{ color: "var(--erp-primary)" }}>Editar</button>
+                        <button type="button" onClick={() => handleQuitarIncidencia(i.id)} className="text-red-600">Quitar</button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-            <div className="flex gap-2 items-end flex-wrap">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Incidencia</label>
-                <select className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={row.tipoIncidenciaId} onChange={(e) => setRow((p) => ({ ...p, tipoIncidenciaId: e.target.value }))}>
-                  <option value="">Selecciona…</option>
-                  {tiposIncidencia.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Frecuencia</label>
-                <select className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={row.frecuencia} onChange={(e) => setRow((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaIncidencia }))}>
-                  {FRECUENCIAS_INCIDENCIA.map((f) => <option key={f} value={f}>{FRECUENCIA_INCIDENCIA_LABELS[f]}</option>)}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Fecha efectiva</label>
-                <input type="date" className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={row.fechaEfectiva} onChange={(e) => setRow((p) => ({ ...p, fechaEfectiva: e.target.value }))} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Tasa</label>
-                <div className="flex gap-1">
-                  <input type="number" step="0.0001" min="0" className="rounded-md border px-2 py-1 text-xs w-20" style={{ borderColor: "var(--erp-border)" }} value={row.tasaRegistro} onChange={(e) => setRow((p) => ({ ...p, tasaRegistro: e.target.value, montoBs: recalcularBs(p.montoUsd, e.target.value) }))} />
-                  <button type="button" onClick={handleConsultarTasa} className="text-xs px-1.5 rounded-md border" style={{ borderColor: "var(--erp-border)" }}>BCV</button>
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Incidencia</label>
+                  <select className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={row.tipoIncidenciaId} onChange={(e) => setRow((p) => ({ ...p, tipoIncidenciaId: e.target.value }))}>
+                    <option value="">Selecciona…</option>
+                    {tiposIncidencia.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                  </select>
                 </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Frecuencia</label>
+                  <select className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={row.frecuencia} onChange={(e) => setRow((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaIncidencia }))}>
+                    {FRECUENCIAS_INCIDENCIA.map((f) => <option key={f} value={f}>{FRECUENCIA_INCIDENCIA_LABELS[f]}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Fecha efectiva</label>
+                  <input type="date" className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={row.fechaEfectiva} onChange={(e) => setRow((p) => ({ ...p, fechaEfectiva: e.target.value }))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Tasa</label>
+                  <div className="flex gap-1">
+                    <input type="number" step="0.0001" min="0" className="rounded-md border px-2 py-1 text-xs w-20" style={{ borderColor: "var(--erp-border)" }} value={row.tasaRegistro} onChange={(e) => setRow((p) => ({ ...p, tasaRegistro: e.target.value, montoBs: recalcularBs(p.montoUsd, e.target.value) }))} />
+                    <button type="button" onClick={handleConsultarTasa} className="text-xs px-1.5 rounded-md border" style={{ borderColor: "var(--erp-border)" }}>BCV</button>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Monto $</label>
+                  <input type="number" step="0.01" min="0" className="rounded-md border px-2 py-1 text-xs w-24" style={{ borderColor: "var(--erp-border)" }} value={row.montoUsd} onChange={(e) => setRow((p) => ({ ...p, montoUsd: e.target.value, montoBs: recalcularBs(e.target.value, p.tasaRegistro) }))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Monto Bs</label>
+                  <input type="number" step="0.01" min="0" className="rounded-md border px-2 py-1 text-xs w-24" style={{ borderColor: "var(--erp-border)" }} value={row.montoBs} onChange={(e) => setRow((p) => ({ ...p, montoBs: e.target.value }))} />
+                </div>
+                <button type="button" onClick={handleGuardarIncidencia} className="text-xs rounded-md border px-2 py-1.5" style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}>
+                  {editingConfigId ? "Guardar cambios" : "+ Agregar"}
+                </button>
+                {editingConfigId && (
+                  <button type="button" onClick={cancelarEdicionIncidencia} className="text-xs rounded-md border px-2 py-1.5" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
+                    Cancelar edición
+                  </button>
+                )}
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Monto $</label>
-                <input type="number" step="0.01" min="0" className="rounded-md border px-2 py-1 text-xs w-24" style={{ borderColor: "var(--erp-border)" }} value={row.montoUsd} onChange={(e) => setRow((p) => ({ ...p, montoUsd: e.target.value, montoBs: recalcularBs(e.target.value, p.tasaRegistro) }))} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Monto Bs</label>
-                <input type="number" step="0.01" min="0" className="rounded-md border px-2 py-1 text-xs w-24" style={{ borderColor: "var(--erp-border)" }} value={row.montoBs} onChange={(e) => setRow((p) => ({ ...p, montoBs: e.target.value }))} />
-              </div>
-              <button type="button" onClick={handleAgregarIncidencia} className="text-xs rounded-md border px-2 py-1.5" style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}>
-                + Agregar
-              </button>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
@@ -592,9 +675,10 @@ type NominaForm = {
   nombre: string;
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
+  modoGeneracion: ModoGeneracionNomina;
 };
 
-const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL" };
+const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL" };
 
 function NominasTab() {
   const [nominas, setNominas] = useState<Nomina[]>([]);
@@ -606,15 +690,18 @@ function NominasTab() {
   const [nuevoTipoIncidencia, setNuevoTipoIncidencia] = useState("");
   const [form, setForm] = useState<NominaForm>({ ...EMPTY_NOMINA_FORM });
 
-  async function loadNominas() {
-    setLoading(true);
+  // silent=true evita mostrar "Cargando…" (lo que desmontaría las tarjetas y
+  // colapsaría su vista expandida) cuando el refresco viene de un cambio menor
+  // como agregar/quitar una incidencia.
+  async function loadNominas(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch("/api/nominas");
       setNominas(await res.json());
     } catch {
       setError("No se pudieron cargar las Nóminas");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -656,7 +743,7 @@ function NominasTab() {
       const res = await fetch("/api/nominas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, activo: true, incidencias: [] }),
+        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, modoGeneracion: form.modoGeneracion, activo: true, incidencias: [] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear la Nómina");
@@ -706,7 +793,7 @@ function NominasTab() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre de la Nómina</label>
               <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} placeholder="Ej: Nómina Cocina" required />
@@ -717,10 +804,18 @@ function NominasTab() {
                 {TIPOS_NOMINA.map((t) => <option key={t} value={t}>{TIPO_NOMINA_LABELS[t]}</option>)}
               </select>
             </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Frecuencia</label>
               <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.frecuencia} onChange={(e) => setForm((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaRecurrencia }))}>
                 {FRECUENCIAS_RECURRENCIA.map((f) => <option key={f} value={f}>{FRECUENCIA_RECURRENCIA_LABELS[f]}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Generación de períodos</label>
+              <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.modoGeneracion} onChange={(e) => setForm((p) => ({ ...p, modoGeneracion: e.target.value as ModoGeneracionNomina }))}>
+                {MODOS_GENERACION_NOMINA.map((m) => <option key={m} value={m}>{MODO_GENERACION_NOMINA_LABELS[m]}</option>)}
               </select>
             </div>
           </div>
@@ -745,7 +840,7 @@ function NominasTab() {
       ) : (
         <div className="flex flex-col gap-3">
           {nominas.map((n) => (
-            <NominaCard key={n.id} nomina={n} tiposIncidencia={tiposIncidencia} onChange={loadNominas} />
+            <NominaCard key={n.id} nomina={n} tiposIncidencia={tiposIncidencia} onChange={() => loadNominas(true)} />
           ))}
         </div>
       )}

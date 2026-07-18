@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
+import { generarPeriodoNomina } from "@/lib/nomina-periodos";
 import type { FrecuenciaIncidencia } from "@/lib/types";
 
 function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unknown>[], incidenciasRows: Record<string, unknown>[]) {
@@ -57,12 +58,17 @@ export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  const { searchParams } = new URL(request.url);
+  const nominaId = searchParams.get("nominaId");
+
   try {
     const periodosResult = await pool.query(
       `SELECT pn.*, n.nombre AS nomina_nombre
        FROM periodos_nomina pn
        LEFT JOIN nominas n ON n.id = pn.nomina_id
-       ORDER BY pn.fecha_desde DESC, pn.id DESC`
+       ${nominaId ? "WHERE pn.nomina_id = $1" : ""}
+       ORDER BY pn.fecha_desde DESC, pn.id DESC`,
+      nominaId ? [nominaId] : []
     );
     const periodoIds = periodosResult.rows.map((r) => r.id);
 
@@ -118,59 +124,13 @@ export async function POST(request: NextRequest) {
   try {
     await client.query("BEGIN");
 
-    const nominaResult = await client.query(
-      `SELECT id, tipo, frecuencia FROM nominas WHERE id = $1 AND activo = TRUE`,
-      [body.nominaId]
-    );
-    const nomina = nominaResult.rows[0];
-    if (!nomina) {
-      throw new Error("Nómina no encontrada");
-    }
-
-    const periodoResult = await client.query(
-      `INSERT INTO periodos_nomina (nomina_id, frecuencia, fecha_desde, fecha_hasta, tasa_dia, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [body.nominaId, nomina.frecuencia, body.fechaDesde, body.fechaHasta, Number(body.tasaDia) || 0, sesion.id]
-    );
-    const periodoId = periodoResult.rows[0].id;
-
-    const empleados = await client.query(
-      `SELECT e.id, e.salario_base_bs
-       FROM empleados e
-       JOIN empleado_nominas en ON en.empleado_id = e.id
-       WHERE e.activo = TRUE AND en.nomina_id = $1`,
-      [body.nominaId]
-    );
-
-    const incidenciasConfig = await client.query(
-      `SELECT tipo_incidencia_id, frecuencia, monto_bs
-       FROM nomina_incidencia_config
-       WHERE nomina_id = $1 AND fecha_efectiva BETWEEN $2 AND $3`,
-      [body.nominaId, body.fechaDesde, body.fechaHasta]
-    );
-
-    const soloIncidencias = nomina.tipo === "SOLO_INCIDENCIAS";
-
-    for (const emp of empleados.rows) {
-      const pagoResult = await client.query(
-        `INSERT INTO nomina_pagos (periodo_id, empleado_id, salario_base_bs)
-         VALUES ($1,$2,$3)
-         ON CONFLICT (periodo_id, empleado_id) DO NOTHING
-         RETURNING id`,
-        [periodoId, emp.id, soloIncidencias ? 0 : emp.salario_base_bs]
-      );
-
-      const nominaPagoId = pagoResult.rows[0]?.id;
-      if (!nominaPagoId) continue;
-
-      for (const inc of incidenciasConfig.rows) {
-        await client.query(
-          `INSERT INTO nomina_incidencias (nomina_pago_id, tipo_incidencia_id, monto_bs, frecuencia)
-           VALUES ($1,$2,$3,$4)`,
-          [nominaPagoId, inc.tipo_incidencia_id, Number(inc.monto_bs) || 0, inc.frecuencia]
-        );
-      }
-    }
+    const periodoId = await generarPeriodoNomina(client, {
+      nominaId: body.nominaId,
+      fechaDesde: body.fechaDesde,
+      fechaHasta: body.fechaHasta,
+      tasaDia: Number(body.tasaDia) || 0,
+      createdBy: sesion.id,
+    });
 
     await client.query("COMMIT");
     return NextResponse.json({ id: periodoId }, { status: 201 });

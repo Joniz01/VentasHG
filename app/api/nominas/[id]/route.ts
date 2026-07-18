@@ -20,8 +20,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   try {
     const result = await pool.query(
-      `UPDATE nominas SET nombre = $1, tipo = $2, frecuencia = $3, activo = $4 WHERE id = $5 RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.activo ?? true, id]
+      `UPDATE nominas SET nombre = $1, tipo = $2, frecuencia = $3, modo_generacion = $4, activo = $5 WHERE id = $6 RETURNING id`,
+      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true, id]
     );
     if (result.rowCount === 0) {
       return NextResponse.json({ error: "Nómina no encontrada" }, { status: 404 });

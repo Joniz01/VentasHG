@@ -23,11 +23,16 @@ export async function GET(request: NextRequest) {
 
   try {
     const nominasResult = await pool.query(
-      `SELECT n.*, COALESCE(en.total, 0) AS empleados_asignados
+      `SELECT n.*, COALESCE(en.total, 0) AS empleados_asignados, up.fecha_hasta AS ultimo_periodo_fecha_hasta
        FROM nominas n
        LEFT JOIN (
          SELECT nomina_id, COUNT(*) AS total FROM empleado_nominas GROUP BY nomina_id
        ) en ON en.nomina_id = n.id
+       LEFT JOIN (
+         SELECT DISTINCT ON (nomina_id) nomina_id, fecha_hasta
+         FROM periodos_nomina
+         ORDER BY nomina_id, fecha_hasta DESC
+       ) up ON up.nomina_id = n.id
        WHERE n.activo = TRUE
        ORDER BY n.nombre ASC`
     );
@@ -49,11 +54,15 @@ export async function GET(request: NextRequest) {
       nombre: r.nombre,
       tipo: r.tipo,
       frecuencia: r.frecuencia,
+      modoGeneracion: r.modo_generacion ?? "MANUAL",
       activo: r.activo,
       empleadosAsignados: Number(r.empleados_asignados),
       incidenciasConfig: incidenciasResult.rows
         .filter((i) => i.nomina_id === r.id)
         .map(mapIncidenciaConfig),
+      ultimoPeriodoFechaHasta: r.ultimo_periodo_fecha_hasta
+        ? (r.ultimo_periodo_fecha_hasta instanceof Date ? r.ultimo_periodo_fecha_hasta.toISOString().slice(0, 10) : String(r.ultimo_periodo_fecha_hasta).slice(0, 10))
+        : null,
       createdAt: r.created_at,
     }));
 
@@ -80,8 +89,8 @@ export async function POST(request: NextRequest) {
     await client.query("BEGIN");
 
     const result = await client.query(
-      `INSERT INTO nominas (nombre, tipo, frecuencia, activo) VALUES ($1,$2,$3,$4) RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.activo ?? true]
+      `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, activo) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true]
     );
     const nominaId = result.rows[0].id;
 

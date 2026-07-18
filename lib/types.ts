@@ -655,12 +655,21 @@ export type NominaIncidencia = {
   montoBs: number;
 };
 
-export const TIPOS_NOMINA = ["NORMAL", "SOLO_INCIDENCIAS"] as const;
+export const TIPOS_NOMINA = ["NORMAL", "SOLO_INCIDENCIAS", "SOLO_SUELDO"] as const;
 export type TipoNomina = (typeof TIPOS_NOMINA)[number];
 
 export const TIPO_NOMINA_LABELS: Record<TipoNomina, string> = {
-  NORMAL: "Normal (sueldo + incidencias)",
-  SOLO_INCIDENCIAS: "Solo incidencias (sin sueldo base)",
+  NORMAL: "Normal (Sueldo Base + Incidencias)",
+  SOLO_INCIDENCIAS: "Solo Incidencias",
+  SOLO_SUELDO: "Solo Sueldo Base",
+};
+
+export const MODOS_GENERACION_NOMINA = ["MANUAL", "AUTOMATICO"] as const;
+export type ModoGeneracionNomina = (typeof MODOS_GENERACION_NOMINA)[number];
+
+export const MODO_GENERACION_NOMINA_LABELS: Record<ModoGeneracionNomina, string> = {
+  MANUAL: "Manual (con fechas sugeridas)",
+  AUTOMATICO: "Automático (cron diario)",
 };
 
 export type NominaIncidenciaConfig = {
@@ -689,9 +698,11 @@ export type Nomina = {
   nombre: string;
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
+  modoGeneracion: ModoGeneracionNomina;
   activo: boolean;
   empleadosAsignados: number;
   incidenciasConfig: NominaIncidenciaConfig[];
+  ultimoPeriodoFechaHasta: string | null;
   createdAt: string;
 };
 
@@ -699,6 +710,7 @@ export type NominaInput = {
   nombre: string;
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
+  modoGeneracion: ModoGeneracionNomina;
   activo: boolean;
   incidencias: NominaIncidenciaConfigInput[];
 };
