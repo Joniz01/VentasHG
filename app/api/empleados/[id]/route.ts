@@ -21,16 +21,22 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     const result = await pool.query(
       `UPDATE empleados
-       SET nombre = $1, cargo = $2, locacion_id = $3, tipo_pago = $4, salario_base_bs = $5,
-           fecha_ingreso = $6, activo = $7
-       WHERE id = $8
+       SET nombre = $1, cedula = $2, fecha_nacimiento = $3, sexo = $4, cargo = $5, locacion_id = $6,
+           tipo_pago = $7, salario_base_usd = $8, salario_base_bs = $9, tasa_registro = $10,
+           fecha_ingreso = $11, activo = $12
+       WHERE id = $13
        RETURNING id`,
       [
         body.nombre.trim(),
+        body.cedula?.trim() || null,
+        body.fechaNacimiento || null,
+        body.sexo || null,
         body.cargo?.trim() || null,
         body.locacionId || null,
         body.tipoPago,
+        Number(body.salarioBaseUsd) || 0,
         Number(body.salarioBaseBs) || 0,
+        Number(body.tasaRegistro) || 0,
         body.fechaIngreso || null,
         body.activo ?? true,
         id,

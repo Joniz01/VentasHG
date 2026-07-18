@@ -560,14 +560,27 @@ export type GastoResumen = {
   pendientePorPagar: number;
 };
 
+export const SEXOS = ["MASCULINO", "FEMENINO"] as const;
+export type Sexo = (typeof SEXOS)[number];
+
+export const SEXO_LABELS: Record<Sexo, string> = {
+  MASCULINO: "Masculino",
+  FEMENINO: "Femenino",
+};
+
 export type Empleado = {
   id: number;
   nombre: string;
+  cedula: string | null;
+  fechaNacimiento: string | null;
+  sexo: Sexo | null;
   cargo: string | null;
   locacionId: number | null;
   locacionNombre: string | null;
   tipoPago: FrecuenciaRecurrencia;
+  salarioBaseUsd: number;
   salarioBaseBs: number;
+  tasaRegistro: number;
   fechaIngreso: string | null;
   activo: boolean;
   createdAt: string;
@@ -575,10 +588,15 @@ export type Empleado = {
 
 export type EmpleadoInput = {
   nombre: string;
+  cedula: string;
+  fechaNacimiento: string;
+  sexo: Sexo | null;
   cargo: string;
   locacionId: number | null;
   tipoPago: FrecuenciaRecurrencia;
+  salarioBaseUsd: number;
   salarioBaseBs: number;
+  tasaRegistro: number;
   fechaIngreso: string;
   activo: boolean;
 };

@@ -7,11 +7,18 @@ function mapEmpleado(r: Record<string, unknown>) {
   return {
     id: r.id,
     nombre: r.nombre,
+    cedula: r.cedula ?? null,
+    fechaNacimiento: r.fecha_nacimiento
+      ? (r.fecha_nacimiento instanceof Date ? r.fecha_nacimiento.toISOString().slice(0, 10) : String(r.fecha_nacimiento).slice(0, 10))
+      : null,
+    sexo: r.sexo ?? null,
     cargo: r.cargo,
     locacionId: r.locacion_id,
     locacionNombre: r.locacion_nombre,
     tipoPago: r.tipo_pago,
+    salarioBaseUsd: Number(r.salario_base_usd ?? 0),
     salarioBaseBs: Number(r.salario_base_bs),
+    tasaRegistro: Number(r.tasa_registro ?? 0),
     fechaIngreso: r.fecha_ingreso
       ? (r.fecha_ingreso instanceof Date ? r.fecha_ingreso.toISOString().slice(0, 10) : String(r.fecha_ingreso).slice(0, 10))
       : null,
@@ -55,14 +62,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await pool.query(
-      `INSERT INTO empleados (nombre, cargo, locacion_id, tipo_pago, salario_base_bs, fecha_ingreso, activo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      `INSERT INTO empleados
+        (nombre, cedula, fecha_nacimiento, sexo, cargo, locacion_id, tipo_pago,
+         salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
       [
         body.nombre.trim(),
+        body.cedula?.trim() || null,
+        body.fechaNacimiento || null,
+        body.sexo || null,
         body.cargo?.trim() || null,
         body.locacionId || null,
         body.tipoPago,
+        Number(body.salarioBaseUsd) || 0,
         Number(body.salarioBaseBs) || 0,
+        Number(body.tasaRegistro) || 0,
         body.fechaIngreso || null,
         body.activo ?? true,
       ]

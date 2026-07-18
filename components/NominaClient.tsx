@@ -6,6 +6,8 @@ import {
   ESTADO_NOMINA_PAGO_LABELS,
   FRECUENCIAS_RECURRENCIA,
   FRECUENCIA_RECURRENCIA_LABELS,
+  SEXOS,
+  SEXO_LABELS,
   type Empleado,
   type EmpleadoInput,
   type EstadoNominaPago,
@@ -13,6 +15,7 @@ import {
   type Locacion,
   type NominaPago,
   type PeriodoNomina,
+  type Sexo,
   type TipoIncidencia,
 } from "@/lib/types";
 
@@ -24,9 +27,14 @@ function formatFechaCorta(fecha: string): string {
 
 type EmpleadoForm = {
   nombre: string;
+  cedula: string;
+  fechaNacimiento: string;
+  sexo: Sexo | "";
   cargo: string;
   locacionId: string;
   tipoPago: FrecuenciaRecurrencia;
+  tasaRegistro: string;
+  salarioBaseUsd: string;
   salarioBaseBs: string;
   fechaIngreso: string;
   activo: boolean;
@@ -34,9 +42,14 @@ type EmpleadoForm = {
 
 const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   nombre: "",
+  cedula: "",
+  fechaNacimiento: "",
+  sexo: "",
   cargo: "",
   locacionId: "",
   tipoPago: "QUINCENAL",
+  tasaRegistro: "",
+  salarioBaseUsd: "",
   salarioBaseBs: "",
   fechaIngreso: today(),
   activo: true,
@@ -51,6 +64,32 @@ function EmpleadosTab() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<EmpleadoForm>({ ...EMPTY_EMPLEADO_FORM });
+  const [consultandoTasa, setConsultandoTasa] = useState(false);
+
+  function recalcularBs(salarioBaseUsd: string, tasaRegistro: string) {
+    const usd = Number(salarioBaseUsd) || 0;
+    const tasa = Number(tasaRegistro) || 0;
+    return usd > 0 && tasa > 0 ? (usd * tasa).toFixed(2) : "";
+  }
+
+  function handleSalarioUsdChange(value: string) {
+    setForm((p) => ({ ...p, salarioBaseUsd: value, salarioBaseBs: recalcularBs(value, p.tasaRegistro) }));
+  }
+
+  function handleTasaChange(value: string) {
+    setForm((p) => ({ ...p, tasaRegistro: value, salarioBaseBs: recalcularBs(p.salarioBaseUsd, value) }));
+  }
+
+  async function handleConsultarTasa() {
+    setConsultandoTasa(true);
+    try {
+      const res = await fetch("/api/tasa-bcv");
+      const data = await res.json();
+      if (res.ok) handleTasaChange(String(data.tasa));
+    } finally {
+      setConsultandoTasa(false);
+    }
+  }
 
   async function loadEmpleados() {
     setLoading(true);
@@ -85,9 +124,14 @@ function EmpleadosTab() {
     setEditingId(e.id);
     setForm({
       nombre: e.nombre,
+      cedula: e.cedula ?? "",
+      fechaNacimiento: e.fechaNacimiento ?? "",
+      sexo: e.sexo ?? "",
       cargo: e.cargo ?? "",
       locacionId: e.locacionId ? String(e.locacionId) : "",
       tipoPago: e.tipoPago,
+      tasaRegistro: e.tasaRegistro ? String(e.tasaRegistro) : "",
+      salarioBaseUsd: e.salarioBaseUsd ? String(e.salarioBaseUsd) : "",
       salarioBaseBs: String(e.salarioBaseBs),
       fechaIngreso: e.fechaIngreso ?? today(),
       activo: e.activo,
@@ -106,10 +150,15 @@ function EmpleadosTab() {
     try {
       const payload: EmpleadoInput = {
         nombre: form.nombre.trim(),
+        cedula: form.cedula.trim(),
+        fechaNacimiento: form.fechaNacimiento,
+        sexo: form.sexo || null,
         cargo: form.cargo.trim(),
         locacionId: form.locacionId ? Number(form.locacionId) : null,
         tipoPago: form.tipoPago,
+        salarioBaseUsd: Number(form.salarioBaseUsd) || 0,
         salarioBaseBs: Number(form.salarioBaseBs) || 0,
+        tasaRegistro: Number(form.tasaRegistro) || 0,
         fechaIngreso: form.fechaIngreso,
         activo: form.activo,
       };
@@ -162,6 +211,23 @@ function EmpleadosTab() {
               <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} placeholder="Ej: Cocinero" />
             </div>
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>C.I.</label>
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cedula} onChange={(e) => setForm((p) => ({ ...p, cedula: e.target.value }))} placeholder="Ej: V-12345678" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha de nacimiento</label>
+              <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaNacimiento} onChange={(e) => setForm((p) => ({ ...p, fechaNacimiento: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Sexo</label>
+              <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.sexo} onChange={(e) => setForm((p) => ({ ...p, sexo: e.target.value as Sexo | "" }))}>
+                <option value="">—</option>
+                {SEXOS.map((s) => <option key={s} value={s}>{SEXO_LABELS[s]}</option>)}
+              </select>
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Locación</label>
@@ -177,12 +243,27 @@ function EmpleadosTab() {
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Salario base Bs</label>
-              <input type="number" step="0.01" min="0" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.salarioBaseBs} onChange={(e) => setForm((p) => ({ ...p, salarioBaseBs: e.target.value }))} required />
-            </div>
-            <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha ingreso</label>
               <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaIngreso} onChange={(e) => setForm((p) => ({ ...p, fechaIngreso: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tasa del día</label>
+              <div className="flex gap-1">
+                <input type="number" step="0.0001" min="0" className="rounded-md border px-3 py-2 text-sm flex-1" style={{ borderColor: "var(--erp-border)" }} value={form.tasaRegistro} onChange={(e) => handleTasaChange(e.target.value)} />
+                <button type="button" onClick={handleConsultarTasa} disabled={consultandoTasa} className="text-xs px-2 rounded-md border disabled:opacity-50" style={{ borderColor: "var(--erp-border)" }}>
+                  {consultandoTasa ? "…" : "BCV"}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Salario Base $</label>
+              <input type="number" step="0.01" min="0" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.salarioBaseUsd} onChange={(e) => handleSalarioUsdChange(e.target.value)} required />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Salario Base Bs</label>
+              <input type="number" step="0.01" min="0" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.salarioBaseBs} onChange={(e) => setForm((p) => ({ ...p, salarioBaseBs: e.target.value }))} required />
             </div>
           </div>
           {editingId && (
@@ -212,9 +293,11 @@ function EmpleadosTab() {
             <thead>
               <tr style={{ color: "var(--erp-text-2)" }}>
                 <th className="text-left px-3 py-2">Nombre</th>
+                <th className="text-left px-3 py-2">C.I.</th>
                 <th className="text-left px-3 py-2">Cargo</th>
                 <th className="text-left px-3 py-2">Locación</th>
                 <th className="text-left px-3 py-2">Tipo de pago</th>
+                <th className="text-right px-3 py-2">Salario $</th>
                 <th className="text-right px-3 py-2">Salario Bs</th>
                 <th className="text-left px-3 py-2">Estado</th>
                 <th className="text-left px-3 py-2"></th>
@@ -224,9 +307,11 @@ function EmpleadosTab() {
               {empleados.map((e) => (
                 <tr key={e.id} className="border-t" style={{ borderColor: "var(--erp-border)" }}>
                   <td className="px-3 py-2" style={{ color: "var(--erp-text)" }}>{e.nombre}</td>
+                  <td className="px-3 py-2">{e.cedula ?? "—"}</td>
                   <td className="px-3 py-2">{e.cargo ?? "—"}</td>
                   <td className="px-3 py-2">{e.locacionNombre ?? "—"}</td>
                   <td className="px-3 py-2">{FRECUENCIA_RECURRENCIA_LABELS[e.tipoPago]}</td>
+                  <td className="px-3 py-2 text-right">${e.salarioBaseUsd.toFixed(2)}</td>
                   <td className="px-3 py-2 text-right">Bs{e.salarioBaseBs.toFixed(2)}</td>
                   <td className="px-3 py-2">{e.activo ? "Activo" : "Inactivo"}</td>
                   <td className="px-3 py-2">
