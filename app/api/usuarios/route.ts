@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
               ve_productos, ve_ventas, ve_reportes, ve_pedidos_pendientes, ve_descuento,
               COALESCE(ve_dashboard, FALSE) AS ve_dashboard,
               COALESCE(ve_compras, FALSE) AS ve_compras,
-              COALESCE(ve_eliminar_compras, FALSE) AS ve_eliminar_compras
+              COALESCE(ve_eliminar_compras, FALSE) AS ve_eliminar_compras,
+              COALESCE(ve_gastos, FALSE) AS ve_gastos
        FROM usuarios ORDER BY nombre ASC`
     );
     rows = result.rows;
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
       dashboard: (row.ve_dashboard ?? row.rol === "ADMIN") as boolean,
       compras: (row.ve_compras ?? false) as boolean,
       eliminarCompras: (row.ve_eliminar_compras ?? row.rol === "ADMIN") as boolean,
+      gastos: (row.ve_gastos ?? false) as boolean,
     },
   }));
 
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
 
   if (isBootstrap) {
     rol = "ADMIN";
-    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true };
+    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true };
   } else {
     const sesion = await getSesionFromRequest(request);
     if (!sesion || sesion.rol !== "ADMIN") {
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
     }
     if (rol === "ADMIN") {
-      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true };
+      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true };
     }
   }
 

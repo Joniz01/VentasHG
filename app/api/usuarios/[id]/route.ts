@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const permisos =
     body.rol === "ADMIN"
-      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true }
+      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true }
       : body.permisos ?? PERMISOS_VACIOS;
 
   const nombre = body.nombre!.trim();
@@ -41,7 +41,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const activo = body.activo ?? true;
   const claveHash = body.clave?.trim() ? hashPassword(body.clave) : null;
 
-  type UpdateOpts = { dashboard: boolean; compras: boolean; eliminarCompras: boolean };
+  type UpdateOpts = { dashboard: boolean; compras: boolean; eliminarCompras: boolean; gastos: boolean };
 
   const runUpdate = async (opts: UpdateOpts) => {
     const cols: string[] = [];
@@ -62,6 +62,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (opts.dashboard) add("ve_dashboard", permisos.dashboard);
     if (opts.compras) add("ve_compras", permisos.compras);
     if (opts.eliminarCompras) add("ve_eliminar_compras", permisos.eliminarCompras);
+    if (opts.gastos) add("ve_gastos", permisos.gastos);
 
     vals.push(id);
     return pool.query(
@@ -73,20 +74,22 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     let result;
     try {
-      result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: true });
+      result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: true, gastos: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("ve_eliminar_compras")) {
+      if (msg.includes("ve_gastos")) {
+        result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: true, gastos: false });
+      } else if (msg.includes("ve_eliminar_compras")) {
         try {
-          result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: false });
+          result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: false, gastos: false });
         } catch (e2) {
           const msg2 = e2 instanceof Error ? e2.message : "";
           if (msg2.includes("ve_dashboard") || msg2.includes("ve_compras")) {
-            result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false });
+            result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false, gastos: false });
           } else throw e2;
         }
       } else if (msg.includes("ve_dashboard") || msg.includes("ve_compras")) {
-        result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false });
+        result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false, gastos: false });
       } else {
         throw e;
       }

@@ -15,6 +15,7 @@ export const PERMISO_TABS = [
   { key: "dashboard", label: "Dashboard Consolidado" },
   { key: "compras", label: "Compras" },
   { key: "eliminarCompras", label: "Eliminar Facturas Anuladas" },
+  { key: "gastos", label: "Nómina & Gastos" },
 ] as const;
 
 export type PermisoTab = (typeof PERMISO_TABS)[number]["key"];
@@ -30,6 +31,7 @@ export const PERMISOS_VACIOS: PermisosUsuario = {
   dashboard: false,
   compras: false,
   eliminarCompras: false,
+  gastos: false,
 };
 
 export type Usuario = {
@@ -479,4 +481,84 @@ export type VentaPendientePago = {
     cantidad: number;
     precioUnitario: number;
   }[];
+};
+
+export type Locacion = {
+  id: number;
+  nombre: string;
+  activo: boolean;
+};
+
+export const CATEGORIAS_GASTO = ["MATERIA_PRIMA", "OPERACION"] as const;
+export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
+
+export const CATEGORIA_GASTO_LABELS: Record<CategoriaGasto, string> = {
+  MATERIA_PRIMA: "Gasto Materia Prima",
+  OPERACION: "Gasto Operación",
+};
+
+export const TIPOS_GASTO = ["FIJO", "OCASIONAL"] as const;
+export type TipoGasto = (typeof TIPOS_GASTO)[number];
+
+export const ESTADOS_GASTO = ["PENDIENTE", "APROBADO", "PAGADO"] as const;
+export type EstadoGasto = (typeof ESTADOS_GASTO)[number];
+
+export const ESTADO_GASTO_LABELS: Record<EstadoGasto, string> = {
+  PENDIENTE: "Pendiente",
+  APROBADO: "Aprobado",
+  PAGADO: "Pagado",
+};
+
+export const FRECUENCIAS_RECURRENCIA = ["SEMANAL", "QUINCENAL", "MENSUAL"] as const;
+export type FrecuenciaRecurrencia = (typeof FRECUENCIAS_RECURRENCIA)[number];
+
+export const FRECUENCIA_RECURRENCIA_LABELS: Record<FrecuenciaRecurrencia, string> = {
+  SEMANAL: "Semanal",
+  QUINCENAL: "Quincenal",
+  MENSUAL: "Mensual",
+};
+
+export type Gasto = {
+  id: number;
+  categoria: CategoriaGasto;
+  tipo: TipoGasto;
+  proveedor: string;
+  descripcion: string | null;
+  locacionId: number | null;
+  locacionNombre: string | null;
+  fecha: string;
+  montoBs: number;
+  tasaDia: number;
+  montoUsd: number;
+  estado: EstadoGasto;
+  pagadoAt: string | null;
+  comprobanteUrl: string | null;
+  recurrente: boolean;
+  frecuencia: FrecuenciaRecurrencia | null;
+  proximoRecordatorio: string | null;
+  recordatorioVisto: boolean;
+  createdAt: string;
+};
+
+export type GastoInput = {
+  categoria: CategoriaGasto;
+  tipo: TipoGasto;
+  proveedor: string;
+  descripcion: string;
+  locacionId: number | null;
+  fecha: string;
+  montoBs: number;
+  tasaDia: number;
+  estado: EstadoGasto;
+  comprobanteUrl: string;
+  recurrente: boolean;
+  frecuencia: FrecuenciaRecurrencia | null;
+};
+
+export type GastoSemana = {
+  desde: string;
+  hasta: string;
+  gastos: Gasto[];
+  totalBs: number;
+  totalUsd: number;
 };
