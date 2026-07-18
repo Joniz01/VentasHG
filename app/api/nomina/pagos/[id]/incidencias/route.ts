@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
+import type { FrecuenciaIncidencia } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -11,7 +12,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   const { id } = await params;
-  const body = (await request.json()) as { tipoIncidenciaId?: number; montoBs?: number };
+  const body = (await request.json()) as {
+    tipoIncidenciaId?: number;
+    montoBs?: number;
+    frecuencia?: FrecuenciaIncidencia | null;
+  };
 
   if (!body.tipoIncidenciaId) {
     return NextResponse.json({ error: "Selecciona el tipo de incidencia" }, { status: 400 });
@@ -19,9 +24,9 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const result = await pool.query(
-      `INSERT INTO nomina_incidencias (nomina_pago_id, tipo_incidencia_id, monto_bs)
-       VALUES ($1,$2,$3) RETURNING id`,
-      [id, body.tipoIncidenciaId, Number(body.montoBs) || 0]
+      `INSERT INTO nomina_incidencias (nomina_pago_id, tipo_incidencia_id, monto_bs, frecuencia)
+       VALUES ($1,$2,$3,$4) RETURNING id`,
+      [id, body.tipoIncidenciaId, Number(body.montoBs) || 0, body.frecuencia || null]
     );
     return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
   } catch (err) {

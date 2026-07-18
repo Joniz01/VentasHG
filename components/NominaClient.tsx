@@ -4,16 +4,21 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   ESTADOS_NOMINA_PAGO,
   ESTADO_NOMINA_PAGO_LABELS,
+  FRECUENCIAS_INCIDENCIA,
   FRECUENCIAS_RECURRENCIA,
+  FRECUENCIA_INCIDENCIA_LABELS,
   FRECUENCIA_RECURRENCIA_LABELS,
   SEXOS,
   SEXO_LABELS,
   type Empleado,
   type EmpleadoInput,
   type EstadoNominaPago,
+  type FrecuenciaIncidencia,
   type FrecuenciaRecurrencia,
   type Locacion,
   type NominaPago,
+  type NominaResumen,
+  type PeriodoIncidenciaConfig,
   type PeriodoNomina,
   type Sexo,
   type TipoIncidencia,
@@ -336,7 +341,7 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
   onChange: () => void;
 }) {
   const [expandido, setExpandido] = useState(false);
-  const [incidenciaForm, setIncidenciaForm] = useState<Record<number, { tipoIncidenciaId: string; montoBs: string }>>({});
+  const [incidenciaForm, setIncidenciaForm] = useState<Record<number, { tipoIncidenciaId: string; frecuencia: FrecuenciaIncidencia; montoBs: string }>>({});
 
   async function handleCambiarEstadoPago(pago: NominaPago, estado: EstadoNominaPago) {
     await fetch(`/api/nomina/pagos/${pago.id}`, {
@@ -353,9 +358,13 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
     await fetch(`/api/nomina/pagos/${pago.id}/incidencias`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tipoIncidenciaId: Number(f.tipoIncidenciaId), montoBs: Number(f.montoBs) || 0 }),
+      body: JSON.stringify({
+        tipoIncidenciaId: Number(f.tipoIncidenciaId),
+        frecuencia: f.frecuencia,
+        montoBs: Number(f.montoBs) || 0,
+      }),
     });
-    setIncidenciaForm((p) => ({ ...p, [pago.id]: { tipoIncidenciaId: "", montoBs: "" } }));
+    setIncidenciaForm((p) => ({ ...p, [pago.id]: { tipoIncidenciaId: "", frecuencia: "MENSUAL", montoBs: "" } }));
     onChange();
   }
 
@@ -433,7 +442,7 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
                   <ul className="flex flex-col gap-1">
                     {pago.incidencias.map((i) => (
                       <li key={i.id} className="flex items-center justify-between text-xs" style={{ color: "var(--erp-text-2)" }}>
-                        <span>{i.tipoIncidenciaNombre}: Bs{i.montoBs.toFixed(2)}</span>
+                        <span>{i.tipoIncidenciaNombre}{i.frecuencia ? ` (${FRECUENCIA_INCIDENCIA_LABELS[i.frecuencia]})` : ""}: Bs{i.montoBs.toFixed(2)}</span>
                         <button type="button" onClick={() => handleEliminarIncidencia(i.id)} className="text-red-600">Quitar</button>
                       </li>
                     ))}
@@ -445,10 +454,18 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
                     className="rounded-md border px-2 py-1 text-xs"
                     style={{ borderColor: "var(--erp-border)" }}
                     value={incidenciaForm[pago.id]?.tipoIncidenciaId ?? ""}
-                    onChange={(e) => setIncidenciaForm((p) => ({ ...p, [pago.id]: { tipoIncidenciaId: e.target.value, montoBs: p[pago.id]?.montoBs ?? "" } }))}
+                    onChange={(e) => setIncidenciaForm((p) => ({ ...p, [pago.id]: { tipoIncidenciaId: e.target.value, frecuencia: p[pago.id]?.frecuencia ?? "MENSUAL", montoBs: p[pago.id]?.montoBs ?? "" } }))}
                   >
                     <option value="">Tipo de incidencia…</option>
                     {tiposIncidencia.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                  </select>
+                  <select
+                    className="rounded-md border px-2 py-1 text-xs"
+                    style={{ borderColor: "var(--erp-border)" }}
+                    value={incidenciaForm[pago.id]?.frecuencia ?? "MENSUAL"}
+                    onChange={(e) => setIncidenciaForm((p) => ({ ...p, [pago.id]: { tipoIncidenciaId: p[pago.id]?.tipoIncidenciaId ?? "", frecuencia: e.target.value as FrecuenciaIncidencia, montoBs: p[pago.id]?.montoBs ?? "" } }))}
+                  >
+                    {FRECUENCIAS_INCIDENCIA.map((f) => <option key={f} value={f}>{FRECUENCIA_INCIDENCIA_LABELS[f]}</option>)}
                   </select>
                   <input
                     type="number"
@@ -458,7 +475,7 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
                     className="rounded-md border px-2 py-1 text-xs w-28"
                     style={{ borderColor: "var(--erp-border)" }}
                     value={incidenciaForm[pago.id]?.montoBs ?? ""}
-                    onChange={(e) => setIncidenciaForm((p) => ({ ...p, [pago.id]: { tipoIncidenciaId: p[pago.id]?.tipoIncidenciaId ?? "", montoBs: e.target.value } }))}
+                    onChange={(e) => setIncidenciaForm((p) => ({ ...p, [pago.id]: { tipoIncidenciaId: p[pago.id]?.tipoIncidenciaId ?? "", frecuencia: p[pago.id]?.frecuencia ?? "MENSUAL", montoBs: e.target.value } }))}
                   />
                   <button type="button" onClick={() => handleAgregarIncidencia(pago)} className="text-xs rounded-md border px-2 py-1" style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}>
                     + Agregar incidencia
@@ -473,7 +490,7 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
   );
 }
 
-function PeriodosTab() {
+function PeriodosTab({ onResumenChange }: { onResumenChange: () => void }) {
   const [periodos, setPeriodos] = useState<PeriodoNomina[]>([]);
   const [tiposIncidencia, setTiposIncidencia] = useState<TipoIncidencia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -489,6 +506,30 @@ function PeriodosTab() {
     tasaDia: "",
   });
 
+  const [incidenciasPeriodo, setIncidenciasPeriodo] = useState<PeriodoIncidenciaConfig[]>([]);
+  const [nuevaIncidenciaRow, setNuevaIncidenciaRow] = useState<{ tipoIncidenciaId: string; frecuencia: FrecuenciaIncidencia; montoBs: string }>({
+    tipoIncidenciaId: "",
+    frecuencia: "MENSUAL",
+    montoBs: "",
+  });
+
+  function agregarIncidenciaRow() {
+    if (!nuevaIncidenciaRow.tipoIncidenciaId) return;
+    setIncidenciasPeriodo((prev) => [
+      ...prev,
+      {
+        tipoIncidenciaId: Number(nuevaIncidenciaRow.tipoIncidenciaId),
+        frecuencia: nuevaIncidenciaRow.frecuencia,
+        montoBs: Number(nuevaIncidenciaRow.montoBs) || 0,
+      },
+    ]);
+    setNuevaIncidenciaRow({ tipoIncidenciaId: "", frecuencia: "MENSUAL", montoBs: "" });
+  }
+
+  function quitarIncidenciaRow(index: number) {
+    setIncidenciasPeriodo((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function loadPeriodos() {
     setLoading(true);
     try {
@@ -500,6 +541,7 @@ function PeriodosTab() {
     } finally {
       setLoading(false);
     }
+    onResumenChange();
   }
 
   async function loadTiposIncidencia() {
@@ -541,12 +583,14 @@ function PeriodosTab() {
           fechaDesde: form.fechaDesde,
           fechaHasta: form.fechaHasta,
           tasaDia: Number(form.tasaDia) || 0,
+          incidencias: incidenciasPeriodo,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear el período");
       setShowForm(false);
       setForm({ frecuencia: "QUINCENAL", fechaDesde: today(), fechaHasta: today(), tasaDia: "" });
+      setIncidenciasPeriodo([]);
       await loadPeriodos();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear el período");
@@ -614,6 +658,69 @@ function PeriodosTab() {
           <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
             Se generará automáticamente un pago pendiente para cada empleado activo cuyo tipo de pago coincida con la frecuencia seleccionada.
           </p>
+
+          <div className="rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)" }}>
+            <span className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Incidencias del período</span>
+            <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+              Se aplicará el mismo monto a cada pago generado. La frecuencia es informativa (no necesariamente igual a la del período).
+            </p>
+
+            {incidenciasPeriodo.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {incidenciasPeriodo.map((inc, idx) => {
+                  const tipo = tiposIncidencia.find((t) => t.id === inc.tipoIncidenciaId);
+                  return (
+                    <li key={idx} className="flex items-center justify-between text-xs" style={{ color: "var(--erp-text-2)" }}>
+                      <span>{tipo?.nombre ?? `Tipo #${inc.tipoIncidenciaId}`} — {FRECUENCIA_INCIDENCIA_LABELS[inc.frecuencia]} — Bs{inc.montoBs.toFixed(2)}</span>
+                      <button type="button" onClick={() => quitarIncidenciaRow(idx)} className="text-red-600">Quitar</button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <div className="flex gap-2 items-end flex-wrap">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Incidencia</label>
+                <select
+                  className="rounded-md border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={nuevaIncidenciaRow.tipoIncidenciaId}
+                  onChange={(e) => setNuevaIncidenciaRow((p) => ({ ...p, tipoIncidenciaId: e.target.value }))}
+                >
+                  <option value="">Selecciona…</option>
+                  {tiposIncidencia.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Frecuencia</label>
+                <select
+                  className="rounded-md border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={nuevaIncidenciaRow.frecuencia}
+                  onChange={(e) => setNuevaIncidenciaRow((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaIncidencia }))}
+                >
+                  {FRECUENCIAS_INCIDENCIA.map((f) => <option key={f} value={f}>{FRECUENCIA_INCIDENCIA_LABELS[f]}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Monto Bs</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="rounded-md border px-2 py-1 text-xs w-28"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={nuevaIncidenciaRow.montoBs}
+                  onChange={(e) => setNuevaIncidenciaRow((p) => ({ ...p, montoBs: e.target.value }))}
+                />
+              </div>
+              <button type="button" onClick={agregarIncidenciaRow} className="text-xs rounded-md border px-2 py-1.5" style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}>
+                + Agregar
+              </button>
+            </div>
+          </div>
+
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
             <button type="submit" disabled={saving} className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" style={{ background: "var(--erp-primary)" }}>
@@ -640,11 +747,37 @@ function PeriodosTab() {
   );
 }
 
+function StatTile({ label, value, color, prefix = "$" }: { label: string; value: number; color: string; prefix?: string }) {
+  return (
+    <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+      <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
+      <div className="text-xl font-extrabold" style={{ color }}>{prefix}{value.toFixed(prefix === "$" ? 2 : 0)}</div>
+    </div>
+  );
+}
+
 export default function NominaClient() {
   const [tab, setTab] = useState<"empleados" | "periodos">("periodos");
+  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0 });
+
+  async function loadResumen() {
+    const res = await fetch("/api/nomina/resumen");
+    if (res.ok) setResumen(await res.json());
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadResumen();
+  }, []);
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex gap-3 flex-wrap">
+        <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
+        <StatTile label="Nómina Pendiente por Pagar" value={resumen.nominaPendiente} color="#a16207" />
+        <StatTile label="Nómina Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
+      </div>
+
       <div className="flex gap-2">
         <button
           type="button"
@@ -664,7 +797,7 @@ export default function NominaClient() {
         </button>
       </div>
 
-      {tab === "periodos" ? <PeriodosTab /> : <EmpleadosTab />}
+      {tab === "periodos" ? <PeriodosTab onResumenChange={loadResumen} /> : <EmpleadosTab />}
     </div>
   );
 }

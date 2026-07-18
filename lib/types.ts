@@ -625,11 +625,45 @@ export const ESTADO_NOMINA_PAGO_LABELS: Record<EstadoNominaPago, string> = {
 export const ESTADOS_PERIODO_NOMINA = ["ABIERTO", "CERRADO"] as const;
 export type EstadoPeriodoNomina = (typeof ESTADOS_PERIODO_NOMINA)[number];
 
+export const FRECUENCIAS_INCIDENCIA = [
+  "SEMANAL",
+  "QUINCENAL",
+  "MENSUAL",
+  "BIMENSUAL",
+  "TRIMESTRAL",
+  "SEMESTRAL",
+  "ANUAL",
+] as const;
+export type FrecuenciaIncidencia = (typeof FRECUENCIAS_INCIDENCIA)[number];
+
+export const FRECUENCIA_INCIDENCIA_LABELS: Record<FrecuenciaIncidencia, string> = {
+  SEMANAL: "Semanal",
+  QUINCENAL: "Quincenal",
+  MENSUAL: "Mensual",
+  BIMENSUAL: "Bimensual",
+  TRIMESTRAL: "Trimestral",
+  SEMESTRAL: "Semestral",
+  ANUAL: "Anual",
+};
+
 export type NominaIncidencia = {
   id: number;
   tipoIncidenciaId: number;
   tipoIncidenciaNombre: string;
+  frecuencia: FrecuenciaIncidencia | null;
   montoBs: number;
+};
+
+export type PeriodoIncidenciaConfig = {
+  tipoIncidenciaId: number;
+  frecuencia: FrecuenciaIncidencia;
+  montoBs: number;
+};
+
+export type NominaResumen = {
+  empleadosActivos: number;
+  nominaPendiente: number;
+  nominaPagadaMes: number;
 };
 
 export type NominaPago = {
@@ -663,4 +697,5 @@ export type PeriodoNominaInput = {
   fechaDesde: string;
   fechaHasta: string;
   tasaDia: number;
+  incidencias: PeriodoIncidenciaConfig[];
 };

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
-import type { FrecuenciaRecurrencia } from "@/lib/types";
+import type { FrecuenciaIncidencia, FrecuenciaRecurrencia, PeriodoIncidenciaConfig } from "@/lib/types";
 
 function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unknown>[], incidenciasRows: Record<string, unknown>[]) {
   const pagos = pagosRows
@@ -13,6 +13,7 @@ function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unkn
           id: i.id,
           tipoIncidenciaId: i.tipo_incidencia_id,
           tipoIncidenciaNombre: i.tipo_incidencia_nombre,
+          frecuencia: i.frecuencia as FrecuenciaIncidencia | null,
           montoBs: Number(i.monto_bs),
         }));
       const salarioBaseBs = Number(p.salario_base_bs);
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
     fechaDesde?: string;
     fechaHasta?: string;
     tasaDia?: number;
+    incidencias?: PeriodoIncidenciaConfig[];
   };
 
   if (!body.frecuencia || !body.fechaDesde || !body.fechaHasta) {
@@ -124,13 +126,27 @@ export async function POST(request: NextRequest) {
       [body.frecuencia]
     );
 
+    const incidenciasConfig = (body.incidencias ?? []).filter((i) => i.tipoIncidenciaId);
+
     for (const emp of empleados.rows) {
-      await client.query(
+      const pagoResult = await client.query(
         `INSERT INTO nomina_pagos (periodo_id, empleado_id, salario_base_bs)
          VALUES ($1,$2,$3)
-         ON CONFLICT (periodo_id, empleado_id) DO NOTHING`,
+         ON CONFLICT (periodo_id, empleado_id) DO NOTHING
+         RETURNING id`,
         [periodoId, emp.id, emp.salario_base_bs]
       );
+
+      const nominaPagoId = pagoResult.rows[0]?.id;
+      if (!nominaPagoId) continue;
+
+      for (const inc of incidenciasConfig) {
+        await client.query(
+          `INSERT INTO nomina_incidencias (nomina_pago_id, tipo_incidencia_id, monto_bs, frecuencia)
+           VALUES ($1,$2,$3,$4)`,
+          [nominaPagoId, inc.tipoIncidenciaId, Number(inc.montoBs) || 0, inc.frecuencia]
+        );
+      }
     }
 
     await client.query("COMMIT");
