@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
-import type { CategoriaGasto, EstadoGasto, FrecuenciaRecurrencia, TipoGasto } from "@/lib/types";
+import type { EstadoGasto, FrecuenciaRecurrencia, TipoGasto } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -25,7 +25,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const body = (await request.json()) as {
-    categoria?: CategoriaGasto;
+    tipoGastoId?: number;
     tipo?: TipoGasto;
     proveedor?: string;
     descripcion?: string;
@@ -40,8 +40,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
     recordatorioVisto?: boolean;
   };
 
-  if (!body.categoria || !body.tipo || !body.proveedor?.trim() || !body.fecha) {
-    return NextResponse.json({ error: "Categoría, tipo, proveedor y fecha son obligatorios" }, { status: 400 });
+  if (!body.tipoGastoId || !body.tipo || !body.proveedor?.trim() || !body.fecha) {
+    return NextResponse.json({ error: "Tipo de gasto, tipo, proveedor y fecha son obligatorios" }, { status: 400 });
   }
 
   const proximoRecordatorio =
@@ -50,7 +50,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     const result = await pool.query(
       `UPDATE gastos
-       SET categoria = $1, tipo = $2, proveedor = $3, descripcion = $4, locacion_id = $5,
+       SET tipo_gasto_id = $1, tipo = $2, proveedor = $3, descripcion = $4, locacion_id = $5,
            fecha = $6, monto_bs = $7, tasa_dia = $8, estado = $9,
            pagado_at = CASE WHEN $9 = 'PAGADO' AND pagado_at IS NULL THEN now()
                             WHEN $9 != 'PAGADO' THEN NULL ELSE pagado_at END,
@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
        WHERE id = $15
        RETURNING id`,
       [
-        body.categoria,
+        body.tipoGastoId,
         body.tipo,
         body.proveedor.trim(),
         body.descripcion?.trim() || null,

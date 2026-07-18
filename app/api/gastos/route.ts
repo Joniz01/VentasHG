@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
-import type { CategoriaGasto, EstadoGasto, FrecuenciaRecurrencia, TipoGasto } from "@/lib/types";
+import type { EstadoGasto, FrecuenciaRecurrencia, TipoGasto } from "@/lib/types";
 
 const DIAS_FRECUENCIA: Record<FrecuenciaRecurrencia, number> = {
   SEMANAL: 7,
@@ -20,7 +20,8 @@ function mapGasto(r: Record<string, unknown>) {
   const tasaDia = Number(r.tasa_dia);
   return {
     id: r.id,
-    categoria: r.categoria,
+    tipoGastoId: r.tipo_gasto_id,
+    tipoGastoNombre: r.tipo_gasto_nombre,
     tipo: r.tipo,
     proveedor: r.proveedor,
     descripcion: r.descripcion,
@@ -41,68 +42,51 @@ function mapGasto(r: Record<string, unknown>) {
   };
 }
 
-// Lunes de la semana ISO a la que pertenece la fecha (para agrupar automáticamente)
-function inicioSemana(fecha: string): string {
-  const d = new Date(`${fecha}T00:00:00`);
-  const dia = d.getDay();
-  const diff = dia === 0 ? 6 : dia - 1;
-  d.setDate(d.getDate() - diff);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function finSemana(inicio: string): string {
-  const d = new Date(`${inicio}T00:00:00`);
-  d.setDate(d.getDate() + 5);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const categoria = searchParams.get("categoria");
   const desde = searchParams.get("desde");
   const hasta = searchParams.get("hasta");
+  const proveedor = searchParams.get("proveedor");
+  const tipoGastoId = searchParams.get("tipoGastoId");
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 10));
 
   const conditions: string[] = [];
   const params: unknown[] = [];
 
-  if (categoria) { params.push(categoria); conditions.push(`g.categoria = $${params.length}`); }
   if (desde) { params.push(desde); conditions.push(`g.fecha >= $${params.length}`); }
   if (hasta) { params.push(hasta); conditions.push(`g.fecha <= $${params.length}`); }
+  if (proveedor) { params.push(`%${proveedor}%`); conditions.push(`lower(g.proveedor) LIKE lower($${params.length})`); }
+  if (tipoGastoId) { params.push(Number(tipoGastoId)); conditions.push(`g.tipo_gasto_id = $${params.length}`); }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
+  const countResult = await pool.query(`SELECT COUNT(*) AS total FROM gastos g ${where}`, params);
+  const total = Number(countResult.rows[0]?.total ?? 0);
+
+  const offset = (page - 1) * pageSize;
+  const listParams = [...params, pageSize, offset];
+
   const result = await pool.query(
-    `SELECT g.*, l.nombre AS locacion_nombre
+    `SELECT g.*, l.nombre AS locacion_nombre, tg.nombre AS tipo_gasto_nombre
      FROM gastos g
      LEFT JOIN locaciones l ON l.id = g.locacion_id
+     LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
      ${where}
-     ORDER BY g.fecha DESC, g.id DESC`,
-    params
+     ORDER BY g.fecha DESC, g.id DESC
+     LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+    listParams
   );
 
-  const gastos = result.rows.map(mapGasto);
-
-  const semanasMap = new Map<string, typeof gastos>();
-  for (const gasto of gastos) {
-    const inicio = inicioSemana(gasto.fecha);
-    if (!semanasMap.has(inicio)) semanasMap.set(inicio, []);
-    semanasMap.get(inicio)!.push(gasto);
-  }
-
-  const semanas = Array.from(semanasMap.entries())
-    .map(([inicio, items]) => ({
-      desde: inicio,
-      hasta: finSemana(inicio),
-      gastos: items,
-      totalBs: items.reduce((s, g) => s + g.montoBs, 0),
-      totalUsd: items.reduce((s, g) => s + g.montoUsd, 0),
-    }))
-    .sort((a, b) => (a.desde < b.desde ? 1 : -1));
-
-  return NextResponse.json({ semanas });
+  return NextResponse.json({
+    items: result.rows.map(mapGasto),
+    total,
+    page,
+    pageSize,
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -112,7 +96,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json()) as {
-    categoria?: CategoriaGasto;
+    tipoGastoId?: number;
     tipo?: TipoGasto;
     proveedor?: string;
     descripcion?: string;
@@ -126,8 +110,8 @@ export async function POST(request: NextRequest) {
     frecuencia?: FrecuenciaRecurrencia | null;
   };
 
-  if (!body.categoria || !body.tipo || !body.proveedor?.trim() || !body.fecha) {
-    return NextResponse.json({ error: "Categoría, tipo, proveedor y fecha son obligatorios" }, { status: 400 });
+  if (!body.tipoGastoId || !body.tipo || !body.proveedor?.trim() || !body.fecha) {
+    return NextResponse.json({ error: "Tipo de gasto, tipo, proveedor y fecha son obligatorios" }, { status: 400 });
   }
 
   if (body.recurrente && !body.frecuencia) {
@@ -140,14 +124,14 @@ export async function POST(request: NextRequest) {
   try {
     const result = await pool.query(
       `INSERT INTO gastos
-        (categoria, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
+        (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
          pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
                $10,$11,$12,$13,$14)
        RETURNING id`,
       [
-        body.categoria,
+        body.tipoGastoId,
         body.tipo,
         body.proveedor.trim(),
         body.descripcion?.trim() || null,

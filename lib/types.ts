@@ -489,12 +489,10 @@ export type Locacion = {
   activo: boolean;
 };
 
-export const CATEGORIAS_GASTO = ["MATERIA_PRIMA", "OPERACION"] as const;
-export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
-
-export const CATEGORIA_GASTO_LABELS: Record<CategoriaGasto, string> = {
-  MATERIA_PRIMA: "Gasto Materia Prima",
-  OPERACION: "Gasto Operación",
+export type TipoGastoCatalogo = {
+  id: number;
+  nombre: string;
+  activo: boolean;
 };
 
 export const TIPOS_GASTO = ["FIJO", "OCASIONAL"] as const;
@@ -520,7 +518,8 @@ export const FRECUENCIA_RECURRENCIA_LABELS: Record<FrecuenciaRecurrencia, string
 
 export type Gasto = {
   id: number;
-  categoria: CategoriaGasto;
+  tipoGastoId: number;
+  tipoGastoNombre: string;
   tipo: TipoGasto;
   proveedor: string;
   descripcion: string | null;
@@ -541,7 +540,7 @@ export type Gasto = {
 };
 
 export type GastoInput = {
-  categoria: CategoriaGasto;
+  tipoGastoId: number;
   tipo: TipoGasto;
   proveedor: string;
   descripcion: string;
@@ -555,10 +554,8 @@ export type GastoInput = {
   frecuencia: FrecuenciaRecurrencia | null;
 };
 
-export type GastoSemana = {
-  desde: string;
-  hasta: string;
-  gastos: Gasto[];
-  totalBs: number;
-  totalUsd: number;
+export type GastoResumen = {
+  gastoHoy: number;
+  gastoMes: number;
+  pendientePorPagar: number;
 };

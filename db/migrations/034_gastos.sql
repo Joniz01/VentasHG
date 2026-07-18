@@ -12,10 +12,20 @@ CREATE TABLE IF NOT EXISTS locaciones (
 INSERT INTO locaciones (nombre) VALUES ('Margarita'), ('Caracas')
   ON CONFLICT (nombre) DO NOTHING;
 
--- Gastos: Materia Prima y Operación
+-- Tipos de gasto (catálogo configurable: Materia Prima, Operativo + los que se agreguen)
+CREATE TABLE IF NOT EXISTS tipos_gasto (
+  id     SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL UNIQUE,
+  activo BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+INSERT INTO tipos_gasto (nombre) VALUES ('Gasto Materia Prima'), ('Gasto Operativo')
+  ON CONFLICT (nombre) DO NOTHING;
+
+-- Gastos: Materia Prima, Operativo y los tipos que se agreguen desde el catálogo
 CREATE TABLE IF NOT EXISTS gastos (
   id                 SERIAL PRIMARY KEY,
-  categoria          TEXT NOT NULL CHECK (categoria IN ('MATERIA_PRIMA','OPERACION')),
+  tipo_gasto_id      INTEGER NOT NULL REFERENCES tipos_gasto(id),
   tipo               TEXT NOT NULL CHECK (tipo IN ('FIJO','OCASIONAL')),
   proveedor          TEXT NOT NULL,
   descripcion        TEXT,
@@ -35,5 +45,6 @@ CREATE TABLE IF NOT EXISTS gastos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_gastos_fecha ON gastos (fecha DESC);
-CREATE INDEX IF NOT EXISTS idx_gastos_categoria ON gastos (categoria);
+CREATE INDEX IF NOT EXISTS idx_gastos_tipo_gasto ON gastos (tipo_gasto_id);
+CREATE INDEX IF NOT EXISTS idx_gastos_proveedor ON gastos (lower(proveedor) text_pattern_ops);
 CREATE INDEX IF NOT EXISTS idx_gastos_recordatorio ON gastos (proximo_recordatorio) WHERE recurrente = TRUE;

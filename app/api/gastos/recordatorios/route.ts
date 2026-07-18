@@ -9,20 +9,21 @@ export async function GET() {
     const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 
     const result = await pool.query(
-      `SELECT id, proveedor, categoria, monto_bs, proximo_recordatorio
-       FROM gastos
-       WHERE recurrente = TRUE
-         AND recordatorio_visto = FALSE
-         AND proximo_recordatorio IS NOT NULL
-         AND proximo_recordatorio <= $1
-       ORDER BY proximo_recordatorio ASC`,
+      `SELECT g.id, g.proveedor, tg.nombre AS tipo_gasto_nombre, g.monto_bs, g.proximo_recordatorio
+       FROM gastos g
+       LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
+       WHERE g.recurrente = TRUE
+         AND g.recordatorio_visto = FALSE
+         AND g.proximo_recordatorio IS NOT NULL
+         AND g.proximo_recordatorio <= $1
+       ORDER BY g.proximo_recordatorio ASC`,
       [hoy]
     );
 
     const items = result.rows.map((r) => ({
       id: r.id,
       proveedor: r.proveedor,
-      categoria: r.categoria,
+      tipoGastoNombre: r.tipo_gasto_nombre,
       montoBs: Number(r.monto_bs),
       proximoRecordatorio: r.proximo_recordatorio,
     }));

@@ -64,7 +64,8 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Nómina & Gastos",
     items: [
-      { href: "/nomina", icon: "👷", label: "Nómina & Gastos" },
+      { href: "/nomina", icon: "👷", label: "Nómina", permiso: "gastos" },
+      { href: "/gastos", icon: "💸", label: "Gastos", permiso: "gastos" },
     ],
   },
   {

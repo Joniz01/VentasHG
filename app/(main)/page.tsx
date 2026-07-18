@@ -52,7 +52,8 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Finanzas",
     tiles: [
-      { href: "/nomina",              icon: "👷", label: "Nómina & Gastos",      sub: "Empleados y gastos operativos",  color: "#9333EA", new: true },
+      { href: "/nomina",              icon: "👷", label: "Nómina",               sub: "Empleados y períodos de pago",   color: "#9333EA", new: true },
+      { href: "/gastos",              icon: "💸", label: "Gastos",               sub: "Materia prima y operación",      color: "#9333EA", permiso: "gastos", new: true },
       { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",   sub: "CxC Directa, Cashea y Yummy",   color: "#B45309", permiso: "reportes" },
       { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar",    sub: "Pagos y obligaciones",           color: "#B45309", new: true },
       { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero",  sub: "Indicadores y flujo de caja",    color: "#B45309", new: true },
