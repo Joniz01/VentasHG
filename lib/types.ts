@@ -559,3 +559,83 @@ export type GastoResumen = {
   gastoMes: number;
   pendientePorPagar: number;
 };
+
+export type Empleado = {
+  id: number;
+  nombre: string;
+  cargo: string | null;
+  locacionId: number | null;
+  locacionNombre: string | null;
+  tipoPago: FrecuenciaRecurrencia;
+  salarioBaseBs: number;
+  fechaIngreso: string | null;
+  activo: boolean;
+  createdAt: string;
+};
+
+export type EmpleadoInput = {
+  nombre: string;
+  cargo: string;
+  locacionId: number | null;
+  tipoPago: FrecuenciaRecurrencia;
+  salarioBaseBs: number;
+  fechaIngreso: string;
+  activo: boolean;
+};
+
+export type TipoIncidencia = {
+  id: number;
+  nombre: string;
+  activo: boolean;
+};
+
+export const ESTADOS_NOMINA_PAGO = ["PENDIENTE", "PAGADO"] as const;
+export type EstadoNominaPago = (typeof ESTADOS_NOMINA_PAGO)[number];
+
+export const ESTADO_NOMINA_PAGO_LABELS: Record<EstadoNominaPago, string> = {
+  PENDIENTE: "Pendiente",
+  PAGADO: "Pagado",
+};
+
+export const ESTADOS_PERIODO_NOMINA = ["ABIERTO", "CERRADO"] as const;
+export type EstadoPeriodoNomina = (typeof ESTADOS_PERIODO_NOMINA)[number];
+
+export type NominaIncidencia = {
+  id: number;
+  tipoIncidenciaId: number;
+  tipoIncidenciaNombre: string;
+  montoBs: number;
+};
+
+export type NominaPago = {
+  id: number;
+  empleadoId: number;
+  empleadoNombre: string;
+  salarioBaseBs: number;
+  incidencias: NominaIncidencia[];
+  totalIncidenciasBs: number;
+  totalBs: number;
+  totalUsd: number;
+  estado: EstadoNominaPago;
+  pagadoAt: string | null;
+};
+
+export type PeriodoNomina = {
+  id: number;
+  frecuencia: FrecuenciaRecurrencia;
+  fechaDesde: string;
+  fechaHasta: string;
+  tasaDia: number;
+  estado: EstadoPeriodoNomina;
+  pagos: NominaPago[];
+  totalGeneralBs: number;
+  totalGeneralUsd: number;
+  createdAt: string;
+};
+
+export type PeriodoNominaInput = {
+  frecuencia: FrecuenciaRecurrencia;
+  fechaDesde: string;
+  fechaHasta: string;
+  tasaDia: number;
+};
