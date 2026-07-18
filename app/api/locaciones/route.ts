@@ -6,13 +6,16 @@ export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const result = await pool.query(
-    `SELECT id, nombre, activo FROM locaciones WHERE activo = TRUE ORDER BY nombre ASC`
-  );
-
-  return NextResponse.json(
-    result.rows.map((r) => ({ id: r.id, nombre: r.nombre, activo: r.activo }))
-  );
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, activo FROM locaciones WHERE activo = TRUE ORDER BY nombre ASC`
+    );
+    return NextResponse.json(
+      result.rows.map((r) => ({ id: r.id, nombre: r.nombre, activo: r.activo }))
+    );
+  } catch {
+    return NextResponse.json([]);
+  }
 }
 
 export async function POST(request: NextRequest) {

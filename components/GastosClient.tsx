@@ -636,7 +636,12 @@ export default function GastosClient() {
       {loading ? (
         <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>
       ) : items.length === 0 ? (
-        <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>No hay gastos registrados.</p>
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text)" }}
+        >
+          Sin gastos registrados.
+        </div>
       ) : (
         <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--erp-border)" }}>
           <div className="overflow-x-auto">

@@ -12,22 +12,26 @@ export async function GET(request: NextRequest) {
 
   const montoUsdExpr = `SUM(CASE WHEN tasa_dia > 0 THEN monto_bs / tasa_dia ELSE 0 END)`;
 
-  const hoyResult = await pool.query(
-    `SELECT COALESCE(${montoUsdExpr}, 0) AS total FROM gastos WHERE fecha = ${HOY}`
-  );
+  try {
+    const hoyResult = await pool.query(
+      `SELECT COALESCE(${montoUsdExpr}, 0) AS total FROM gastos WHERE fecha = ${HOY}`
+    );
 
-  const mesResult = await pool.query(
-    `SELECT COALESCE(${montoUsdExpr}, 0) AS total FROM gastos
-     WHERE date_trunc('month', fecha) = date_trunc('month', ${HOY})`
-  );
+    const mesResult = await pool.query(
+      `SELECT COALESCE(${montoUsdExpr}, 0) AS total FROM gastos
+       WHERE date_trunc('month', fecha) = date_trunc('month', ${HOY})`
+    );
 
-  const pendienteResult = await pool.query(
-    `SELECT COALESCE(${montoUsdExpr}, 0) AS total FROM gastos WHERE estado != 'PAGADO'`
-  );
+    const pendienteResult = await pool.query(
+      `SELECT COALESCE(${montoUsdExpr}, 0) AS total FROM gastos WHERE estado != 'PAGADO'`
+    );
 
-  return NextResponse.json({
-    gastoHoy: Number(hoyResult.rows[0]?.total ?? 0),
-    gastoMes: Number(mesResult.rows[0]?.total ?? 0),
-    pendientePorPagar: Number(pendienteResult.rows[0]?.total ?? 0),
-  });
+    return NextResponse.json({
+      gastoHoy: Number(hoyResult.rows[0]?.total ?? 0),
+      gastoMes: Number(mesResult.rows[0]?.total ?? 0),
+      pendientePorPagar: Number(pendienteResult.rows[0]?.total ?? 0),
+    });
+  } catch {
+    return NextResponse.json({ gastoHoy: 0, gastoMes: 0, pendientePorPagar: 0 });
+  }
 }

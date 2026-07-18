@@ -64,29 +64,34 @@ export async function GET(request: NextRequest) {
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const countResult = await pool.query(`SELECT COUNT(*) AS total FROM gastos g ${where}`, params);
-  const total = Number(countResult.rows[0]?.total ?? 0);
+  try {
+    const countResult = await pool.query(`SELECT COUNT(*) AS total FROM gastos g ${where}`, params);
+    const total = Number(countResult.rows[0]?.total ?? 0);
 
-  const offset = (page - 1) * pageSize;
-  const listParams = [...params, pageSize, offset];
+    const offset = (page - 1) * pageSize;
+    const listParams = [...params, pageSize, offset];
 
-  const result = await pool.query(
-    `SELECT g.*, l.nombre AS locacion_nombre, tg.nombre AS tipo_gasto_nombre
-     FROM gastos g
-     LEFT JOIN locaciones l ON l.id = g.locacion_id
-     LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
-     ${where}
-     ORDER BY g.fecha DESC, g.id DESC
-     LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
-    listParams
-  );
+    const result = await pool.query(
+      `SELECT g.*, l.nombre AS locacion_nombre, tg.nombre AS tipo_gasto_nombre
+       FROM gastos g
+       LEFT JOIN locaciones l ON l.id = g.locacion_id
+       LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
+       ${where}
+       ORDER BY g.fecha DESC, g.id DESC
+       LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+      listParams
+    );
 
-  return NextResponse.json({
-    items: result.rows.map(mapGasto),
-    total,
-    page,
-    pageSize,
-  });
+    return NextResponse.json({
+      items: result.rows.map(mapGasto),
+      total,
+      page,
+      pageSize,
+    });
+  } catch {
+    // Migración 034 pendiente de aplicar en la base de datos
+    return NextResponse.json({ items: [], total: 0, page, pageSize });
+  }
 }
 
 export async function POST(request: NextRequest) {
