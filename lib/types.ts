@@ -584,7 +584,8 @@ export type Empleado = {
   cargo: string | null;
   locacionId: number | null;
   locacionNombre: string | null;
-  tipoPago: FrecuenciaRecurrencia;
+  nominaIds: number[];
+  nominaNombres: string[];
   salarioBaseUsd: number;
   salarioBaseBs: number;
   tasaRegistro: number;
@@ -600,7 +601,7 @@ export type EmpleadoInput = {
   sexo: Sexo | null;
   cargo: string;
   locacionId: number | null;
-  tipoPago: FrecuenciaRecurrencia;
+  nominaIds: number[];
   salarioBaseUsd: number;
   salarioBaseBs: number;
   tasaRegistro: number;
@@ -654,10 +655,52 @@ export type NominaIncidencia = {
   montoBs: number;
 };
 
-export type PeriodoIncidenciaConfig = {
+export const TIPOS_NOMINA = ["NORMAL", "SOLO_INCIDENCIAS"] as const;
+export type TipoNomina = (typeof TIPOS_NOMINA)[number];
+
+export const TIPO_NOMINA_LABELS: Record<TipoNomina, string> = {
+  NORMAL: "Normal (sueldo + incidencias)",
+  SOLO_INCIDENCIAS: "Solo incidencias (sin sueldo base)",
+};
+
+export type NominaIncidenciaConfig = {
+  id: number;
+  nominaId: number;
+  tipoIncidenciaId: number;
+  tipoIncidenciaNombre: string;
+  frecuencia: FrecuenciaIncidencia;
+  fechaEfectiva: string;
+  montoUsd: number;
+  montoBs: number;
+  tasaRegistro: number;
+};
+
+export type NominaIncidenciaConfigInput = {
   tipoIncidenciaId: number;
   frecuencia: FrecuenciaIncidencia;
+  fechaEfectiva: string;
+  montoUsd: number;
   montoBs: number;
+  tasaRegistro: number;
+};
+
+export type Nomina = {
+  id: number;
+  nombre: string;
+  tipo: TipoNomina;
+  frecuencia: FrecuenciaRecurrencia;
+  activo: boolean;
+  empleadosAsignados: number;
+  incidenciasConfig: NominaIncidenciaConfig[];
+  createdAt: string;
+};
+
+export type NominaInput = {
+  nombre: string;
+  tipo: TipoNomina;
+  frecuencia: FrecuenciaRecurrencia;
+  activo: boolean;
+  incidencias: NominaIncidenciaConfigInput[];
 };
 
 export type NominaResumen = {
@@ -681,6 +724,8 @@ export type NominaPago = {
 
 export type PeriodoNomina = {
   id: number;
+  nominaId: number;
+  nominaNombre: string;
   frecuencia: FrecuenciaRecurrencia;
   fechaDesde: string;
   fechaHasta: string;
@@ -693,9 +738,8 @@ export type PeriodoNomina = {
 };
 
 export type PeriodoNominaInput = {
-  frecuencia: FrecuenciaRecurrencia;
+  nominaId: number;
   fechaDesde: string;
   fechaHasta: string;
   tasaDia: number;
-  incidencias: PeriodoIncidenciaConfig[];
 };

@@ -1,0 +1,47 @@
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
+import { getSesionFromRequest } from "@/lib/auth";
+import type { NominaInput } from "@/lib/types";
+
+type Params = { params: Promise<{ id: string }> };
+
+export async function PUT(request: NextRequest, { params }: Params) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.gastos)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const body = (await request.json()) as Partial<NominaInput>;
+
+  if (!body.nombre?.trim() || !body.frecuencia) {
+    return NextResponse.json({ error: "Nombre y frecuencia son obligatorios" }, { status: 400 });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE nominas SET nombre = $1, tipo = $2, frecuencia = $3, activo = $4 WHERE id = $5 RETURNING id`,
+      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.activo ?? true, id]
+    );
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: "Nómina no encontrada" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: "Error al actualizar la Nómina" }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.gastos)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const result = await pool.query(`UPDATE nominas SET activo = FALSE WHERE id = $1 RETURNING id`, [id]);
+  if (result.rowCount === 0) {
+    return NextResponse.json({ error: "Nómina no encontrada" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
+}

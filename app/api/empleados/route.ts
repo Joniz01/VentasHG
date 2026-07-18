@@ -3,7 +3,8 @@ import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
 import type { EmpleadoInput } from "@/lib/types";
 
-function mapEmpleado(r: Record<string, unknown>) {
+function mapEmpleado(r: Record<string, unknown>, nominasRows: Record<string, unknown>[]) {
+  const asignadas = nominasRows.filter((n) => n.empleado_id === r.id);
   return {
     id: r.id,
     nombre: r.nombre,
@@ -15,7 +16,8 @@ function mapEmpleado(r: Record<string, unknown>) {
     cargo: r.cargo,
     locacionId: r.locacion_id,
     locacionNombre: r.locacion_nombre,
-    tipoPago: r.tipo_pago,
+    nominaIds: asignadas.map((n) => n.nomina_id),
+    nominaNombres: asignadas.map((n) => n.nomina_nombre),
     salarioBaseUsd: Number(r.salario_base_usd ?? 0),
     salarioBaseBs: Number(r.salario_base_bs),
     tasaRegistro: Number(r.tasa_registro ?? 0),
@@ -42,7 +44,17 @@ export async function GET(request: NextRequest) {
        ${soloActivos ? "WHERE e.activo = TRUE" : ""}
        ORDER BY e.nombre ASC`
     );
-    return NextResponse.json(result.rows.map(mapEmpleado));
+    const empleadoIds = result.rows.map((r) => r.id);
+    const nominasResult = empleadoIds.length
+      ? await pool.query(
+          `SELECT en.empleado_id, en.nomina_id, n.nombre AS nomina_nombre
+           FROM empleado_nominas en
+           JOIN nominas n ON n.id = en.nomina_id
+           WHERE en.empleado_id = ANY($1::int[])`,
+          [empleadoIds]
+        ).catch(() => ({ rows: [] }))
+      : { rows: [] };
+    return NextResponse.json(result.rows.map((r) => mapEmpleado(r, nominasResult.rows)));
   } catch {
     return NextResponse.json([]);
   }
@@ -56,16 +68,19 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json()) as Partial<EmpleadoInput>;
 
-  if (!body.nombre?.trim() || !body.tipoPago) {
-    return NextResponse.json({ error: "Nombre y tipo de pago son obligatorios" }, { status: 400 });
+  if (!body.nombre?.trim()) {
+    return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
   }
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    const result = await client.query(
       `INSERT INTO empleados
-        (nombre, cedula, fecha_nacimiento, sexo, cargo, locacion_id, tipo_pago,
+        (nombre, cedula, fecha_nacimiento, sexo, cargo, locacion_id,
          salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
       [
         body.nombre.trim(),
         body.cedula?.trim() || null,
@@ -73,7 +88,6 @@ export async function POST(request: NextRequest) {
         body.sexo || null,
         body.cargo?.trim() || null,
         body.locacionId || null,
-        body.tipoPago,
         Number(body.salarioBaseUsd) || 0,
         Number(body.salarioBaseBs) || 0,
         Number(body.tasaRegistro) || 0,
@@ -81,8 +95,21 @@ export async function POST(request: NextRequest) {
         body.activo ?? true,
       ]
     );
-    return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
+    const empleadoId = result.rows[0].id;
+
+    for (const nominaId of body.nominaIds ?? []) {
+      await client.query(
+        `INSERT INTO empleado_nominas (empleado_id, nomina_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+        [empleadoId, nominaId]
+      );
+    }
+
+    await client.query("COMMIT");
+    return NextResponse.json({ id: empleadoId }, { status: 201 });
   } catch (err) {
+    await client.query("ROLLBACK");
     return NextResponse.json({ error: "Error al registrar el empleado" }, { status: 400 });
+  } finally {
+    client.release();
   }
 }

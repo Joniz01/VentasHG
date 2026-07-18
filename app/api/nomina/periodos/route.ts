@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
-import type { FrecuenciaIncidencia, FrecuenciaRecurrencia, PeriodoIncidenciaConfig } from "@/lib/types";
+import type { FrecuenciaIncidencia } from "@/lib/types";
 
 function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unknown>[], incidenciasRows: Record<string, unknown>[]) {
   const pagos = pagosRows
@@ -39,6 +39,8 @@ function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unkn
 
   return {
     id: row.id,
+    nominaId: row.nomina_id,
+    nominaNombre: row.nomina_nombre,
     frecuencia: row.frecuencia,
     fechaDesde: row.fecha_desde instanceof Date ? row.fecha_desde.toISOString().slice(0, 10) : String(row.fecha_desde).slice(0, 10),
     fechaHasta: row.fecha_hasta instanceof Date ? row.fecha_hasta.toISOString().slice(0, 10) : String(row.fecha_hasta).slice(0, 10),
@@ -57,7 +59,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const periodosResult = await pool.query(
-      `SELECT * FROM periodos_nomina ORDER BY fecha_desde DESC, id DESC`
+      `SELECT pn.*, n.nombre AS nomina_nombre
+       FROM periodos_nomina pn
+       LEFT JOIN nominas n ON n.id = pn.nomina_id
+       ORDER BY pn.fecha_desde DESC, pn.id DESC`
     );
     const periodoIds = periodosResult.rows.map((r) => r.id);
 
@@ -99,34 +104,52 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json()) as {
-    frecuencia?: FrecuenciaRecurrencia;
+    nominaId?: number;
     fechaDesde?: string;
     fechaHasta?: string;
     tasaDia?: number;
-    incidencias?: PeriodoIncidenciaConfig[];
   };
 
-  if (!body.frecuencia || !body.fechaDesde || !body.fechaHasta) {
-    return NextResponse.json({ error: "Frecuencia y fechas son obligatorias" }, { status: 400 });
+  if (!body.nominaId || !body.fechaDesde || !body.fechaHasta) {
+    return NextResponse.json({ error: "Nómina y fechas son obligatorias" }, { status: 400 });
   }
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
+    const nominaResult = await client.query(
+      `SELECT id, tipo, frecuencia FROM nominas WHERE id = $1 AND activo = TRUE`,
+      [body.nominaId]
+    );
+    const nomina = nominaResult.rows[0];
+    if (!nomina) {
+      throw new Error("Nómina no encontrada");
+    }
+
     const periodoResult = await client.query(
-      `INSERT INTO periodos_nomina (frecuencia, fecha_desde, fecha_hasta, tasa_dia, created_by)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [body.frecuencia, body.fechaDesde, body.fechaHasta, Number(body.tasaDia) || 0, sesion.id]
+      `INSERT INTO periodos_nomina (nomina_id, frecuencia, fecha_desde, fecha_hasta, tasa_dia, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [body.nominaId, nomina.frecuencia, body.fechaDesde, body.fechaHasta, Number(body.tasaDia) || 0, sesion.id]
     );
     const periodoId = periodoResult.rows[0].id;
 
     const empleados = await client.query(
-      `SELECT id, salario_base_bs FROM empleados WHERE activo = TRUE AND tipo_pago = $1`,
-      [body.frecuencia]
+      `SELECT e.id, e.salario_base_bs
+       FROM empleados e
+       JOIN empleado_nominas en ON en.empleado_id = e.id
+       WHERE e.activo = TRUE AND en.nomina_id = $1`,
+      [body.nominaId]
     );
 
-    const incidenciasConfig = (body.incidencias ?? []).filter((i) => i.tipoIncidenciaId);
+    const incidenciasConfig = await client.query(
+      `SELECT tipo_incidencia_id, frecuencia, monto_bs
+       FROM nomina_incidencia_config
+       WHERE nomina_id = $1 AND fecha_efectiva BETWEEN $2 AND $3`,
+      [body.nominaId, body.fechaDesde, body.fechaHasta]
+    );
+
+    const soloIncidencias = nomina.tipo === "SOLO_INCIDENCIAS";
 
     for (const emp of empleados.rows) {
       const pagoResult = await client.query(
@@ -134,17 +157,17 @@ export async function POST(request: NextRequest) {
          VALUES ($1,$2,$3)
          ON CONFLICT (periodo_id, empleado_id) DO NOTHING
          RETURNING id`,
-        [periodoId, emp.id, emp.salario_base_bs]
+        [periodoId, emp.id, soloIncidencias ? 0 : emp.salario_base_bs]
       );
 
       const nominaPagoId = pagoResult.rows[0]?.id;
       if (!nominaPagoId) continue;
 
-      for (const inc of incidenciasConfig) {
+      for (const inc of incidenciasConfig.rows) {
         await client.query(
           `INSERT INTO nomina_incidencias (nomina_pago_id, tipo_incidencia_id, monto_bs, frecuencia)
            VALUES ($1,$2,$3,$4)`,
-          [nominaPagoId, inc.tipoIncidenciaId, Number(inc.montoBs) || 0, inc.frecuencia]
+          [nominaPagoId, inc.tipo_incidencia_id, Number(inc.monto_bs) || 0, inc.frecuencia]
         );
       }
     }
@@ -153,7 +176,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: periodoId }, { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
-    return NextResponse.json({ error: "Error al crear el período de nómina" }, { status: 400 });
+    const message = err instanceof Error && err.message === "Nómina no encontrada" ? err.message : "Error al crear el período de nómina";
+    return NextResponse.json({ error: message }, { status: 400 });
   } finally {
     client.release();
   }

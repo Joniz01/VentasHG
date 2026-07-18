@@ -14,17 +14,20 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = (await request.json()) as Partial<EmpleadoInput>;
 
-  if (!body.nombre?.trim() || !body.tipoPago) {
-    return NextResponse.json({ error: "Nombre y tipo de pago son obligatorios" }, { status: 400 });
+  if (!body.nombre?.trim()) {
+    return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
   }
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    const result = await client.query(
       `UPDATE empleados
        SET nombre = $1, cedula = $2, fecha_nacimiento = $3, sexo = $4, cargo = $5, locacion_id = $6,
-           tipo_pago = $7, salario_base_usd = $8, salario_base_bs = $9, tasa_registro = $10,
-           fecha_ingreso = $11, activo = $12
-       WHERE id = $13
+           salario_base_usd = $7, salario_base_bs = $8, tasa_registro = $9,
+           fecha_ingreso = $10, activo = $11
+       WHERE id = $12
        RETURNING id`,
       [
         body.nombre.trim(),
@@ -33,7 +36,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
         body.sexo || null,
         body.cargo?.trim() || null,
         body.locacionId || null,
-        body.tipoPago,
         Number(body.salarioBaseUsd) || 0,
         Number(body.salarioBaseBs) || 0,
         Number(body.tasaRegistro) || 0,
@@ -44,12 +46,25 @@ export async function PUT(request: NextRequest, { params }: Params) {
     );
 
     if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
       return NextResponse.json({ error: "Empleado no encontrado" }, { status: 404 });
     }
 
+    await client.query(`DELETE FROM empleado_nominas WHERE empleado_id = $1`, [id]);
+    for (const nominaId of body.nominaIds ?? []) {
+      await client.query(
+        `INSERT INTO empleado_nominas (empleado_id, nomina_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+        [id, nominaId]
+      );
+    }
+
+    await client.query("COMMIT");
     return NextResponse.json({ ok: true });
   } catch (err) {
+    await client.query("ROLLBACK");
     return NextResponse.json({ error: "Error al actualizar el empleado" }, { status: 400 });
+  } finally {
+    client.release();
   }
 }
 
