@@ -72,27 +72,33 @@ export async function PUT(request: NextRequest, { params }: Params) {
   };
 
   try {
+    // Reintenta desactivando únicamente la columna opcional que realmente falta,
+    // sin afectar las demás (cada migración pendiente es independiente).
+    const opts: UpdateOpts = { dashboard: true, compras: true, eliminarCompras: true, gastos: true };
+    const columnaPorOpt: Record<keyof UpdateOpts, string> = {
+      dashboard: "ve_dashboard",
+      compras: "ve_compras",
+      eliminarCompras: "ve_eliminar_compras",
+      gastos: "ve_gastos",
+    };
+
     let result;
-    try {
-      result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: true, gastos: true });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("ve_gastos")) {
-        result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: true, gastos: false });
-      } else if (msg.includes("ve_eliminar_compras")) {
-        try {
-          result = await runUpdate({ dashboard: true, compras: true, eliminarCompras: false, gastos: false });
-        } catch (e2) {
-          const msg2 = e2 instanceof Error ? e2.message : "";
-          if (msg2.includes("ve_dashboard") || msg2.includes("ve_compras")) {
-            result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false, gastos: false });
-          } else throw e2;
-        }
-      } else if (msg.includes("ve_dashboard") || msg.includes("ve_compras")) {
-        result = await runUpdate({ dashboard: false, compras: false, eliminarCompras: false, gastos: false });
-      } else {
-        throw e;
+    for (let intento = 0; intento < 5; intento++) {
+      try {
+        result = await runUpdate(opts);
+        break;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "";
+        const optFaltante = (Object.keys(columnaPorOpt) as (keyof UpdateOpts)[]).find(
+          (key) => opts[key] && msg.includes(columnaPorOpt[key])
+        );
+        if (!optFaltante) throw e;
+        opts[optFaltante] = false;
       }
+    }
+
+    if (!result) {
+      throw new Error("No se pudo actualizar el usuario");
     }
 
     if (result.rowCount === 0) {
