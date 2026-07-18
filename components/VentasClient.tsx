@@ -904,6 +904,24 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }
   }
 
+  async function handleLiquidarYummy(ventaId: number, liquidado: boolean) {
+    setCasheaUpdating(ventaId);
+    try {
+      const res = await fetch(`/api/reportes/yummy/${ventaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ liquidado }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al actualizar Yummy");
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar Yummy");
+    } finally {
+      setCasheaUpdating(null);
+    }
+  }
+
   async function handleToggleCuentaCobrada(venta: Venta) {
     try {
       const res = await fetch(`/api/reportes/cuentas-por-cobrar/${venta.id}`, {
@@ -2560,6 +2578,22 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           </div>
                         )
                       )}
+                      {venta.yummyDatos && (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: venta.yummyDatos.liquidado ? "#dcfce7" : "#e8f5e9", color: venta.yummyDatos.liquidado ? "#15803d" : "#007e33" }}>
+                            <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white text-[8px] font-extrabold" style={{ backgroundColor: "#00c853" }}>Y</span>
+                            ${venta.yummyDatos.monto.toFixed(2)} {venta.yummyDatos.liquidado ? "cobrado" : "pendiente"}
+                          </span>
+                          <button
+                            onClick={() => handleLiquidarYummy(venta.id, !venta.yummyDatos!.liquidado)}
+                            disabled={casheaUpdating === venta.id}
+                            className="rounded-md border px-2 py-0.5 text-xs font-medium disabled:opacity-50"
+                            style={{ borderColor: "#00c853", backgroundColor: venta.yummyDatos.liquidado ? "white" : "#e8f5e9", color: "#007e33" }}
+                          >
+                            {casheaUpdating === venta.id ? "..." : venta.yummyDatos.liquidado ? "Marcar pendiente" : "Marcar Pagada"}
+                          </button>
+                        </div>
+                      )}
                       {venta.cuentaPorCobrar && (
                         <>
                           {venta.cuentaCobrada ? (
@@ -2575,7 +2609,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           </button>
                         </>
                       )}
-                      {!cd && !venta.cuentaPorCobrar && "-"}
+                      {!cd && !venta.yummyDatos && !venta.cuentaPorCobrar && "-"}
                     </div>
                   </td>
                   <td className="px-4 py-2 text-right">

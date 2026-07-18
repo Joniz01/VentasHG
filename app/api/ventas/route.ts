@@ -64,6 +64,15 @@ export async function GET() {
       ).catch(() => ({ rows: [] }))
     : { rows: [] };
 
+  const yummyResult = ventaIds.length
+    ? await pool.query(
+        `SELECT venta_id, monto, dias, fecha_vencimiento, liquidado, liquidado_at
+         FROM yummy_pagos
+         WHERE venta_id = ANY($1::int[])`,
+        [ventaIds]
+      ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
   const ventas = ventasResult.rows.map((row) => ({
     id: row.id,
     fecha: row.fecha,
@@ -130,6 +139,17 @@ export async function GET() {
         liquidado: cp.liquidado,
         liquidadoAt: cp.liquidado_at,
         metodoInicial: cp.metodo_inicial ?? null,
+      };
+    })(),
+    yummyDatos: (() => {
+      const yp = yummyResult.rows.find((r) => r.venta_id === row.id);
+      if (!yp) return null;
+      return {
+        monto: Number(yp.monto),
+        dias: Number(yp.dias),
+        fechaVencimiento: yp.fecha_vencimiento,
+        liquidado: yp.liquidado,
+        liquidadoAt: yp.liquidado_at,
       };
     })(),
   }));

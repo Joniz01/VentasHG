@@ -292,6 +292,13 @@ export type Venta = {
     liquidadoAt: string | null;
     metodoInicial: string | null;
   } | null;
+  yummyDatos: {
+    monto: number;
+    dias: number;
+    fechaVencimiento: string;
+    liquidado: boolean;
+    liquidadoAt: string | null;
+  } | null;
 };
 
 export type VentaItemInput = {
