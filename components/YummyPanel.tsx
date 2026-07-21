@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { YummyPagoItem } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
 import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
+import FechaPagoConfirm from "@/components/FechaPagoConfirm";
 
 type EstadoFiltro = "PENDIENTE" | "LIQUIDADO" | "TODOS";
 
@@ -24,6 +25,7 @@ export default function YummyPanel() {
   const [error, setError] = useState<string | null>(null);
   const [estado, setEstado] = useState<EstadoFiltro>("PENDIENTE");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [confirmandoId, setConfirmandoId] = useState<number | null>(null);
 
   async function loadItems(filtro: EstadoFiltro) {
     setLoading(true);
@@ -47,14 +49,14 @@ export default function YummyPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
-  async function handleToggleLiquidado(item: YummyPagoItem) {
+  async function handleToggleLiquidado(item: YummyPagoItem, fechaPago?: string) {
     setUpdatingId(item.ventaId);
     setError(null);
     try {
       const res = await fetch(`/api/reportes/yummy/${item.ventaId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ liquidado: !item.liquidado }),
+        body: JSON.stringify({ liquidado: !item.liquidado, fechaPago }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al actualizar");
@@ -65,6 +67,7 @@ export default function YummyPanel() {
             : it
         )
       );
+      setConfirmandoId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar");
     } finally {
@@ -173,11 +176,19 @@ export default function YummyPanel() {
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     <div className="flex justify-end">
-                      <YummyToggle
-                        checked={item.liquidado}
-                        disabled={updatingId === item.ventaId}
-                        onToggle={() => handleToggleLiquidado(item)}
-                      />
+                      {confirmandoId === item.ventaId ? (
+                        <FechaPagoConfirm
+                          confirming={updatingId === item.ventaId}
+                          onConfirm={(fechaPago) => handleToggleLiquidado(item, fechaPago)}
+                          onCancel={() => setConfirmandoId(null)}
+                        />
+                      ) : (
+                        <YummyToggle
+                          checked={item.liquidado}
+                          disabled={updatingId === item.ventaId}
+                          onToggle={() => (item.liquidado ? handleToggleLiquidado(item) : setConfirmandoId(item.ventaId))}
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatFecha } from "@/lib/pedidos";
+import FechaPagoConfirm from "@/components/FechaPagoConfirm";
 
 type TipoCxC = "CxC Directa" | "CASHEA" | "YUMMY";
 type EstadoFiltro = "TODOS" | "PENDIENTE" | "COBRADA" | "VENCIDA";
@@ -48,6 +49,7 @@ export default function CuentasPorCobrarPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [confirmando, setConfirmando] = useState<{ ventaId: number; tipoCxC: TipoCxC } | null>(null);
 
   const hoyIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -187,7 +189,7 @@ export default function CuentasPorCobrarPanel() {
     setClienteQ("");
   }
 
-  async function handleToggle(item: UnifiedItem) {
+  async function handleToggle(item: UnifiedItem, fechaPago?: string) {
     setUpdatingId(item.ventaId);
     setError(null);
     try {
@@ -196,13 +198,13 @@ export default function CuentasPorCobrarPanel() {
         res = await fetch(`/api/reportes/cashea/${item.ventaId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ liquidado: item.pendiente }),
+          body: JSON.stringify({ liquidado: item.pendiente, fechaPago }),
         });
       } else if (item.tipoCxC === "YUMMY") {
         res = await fetch(`/api/reportes/yummy/${item.ventaId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ liquidado: item.pendiente }),
+          body: JSON.stringify({ liquidado: item.pendiente, fechaPago }),
         });
       } else {
         res = await fetch(`/api/reportes/cuentas-por-cobrar/${item.ventaId}`, {
@@ -220,6 +222,7 @@ export default function CuentasPorCobrarPanel() {
             : it
         )
       );
+      setConfirmando(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar");
     } finally {
@@ -406,9 +409,27 @@ export default function CuentasPorCobrarPanel() {
                       }
                     </td>
                     <td style={{ padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
-                      <button onClick={() => handleToggle(item)} disabled={isUpdating} style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 500, color: "var(--erp-text-2)", cursor: "pointer", opacity: isUpdating ? 0.5 : 1 }}>
-                        {item.pendiente ? "Marcar pagada" : "Marcar pendiente"}
-                      </button>
+                      {confirmando?.ventaId === item.ventaId && confirmando.tipoCxC === item.tipoCxC ? (
+                        <FechaPagoConfirm
+                          confirming={isUpdating}
+                          onConfirm={(fechaPago) => handleToggle(item, fechaPago)}
+                          onCancel={() => setConfirmando(null)}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (item.pendiente && (item.tipoCxC === "CASHEA" || item.tipoCxC === "YUMMY")) {
+                              setConfirmando({ ventaId: item.ventaId, tipoCxC: item.tipoCxC });
+                            } else {
+                              handleToggle(item);
+                            }
+                          }}
+                          disabled={isUpdating}
+                          style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 500, color: "var(--erp-text-2)", cursor: "pointer", opacity: isUpdating ? 0.5 : 1 }}
+                        >
+                          {item.pendiente ? "Marcar pagada" : "Marcar pendiente"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

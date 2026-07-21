@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     `SELECT pv.metodo, pv.monto, v.tasa_dia
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
-     WHERE v.fecha BETWEEN $1 AND $2`,
+     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2`,
     [desde, hasta]
   );
 

@@ -21,7 +21,12 @@ function esVencida(item: CasheaPagoItem): boolean {
 type ConfirmState = {
   ventaId: number;
   tasa: string;
+  fechaPago: string;
 };
+
+function hoyCaracas(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+}
 
 export default function CasheaPanel() {
   const [items, setItems] = useState<CasheaPagoItem[]>([]);
@@ -54,17 +59,17 @@ export default function CasheaPanel() {
   }, [estado]);
 
   function abrirConfirm(item: CasheaPagoItem) {
-    setConfirm({ ventaId: item.ventaId, tasa: String(item.tasaDelDia ?? "") });
+    setConfirm({ ventaId: item.ventaId, tasa: String(item.tasaDelDia ?? ""), fechaPago: hoyCaracas() });
   }
 
-  async function handleToggleLiquidado(item: CasheaPagoItem) {
+  async function handleToggleLiquidado(item: CasheaPagoItem, fechaPago?: string) {
     setUpdatingId(item.ventaId);
     setError(null);
     try {
       const res = await fetch(`/api/reportes/cashea/${item.ventaId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ liquidado: !item.liquidado }),
+        body: JSON.stringify({ liquidado: !item.liquidado, fechaPago }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al actualizar");
@@ -242,6 +247,16 @@ export default function CasheaPanel() {
                               autoFocus
                             />
                           </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-medium text-zinc-600">¿Cuándo entró el dinero?</label>
+                            <input
+                              type="date"
+                              max={hoyCaracas()}
+                              value={confirm.fechaPago}
+                              onChange={(e) => setConfirm((c) => c ? { ...c, fechaPago: e.target.value } : c)}
+                              className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm font-medium"
+                            />
+                          </div>
                           <div className="flex flex-col gap-0.5">
                             <span className="text-xs font-medium text-zinc-500">Inicial cobrado</span>
                             <span className="text-sm font-bold text-zinc-800">
@@ -261,7 +276,7 @@ export default function CasheaPanel() {
                             </span>
                           </div>
                           <button
-                            onClick={() => handleToggleLiquidado(item)}
+                            onClick={() => handleToggleLiquidado(item, confirm.fechaPago)}
                             disabled={updatingId === item.ventaId || !confirm.tasa || Number(confirm.tasa) <= 0}
                             className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
                           >

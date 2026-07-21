@@ -23,12 +23,26 @@ export async function PATCH(request: NextRequest, { params }: Params) {
         `UPDATE cashea_pagos
          SET liquidado = $1, liquidado_at = $2
          WHERE venta_id = $3
-         RETURNING venta_id, liquidado, liquidado_at`,
+         RETURNING venta_id, liquidado, liquidado_at, monto_financiado`,
         [body.liquidado, liquidadoAt, id]
       );
       if (result.rowCount === 0) {
         return NextResponse.json({ error: "Pago Cashea no encontrado" }, { status: 404 });
       }
+
+      // El financiado cobrado por Cashea se refleja como forma de pago
+      // "Cashea" en el reporte de Formas de Pago, con la fecha en que
+      // realmente entró el dinero (por defecto hoy, pero el operador puede
+      // elegir una fecha anterior si el cobro se registró tarde).
+      await pool.query(`DELETE FROM pagos_venta WHERE venta_id = $1 AND metodo = 'CASHEA'`, [id]);
+      if (body.liquidado) {
+        const fechaPago = body.fechaPago || new Date().toISOString().slice(0, 10);
+        await pool.query(
+          `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago) VALUES ($1, 'CASHEA', $2, $3)`,
+          [id, result.rows[0].monto_financiado, fechaPago]
+        );
+      }
+
       return NextResponse.json({
         liquidado: result.rows[0].liquidado,
         liquidadoAt: result.rows[0].liquidado_at,

@@ -26,6 +26,7 @@ import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
 import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
+import FechaPagoConfirm from "@/components/FechaPagoConfirm";
 
 type ItemRow = {
   productoId: string;
@@ -217,7 +218,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [busqueda, setBusqueda] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [soloPendientesPago, setSoloPendientesPago] = useState(false);
-  const [casheaConfirm, setCasheaConfirm] = useState<{ ventaId: number; tasa: string } | null>(null);
+  const [casheaConfirm, setCasheaConfirm] = useState<{ ventaId: number; tasa: string; fechaPago: string } | null>(null);
+  const [yummyConfirmId, setYummyConfirmId] = useState<number | null>(null);
   const [casheaUpdating, setCasheaUpdating] = useState<number | null>(null);
   const [filtroFechaDesde, setFiltroFechaDesde] = useState(() => today());
   const [filtroFechaHasta, setFiltroFechaHasta] = useState(() => today());
@@ -886,13 +888,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }
   }
 
-  async function handleLiquidarCashea(ventaId: number) {
+  async function handleLiquidarCashea(ventaId: number, fechaPago?: string) {
     setCasheaUpdating(ventaId);
     try {
       const res = await fetch(`/api/reportes/cashea/${ventaId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ liquidado: true }),
+        body: JSON.stringify({ liquidado: true, fechaPago }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al liquidar Cashea");
@@ -905,16 +907,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }
   }
 
-  async function handleLiquidarYummy(ventaId: number, liquidado: boolean) {
+  async function handleLiquidarYummy(ventaId: number, liquidado: boolean, fechaPago?: string) {
     setCasheaUpdating(ventaId);
     try {
       const res = await fetch(`/api/reportes/yummy/${ventaId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ liquidado }),
+        body: JSON.stringify({ liquidado, fechaPago }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al actualizar Yummy");
+      setYummyConfirmId(null);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar Yummy");
@@ -2554,9 +2557,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                 = Bs {(cd.montoFinanciado * Number(casheaConfirm.tasa)).toFixed(2)}
                               </p>
                             )}
+                            <label className="text-xs text-zinc-500">¿Cuándo entró el dinero?</label>
+                            <input
+                              type="date"
+                              max={today()}
+                              value={casheaConfirm.fechaPago}
+                              onChange={(e) => setCasheaConfirm((c) => c ? { ...c, fechaPago: e.target.value } : c)}
+                              className="w-full rounded border border-zinc-300 px-2 py-1 text-xs"
+                            />
                             <div className="flex gap-1">
                               <button
-                                onClick={() => handleLiquidarCashea(venta.id)}
+                                onClick={() => handleLiquidarCashea(venta.id, casheaConfirm.fechaPago)}
                                 disabled={casheaUpdating === venta.id || !casheaConfirm.tasa || Number(casheaConfirm.tasa) <= 0}
                                 className="flex-1 rounded bg-green-700 px-2 py-1 text-xs font-medium text-white hover:bg-green-800 disabled:opacity-50"
                               >
@@ -2577,7 +2588,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                               ${cd.montoFinanciado.toFixed(2)} pendiente
                             </span>
                             <button
-                              onClick={() => setCasheaConfirm({ ventaId: venta.id, tasa: String(venta.tasaDelDia) })}
+                              onClick={() => setCasheaConfirm({ ventaId: venta.id, tasa: String(venta.tasaDelDia), fechaPago: today() })}
                               className="rounded-md border border-green-300 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 hover:bg-green-100"
                             >
                               Marcar Pagada
@@ -2587,14 +2598,28 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       )}
                       {venta.yummyDatos && (
                         <div className="flex flex-col items-center gap-1">
-                          <YummyToggle
-                            checked={venta.yummyDatos.liquidado}
-                            disabled={casheaUpdating === venta.id}
-                            onToggle={() => handleLiquidarYummy(venta.id, !venta.yummyDatos!.liquidado)}
-                          />
-                          <span className="text-xs font-medium" style={{ color: venta.yummyDatos.liquidado ? "#15803d" : "#007e33" }}>
-                            ${venta.yummyDatos.monto.toFixed(2)} {venta.yummyDatos.liquidado ? "cobrado" : "pendiente"}
-                          </span>
+                          {!venta.yummyDatos.liquidado && yummyConfirmId === venta.id ? (
+                            <FechaPagoConfirm
+                              confirming={casheaUpdating === venta.id}
+                              onConfirm={(fechaPago) => handleLiquidarYummy(venta.id, true, fechaPago)}
+                              onCancel={() => setYummyConfirmId(null)}
+                            />
+                          ) : (
+                            <>
+                              <YummyToggle
+                                checked={venta.yummyDatos.liquidado}
+                                disabled={casheaUpdating === venta.id}
+                                onToggle={() =>
+                                  venta.yummyDatos!.liquidado
+                                    ? handleLiquidarYummy(venta.id, false)
+                                    : setYummyConfirmId(venta.id)
+                                }
+                              />
+                              <span className="text-xs font-medium" style={{ color: venta.yummyDatos.liquidado ? "#15803d" : "#007e33" }}>
+                                ${venta.yummyDatos.monto.toFixed(2)} {venta.yummyDatos.liquidado ? "cobrado" : "pendiente"}
+                              </span>
+                            </>
+                          )}
                         </div>
                       )}
                       {venta.cuentaPorCobrar && (
