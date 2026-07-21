@@ -65,7 +65,7 @@ export default function ComandaClient() {
   function mostrarNotificacion(titulo: string, cuerpo: string, tag: string) {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     if (!document.hidden) return;
-    const n = new Notification(titulo, { body: cuerpo, tag, requireInteraction: true, icon: "/icons/icon-192.png" });
+    const n = new Notification(titulo, { body: cuerpo, tag, requireInteraction: true, icon: "/icons/icon-192-v2.png" });
     n.onclick = () => { window.focus(); n.close(); };
   }
 
@@ -198,7 +198,7 @@ export default function ComandaClient() {
       <div style={{ background: "var(--erp-shell)", borderBottom: "1px solid var(--erp-border)", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/icon-192.png" alt="Logo" style={{ width: 28, height: 28, borderRadius: 6, objectFit: "cover" }} />
+          <img src="/icons/icon-192-v2.png" alt="Logo" style={{ width: 28, height: 28, borderRadius: 6, objectFit: "cover" }} />
           <span style={{ fontSize: 16, fontWeight: 700, color: "var(--erp-shell-text)", letterSpacing: "-0.01em" }}>Comandera</span>
           <span style={{ fontSize: 12, background: pendientes.length > 0 ? "var(--erp-primary)" : "var(--erp-border)", color: pendientes.length > 0 ? "#fff" : "var(--erp-text-3)", borderRadius: 99, padding: "2px 8px", fontWeight: 700 }}>
             {pendientes.length} pendiente{pendientes.length !== 1 ? "s" : ""}
