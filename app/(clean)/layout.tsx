@@ -9,6 +9,9 @@ const geistSans = Geist({
 export default function CleanLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${geistSans.variable} antialiased`}>
+      <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
+      </head>
       <body className="bg-white text-zinc-900">{children}</body>
     </html>
   );
