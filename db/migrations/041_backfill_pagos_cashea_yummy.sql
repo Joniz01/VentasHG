@@ -8,37 +8,38 @@
 --                           o la fecha de la venta si no hay liquidado_at
 --   - Monto Yummy        -> igual que el financiado de Cashea
 -- Es seguro ejecutarlo más de una vez: los NOT EXISTS evitan duplicados.
+-- pagos_venta.metodo es del tipo enum metodo_pago, por eso los casts explícitos.
 
 -- 1) Inicial de Cashea que nunca se insertó en pagos_venta
 INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
-SELECT cp.venta_id, cp.metodo_inicial, cp.monto_inicial, v.fecha
+SELECT cp.venta_id, cp.metodo_inicial::metodo_pago, cp.monto_inicial, v.fecha
 FROM cashea_pagos cp
 JOIN ventas v ON v.id = cp.venta_id
 WHERE cp.metodo_inicial IS NOT NULL
   AND cp.monto_inicial > 0
   AND NOT EXISTS (
     SELECT 1 FROM pagos_venta pv
-    WHERE pv.venta_id = cp.venta_id AND pv.metodo = cp.metodo_inicial
+    WHERE pv.venta_id = cp.venta_id AND pv.metodo = cp.metodo_inicial::metodo_pago
   );
 
 -- 2) Financiado de Cashea ya liquidado antes del fix
 INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
-SELECT cp.venta_id, 'CASHEA', cp.monto_financiado, COALESCE(cp.liquidado_at::date, v.fecha)
+SELECT cp.venta_id, 'CASHEA'::metodo_pago, cp.monto_financiado, COALESCE(cp.liquidado_at::date, v.fecha)
 FROM cashea_pagos cp
 JOIN ventas v ON v.id = cp.venta_id
 WHERE cp.liquidado = TRUE
   AND NOT EXISTS (
     SELECT 1 FROM pagos_venta pv
-    WHERE pv.venta_id = cp.venta_id AND pv.metodo = 'CASHEA'
+    WHERE pv.venta_id = cp.venta_id AND pv.metodo = 'CASHEA'::metodo_pago
   );
 
 -- 3) Monto de Yummy ya liquidado antes del fix
 INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
-SELECT yp.venta_id, 'YUMMY', yp.monto, COALESCE(yp.liquidado_at::date, v.fecha)
+SELECT yp.venta_id, 'YUMMY'::metodo_pago, yp.monto, COALESCE(yp.liquidado_at::date, v.fecha)
 FROM yummy_pagos yp
 JOIN ventas v ON v.id = yp.venta_id
 WHERE yp.liquidado = TRUE
   AND NOT EXISTS (
     SELECT 1 FROM pagos_venta pv
-    WHERE pv.venta_id = yp.venta_id AND pv.metodo = 'YUMMY'
+    WHERE pv.venta_id = yp.venta_id AND pv.metodo = 'YUMMY'::metodo_pago
   );
