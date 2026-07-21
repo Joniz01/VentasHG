@@ -17,10 +17,10 @@ const EMPRESA = process.env.EMPRESA_NOMBRE ?? "Hechizo Gourmet Polanco";
 export const metadata: Metadata = {
   title: EMPRESA,
   description: "Control de productos, costos y ventas",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icons/icon-192.png",
-    apple: "/icons/icon-192.png",
+    icon: "/icons/icon-192-v2.png",
+    apple: "/icons/icon-192-v2.png",
   },
   appleWebApp: {
     capable: true,
