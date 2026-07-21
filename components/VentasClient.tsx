@@ -25,6 +25,7 @@ import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
+import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
 
 type ItemRow = {
   productoId: string;
@@ -67,7 +68,7 @@ const METODO_PAGO_ICONS: Record<string, string> = {
   EFECTIVO_USD: "💵",
   ZELLE: "__zelle__",
   CASHEA: "🟡",
-  YUMMY: "🟢",
+  YUMMY: "__yummy__",
 };
 
 function ZelleIcon({ size = 28 }: { size?: number }) {
@@ -1241,7 +1242,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                   className="flex flex-col items-center gap-1.5 rounded-xl border p-2.5 transition-all"
                                   style={sel ? { borderColor: "var(--erp-primary)", background: "var(--erp-primary-lt)", color: "var(--erp-primary)" } : { borderColor: "var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
                                 >
-                                  {METODO_PAGO_ICONS[m] === "__zelle__" ? <ZelleIcon size={26} /> : <span className="text-xl leading-none">{METODO_PAGO_ICONS[m]}</span>}
+                                  {METODO_PAGO_ICONS[m] === "__zelle__" ? (
+                                    <ZelleIcon size={26} />
+                                  ) : METODO_PAGO_ICONS[m] === "__yummy__" ? (
+                                    <YummyIcon size={26} />
+                                  ) : (
+                                    <span className="text-xl leading-none">{METODO_PAGO_ICONS[m]}</span>
+                                  )}
                                   <span className="text-[10px] font-medium text-center leading-tight">{METODO_PAGO_LABELS[m]}</span>
                                 </button>
                               );
@@ -2580,18 +2587,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       )}
                       {venta.yummyDatos && (
                         <div className="flex flex-col items-center gap-1">
-                          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: venta.yummyDatos.liquidado ? "#dcfce7" : "#e8f5e9", color: venta.yummyDatos.liquidado ? "#15803d" : "#007e33" }}>
-                            <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white text-[8px] font-extrabold" style={{ backgroundColor: "#00c853" }}>Y</span>
+                          <YummyToggle
+                            checked={venta.yummyDatos.liquidado}
+                            disabled={casheaUpdating === venta.id}
+                            onToggle={() => handleLiquidarYummy(venta.id, !venta.yummyDatos!.liquidado)}
+                          />
+                          <span className="text-xs font-medium" style={{ color: venta.yummyDatos.liquidado ? "#15803d" : "#007e33" }}>
                             ${venta.yummyDatos.monto.toFixed(2)} {venta.yummyDatos.liquidado ? "cobrado" : "pendiente"}
                           </span>
-                          <button
-                            onClick={() => handleLiquidarYummy(venta.id, !venta.yummyDatos!.liquidado)}
-                            disabled={casheaUpdating === venta.id}
-                            className="rounded-md border px-2 py-0.5 text-xs font-medium disabled:opacity-50"
-                            style={{ borderColor: "#00c853", backgroundColor: venta.yummyDatos.liquidado ? "white" : "#e8f5e9", color: "#007e33" }}
-                          >
-                            {casheaUpdating === venta.id ? "..." : venta.yummyDatos.liquidado ? "Marcar pendiente" : "Marcar Pagada"}
-                          </button>
                         </div>
                       )}
                       {venta.cuentaPorCobrar && (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { YummyPagoItem } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
 
 type EstadoFiltro = "PENDIENTE" | "LIQUIDADO" | "TODOS";
 
@@ -78,7 +79,7 @@ export default function YummyPanel() {
     <div className="flex flex-col gap-4">
       {/* Logo / branding */}
       <div className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00c853] text-white font-extrabold text-sm select-none">Y</div>
+        <YummyIcon size={28} />
         <span className="font-bold text-lg" style={{ color: "#00c853" }}>Yummy</span>
         <span className="text-sm text-zinc-500">— Cuentas por Cobrar</span>
       </div>
@@ -171,24 +172,13 @@ export default function YummyPanel() {
                     )}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {item.liquidado ? (
-                      <button
-                        onClick={() => handleToggleLiquidado(item)}
+                    <div className="flex justify-end">
+                      <YummyToggle
+                        checked={item.liquidado}
                         disabled={updatingId === item.ventaId}
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
-                      >
-                        Marcar pendiente
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleToggleLiquidado(item)}
-                        disabled={updatingId === item.ventaId}
-                        className="rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50"
-                        style={{ borderColor: "#00c853", backgroundColor: "#e8f5e9", color: "#007e33" }}
-                      >
-                        {updatingId === item.ventaId ? "Guardando..." : "Marcar cobrado"}
-                      </button>
-                    )}
+                        onToggle={() => handleToggleLiquidado(item)}
+                      />
+                    </div>
                   </td>
                 </tr>
               );
