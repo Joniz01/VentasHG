@@ -109,7 +109,10 @@ export default function CuentasPorCobrarPanel() {
         montoInicial: number; montoFinanciado: number; tasaDelDia: number;
         liquidado: boolean; fechaVencimiento: string;
       }) => {
-        const totalUsd = it.montoInicial + it.montoFinanciado;
+        // El inicial ya se cobró al momento de la venta (queda reflejado como
+        // ingreso por su forma de pago); lo único pendiente de cobrar es el
+        // monto financiado.
+        const totalUsd = it.montoFinanciado;
         return {
           ventaId: it.ventaId,
           fecha: it.fecha,

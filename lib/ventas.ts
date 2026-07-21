@@ -322,5 +322,15 @@ export async function insertarItemsYPagos(
              metodo_inicial = EXCLUDED.metodo_inicial`,
       [ventaId, cd.porcentaje, cd.montoInicial, cd.montoFinanciado, cd.dias, cd.fechaVencimiento, cd.metodoInicial ?? null]
     );
+
+    // El inicial sí es dinero cobrado ese día por una forma de pago real
+    // (Punto de Venta, Efectivo, etc.) y debe reflejarse en pagos_venta para
+    // que los reportes por forma de pago y el resumen del día lo contabilicen.
+    if (cd.metodoInicial && cd.montoInicial > 0) {
+      await client.query(
+        `INSERT INTO pagos_venta (venta_id, metodo, monto) VALUES ($1, $2, $3)`,
+        [ventaId, cd.metodoInicial, cd.montoInicial]
+      );
+    }
   }
 }
