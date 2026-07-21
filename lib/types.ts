@@ -170,12 +170,13 @@ export const METODOS_PAGO = [
   "ZELLE",
   "CASHEA",
   "YUMMY",
+  "CXC_DIRECTA",
 ] as const;
 
 export type MetodoPago = (typeof METODOS_PAGO)[number];
 
 // Métodos de pago cuyo monto se ingresa directamente en dólares
-export const METODOS_PAGO_USD: readonly MetodoPago[] = ["EFECTIVO_USD", "ZELLE", "CASHEA", "YUMMY"];
+export const METODOS_PAGO_USD: readonly MetodoPago[] = ["EFECTIVO_USD", "ZELLE", "CASHEA", "YUMMY", "CXC_DIRECTA"];
 
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   PUNTO_VENTA: "Punto de Venta",
@@ -186,6 +187,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   ZELLE: "Zelle",
   CASHEA: "Cashea",
   YUMMY: "Yummy",
+  CXC_DIRECTA: "CxC Directa",
 };
 
 export type CasheaPagoItem = {

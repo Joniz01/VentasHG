@@ -210,7 +210,7 @@ export default function CuentasPorCobrarPanel() {
         res = await fetch(`/api/reportes/cuentas-por-cobrar/${item.ventaId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cuentaCobrada: item.pendiente }),
+          body: JSON.stringify({ cuentaCobrada: item.pendiente, fechaPago }),
         });
       }
       const data = await res.json();
@@ -418,7 +418,7 @@ export default function CuentasPorCobrarPanel() {
                       ) : (
                         <button
                           onClick={() => {
-                            if (item.pendiente && (item.tipoCxC === "CASHEA" || item.tipoCxC === "YUMMY")) {
+                            if (item.pendiente) {
                               setConfirmando({ ventaId: item.ventaId, tipoCxC: item.tipoCxC });
                             } else {
                               handleToggle(item);
