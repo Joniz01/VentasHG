@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "VentasHG",
-    short_name: "VentasHG",
+    name: "Hechizo Gourmet ERP",
+    short_name: "HG ERP",
     description: "Control de productos, costos y ventas",
     start_url: "/",
     display: "standalone",
