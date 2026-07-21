@@ -63,6 +63,9 @@ export default async function ReporteVistaPage({ searchParams }: Props) {
             <p className="mt-3 text-3xl font-bold text-zinc-900">
               ${reporte.totalVentasUsd.toFixed(2)}
             </p>
+            <p className="text-sm font-medium text-zinc-600">
+              Bs {reporte.totalVentasBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
             <p className="text-sm text-zinc-500">
               {reporte.cantidadVentas} {reporte.cantidadVentas === 1 ? "venta" : "ventas"}
             </p>

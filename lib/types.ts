@@ -426,6 +426,7 @@ export type ReporteVentas = {
   desde: string;
   hasta: string;
   totalVentasUsd: number;
+  totalVentasBs: number;
   cantidadVentas: number;
   porFormaPago: ReporteFormaPago[];
   porCliente: ReporteCliente[];

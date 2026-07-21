@@ -11,7 +11,7 @@ export async function getReporte(desde: string, hasta: string, includePendientes
        OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)`;
 
   const resumenResult = await pool.query(
-    `SELECT v.id, v.costo_delivery,
+    `SELECT v.id, v.costo_delivery, v.tasa_dia,
             COALESCE(
               (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
               0
@@ -22,8 +22,11 @@ export async function getReporte(desde: string, hasta: string, includePendientes
   );
 
   let totalVentasUsd = 0;
+  let totalVentasBs = 0;
   for (const row of resumenResult.rows) {
-    totalVentasUsd += Number(row.total_items) + Number(row.costo_delivery);
+    const usd = Number(row.total_items) + Number(row.costo_delivery);
+    totalVentasUsd += usd;
+    totalVentasBs += usd * Number(row.tasa_dia);
   }
 
   const pagosResult = await pool.query(
@@ -112,6 +115,7 @@ export async function getReporte(desde: string, hasta: string, includePendientes
     desde,
     hasta,
     totalVentasUsd,
+    totalVentasBs,
     cantidadVentas: resumenResult.rowCount ?? 0,
     porFormaPago,
     porCliente,

@@ -422,6 +422,9 @@ export default function ReportesClient() {
                 Total de ventas: ${reporte.totalVentasUsd.toFixed(2)} ({reporte.cantidadVentas}{" "}
                 {reporte.cantidadVentas === 1 ? "venta" : "ventas"})
               </p>
+              <p className="text-sm text-zinc-500">
+                Bs {reporte.totalVentasBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             )}
             {imagenPunto && imagenExpandida && (
               <div className="mt-3 border-t border-zinc-100 pt-3">

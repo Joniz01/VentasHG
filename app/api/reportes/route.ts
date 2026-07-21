@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   // - ventas normales (no CxC) por su fecha de venta
   // - cuentas por cobrar ya cobradas por la fecha en que se marcaron como cobradas
   const resumenResult = await pool.query(
-    `SELECT v.id, v.costo_delivery,
+    `SELECT v.id, v.costo_delivery, v.tasa_dia,
             COALESCE(
               (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
               0
@@ -40,8 +40,11 @@ export async function GET(request: NextRequest) {
   );
 
   let totalVentasUsd = 0;
+  let totalVentasBs = 0;
   for (const row of resumenResult.rows) {
-    totalVentasUsd += Number(row.total_items) + Number(row.costo_delivery);
+    const usd = Number(row.total_items) + Number(row.costo_delivery);
+    totalVentasUsd += usd;
+    totalVentasBs += usd * Number(row.tasa_dia);
   }
 
   const pagosResult = await pool.query(
@@ -130,6 +133,7 @@ export async function GET(request: NextRequest) {
     desde,
     hasta,
     totalVentasUsd,
+    totalVentasBs,
     cantidadVentas: resumenResult.rowCount ?? 0,
     porFormaPago,
     porCliente,
