@@ -21,7 +21,30 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-// Applies the saved ERP theme on first render (default: hg)
+type AlertaActiva = {
+  pedidoId: number;
+  cliente: string;
+  productos: string;
+  horaEntrega: string | null;
+  etapa: "prep" | "retiro" | "entrega";
+  etapaLabel: string;
+  etapaEmoji: string;
+};
+
+type AlertaConfig = {
+  modo: "overlay" | "popup";
+  overlay: { velocidad: "lento" | "normal" | "rapido"; colorA: string; colorB: string };
+  popup: { ancho: number; alto: number };
+};
+
+const ALERTA_CONFIG_DEFAULT: AlertaConfig = {
+  modo: "overlay",
+  overlay: { velocidad: "normal", colorA: "#dc2626", colorB: "#ea580c" },
+  popup: { ancho: 480, alto: 360 },
+};
+
+const VELOCIDADES: Record<string, number> = { lento: 900, normal: 500, rapido: 250 };
+
 function useErpTheme() {
   useEffect(() => {
     const saved = localStorage.getItem("erp-theme") ?? "hg";
@@ -42,9 +65,110 @@ export default function ComandaClient() {
   const [instalado, setInstalado] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
+  // Alert system
+  const [alertaActiva, setAlertaActiva] = useState<AlertaActiva | null>(null);
+  const alertaActivaRef = useRef<AlertaActiva | null>(null);
+  const alertaQueue = useRef<AlertaActiva[]>([]);
+  const [alertaQueueLen, setAlertaQueueLen] = useState(0);
+  const alertasKeys = useRef<Set<string>>(new Set());
+  const [flashOn, setFlashOn] = useState(false);
+
+  // Config
+  const [mostrarConfig, setMostrarConfig] = useState(false);
+  const [alertaConfig, setAlertaConfigState] = useState<AlertaConfig>(ALERTA_CONFIG_DEFAULT);
+  const alertaConfigRef = useRef<AlertaConfig>(ALERTA_CONFIG_DEFAULT);
+
   const alarmas = useRef<Map<number, AlarmaInfo>>(new Map());
   const alarmasConfig = useRef<AlarmasConfig>(ALARMAS_CONFIG_DEFAULT);
 
+  // Load alert config from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("comandera-alerta-config");
+      if (raw) {
+        const cfg = { ...ALERTA_CONFIG_DEFAULT, ...JSON.parse(raw) };
+        alertaConfigRef.current = cfg;
+        setAlertaConfigState(cfg);
+      }
+    } catch {}
+  }, []);
+
+  function saveAlertaConfig(config: AlertaConfig) {
+    localStorage.setItem("comandera-alerta-config", JSON.stringify(config));
+    alertaConfigRef.current = config;
+    setAlertaConfigState(config);
+  }
+
+  // Flash toggle
+  useEffect(() => {
+    if (!alertaActiva || alertaConfig.modo !== "overlay") return;
+    const ms = VELOCIDADES[alertaConfig.overlay.velocidad] ?? 500;
+    const iv = setInterval(() => setFlashOn((v) => !v), ms);
+    return () => clearInterval(iv);
+  }, [alertaActiva, alertaConfig.modo, alertaConfig.overlay.velocidad]);
+
+  // Title flash
+  useEffect(() => {
+    if (!alertaActiva) { document.title = "Comandera"; return; }
+    const msgs = [
+      `🚨 ${alertaActiva.etapaLabel.toUpperCase()} — #${alertaActiva.pedidoId}`,
+      "⚠️ VER ALERTA — Comandera",
+    ];
+    let i = 0;
+    const iv = setInterval(() => { document.title = msgs[i++ % 2]; }, 800);
+    return () => { clearInterval(iv); document.title = "Comandera"; };
+  }, [alertaActiva]);
+
+  function dispatchAlerta(alerta: AlertaActiva) {
+    const cfg = alertaConfigRef.current;
+    if (cfg.modo === "popup") {
+      abrirPopup(alerta, cfg);
+      return;
+    }
+    if (alertaActivaRef.current === null) {
+      alertaActivaRef.current = alerta;
+      setAlertaActiva(alerta);
+    } else {
+      alertaQueue.current.push(alerta);
+      setAlertaQueueLen(alertaQueue.current.length);
+    }
+  }
+
+  function abrirPopup(alerta: AlertaActiva, cfg: AlertaConfig) {
+    const { ancho, alto } = cfg.popup;
+    const left = Math.round((screen.width - ancho) / 2);
+    const top = Math.round((screen.height - alto) / 2);
+    const params = new URLSearchParams({
+      id: String(alerta.pedidoId),
+      cliente: alerta.cliente,
+      etapa: alerta.etapaLabel,
+      emoji: alerta.etapaEmoji,
+      hora: alerta.horaEntrega ?? "-",
+      productos: alerta.productos,
+      colorA: cfg.overlay.colorA,
+      colorB: cfg.overlay.colorB,
+      velocidad: cfg.overlay.velocidad,
+    });
+    window.open(
+      `/alerta?${params}`,
+      `alerta-${alerta.pedidoId}-${alerta.etapa}`,
+      `width=${ancho},height=${alto},left=${left},top=${top},resizable=yes,scrollbars=no`
+    );
+  }
+
+  function dismissAlerta() {
+    const a = alertaActivaRef.current;
+    if (a) {
+      alertasKeys.current.delete(`${a.pedidoId}-${a.etapa}`);
+      silenciar(a.pedidoId, a.etapa);
+    }
+    const next = alertaQueue.current.shift() ?? null;
+    setAlertaQueueLen(alertaQueue.current.length);
+    alertaActivaRef.current = next;
+    setAlertaActiva(next);
+  }
+
+  // PWA install
   useEffect(() => {
     const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e as BeforeInstallPromptEvent); };
     window.addEventListener("beforeinstallprompt", handler);
@@ -104,12 +228,20 @@ export default function ComandaClient() {
         const info = alarmas.current.get(pedido.id);
         if (!info) continue;
         const estado = computeEstadoPedido(t, pedido.horaPreparacion, pedido.horaRetiro, pedido.horaEntrega);
+        const productos = pedido.items.map((i) => `${i.nombreProducto}${i.extraNombre ? ` (${i.extraNombre})` : ""} x${i.cantidad}`).join(", ");
+        const horaEntrega = pedido.horaEntrega ? formatHora(pedido.horaEntrega) : null;
+
         if (estado === "PREPARAR") {
           const cfg = alarmasConfig.current.preparacion;
           if (info.prepProximoBeep === null) info.prepProximoBeep = t;
           if (t >= info.prepProximoBeep) {
             reproducirAlarma(cfg, pedido.id, ESTADO_LABELS[estado], pedido.fritoCongelado);
             mostrarNotificacion(`⏰ Pedido #${pedido.id}`, `${pedido.cliente} — Preparar ahora`, `prep-${pedido.id}`);
+            const key = `${pedido.id}-prep`;
+            if (!alertasKeys.current.has(key)) {
+              alertasKeys.current.add(key);
+              dispatchAlerta({ pedidoId: pedido.id, cliente: pedido.cliente, productos, horaEntrega, etapa: "prep", etapaLabel: "Preparar ahora", etapaEmoji: "⏰" });
+            }
             info.prepProximoBeep = t + cfg.repetirSegundos * 1000;
           }
         }
@@ -119,6 +251,11 @@ export default function ComandaClient() {
           if (t >= info.retiroProximoBeep) {
             reproducirAlarma(cfg, pedido.id, ESTADO_LABELS[estado], pedido.fritoCongelado);
             mostrarNotificacion(`🚗 Pedido #${pedido.id}`, `${pedido.cliente} — Listo para retiro`, `retiro-${pedido.id}`);
+            const key = `${pedido.id}-retiro`;
+            if (!alertasKeys.current.has(key)) {
+              alertasKeys.current.add(key);
+              dispatchAlerta({ pedidoId: pedido.id, cliente: pedido.cliente, productos, horaEntrega, etapa: "retiro", etapaLabel: "Listo para retiro", etapaEmoji: "🚗" });
+            }
             info.retiroProximoBeep = t + cfg.repetirSegundos * 1000;
           }
         }
@@ -128,6 +265,11 @@ export default function ComandaClient() {
           if (t >= info.entregaProximoBeep) {
             reproducirAlarma(cfg, pedido.id, ESTADO_LABELS[estado], pedido.fritoCongelado);
             mostrarNotificacion(`🏠 Pedido #${pedido.id}`, `${pedido.cliente} — Entregar ya`, `entrega-${pedido.id}`);
+            const key = `${pedido.id}-entrega`;
+            if (!alertasKeys.current.has(key)) {
+              alertasKeys.current.add(key);
+              dispatchAlerta({ pedidoId: pedido.id, cliente: pedido.cliente, productos, horaEntrega, etapa: "entrega", etapaLabel: "Entregar ya", etapaEmoji: "🏠" });
+            }
             info.entregaProximoBeep = t + cfg.repetirSegundos * 1000;
           }
         }
@@ -135,6 +277,7 @@ export default function ComandaClient() {
       setNow(t);
     }, 1000);
     return () => clearInterval(tick);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pedidos]);
 
   function silenciar(pedidoId: number, etapa: "prep" | "retiro" | "entrega") {
@@ -143,12 +286,12 @@ export default function ComandaClient() {
     const mins = etapa === "prep" ? alarmasConfig.current.preparacion.silenciarMinutos
       : etapa === "retiro" ? alarmasConfig.current.retiro.silenciarMinutos
       : alarmasConfig.current.entrega.silenciarMinutos;
-    const proximo = now + mins * 60_000;
+    const proximo = Date.now() + mins * 60_000;
     if (etapa === "prep") info.prepProximoBeep = proximo;
     else if (etapa === "retiro") info.retiroProximoBeep = proximo;
     else info.entregaProximoBeep = proximo;
     setSilenciados((prev) => ({ ...prev, [`${pedidoId}-${etapa}`]: proximo }));
-    setNow(now + 1);
+    setNow(Date.now() + 1);
   }
 
   async function aceptarRetiro(pedidoId: number) {
@@ -191,10 +334,143 @@ export default function ComandaClient() {
   const pendientes = pedidos.filter((p) => !p.pedidoEntregado);
   const entregados = pedidos.filter((p) => p.pedidoEntregado);
 
+  const colorFlash = flashOn ? alertaConfig.overlay.colorA : alertaConfig.overlay.colorB;
+
   return (
     <div style={{ minHeight: "100dvh", background: "var(--erp-bg)", color: "var(--erp-text)", fontFamily: "var(--font-geist-sans, system-ui, sans-serif)", display: "flex", flexDirection: "column" }}>
 
-      {/* Barra superior */}
+      {/* Alert Overlay */}
+      {alertaActiva && alertaConfig.modo === "overlay" && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: colorFlash, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 28, padding: 32 }}>
+          <div style={{ textAlign: "center", color: "#fff" }}>
+            <div style={{ fontSize: 56, lineHeight: 1, marginBottom: 12 }}>{alertaActiva.etapaEmoji}</div>
+            <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.02em", marginBottom: 8, textTransform: "uppercase" }}>
+              {alertaActiva.etapaLabel}
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+              Pedido #{alertaActiva.pedidoId} — {alertaActiva.cliente}
+            </div>
+            {alertaActiva.horaEntrega && (
+              <div style={{ fontSize: 17, opacity: 0.92, marginBottom: 8 }}>
+                🕐 Entrega: {alertaActiva.horaEntrega}
+              </div>
+            )}
+            <div style={{ fontSize: 14, opacity: 0.85, maxWidth: 520, margin: "0 auto", lineHeight: 1.5 }}>
+              {alertaActiva.productos}
+            </div>
+          </div>
+          <button
+            onClick={dismissAlerta}
+            style={{ background: "#fff", color: alertaConfig.overlay.colorA, border: "none", borderRadius: 14, padding: "18px 56px", fontSize: 22, fontWeight: 900, cursor: "pointer", boxShadow: "0 6px 32px rgba(0,0,0,0.35)", letterSpacing: "-0.01em" }}
+          >
+            ✓ Entendido
+          </button>
+          {alertaQueueLen > 0 && (
+            <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: 600 }}>
+              +{alertaQueueLen} alerta{alertaQueueLen !== 1 ? "s" : ""} más en cola
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Config Modal */}
+      {mostrarConfig && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setMostrarConfig(false)}
+        >
+          <div
+            style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 14, padding: 24, width: "100%", maxWidth: 400 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 20px", fontSize: 15, fontWeight: 700, color: "var(--erp-text)" }}>⚙️ Configuración de Alertas</h3>
+
+            {/* Modo */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Modo de Alerta</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {(["overlay", "popup"] as const).map((m) => (
+                  <button key={m} onClick={() => saveAlertaConfig({ ...alertaConfig, modo: m })}
+                    style={{ flex: 1, padding: "10px 8px", borderRadius: 8, border: "2px solid", cursor: "pointer", fontWeight: 700, fontSize: 13, transition: "all 0.15s",
+                      borderColor: alertaConfig.modo === m ? "var(--erp-primary)" : "var(--erp-border)",
+                      background: alertaConfig.modo === m ? "var(--erp-primary-lt)" : "transparent",
+                      color: alertaConfig.modo === m ? "var(--erp-primary)" : "var(--erp-text)" }}>
+                    {m === "overlay" ? "🖥️ Overlay" : "🪟 Popup"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Overlay options */}
+            {alertaConfig.modo === "overlay" && (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Velocidad del Flash</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {(["lento", "normal", "rapido"] as const).map((v) => (
+                      <button key={v} onClick={() => saveAlertaConfig({ ...alertaConfig, overlay: { ...alertaConfig.overlay, velocidad: v } })}
+                        style={{ flex: 1, padding: "8px 6px", borderRadius: 8, border: "2px solid", cursor: "pointer", fontWeight: 600, fontSize: 12, transition: "all 0.15s",
+                          borderColor: alertaConfig.overlay.velocidad === v ? "var(--erp-primary)" : "var(--erp-border)",
+                          background: alertaConfig.overlay.velocidad === v ? "var(--erp-primary-lt)" : "transparent",
+                          color: alertaConfig.overlay.velocidad === v ? "var(--erp-primary)" : "var(--erp-text)" }}>
+                        {v === "lento" ? "🐢 Lento" : v === "normal" ? "⚡ Normal" : "🔥 Rápido"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
+                  {(["colorA", "colorB"] as const).map((k, idx) => (
+                    <div key={k} style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                        Color {idx === 0 ? "A" : "B"}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input type="color" value={alertaConfig.overlay[k]}
+                          onChange={(e) => saveAlertaConfig({ ...alertaConfig, overlay: { ...alertaConfig.overlay, [k]: e.target.value } })}
+                          style={{ width: 40, height: 34, border: "none", cursor: "pointer", borderRadius: 6, padding: 2 }} />
+                        <span style={{ fontSize: 12, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>{alertaConfig.overlay[k]}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Preview */}
+                <div style={{ marginTop: 12, borderRadius: 8, overflow: "hidden", height: 36, display: "flex" }}>
+                  <div style={{ flex: 1, background: alertaConfig.overlay.colorA }} />
+                  <div style={{ flex: 1, background: alertaConfig.overlay.colorB }} />
+                </div>
+              </>
+            )}
+
+            {/* Popup options */}
+            {alertaConfig.modo === "popup" && (
+              <>
+                <div style={{ fontSize: 12, color: "var(--erp-text-2)", background: "var(--erp-bg)", borderRadius: 8, padding: "10px 12px", marginBottom: 16, lineHeight: 1.5 }}>
+                  ⚠️ El popup depende del navegador — puede quedar detrás de otras ventanas. Funciona mejor con la Comandera instalada como PWA.
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  {(["ancho", "alto"] as const).map((k) => (
+                    <div key={k} style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                        {k === "ancho" ? "Ancho (px)" : "Alto (px)"}
+                      </div>
+                      <input type="number" value={alertaConfig.popup[k]} min={k === "ancho" ? 300 : 200} max={k === "ancho" ? 900 : 700}
+                        onChange={(e) => saveAlertaConfig({ ...alertaConfig, popup: { ...alertaConfig.popup, [k]: Number(e.target.value) } })}
+                        style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 14, background: "var(--erp-bg)", color: "var(--erp-text)" }} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <button onClick={() => setMostrarConfig(false)}
+              style={{ marginTop: 20, width: "100%", padding: "11px", background: "var(--erp-shell)", color: "var(--erp-shell-text)", border: "none", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Shell bar */}
       <div style={{ background: "var(--erp-shell)", borderBottom: "1px solid var(--erp-border)", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -204,7 +480,12 @@ export default function ComandaClient() {
             {pendientes.length} pendiente{pendientes.length !== 1 ? "s" : ""}
           </span>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={() => setMostrarConfig(true)}
+            style={{ background: "transparent", color: "var(--erp-shell-text)", border: "1px solid var(--erp-shell-text)44", borderRadius: 8, padding: "5px 10px", fontSize: 13, cursor: "pointer" }}
+            title="Configurar alertas">
+            ⚙️
+          </button>
           {notifPermiso !== "granted" && (
             <button onClick={pedirPermisoNotificaciones} style={{ background: "#f59e0b", color: "#18181b", border: "none", borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
               🔔 Activar alertas
@@ -221,7 +502,7 @@ export default function ComandaClient() {
         </div>
       </div>
 
-      {/* Contenido */}
+      {/* Content */}
       <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
         {loading && (
           <div style={{ textAlign: "center", color: "var(--erp-text-3)", paddingTop: 48 }}>Cargando...</div>
@@ -236,16 +517,14 @@ export default function ComandaClient() {
         {pendientes.map((pedido) => {
           const estado = computeEstadoPedido(now, pedido.horaPreparacion, pedido.horaRetiro, pedido.horaEntrega);
           const clases = ESTADO_CLASES[estado] ?? "border-zinc-300 bg-white";
-          const silPrep   = now < (silenciados[`${pedido.id}-prep`]    ?? 0);
-          const silRetiro = now < (silenciados[`${pedido.id}-retiro`]  ?? 0);
+          const silPrep    = now < (silenciados[`${pedido.id}-prep`]    ?? 0);
+          const silRetiro  = now < (silenciados[`${pedido.id}-retiro`]  ?? 0);
           const silEntrega = now < (silenciados[`${pedido.id}-entrega`] ?? 0);
 
           return (
             <div key={pedido.id} className={`flex flex-col gap-2 rounded-lg border p-4 ${pedido.pedidoAceptado ? "border-blue-300 bg-blue-100" : clases}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-base font-semibold">
-                  Pedido #{pedido.id} — {pedido.cliente}
-                </h3>
+                <h3 className="text-base font-semibold">Pedido #{pedido.id} — {pedido.cliente}</h3>
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col text-sm text-zinc-700">
                     <span><span className="font-medium">Hora de entrega: </span>{formatHora(pedido.horaEntrega)}</span>
@@ -287,7 +566,6 @@ export default function ComandaClient() {
                   </button>
                 </div>
               )}
-
               {estado === "RETIRO" && (
                 <div className="flex gap-2">
                   <button type="button" onClick={() => silenciar(pedido.id, "retiro")}
@@ -302,7 +580,6 @@ export default function ComandaClient() {
                   )}
                 </div>
               )}
-
               {estado === "ENTREGAR" && (
                 <div className="flex gap-2">
                   <button type="button" onClick={() => silenciar(pedido.id, "entrega")}
@@ -319,7 +596,6 @@ export default function ComandaClient() {
           );
         })}
 
-        {/* Pedidos entregados (colapsable) */}
         {entregados.length > 0 && (
           <div className="rounded-lg border border-green-200 bg-green-50">
             <button type="button" onClick={() => setMostrarEntregados((v) => !v)}
