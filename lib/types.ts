@@ -175,7 +175,7 @@ export const METODOS_PAGO = [
 export type MetodoPago = (typeof METODOS_PAGO)[number];
 
 // Métodos de pago cuyo monto se ingresa directamente en dólares
-export const METODOS_PAGO_USD: readonly MetodoPago[] = ["EFECTIVO_USD", "ZELLE"];
+export const METODOS_PAGO_USD: readonly MetodoPago[] = ["EFECTIVO_USD", "ZELLE", "CASHEA", "YUMMY"];
 
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   PUNTO_VENTA: "Punto de Venta",
