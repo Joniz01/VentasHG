@@ -35,12 +35,20 @@ type AlertaConfig = {
   modo: "overlay" | "popup";
   overlay: { velocidad: "lento" | "normal" | "rapido"; colorA: string; colorB: string };
   popup: { ancho: number; alto: number };
+  widget: { size: "s" | "m" | "l" };
 };
 
 const ALERTA_CONFIG_DEFAULT: AlertaConfig = {
   modo: "overlay",
   overlay: { velocidad: "normal", colorA: "#dc2626", colorB: "#ea580c" },
   popup: { ancho: 480, alto: 360 },
+  widget: { size: "m" },
+};
+
+const WIDGET_DIMS = {
+  s: { w: 260, h: 112 },
+  m: { w: 340, h: 178 },
+  l: { w: 500, h: 256 },
 };
 
 const VELOCIDADES: Record<string, number> = { lento: 900, normal: 500, rapido: 250 };
@@ -132,6 +140,14 @@ export default function ComandaClient() {
       alertaQueue.current.push(alerta);
       setAlertaQueueLen(alertaQueue.current.length);
     }
+  }
+
+  function abrirWidget() {
+    const size = alertaConfigRef.current.widget?.size ?? "m";
+    const { w, h } = WIDGET_DIMS[size];
+    const left = screen.width - w - 24;
+    const top = 80;
+    window.open(`/widget?size=${size}`, "hg-widget", `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
   }
 
   function abrirPopup(alerta: AlertaActiva, cfg: AlertaConfig) {
@@ -462,8 +478,28 @@ export default function ComandaClient() {
               </>
             )}
 
+            {/* Widget size */}
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--erp-border)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Tamaño del Widget</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {(["s", "m", "l"] as const).map((sz) => (
+                  <button key={sz} onClick={() => saveAlertaConfig({ ...alertaConfig, widget: { size: sz } })}
+                    style={{ flex: 1, padding: "10px 8px", borderRadius: 8, border: "2px solid", cursor: "pointer", fontWeight: 700, fontSize: 13, transition: "all 0.15s",
+                      borderColor: (alertaConfig.widget?.size ?? "m") === sz ? "var(--erp-primary)" : "var(--erp-border)",
+                      background: (alertaConfig.widget?.size ?? "m") === sz ? "var(--erp-primary-lt)" : "transparent",
+                      color: (alertaConfig.widget?.size ?? "m") === sz ? "var(--erp-primary)" : "var(--erp-text)" }}>
+                    {sz === "s" ? "S\n260×112" : sz === "m" ? "M\n340×178" : "L\n500×256"}
+                  </button>
+                ))}
+              </div>
+              <button onClick={abrirWidget}
+                style={{ marginTop: 10, width: "100%", padding: "9px", background: "#18181b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                📟 Abrir Widget ahora
+              </button>
+            </div>
+
             <button onClick={() => setMostrarConfig(false)}
-              style={{ marginTop: 20, width: "100%", padding: "11px", background: "var(--erp-shell)", color: "var(--erp-shell-text)", border: "none", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              style={{ marginTop: 16, width: "100%", padding: "11px", background: "var(--erp-shell)", color: "var(--erp-shell-text)", border: "none", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               Cerrar
             </button>
           </div>
@@ -481,6 +517,11 @@ export default function ComandaClient() {
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={abrirWidget}
+            style={{ background: "transparent", color: "var(--erp-shell-text)", border: "1px solid var(--erp-shell-text)44", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+            title="Abrir widget flotante">
+            📟 Widget
+          </button>
           <button onClick={() => setMostrarConfig(true)}
             style={{ background: "transparent", color: "var(--erp-shell-text)", border: "1px solid var(--erp-shell-text)44", borderRadius: 8, padding: "5px 10px", fontSize: 13, cursor: "pointer" }}
             title="Configurar alertas">
