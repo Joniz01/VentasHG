@@ -32,14 +32,14 @@ type AlertaActiva = {
 };
 
 type AlertaConfig = {
-  modo: "overlay" | "popup";
+  modo: "overlay" | "popup" | "ninguno";
   overlay: { velocidad: "lento" | "normal" | "rapido"; colorA: string; colorB: string };
   popup: { ancho: number; alto: number };
   widget: { size: "s" | "m" | "l" };
 };
 
 const ALERTA_CONFIG_DEFAULT: AlertaConfig = {
-  modo: "overlay",
+  modo: "ninguno",
   overlay: { velocidad: "normal", colorA: "#dc2626", colorB: "#ea580c" },
   popup: { ancho: 480, alto: 360 },
   widget: { size: "m" },
@@ -129,6 +129,7 @@ export default function ComandaClient() {
 
   function dispatchAlerta(alerta: AlertaActiva) {
     const cfg = alertaConfigRef.current;
+    if (cfg.modo === "ninguno") return;
     if (cfg.modo === "popup") {
       abrirPopup(alerta, cfg);
       return;
@@ -405,13 +406,17 @@ export default function ComandaClient() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Modo de Alerta</div>
               <div style={{ display: "flex", gap: 8 }}>
-                {(["overlay", "popup"] as const).map((m) => (
+                {([
+                  { key: "ninguno", label: "🚫 Ninguno" },
+                  { key: "overlay", label: "🖥️ Overlay" },
+                  { key: "popup",   label: "🪟 Popup" },
+                ] as const).map(({ key: m, label }) => (
                   <button key={m} onClick={() => saveAlertaConfig({ ...alertaConfig, modo: m })}
-                    style={{ flex: 1, padding: "10px 8px", borderRadius: 8, border: "2px solid", cursor: "pointer", fontWeight: 700, fontSize: 13, transition: "all 0.15s",
+                    style={{ flex: 1, padding: "10px 4px", borderRadius: 8, border: "2px solid", cursor: "pointer", fontWeight: 700, fontSize: 12, transition: "all 0.15s",
                       borderColor: alertaConfig.modo === m ? "var(--erp-primary)" : "var(--erp-border)",
                       background: alertaConfig.modo === m ? "var(--erp-primary-lt)" : "transparent",
                       color: alertaConfig.modo === m ? "var(--erp-primary)" : "var(--erp-text)" }}>
-                    {m === "overlay" ? "🖥️ Overlay" : "🪟 Popup"}
+                    {label}
                   </button>
                 ))}
               </div>
