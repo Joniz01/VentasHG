@@ -498,6 +498,26 @@ export default function ComandaClient() {
               </button>
             </div>
 
+            {/* DeskPins */}
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--erp-border)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                📌 Siempre encima (DeskPins)
+              </div>
+              <div style={{ fontSize: 12, color: "var(--erp-text-2)", lineHeight: 1.6, marginBottom: 10 }}>
+                Para mantener el widget sobre cualquier otra ventana:
+                <ol style={{ margin: "6px 0 0 16px", padding: 0 }}>
+                  <li>Descarga e instala DeskPins</li>
+                  <li>Click en el ícono de pin rojo en la bandeja del sistema</li>
+                  <li>Click sobre la ventana del widget → queda fija encima</li>
+                  <li>Para quitar: click derecho sobre el pin rojo en la ventana</li>
+                </ol>
+              </div>
+              <a href="https://efotinis.neocities.org/deskpins/" target="_blank" rel="noopener noreferrer"
+                style={{ display: "block", textAlign: "center", padding: "9px", background: "#18181b", color: "#fff", borderRadius: 8, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
+                ⬇️ Descargar DeskPins (gratis, ~200 KB)
+              </a>
+            </div>
+
             <button onClick={() => setMostrarConfig(false)}
               style={{ marginTop: 16, width: "100%", padding: "11px", background: "var(--erp-shell)", color: "var(--erp-shell-text)", border: "none", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               Cerrar
