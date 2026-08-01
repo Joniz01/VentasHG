@@ -54,6 +54,76 @@ const FILTRO_LABELS: Record<FiltroStock, string> = {
   sin_alerta: "Sin alerta",
 };
 
+// Toggle outstock inline
+function OutstockToggle({ producto, onToggled }: { producto: ProductoLista; onToggled: (id: number, val: boolean) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [showMotivo, setShowMotivo] = useState(false);
+  const [motivo, setMotivo] = useState(producto.alertaOutstockMotivo ?? "");
+
+  async function toggle(desactivada: boolean, motivoFinal?: string) {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/productos/${producto.id}/outstock`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desactivada, motivo: motivoFinal ?? motivo }),
+      });
+      if (res.ok) {
+        onToggled(producto.id, desactivada);
+        setShowMotivo(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (producto.alertaOutstockDesactivada) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          disabled={loading}
+          onClick={() => toggle(false)}
+          title="Reactivar alerta de stock"
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, border: "1.5px solid #d1d5db", background: "#f3f4f6", cursor: loading ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: "#6b7280", transition: "all .1s", opacity: loading ? 0.5 : 1 }}
+        >
+          <span style={{ fontSize: 12 }}>🔕</span> Outstock
+        </button>
+      </div>
+    );
+  }
+
+  if (showMotivo) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <input
+          autoFocus
+          value={motivo}
+          onChange={e => setMotivo(e.target.value)}
+          placeholder="Motivo (opcional)"
+          style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fcd34d", borderRadius: 6, background: "#fffbeb", width: 140, outline: "none" }}
+          onKeyDown={e => { if (e.key === "Enter") toggle(true); if (e.key === "Escape") setShowMotivo(false); }}
+        />
+        <button disabled={loading} onClick={() => toggle(true)} style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, border: "none", background: "#f59e0b", color: "#fff", cursor: "pointer" }}>
+          ✓
+        </button>
+        <button onClick={() => setShowMotivo(false)} style={{ fontSize: 11, padding: "3px 6px", borderRadius: 6, border: "1px solid #e4e7ec", background: "transparent", cursor: "pointer", color: "#6b7280" }}>
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setShowMotivo(true)}
+      title="Apagar alerta OutStock para este producto"
+      style={{ padding: "3px 10px", borderRadius: 99, border: "1.5px dashed #d1d5db", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#9ca3af", transition: "all .1s" }}
+    >
+      🔔 Alerta activa
+    </button>
+  );
+}
+
 // Bar fill % capped at 100, color by estado
 function StockBar({ p }: { p: ProductoLista }) {
   const estado = computeEstado(p);
@@ -282,8 +352,8 @@ export default function InventarioDashboardClient() {
       {/* Table */}
       <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden" }}>
         {/* Header */}
-        <div style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1fr 1.2fr 80px 110px", gap: 8, padding: "8px 14px", background: "var(--erp-surface-2, var(--erp-surface))", borderBottom: "1px solid var(--erp-border)", fontSize: 10, fontWeight: 800, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          <div></div><div>Producto</div><div>Categoría</div><div>Existencia</div><div style={{ textAlign: "right" }}>Mínimo</div><div>Estado</div>
+        <div style={{ display: "grid", gridTemplateColumns: "40px 1.6fr 1fr 1.2fr 80px 110px 160px", gap: 8, padding: "8px 14px", background: "var(--erp-surface-2, var(--erp-surface))", borderBottom: "1px solid var(--erp-border)", fontSize: 10, fontWeight: 800, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <div></div><div>Producto</div><div>Categoría</div><div>Existencia</div><div style={{ textAlign: "right" }}>Mínimo</div><div>Estado</div><div>Alerta OutStock</div>
         </div>
 
         {loadingLista ? (
@@ -300,12 +370,12 @@ export default function InventarioDashboardClient() {
               key={p.id}
               style={{
                 display: "grid",
-                gridTemplateColumns: "40px 1.8fr 1fr 1.2fr 80px 110px",
+                gridTemplateColumns: "40px 1.6fr 1fr 1.2fr 80px 110px 160px",
                 gap: 8,
                 padding: "9px 14px",
                 borderBottom: i < productosFiltrados.length - 1 ? "1px solid var(--erp-border)" : "none",
                 alignItems: "center",
-                background: estado === "AGOTADO" ? "rgba(220,38,38,0.03)" : "transparent",
+                background: estado === "AGOTADO" ? "rgba(220,38,38,0.03)" : estado === "SIN_ALERTA" ? "rgba(0,0,0,0.01)" : "transparent",
               }}
             >
               <div style={{ fontSize: 15, textAlign: "center" }}>{emoji}</div>
@@ -322,6 +392,16 @@ export default function InventarioDashboardClient() {
                 <span style={{ ...ESTADO_STYLE[estado], fontSize: 11, padding: "2px 9px", borderRadius: 99, display: "inline-block", whiteSpace: "nowrap" }}>
                   {ESTADO_LABEL[estado]}
                 </span>
+              </div>
+              <div>
+                <OutstockToggle
+                  producto={p}
+                  onToggled={(id, val) => {
+                    setProductos(prev => prev.map(x => x.id === id ? { ...x, alertaOutstockDesactivada: val, alertaOutstockMotivo: val ? x.alertaOutstockMotivo : null } : x));
+                    // Refresh resumen counts
+                    fetch("/api/inventario/resumen").then(r => r.json()).then(setResumen);
+                  }}
+                />
               </div>
             </div>
           );
