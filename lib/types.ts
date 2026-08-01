@@ -134,6 +134,8 @@ export type ProductoComponente = {
 export const TIPOS_MOVIMIENTO_INVENTARIO = ["ENTRADA", "AJUSTE", "VENTA"] as const;
 export type TipoMovimientoInventario = (typeof TIPOS_MOVIMIENTO_INVENTARIO)[number];
 
+export type OrigenMovimiento = "MANUAL" | "VENTA" | "CONTEO";
+
 export type MovimientoInventario = {
   id: number;
   productoId: number;
@@ -141,6 +143,9 @@ export type MovimientoInventario = {
   cantidad: number;
   nota: string | null;
   ventaId: number | null;
+  usuarioId: number | null;
+  usuarioNombre: string | null;
+  origen: OrigenMovimiento;
   createdAt: string;
 };
 

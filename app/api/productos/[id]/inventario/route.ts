@@ -1,19 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { TIPOS_MOVIMIENTO_INVENTARIO } from "@/lib/types";
+import { getSesionFromRequest } from "@/lib/auth";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, { params }: Params) {
   const { id } = await params;
 
-  const result = await pool.query(
-    `SELECT id, producto_id, tipo, cantidad, nota, venta_id, created_at
-     FROM inventario_movimientos
-     WHERE producto_id = $1
-     ORDER BY created_at DESC, id DESC`,
-    [id]
-  );
+  // Try with new audit columns first; fall back if migration 047 not applied
+  let result;
+  try {
+    result = await pool.query(
+      `SELECT im.id, im.producto_id, im.tipo, im.cantidad, im.nota, im.venta_id, im.created_at,
+              im.usuario_id, COALESCE(im.origen, 'MANUAL') AS origen,
+              u.nombre AS usuario_nombre
+       FROM inventario_movimientos im
+       LEFT JOIN usuarios u ON u.id = im.usuario_id
+       WHERE im.producto_id = $1
+       ORDER BY im.created_at DESC, im.id DESC`,
+      [id]
+    );
+  } catch {
+    result = await pool.query(
+      `SELECT id, producto_id, tipo, cantidad, nota, venta_id, created_at
+       FROM inventario_movimientos
+       WHERE producto_id = $1
+       ORDER BY created_at DESC, id DESC`,
+      [id]
+    );
+  }
 
   return NextResponse.json(
     result.rows.map((row) => ({
@@ -23,6 +39,9 @@ export async function GET(_request: NextRequest, { params }: Params) {
       cantidad: Number(row.cantidad),
       nota: row.nota,
       ventaId: row.venta_id,
+      usuarioId: row.usuario_id ?? null,
+      usuarioNombre: row.usuario_nombre ?? null,
+      origen: row.origen ?? "MANUAL",
       createdAt: row.created_at,
     }))
   );
@@ -30,6 +49,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
 export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
+  const sesion = await getSesionFromRequest(request);
   const body = await request.json();
   const { tipo, cantidad, nota } = body;
 
@@ -80,12 +100,23 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     await client.query(`UPDATE productos SET stock_actual = $1 WHERE id = $2`, [nuevoStock, id]);
 
-    const movimientoResult = await client.query(
-      `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, producto_id, tipo, cantidad, nota, venta_id, created_at`,
-      [id, tipo, cantidadNum, notaTexto || null]
-    );
+    // Insert with audit fields if migration 047 applied; otherwise fall back
+    let movimientoResult;
+    try {
+      movimientoResult = await client.query(
+        `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota, usuario_id, origen)
+         VALUES ($1, $2, $3, $4, $5, 'MANUAL')
+         RETURNING id, producto_id, tipo, cantidad, nota, venta_id, created_at, usuario_id, origen`,
+        [id, tipo, cantidadNum, notaTexto || null, sesion?.id ?? null]
+      );
+    } catch {
+      movimientoResult = await client.query(
+        `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, producto_id, tipo, cantidad, nota, venta_id, created_at`,
+        [id, tipo, cantidadNum, notaTexto || null]
+      );
+    }
 
     await client.query("COMMIT");
 
@@ -99,6 +130,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         cantidad: Number(row.cantidad),
         nota: row.nota,
         ventaId: row.venta_id,
+        usuarioId: row.usuario_id ?? null,
+        usuarioNombre: sesion?.nombre ?? null,
+        origen: row.origen ?? "MANUAL",
         createdAt: row.created_at,
         stockActual: nuevoStock,
       },

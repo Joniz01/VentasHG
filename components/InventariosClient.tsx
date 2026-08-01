@@ -196,19 +196,20 @@ function MovimientosProducto({
               <th className="px-3 py-1.5 text-left font-medium text-zinc-600">Tipo</th>
               <th className="px-3 py-1.5 text-right font-medium text-zinc-600">Cantidad</th>
               <th className="px-3 py-1.5 text-left font-medium text-zinc-600">Nota</th>
+              <th className="px-3 py-1.5 text-left font-medium text-zinc-600">Quién</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {loadingMov && (
               <tr>
-                <td colSpan={4} className="px-3 py-3 text-center text-zinc-500">
+                <td colSpan={5} className="px-3 py-3 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
             {!loadingMov && movimientos.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-3 py-3 text-center text-zinc-500">
+                <td colSpan={5} className="px-3 py-3 text-center text-zinc-500">
                   Sin movimientos registrados
                 </td>
               </tr>
@@ -217,10 +218,22 @@ function MovimientosProducto({
               <tr key={mov.id}>
                 <td className="px-3 py-1.5 whitespace-nowrap">{formatFechaHora(mov.createdAt)}</td>
                 <td className="px-3 py-1.5">{TIPO_MOVIMIENTO_LABELS[mov.tipo]}</td>
-                <td className="px-3 py-1.5 text-right">
-                  {mov.cantidad > 0 ? `+${mov.cantidad}` : mov.cantidad}
+                <td className="px-3 py-1.5 text-right font-variant-numeric">
+                  <span style={{ color: mov.cantidad > 0 ? "#15803d" : mov.cantidad < 0 ? "#dc2626" : undefined, fontWeight: 700 }}>
+                    {mov.cantidad > 0 ? `+${mov.cantidad}` : mov.cantidad}
+                  </span>
                 </td>
                 <td className="px-3 py-1.5 text-zinc-600">{mov.nota ?? "-"}</td>
+                <td className="px-3 py-1.5 text-zinc-500 whitespace-nowrap text-xs">
+                  {mov.origen === "VENTA"
+                    ? <span title={`Venta #${mov.ventaId ?? ""}`}>🛒 Sistema (venta)</span>
+                    : mov.origen === "CONTEO"
+                    ? <span>📋 Conteo</span>
+                    : mov.usuarioNombre
+                    ? <span>👤 {mov.usuarioNombre}</span>
+                    : <span className="text-zinc-300">—</span>
+                  }
+                </td>
               </tr>
             ))}
           </tbody>
