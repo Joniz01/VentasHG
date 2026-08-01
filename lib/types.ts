@@ -144,6 +144,8 @@ export type MovimientoInventario = {
   createdAt: string;
 };
 
+export type EstadoStock = "AGOTADO" | "BAJO_MINIMO" | "SALUDABLE" | "SIN_ALERTA";
+
 export type Producto = {
   id: number;
   nombre: string;
@@ -155,6 +157,10 @@ export type Producto = {
   categoriaNombre: string | null;
   tipoProducto: TipoProducto;
   stockActual: number;
+  stockMinimo: number;
+  unidadMedida: string;
+  alertaOutstockDesactivada: boolean;
+  alertaOutstockMotivo: string | null;
   variadaRaciones: number;
   createdAt: string;
   extras: ProductoExtra[];

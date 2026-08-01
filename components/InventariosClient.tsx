@@ -1,8 +1,29 @@
 "use client";
 
 import { Fragment, useEffect, useState, FormEvent } from "react";
-import type { MovimientoInventario, Producto } from "@/lib/types";
+import type { EstadoStock, MovimientoInventario, Producto } from "@/lib/types";
 import { ajustarCantidadConFlechas } from "@/lib/cantidad";
+
+function computeEstadoStock(p: Producto): EstadoStock {
+  if (p.alertaOutstockDesactivada) return "SIN_ALERTA";
+  if (p.stockActual <= 0) return "AGOTADO";
+  if (p.stockMinimo > 0 && p.stockActual <= p.stockMinimo) return "BAJO_MINIMO";
+  return "SALUDABLE";
+}
+
+const ESTADO_STOCK_LABEL: Record<EstadoStock, string> = {
+  AGOTADO: "Agotado",
+  BAJO_MINIMO: "Bajo mínimo",
+  SALUDABLE: "Saludable",
+  SIN_ALERTA: "Sin alerta",
+};
+
+const ESTADO_STOCK_STYLE: Record<EstadoStock, React.CSSProperties> = {
+  AGOTADO:     { background: "#fde9e9", color: "#b91c1c", fontWeight: 700 },
+  BAJO_MINIMO: { background: "#fef3e0", color: "#92400e", fontWeight: 700 },
+  SALUDABLE:   { background: "#eafbf1", color: "#15803d", fontWeight: 700 },
+  SIN_ALERTA:  { background: "#f3f4f6", color: "#6b7280", fontWeight: 600 },
+};
 
 const TIPO_MOVIMIENTO_LABELS: Record<MovimientoInventario["tipo"], string> = {
   ENTRADA: "Entrada",
@@ -98,6 +119,20 @@ function MovimientosProducto({
     } finally {
       setSaving(false);
     }
+  }
+
+  if (producto.alertaOutstockDesactivada) {
+    return (
+      <div className="flex flex-col gap-2">
+        <h4 className="text-sm font-semibold text-zinc-700">
+          Inventario de &quot;{producto.nombre}&quot; — Stock actual: {stockActual}
+        </h4>
+        <div style={{ background: "#fef3e0", border: "1px solid #f59e0b", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#92400e", lineHeight: 1.5 }}>
+          <strong>🔕 Alerta OutStock desactivada.</strong> Este producto está marcado como sin inventario activo (descontinuado, temporada o proveedor sin despacho).
+          Para registrar un movimiento ve a la ficha del producto y desmarca el check <em>"Apagar Alerta OutStock"</em>.
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -322,30 +357,40 @@ export default function InventariosClient() {
                 <th className="px-4 py-2 text-left font-medium text-zinc-600">Producto</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
                 <th className="px-4 py-2 text-right font-medium text-zinc-600">Stock actual</th>
+                <th className="px-4 py-2 text-right font-medium text-zinc-600">Mínimo</th>
+                <th className="px-4 py-2 text-left font-medium text-zinc-600">Estado</th>
                 <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
                     Cargando...
                   </td>
                 </tr>
               )}
               {!loading && productosInventario.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
                     No hay productos con inventario individual
                   </td>
                 </tr>
               )}
-              {productosInventario.map((producto) => (
+              {productosInventario.map((producto) => {
+                const estado = computeEstadoStock(producto);
+                return (
                 <Fragment key={producto.id}>
                   <tr>
                     <td className="px-4 py-2 font-medium">{producto.nombre}</td>
                     <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
-                    <td className="px-4 py-2 text-right">{producto.stockActual}</td>
+                    <td className="px-4 py-2 text-right font-variant-numeric">{producto.stockActual}</td>
+                    <td className="px-4 py-2 text-right text-zinc-400 text-xs">{producto.stockMinimo > 0 ? producto.stockMinimo : "—"}</td>
+                    <td className="px-4 py-2">
+                      <span style={{ ...ESTADO_STOCK_STYLE[estado], fontSize: 11, padding: "2px 8px", borderRadius: 99, display: "inline-block" }}>
+                        {ESTADO_STOCK_LABEL[estado]}
+                      </span>
+                    </td>
                     <td className="px-4 py-2 text-right">
                       <button
                         onClick={() => setExpandedId(expandedId === producto.id ? null : producto.id)}
@@ -357,13 +402,14 @@ export default function InventariosClient() {
                   </tr>
                   {expandedId === producto.id && (
                     <tr>
-                      <td colSpan={4} className="bg-zinc-50 px-4 py-3">
+                      <td colSpan={6} className="bg-zinc-50 px-4 py-3">
                         <MovimientosProducto producto={producto} onStockChange={handleStockChange} />
                       </td>
                     </tr>
                   )}
                 </Fragment>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

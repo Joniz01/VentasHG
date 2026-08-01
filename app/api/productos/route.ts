@@ -25,7 +25,11 @@ export async function GET(request: NextRequest) {
     result = await pool.query(
       `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
               p.categoria_id, c.nombre AS categoria_nombre,
-              p.tipo_producto, p.stock_actual, p.variada_raciones
+              p.tipo_producto, p.stock_actual, p.variada_raciones,
+              COALESCE(p.stock_minimo, 0) AS stock_minimo,
+              COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
+              COALESCE(p.alerta_outstock_desactivada, FALSE) AS alerta_outstock_desactivada,
+              p.alerta_outstock_motivo
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
        ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`
@@ -34,7 +38,9 @@ export async function GET(request: NextRequest) {
     result = await pool.query(
       `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
               p.categoria_id, c.nombre AS categoria_nombre,
-              p.tipo_producto, p.stock_actual, p.variada_raciones
+              p.tipo_producto, p.stock_actual, p.variada_raciones,
+              0 AS stock_minimo, 'unidad' AS unidad_medida,
+              FALSE AS alerta_outstock_desactivada, NULL AS alerta_outstock_motivo
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
        ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC`
@@ -76,6 +82,10 @@ export async function GET(request: NextRequest) {
     categoriaNombre: row.categoria_nombre,
     tipoProducto: row.tipo_producto,
     stockActual: Number(row.stock_actual),
+    stockMinimo: Number(row.stock_minimo),
+    unidadMedida: row.unidad_medida ?? "unidad",
+    alertaOutstockDesactivada: Boolean(row.alerta_outstock_desactivada),
+    alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,
     createdAt: row.created_at,
     extras: extrasResult.rows
@@ -171,6 +181,10 @@ export async function POST(request: NextRequest) {
       categoriaNombre,
       tipoProducto: row.tipo_producto,
       stockActual: Number(row.stock_actual),
+      stockMinimo: 0,
+      unidadMedida: "unidad",
+      alertaOutstockDesactivada: false,
+      alertaOutstockMotivo: null,
       variadaRaciones: row.variada_raciones,
       createdAt: row.created_at,
       extras: [],

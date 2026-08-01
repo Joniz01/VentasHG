@@ -57,12 +57,18 @@ export async function POST(request: NextRequest, { params }: Params) {
     await client.query("BEGIN");
 
     const productoResult = await client.query(
-      `SELECT id, stock_actual FROM productos WHERE id = $1 FOR UPDATE`,
+      `SELECT id, stock_actual,
+              COALESCE(alerta_outstock_desactivada, FALSE) AS alerta_outstock_desactivada
+       FROM productos WHERE id = $1 FOR UPDATE`,
       [id]
     );
 
     if (productoResult.rowCount === 0) {
       throw new Error("Producto no encontrado");
+    }
+
+    if (productoResult.rows[0].alerta_outstock_desactivada) {
+      throw new Error("OUTSTOCK_DESACTIVADO");
     }
 
     const stockActual = Number(productoResult.rows[0].stock_actual);
@@ -101,6 +107,12 @@ export async function POST(request: NextRequest, { params }: Params) {
   } catch (err) {
     await client.query("ROLLBACK");
     const message = err instanceof Error ? err.message : "Error al registrar el movimiento";
+    if (message === "OUTSTOCK_DESACTIVADO") {
+      return NextResponse.json(
+        { error: "Este producto tiene la alerta OutStock desactivada. Desmarca el check antes de registrar un movimiento.", code: "OUTSTOCK_DESACTIVADO" },
+        { status: 409 }
+      );
+    }
     const status = message === "Producto no encontrado" ? 404 : 400;
     return NextResponse.json({ error: message }, { status });
   } finally {

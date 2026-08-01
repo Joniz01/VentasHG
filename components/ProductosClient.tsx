@@ -17,6 +17,10 @@ const EMPTY_FORM = {
   categoriaId: "",
   tipoProducto: "NORMAL" as TipoProducto,
   variadaRaciones: "3",
+  stockMinimo: "0",
+  unidadMedida: "unidad",
+  alertaOutstockDesactivada: false,
+  alertaOutstockMotivo: "",
 };
 
 type ProductosKpis = {
@@ -122,6 +126,10 @@ export default function ProductosClient() {
       categoriaId: producto.categoriaId ? String(producto.categoriaId) : "",
       tipoProducto: producto.tipoProducto,
       variadaRaciones: String(producto.variadaRaciones || 3),
+      stockMinimo: String(producto.stockMinimo ?? 0),
+      unidadMedida: producto.unidadMedida ?? "unidad",
+      alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
+      alertaOutstockMotivo: producto.alertaOutstockMotivo ?? "",
     });
     setNuevaCategoriaNombre("");
     setSubTab("crear");
@@ -175,6 +183,10 @@ export default function ProductosClient() {
         categoriaId: categoriaId || null,
         tipoProducto: form.tipoProducto,
         variadaRaciones: form.tipoProducto === "VARIADA" ? Number(form.variadaRaciones) || 0 : 0,
+        stockMinimo: Number(form.stockMinimo) || 0,
+        unidadMedida: form.unidadMedida.trim() || "unidad",
+        alertaOutstockDesactivada: form.alertaOutstockDesactivada,
+        alertaOutstockMotivo: form.alertaOutstockDesactivada ? (form.alertaOutstockMotivo.trim() || null) : null,
       };
 
       const res = await fetch(
@@ -435,6 +447,62 @@ export default function ProductosClient() {
                   onChange={(e) => setForm({ ...form, variadaRaciones: e.target.value })}
                   placeholder="3"
                 />
+              </div>
+            )}
+            {/* Inventario: mínimo y unidad — solo en NORMAL */}
+            {form.tipoProducto === "NORMAL" && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-zinc-700">Mínimo de existencia</label>
+                  <input
+                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={form.stockMinimo}
+                    onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-zinc-700">Unidad de medida</label>
+                  <input
+                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    value={form.unidadMedida}
+                    onChange={(e) => setForm({ ...form, unidadMedida: e.target.value })}
+                    placeholder="unidad, kg, lt…"
+                  />
+                </div>
+              </>
+            )}
+            {/* Outstock: solo al editar un producto existente */}
+            {editingId && form.tipoProducto === "NORMAL" && (
+              <div className="lg:col-span-5">
+                <div style={{ border: "1px solid", borderColor: form.alertaOutstockDesactivada ? "#f59e0b" : "#e4e7ec", borderRadius: 8, padding: "10px 14px", background: form.alertaOutstockDesactivada ? "#fffbeb" : "transparent" }}>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.alertaOutstockDesactivada}
+                      onChange={(e) => setForm({ ...form, alertaOutstockDesactivada: e.target.checked, alertaOutstockMotivo: e.target.checked ? form.alertaOutstockMotivo : "" })}
+                      style={{ marginTop: 2, width: 16, height: 16, accentColor: "#f59e0b", flexShrink: 0 }}
+                    />
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: form.alertaOutstockDesactivada ? "#92400e" : "#374151" }}>🔕 Apagar Alerta OutStock</span>
+                      <span style={{ display: "block", fontSize: 11.5, color: "#6b7280", marginTop: 2, lineHeight: 1.4 }}>
+                        Producto descontinuado, de temporada o sin despacho del proveedor. No sumará a las alertas de stock.
+                      </span>
+                    </div>
+                  </label>
+                  {form.alertaOutstockDesactivada && (
+                    <input
+                      className="mt-2 w-full rounded-md border border-amber-300 px-3 py-1.5 text-sm"
+                      value={form.alertaOutstockMotivo}
+                      onChange={(e) => setForm({ ...form, alertaOutstockMotivo: e.target.value })}
+                      placeholder="Motivo (opcional): descontinuado / temporada / proveedor sin despacho…"
+                      style={{ background: "#fffbeb" }}
+                    />
+                  )}
+                </div>
               </div>
             )}
             <div className="flex items-end gap-2 lg:col-span-5">
