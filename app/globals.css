@@ -199,6 +199,85 @@ textarea {
   flex-wrap: wrap;
 }
 
+/* ── Productos — responsive ─────────────────────────────────────────────────── */
+.prod-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.prod-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prod-header-btns {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.prod-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.prod-form-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.prod-form-col2 {
+  grid-column: span 2;
+}
+
+.prod-form-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .prod-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .prod-header-btns {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .prod-col-cat,
+  .prod-col-tipo,
+  .prod-col-costo,
+  .prod-col-margen,
+  .prod-col-extras {
+    display: none;
+  }
+
+  .prod-mobile-meta {
+    display: block !important;
+  }
+
+  .prod-toolbar {
+    gap: 8px;
+  }
+
+  .prod-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .prod-form-col2 {
+    grid-column: span 2;
+  }
+}
+
 @media (max-width: 640px) {
   .inv-kpi-grid {
     grid-template-columns: repeat(2, 1fr);

@@ -33,8 +33,6 @@ type ProductosKpis = {
   margenPromedio: number;
 };
 
-type SubTab = "crear" | "listado" | null;
-
 export default function ProductosClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -50,9 +48,9 @@ export default function ProductosClient() {
   const [orden, setOrden] = useState<"nombre" | "categoria">("categoria");
   const [searchNombre, setSearchNombre] = useState("");
   const [filterCategoriaId, setFilterCategoriaId] = useState<string>("");
-  const [subTab, setSubTab] = useState<SubTab>(null);
+  const [showForm, setShowForm] = useState(false);
   const [pagina, setPagina] = useState(1);
-  const [porPagina, setPorPagina] = useState(25);
+  const [porPagina, setPorPagina] = useState(15);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
 
@@ -132,8 +130,7 @@ export default function ProductosClient() {
       alertaOutstockMotivo: producto.alertaOutstockMotivo ?? "",
     });
     setNuevaCategoriaNombre("");
-    setSubTab("crear");
-
+    setShowForm(true);
   }
 
   function cancelEdit() {
@@ -141,6 +138,7 @@ export default function ProductosClient() {
     setForm(EMPTY_FORM);
     setNuevaCategoriaNombre("");
     setNuevaCategoriaOrden("99");
+    setShowForm(false);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -241,99 +239,106 @@ export default function ProductosClient() {
       label: "Productos Activos",
       value: kpisLoading ? "…" : String(kpis?.totalActivos ?? 0),
       sub: "en catálogo",
-      color: "text-zinc-900",
+      color: "var(--erp-text)",
     },
     {
       label: "Valor del Inventario",
       value: kpisLoading ? "…" : `$${(kpis?.valorInventario ?? 0).toFixed(2)}`,
       sub: "stock × costo",
-      color: "text-emerald-700",
+      color: "#059669",
     },
     {
       label: "Sin Stock",
       value: kpisLoading ? "…" : String(kpis?.sinStock ?? 0),
       sub: "productos en 0 unidades",
-      color: (kpis?.sinStock ?? 0) > 0 ? "text-red-600" : "text-zinc-900",
+      color: (kpis?.sinStock ?? 0) > 0 ? "#dc2626" : "var(--erp-text)",
     },
     {
       label: "Unidades Vendidas Hoy",
       value: kpisLoading ? "…" : String(kpis?.unidadesHoy ?? 0),
       sub: "total unidades del día",
-      color: "text-blue-700",
+      color: "#2563eb",
     },
     {
       label: "Producto Más Vendido",
       value: kpisLoading ? "…" : (kpis?.topProductoNombre ?? "—"),
       sub: kpisLoading ? "" : kpis?.topProductoUnidades ? `${kpis.topProductoUnidades} uds hoy` : "sin ventas hoy",
-      color: "text-violet-700",
+      color: "#7c3aed",
     },
     {
       label: "Margen Bruto Promedio",
       value: kpisLoading ? "…" : `${(kpis?.margenPromedio ?? 0).toFixed(1)}%`,
       sub: "sobre precio de venta",
-      color: "text-amber-700",
+      color: "#d97706",
     },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Sub-tab buttons — encima de los KPIs */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setSubTab(subTab === "crear" ? null : "crear")}
-          className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-            subTab === "crear"
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
-          }`}
-        >
-          {editingId ? `Editando #${editingId}` : "Crear Producto"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubTab(subTab === "listado" ? null : "listado")}
-          className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-            subTab === "listado"
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
-          }`}
-        >
-          Productos Creados
-          {productos.length > 0 && (
-            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${subTab === "listado" ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-600"}`}>
-              {productos.length}
-            </span>
-          )}
-        </button>
+    <div className="flex flex-col gap-4" style={{ color: "var(--erp-text)" }}>
+      {/* Header: título + botón Crear */}
+      <div className="prod-header">
+        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Productos</h2>
+        <div className="prod-header-btns">
+          <button
+            type="button"
+            onClick={() => {
+              if (showForm && editingId) { cancelEdit(); } else { setShowForm((v) => !v); if (editingId) cancelEdit(); }
+            }}
+            style={{
+              background: showForm ? "var(--erp-primary)" : "var(--erp-surface)",
+              color: showForm ? "#fff" : "var(--erp-text)",
+              border: "1px solid var(--erp-border)",
+              borderRadius: 6,
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {editingId ? `✏️ Editando #${editingId}` : showForm ? "✕ Cerrar" : "+ Crear Producto"}
+          </button>
+        </div>
       </div>
 
-      {/* KPI Cards — se ocultan cuando hay un sub-tab activo */}
-      {subTab === null && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {kpiCards.map((card) => (
-            <div
-              key={card.label}
-              className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white px-4 py-3"
-            >
-              <span className="text-xs font-medium text-zinc-500">{card.label}</span>
-              <span className={`truncate text-lg font-bold leading-tight ${card.color}`}>{card.value}</span>
-              <span className="text-xs text-zinc-400">{card.sub}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* KPI Cards — siempre visibles */}
+      <div className="prod-kpi-grid">
+        {kpiCards.map((card) => (
+          <div
+            key={card.label}
+            style={{
+              background: "var(--erp-surface)",
+              border: "1px solid var(--erp-border)",
+              borderRadius: 8,
+              padding: "10px 14px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{card.label}</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: card.color, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
+            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{card.sub}</span>
+          </div>
+        ))}
+      </div>
 
-      {/* Crear Producto */}
-      {subTab === "crear" && (
-        <>
+      {/* Formulario Crear/Editar — colapsable */}
+      {showForm && (
+        <div
+          style={{
+            background: "var(--erp-surface)",
+            border: "1px solid var(--erp-border)",
+            borderRadius: 8,
+            padding: 16,
+          }}
+        >
           {editingId && (
-            <div className="flex items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "6px 12px", marginBottom: 12, fontSize: 13, color: "#92400e" }}>
               <span>✏️ Editando producto #{editingId}</span>
               <button
                 type="button"
                 onClick={cancelEdit}
-                className="ml-auto rounded border border-amber-300 px-2 py-0.5 text-xs hover:bg-amber-100"
+                style={{ marginLeft: "auto", background: "none", border: "1px solid #fcd34d", borderRadius: 4, padding: "2px 8px", fontSize: 12, cursor: "pointer", color: "#92400e" }}
               >
                 Cancelar
               </button>
@@ -341,31 +346,31 @@ export default function ProductosClient() {
           )}
           <form
             onSubmit={handleSubmit}
-            className="grid grid-cols-1 gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5"
+            className="prod-form-grid"
           >
-            <div className="flex flex-col gap-1 lg:col-span-2">
-              <label className="text-sm font-medium text-zinc-700">Nombre</label>
+            <div className="flex flex-col gap-1 prod-form-col2">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Nombre</label>
               <input
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 placeholder="Ej: QT 80g"
                 required
               />
             </div>
-            <div className="flex flex-col gap-1 lg:col-span-2">
-              <label className="text-sm font-medium text-zinc-700">Descripción</label>
+            <div className="flex flex-col gap-1 prod-form-col2">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
               <input
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 value={form.descripcion}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                 placeholder="Opcional"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-zinc-700">Categoría</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Categoría</label>
               <select
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 value={form.categoriaId}
                 onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
               >
@@ -380,7 +385,7 @@ export default function ProductosClient() {
               {form.categoriaId === NUEVA_CATEGORIA && (
                 <div className="flex gap-2">
                   <input
-                    className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                     value={nuevaCategoriaNombre}
                     onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
                     placeholder="Nombre de la nueva categoría"
@@ -388,7 +393,7 @@ export default function ProductosClient() {
                   <input
                     type="number"
                     min={1}
-                    className="w-20 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    style={{ width: 72, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                     value={nuevaCategoriaOrden}
                     onChange={(e) => setNuevaCategoriaOrden(e.target.value)}
                     title="Orden (1=primero, 99=al final)"
@@ -398,9 +403,9 @@ export default function ProductosClient() {
               )}
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-zinc-700">Costo</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Costo</label>
               <input
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 type="number"
                 step="0.01"
                 min="0"
@@ -410,9 +415,9 @@ export default function ProductosClient() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-zinc-700">Precio de venta</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Precio de venta</label>
               <input
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 type="number"
                 step="0.01"
                 min="0"
@@ -422,9 +427,9 @@ export default function ProductosClient() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-zinc-700">Tipo de producto</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producto</label>
               <select
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 value={form.tipoProducto}
                 onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}
               >
@@ -437,9 +442,9 @@ export default function ProductosClient() {
             </div>
             {form.tipoProducto === "VARIADA" && (
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-zinc-700">Raciones a elegir</label>
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Raciones a elegir</label>
                 <input
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                   type="number"
                   step="1"
                   min="1"
@@ -449,13 +454,12 @@ export default function ProductosClient() {
                 />
               </div>
             )}
-            {/* Inventario: mínimo y unidad — solo en NORMAL */}
             {form.tipoProducto === "NORMAL" && (
               <>
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-zinc-700">Mínimo de existencia</label>
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Mínimo de existencia</label>
                   <input
-                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                     type="number"
                     step="1"
                     min="0"
@@ -465,9 +469,9 @@ export default function ProductosClient() {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-zinc-700">Unidad de medida</label>
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Unidad de medida</label>
                   <input
-                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                     value={form.unidadMedida}
                     onChange={(e) => setForm({ ...form, unidadMedida: e.target.value })}
                     placeholder="unidad, kg, lt…"
@@ -475,10 +479,9 @@ export default function ProductosClient() {
                 </div>
               </>
             )}
-            {/* Outstock: solo al editar un producto existente */}
             {editingId && form.tipoProducto === "NORMAL" && (
-              <div className="lg:col-span-5">
-                <div style={{ border: "1px solid", borderColor: form.alertaOutstockDesactivada ? "#f59e0b" : "#e4e7ec", borderRadius: 8, padding: "10px 14px", background: form.alertaOutstockDesactivada ? "#fffbeb" : "transparent" }}>
+              <div className="prod-form-full">
+                <div style={{ border: "1px solid", borderColor: form.alertaOutstockDesactivada ? "#f59e0b" : "var(--erp-border)", borderRadius: 8, padding: "10px 14px", background: form.alertaOutstockDesactivada ? "#fffbeb" : "transparent" }}>
                   <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
                     <input
                       type="checkbox"
@@ -487,29 +490,28 @@ export default function ProductosClient() {
                       style={{ marginTop: 2, width: 16, height: 16, accentColor: "#f59e0b", flexShrink: 0 }}
                     />
                     <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: form.alertaOutstockDesactivada ? "#92400e" : "#374151" }}>🔕 Apagar Alerta OutStock</span>
-                      <span style={{ display: "block", fontSize: 11.5, color: "#6b7280", marginTop: 2, lineHeight: 1.4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: form.alertaOutstockDesactivada ? "#92400e" : "var(--erp-text)" }}>🔕 Apagar Alerta OutStock</span>
+                      <span style={{ display: "block", fontSize: 11.5, color: "var(--erp-text-3)", marginTop: 2, lineHeight: 1.4 }}>
                         Producto descontinuado, de temporada o sin despacho del proveedor. No sumará a las alertas de stock.
                       </span>
                     </div>
                   </label>
                   {form.alertaOutstockDesactivada && (
                     <input
-                      className="mt-2 w-full rounded-md border border-amber-300 px-3 py-1.5 text-sm"
+                      style={{ marginTop: 8, width: "100%", border: "1px solid #fcd34d", borderRadius: 6, padding: "6px 10px", fontSize: 13, background: "#fffbeb" }}
                       value={form.alertaOutstockMotivo}
                       onChange={(e) => setForm({ ...form, alertaOutstockMotivo: e.target.value })}
                       placeholder="Motivo (opcional): descontinuado / temporada / proveedor sin despacho…"
-                      style={{ background: "#fffbeb" }}
                     />
                   )}
                 </div>
               </div>
             )}
-            <div className="flex items-end gap-2 lg:col-span-5">
+            <div className="prod-form-full" style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4 }}>
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+                style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.5 : 1 }}
               >
                 {editingId ? "Guardar cambios" : "Crear Producto"}
               </button>
@@ -517,7 +519,7 @@ export default function ProductosClient() {
                 <button
                   type="button"
                   onClick={cancelEdit}
-                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+                  style={{ background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}
                 >
                   Cancelar
                 </button>
@@ -526,7 +528,7 @@ export default function ProductosClient() {
           </form>
 
           {form.tipoProducto === "COMBO" && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <div style={{ marginTop: 12, background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 16 }}>
               {productoEnEdicion ? (
                 <ProductoComponentesPanel
                   producto={productoEnEdicion}
@@ -534,7 +536,7 @@ export default function ProductosClient() {
                   onChange={loadProductos}
                 />
               ) : (
-                <p className="text-sm text-zinc-500">
+                <p style={{ fontSize: 13, color: "var(--erp-text-3)", margin: 0 }}>
                   Guarda el producto para poder configurar las bandejas (y cantidades) que descuenta este combo.
                 </p>
               )}
@@ -542,187 +544,199 @@ export default function ProductosClient() {
           )}
 
           {error && (
-            <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
+            <div style={{ marginTop: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "#dc2626" }}>{error}</div>
           )}
-        </>
+        </div>
       )}
 
-      {/* Productos Creados */}
-      {subTab === "listado" && (
-        <>
-          {error && (
-            <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
-          )}
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold uppercase text-zinc-500">Buscar</label>
-              <input
-                type="search"
-                placeholder="Nombre o categoría..."
-                value={searchNombre}
-                onChange={(e) => { setSearchNombre(e.target.value); setPagina(1); }}
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm w-52"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold uppercase text-zinc-500">Categoría</label>
-              <select
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                value={filterCategoriaId}
-                onChange={(e) => { setFilterCategoriaId(e.target.value); setPagina(1); }}
-              >
-                <option value="">Todas</option>
-                <option value="__sin__">Sin categoría</option>
-                {categorias.map((c) => (
-                  <option key={c.id} value={String(c.id)}>{c.nombre}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold uppercase text-zinc-500">Ordenar por</label>
-              <select
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                value={orden}
-                onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
-              >
-                <option value="nombre">Nombre</option>
-                <option value="categoria">Categoría</option>
-              </select>
-            </div>
-            {(searchNombre || filterCategoriaId) && (
-              <button
-                type="button"
-                onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setPagina(1); }}
-                className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-50"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-            <table className="min-w-full divide-y divide-zinc-200 text-sm">
-              <thead className="bg-zinc-50">
-                <tr>
-                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Nombre</th>
-                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
-                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Tipo</th>
-                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Costo</th>
-                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Precio venta</th>
-                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Margen</th>
-                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Stock</th>
-                  <th className="px-4 py-2 text-left font-medium text-zinc-600">Extras</th>
-                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {loading && (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
-                      Cargando...
-                    </td>
-                  </tr>
-                )}
-                {!loading && productos.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-zinc-500">
-                      No hay productos registrados
-                    </td>
-                  </tr>
-                )}
-                {productosOrdenados
-                  .slice((pagina - 1) * porPagina, pagina * porPagina)
-                  .map((producto) => (
-                    <Fragment key={producto.id}>
-                      <tr>
-                        <td className="px-4 py-2 font-medium">{producto.nombre}</td>
-                        <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
-                        <td className="px-4 py-2 text-zinc-600">{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
-                        <td className="px-4 py-2 text-right">{producto.costo.toFixed(2)}</td>
-                        <td className="px-4 py-2 text-right">{producto.precioVenta.toFixed(2)}</td>
-                        <td className="px-4 py-2 text-right">
-                          {(producto.precioVenta - producto.costo).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          {producto.tipoProducto === "NORMAL" ? producto.stockActual : "-"}
-                        </td>
-                        <td className="px-4 py-2 text-zinc-600">
-                          {producto.extras.length === 0
-                            ? "-"
-                            : producto.extras
-                                .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
-                                .join(", ")}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <button
-                              onClick={() => {
-                                setExpandedId(expandedId === producto.id && expandedPanel === "extras" ? null : producto.id);
-                                setExpandedPanel("extras");
-                              }}
-                              className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                            >
-                              Extras
-                            </button>
-                            {producto.tipoProducto === "COMBO" && (
-                              <button
-                                onClick={() => {
-                                  setExpandedId(expandedId === producto.id && expandedPanel === "componentes" ? null : producto.id);
-                                  setExpandedPanel("componentes");
-                                }}
-                                className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                              >
-                                Componentes
-                              </button>
-                            )}
-                            <button
-                              onClick={() => startEdit(producto)}
-                              className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => handleDelete(producto.id)}
-                              className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {expandedId === producto.id && expandedPanel === "extras" && (
-                        <tr>
-                          <td colSpan={9} className="bg-zinc-50 px-4 py-3">
-                            <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
-                          </td>
-                        </tr>
-                      )}
-                      {expandedId === producto.id && expandedPanel === "componentes" && (
-                        <tr>
-                          <td colSpan={9} className="bg-zinc-50 px-4 py-3">
-                            <ProductoComponentesPanel
-                              producto={producto}
-                              productos={productos}
-                              onChange={loadProductos}
-                            />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-              </tbody>
-            </table>
-            <Paginador
-              total={productosOrdenados.length}
-              pagina={pagina}
-              porPagina={porPagina}
-              opcionesPorPagina={[15, 25, 50, 100]}
-              onPagina={setPagina}
-              onPorPagina={setPorPagina}
+      {/* Grid de productos — siempre visible */}
+      <div
+        style={{
+          background: "var(--erp-surface)",
+          border: "1px solid var(--erp-border)",
+          borderRadius: 8,
+          overflow: "hidden",
+        }}
+      >
+        {/* Toolbar */}
+        <div className="prod-toolbar">
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Buscar</label>
+            <input
+              type="search"
+              placeholder="Nombre o categoría..."
+              value={searchNombre}
+              onChange={(e) => { setSearchNombre(e.target.value); setPagina(1); }}
+              style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13, minWidth: 160 }}
             />
           </div>
-        </>
-      )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Categoría</label>
+            <select
+              style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
+              value={filterCategoriaId}
+              onChange={(e) => { setFilterCategoriaId(e.target.value); setPagina(1); }}
+            >
+              <option value="">Todas</option>
+              <option value="__sin__">Sin categoría</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Ordenar por</label>
+            <select
+              style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
+              value={orden}
+              onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
+            >
+              <option value="nombre">Nombre</option>
+              <option value="categoria">Categoría</option>
+            </select>
+          </div>
+          {(searchNombre || filterCategoriaId) && (
+            <button
+              type="button"
+              onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setPagina(1); }}
+              style={{ background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 12px", fontSize: 13, color: "var(--erp-text-3)", cursor: "pointer", alignSelf: "flex-end" }}
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {!showForm && error && (
+          <div style={{ margin: "0 16px 8px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "#dc2626" }}>{error}</div>
+        )}
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)" }}>
+                <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Nombre</th>
+                <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Categoría</th>
+                <th className="prod-col-tipo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Tipo</th>
+                <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Costo</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Precio</th>
+                <th className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Margen</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Stock</th>
+                <th className="prod-col-extras" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Extras</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={9} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                    Cargando...
+                  </td>
+                </tr>
+              )}
+              {!loading && productos.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                    No hay productos registrados
+                  </td>
+                </tr>
+              )}
+              {productosOrdenados
+                .slice((pagina - 1) * porPagina, pagina * porPagina)
+                .map((producto) => (
+                  <Fragment key={producto.id}>
+                    <tr style={{ borderBottom: "1px solid var(--erp-border)" }}>
+                      <td style={{ padding: "8px 12px", fontWeight: 500 }}>
+                        <div>{producto.nombre}</div>
+                        <div className="prod-mobile-meta" style={{ fontSize: 11, color: "var(--erp-text-3)", display: "none" }}>
+                          {producto.categoriaNombre ?? ""}{producto.categoriaNombre ? " · " : ""}{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}
+                        </div>
+                      </td>
+                      <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.categoriaNombre ?? "-"}</td>
+                      <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
+                      <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toFixed(2)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
+                      <td className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {(producto.precioVenta - producto.costo).toFixed(2)}
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {producto.tipoProducto === "NORMAL" ? producto.stockActual : "-"}
+                      </td>
+                      <td className="prod-col-extras" style={{ padding: "8px 12px", color: "var(--erp-text-2)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {producto.extras.length === 0
+                          ? "-"
+                          : producto.extras
+                              .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
+                              .join(", ")}
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 4 }}>
+                          <button
+                            onClick={() => {
+                              setExpandedId(expandedId === producto.id && expandedPanel === "extras" ? null : producto.id);
+                              setExpandedPanel("extras");
+                            }}
+                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                          >
+                            Extras
+                          </button>
+                          {producto.tipoProducto === "COMBO" && (
+                            <button
+                              onClick={() => {
+                                setExpandedId(expandedId === producto.id && expandedPanel === "componentes" ? null : producto.id);
+                                setExpandedPanel("componentes");
+                              }}
+                              style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                            >
+                              Componentes
+                            </button>
+                          )}
+                          <button
+                            onClick={() => startEdit(producto)}
+                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(producto.id)}
+                            style={{ border: "1px solid #fecaca", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "#dc2626" }}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedId === producto.id && expandedPanel === "extras" && (
+                      <tr>
+                        <td colSpan={9} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
+                          <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
+                        </td>
+                      </tr>
+                    )}
+                    {expandedId === producto.id && expandedPanel === "componentes" && (
+                      <tr>
+                        <td colSpan={9} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
+                          <ProductoComponentesPanel
+                            producto={producto}
+                            productos={productos}
+                            onChange={loadProductos}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <Paginador
+          total={productosOrdenados.length}
+          pagina={pagina}
+          porPagina={porPagina}
+          opcionesPorPagina={[10, 15, 20, 50]}
+          onPagina={setPagina}
+          onPorPagina={setPorPagina}
+        />
+      </div>
     </div>
   );
 }
