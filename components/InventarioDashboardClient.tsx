@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+const BandejaConteoClient = lazy(() => import("@/components/BandejaConteoClient"));
 
 type FiltroStock = "todos" | "cero" | "bajo_minimo" | "saludable" | "sin_alerta";
 
@@ -210,6 +212,26 @@ export default function InventarioDashboardClient() {
       ]
     : [];
 
+  // ---- Bandeja de conteo ----
+  if (vistaParam === "bandeja") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "var(--erp-text)" }}>📋 Bandeja de Conteo</h2>
+          <button
+            onClick={() => setVista("dashboard")}
+            style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}
+          >
+            ← Dashboard
+          </button>
+        </div>
+        <Suspense fallback={<p style={{ color: "var(--erp-text-2)", fontSize: "0.875rem" }}>Cargando…</p>}>
+          <BandejaConteoClient />
+        </Suspense>
+      </div>
+    );
+  }
+
   // ---- Vista simple ----
   if (vistaParam === "simple") {
     return (
@@ -273,12 +295,20 @@ export default function InventarioDashboardClient() {
             {resumen ? `${resumen.enCero + resumen.bajoMinimo + resumen.saludable + resumen.sinAlerta} productos activos` : "Cargando…"}
           </div>
         </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
+        <button
+          onClick={() => setVista("bandeja")}
+          style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-primary)", background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}
+        >
+          📋 Bandeja de conteo
+        </button>
         <button
           onClick={() => setVista("simple")}
-          style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}
+          style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}
         >
           Vista simple →
         </button>
+        </div>
       </div>
 
       {/* KPI cards */}

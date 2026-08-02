@@ -8,6 +8,7 @@ import UsuariosConfigClient from "@/components/UsuariosConfigClient";
 import AdminAccesoClient from "@/components/AdminAccesoClient";
 import InventarioInicialClient from "@/components/InventarioInicialClient";
 import LLMAdminPanel from "@/components/LLMAdminPanel";
+import ConteoUsuariosConfigClient from "@/components/ConteoUsuariosConfigClient";
 
 type Props = {
   usuarioActualId: number;
@@ -22,6 +23,7 @@ const TABS = [
   { key: "inventario",    label: "Inventario Inicial",  icon: "📦", desc: "Reiniciar inventario de productos" },
   { key: "acceso",        label: "Acceso al Sistema",   icon: "🔐", desc: "Contraseña y sesión" },
   { key: "llm",           label: "IA / LLM",            icon: "🤖", desc: "API keys de Gemini y Groq" },
+  { key: "conteo",        label: "Conteo Inventario",   icon: "📋", desc: "Usuarios de conteo físico" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -167,6 +169,16 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             Groq actúa como failback automático ante errores de cuota o disponibilidad.
           </p>
           <LLMAdminPanel />
+        </div>
+      )}
+
+      {tab === "conteo" && (
+        <div>
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
+            Crea y gestiona los usuarios que realizan el conteo físico de inventario en{" "}
+            <a href="/conteo" target="_blank" style={{ color: "var(--erp-primary)" }}>/conteo</a>.
+          </p>
+          <ConteoUsuariosConfigClient />
         </div>
       )}
     </div>

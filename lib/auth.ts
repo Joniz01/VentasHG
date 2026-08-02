@@ -63,7 +63,8 @@ export async function getUsuarioFromSession(token: string): Promise<SesionUsuari
               COALESCE(u.ve_dashboard, FALSE) AS ve_dashboard,
               COALESCE(u.ve_compras, FALSE) AS ve_compras,
               COALESCE(u.ve_eliminar_compras, FALSE) AS ve_eliminar_compras,
-              COALESCE(u.ve_gastos, FALSE) AS ve_gastos
+              COALESCE(u.ve_gastos, FALSE) AS ve_gastos,
+              COALESCE(u.ve_autorizar_conteo, FALSE) AS ve_autorizar_conteo
        FROM sesiones s
        JOIN usuarios u ON u.id = s.usuario_id
        WHERE s.token = $1 AND s.expires_at > now() AND u.activo = TRUE`,
@@ -101,6 +102,7 @@ export async function getUsuarioFromSession(token: string): Promise<SesionUsuari
       compras: (row.ve_compras ?? false) as boolean,
       eliminarCompras: (row.ve_eliminar_compras ?? row.rol === "ADMIN") as boolean,
       gastos: (row.ve_gastos ?? false) as boolean,
+      autorizarConteo: (row.ve_autorizar_conteo ?? row.rol === "ADMIN") as boolean,
     },
   };
 }
@@ -153,4 +155,49 @@ export async function getMotorizadoIdFromSession(token: string): Promise<number 
     [token]
   );
   return result.rows[0]?.motorizado_id ?? null;
+}
+
+// ── Conteo de inventario ─────────────────────────────────────────────────────
+
+export const CONTEO_SESSION_COOKIE = "vhg_conteo_session";
+
+export type SesionConteo = {
+  id: number;
+  nombre: string;
+  usuario: string;
+};
+
+export async function createConteoSession(
+  conteoUsuarioId: number
+): Promise<{ token: string; expiresAt: Date }> {
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+  await pool.query(
+    `INSERT INTO conteo_sesiones (token, conteo_usuario_id, expires_at) VALUES ($1, $2, $3)`,
+    [token, conteoUsuarioId, expiresAt]
+  );
+  return { token, expiresAt };
+}
+
+export async function deleteConteoSession(token: string): Promise<void> {
+  await pool.query(`DELETE FROM conteo_sesiones WHERE token = $1`, [token]);
+}
+
+export async function getConteoFromSession(token: string): Promise<SesionConteo | null> {
+  const result = await pool.query(
+    `SELECT cu.id, cu.nombre, cu.usuario
+     FROM conteo_sesiones cs
+     JOIN conteo_usuarios cu ON cu.id = cs.conteo_usuario_id
+     WHERE cs.token = $1 AND cs.expires_at > now() AND cu.activo = TRUE`,
+    [token]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return { id: row.id, nombre: row.nombre, usuario: row.usuario };
+}
+
+export async function getConteoFromRequest(request: NextRequest): Promise<SesionConteo | null> {
+  const token = request.cookies.get(CONTEO_SESSION_COOKIE)?.value;
+  if (!token) return null;
+  return getConteoFromSession(token);
 }

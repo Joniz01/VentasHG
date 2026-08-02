@@ -16,6 +16,7 @@ export const PERMISO_TABS = [
   { key: "compras", label: "Compras" },
   { key: "eliminarCompras", label: "Eliminar Facturas Anuladas" },
   { key: "gastos", label: "Nómina & Gastos" },
+  { key: "autorizarConteo", label: "Autorizar Conteo de Inventario" },
 ] as const;
 
 export type PermisoTab = (typeof PERMISO_TABS)[number]["key"];
@@ -32,6 +33,7 @@ export const PERMISOS_VACIOS: PermisosUsuario = {
   compras: false,
   eliminarCompras: false,
   gastos: false,
+  autorizarConteo: false,
 };
 
 export type Usuario = {
@@ -768,4 +770,58 @@ export type PeriodoNominaInput = {
   fechaDesde: string;
   fechaHasta: string;
   tasaDia: number;
+};
+
+// ── Conteo de inventario ────────────────────────────────────────────────────
+
+export type ConteoUsuario = {
+  id: number;
+  nombre: string;
+  usuario: string;
+  activo: boolean;
+};
+
+export type ConteoUsuarioInput = {
+  nombre: string;
+  usuario: string;
+  clave: string;
+};
+
+export const ESTADOS_CONTEO = ["BORRADOR", "ENVIADO", "APROBADO", "RECHAZADO"] as const;
+export type EstadoConteo = (typeof ESTADOS_CONTEO)[number];
+
+export const ESTADO_CONTEO_LABELS: Record<EstadoConteo, string> = {
+  BORRADOR: "Borrador",
+  ENVIADO: "Enviado",
+  APROBADO: "Aprobado",
+  RECHAZADO: "Rechazado",
+};
+
+export type ConteoItem = {
+  id: number;
+  productoId: number;
+  productoNombre: string;
+  categoriaNombre: string | null;
+  unidadMedida: string;
+  stockSistema: number;
+  stockContado: number;
+  stockCorregido: number | null;
+  diferencia: number;
+  corregidoPor: string | null;
+  corregidoAt: string | null;
+  nota: string | null;
+};
+
+export type Conteo = {
+  id: number;
+  conteoUsuarioId: number | null;
+  conteoUsuarioNombre: string | null;
+  estado: EstadoConteo;
+  nota: string | null;
+  aprobadoPor: string | null;
+  aprobadoAt: string | null;
+  notaSupervisor: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: ConteoItem[];
 };
