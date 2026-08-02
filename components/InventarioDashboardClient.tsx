@@ -288,31 +288,31 @@ export default function InventarioDashboardClient() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div className="inv-header">
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "var(--erp-text)" }}>📦 Dashboard de Inventario</h2>
           <div style={{ fontSize: 12, color: "var(--erp-text-3)", marginTop: 2 }}>
             {resumen ? `${resumen.enCero + resumen.bajoMinimo + resumen.saludable + resumen.sinAlerta} productos activos` : "Cargando…"}
           </div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
-        <button
-          onClick={() => setVista("bandeja")}
-          style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-primary)", background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}
-        >
-          📋 Bandeja de conteo
-        </button>
-        <button
-          onClick={() => setVista("simple")}
-          style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer" }}
-        >
-          Vista simple →
-        </button>
+        <div className="inv-header-btns">
+          <button
+            onClick={() => setVista("bandeja")}
+            style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-primary)", background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            📋 Bandeja de conteo
+          </button>
+          <button
+            onClick={() => setVista("simple")}
+            style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 7, padding: "6px 14px", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            Vista simple →
+          </button>
         </div>
       </div>
 
       {/* KPI cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div className="inv-kpi-grid">
         {loadingResumen
           ? Array.from({ length: 4 }).map((_, i) => (
               <div key={i} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: "16px", height: 90, opacity: 0.5 }} />
@@ -346,7 +346,7 @@ export default function InventarioDashboardClient() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <div className="inv-toolbar">
         {(["todos", "cero", "bajo_minimo", "saludable", "sin_alerta"] as FiltroStock[]).map(f => (
           <button
             key={f}
@@ -361,6 +361,7 @@ export default function InventarioDashboardClient() {
               fontSize: 12,
               cursor: "pointer",
               transition: "all .1s",
+              whiteSpace: "nowrap",
             }}
           >
             {FILTRO_LABELS[f]}
@@ -375,15 +376,22 @@ export default function InventarioDashboardClient() {
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           placeholder="🔍 Buscar…"
-          style={{ marginLeft: "auto", padding: "6px 12px", border: "1px solid var(--erp-border)", borderRadius: 8, fontSize: 12, background: "var(--erp-bg)", color: "var(--erp-text)", outline: "none", minWidth: 160 }}
+          className="inv-search"
+          style={{ padding: "6px 12px", border: "1px solid var(--erp-border)", borderRadius: 8, fontSize: 12, background: "var(--erp-bg)", color: "var(--erp-text)", outline: "none" }}
         />
       </div>
 
       {/* Table */}
       <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden" }}>
         {/* Header */}
-        <div style={{ display: "grid", gridTemplateColumns: "40px 1.6fr 1fr 1.2fr 80px 110px 160px", gap: 8, padding: "8px 14px", background: "var(--erp-surface-2, var(--erp-surface))", borderBottom: "1px solid var(--erp-border)", fontSize: 10, fontWeight: 800, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          <div></div><div>Producto</div><div>Categoría</div><div>Existencia</div><div style={{ textAlign: "right" }}>Mínimo</div><div>Estado</div><div>Alerta OutStock</div>
+        <div className="inv-table-header" style={{ background: "var(--erp-surface-2, var(--erp-surface))", borderBottom: "1px solid var(--erp-border)", fontSize: 10, fontWeight: 800, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <div></div>
+          <div>Producto</div>
+          <div className="inv-col-categoria">Categoría</div>
+          <div className="inv-col-existencia">Existencia</div>
+          <div className="inv-col-minimo" style={{ textAlign: "right" }}>Mínimo</div>
+          <div className="inv-col-estado">Estado</div>
+          <div>Alerta OutStock</div>
         </div>
 
         {loadingLista ? (
@@ -398,27 +406,32 @@ export default function InventarioDashboardClient() {
           return (
             <div
               key={p.id}
+              className="inv-table-row"
               style={{
-                display: "grid",
-                gridTemplateColumns: "40px 1.6fr 1fr 1.2fr 80px 110px 160px",
-                gap: 8,
-                padding: "9px 14px",
                 borderBottom: i < productosFiltrados.length - 1 ? "1px solid var(--erp-border)" : "none",
-                alignItems: "center",
                 background: estado === "AGOTADO" ? "rgba(220,38,38,0.03)" : estado === "SIN_ALERTA" ? "rgba(0,0,0,0.01)" : "transparent",
               }}
             >
               <div style={{ fontSize: 15, textAlign: "center" }}>{emoji}</div>
-              <div>
+              <div className="inv-col-nombre">
                 <div style={{ fontWeight: 600, fontSize: 13, color: "var(--erp-text)" }}>{p.nombre}</div>
+                {/* Stock visible solo en móvil (la col existencia se oculta) */}
+                <div className="inv-col-nombre-stock">
+                  <span style={{ fontSize: 11, color: "var(--erp-text-2)" }}>
+                    Stock: <strong style={{ fontVariantNumeric: "tabular-nums", color: estado === "AGOTADO" ? "#dc2626" : estado === "BAJO_MINIMO" ? "#d97706" : "var(--erp-text)" }}>{p.stockActual}</strong>
+                  </span>
+                  <span style={{ ...ESTADO_STYLE[estado], fontSize: 10, padding: "1px 7px", borderRadius: 99, display: "inline-block" }}>
+                    {ESTADO_LABEL[estado]}
+                  </span>
+                </div>
                 {p.alertaOutstockMotivo && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 1 }}>{p.alertaOutstockMotivo}</div>}
               </div>
-              <div style={{ fontSize: 12, color: "var(--erp-text-2)" }}>{p.categoriaNombre ?? "—"}</div>
-              <StockBar p={p} />
-              <div style={{ textAlign: "right", fontSize: 12, color: "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>
+              <div className="inv-col-categoria" style={{ fontSize: 12, color: "var(--erp-text-2)" }}>{p.categoriaNombre ?? "—"}</div>
+              <div className="inv-col-existencia"><StockBar p={p} /></div>
+              <div className="inv-col-minimo" style={{ textAlign: "right", fontSize: 12, color: "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>
                 {p.stockMinimo > 0 ? p.stockMinimo : "—"}
               </div>
-              <div>
+              <div className="inv-col-estado">
                 <span style={{ ...ESTADO_STYLE[estado], fontSize: 11, padding: "2px 9px", borderRadius: 99, display: "inline-block", whiteSpace: "nowrap" }}>
                   {ESTADO_LABEL[estado]}
                 </span>
@@ -428,7 +441,6 @@ export default function InventarioDashboardClient() {
                   producto={p}
                   onToggled={(id, val) => {
                     setProductos(prev => prev.map(x => x.id === id ? { ...x, alertaOutstockDesactivada: val, alertaOutstockMotivo: val ? x.alertaOutstockMotivo : null } : x));
-                    // Refresh resumen counts
                     fetch("/api/inventario/resumen").then(r => r.json()).then(setResumen);
                   }}
                 />

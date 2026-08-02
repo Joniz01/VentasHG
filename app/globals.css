@@ -138,3 +138,113 @@ textarea {
   margin: 0.5in;
 }
 
+/* ── Inventario Dashboard — responsive ─────────────────────────────────────── */
+
+/* KPI cards: 4 columnas en desktop, 2x2 en móvil */
+.inv-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+/* Tabla: columnas completas en desktop */
+.inv-table-row,
+.inv-table-header {
+  display: grid;
+  grid-template-columns: 36px 1.8fr 1fr 1.1fr 72px 100px 152px;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 14px;
+}
+
+/* Columnas que se ocultan en móvil */
+.inv-col-categoria,
+.inv-col-minimo,
+.inv-col-estado {
+  display: block;
+}
+
+/* Buscador: se pone en línea propia en móvil */
+.inv-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inv-search {
+  margin-left: auto;
+  min-width: 160px;
+}
+
+/* Header del dashboard */
+.inv-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inv-header-btns {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .inv-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  /* En móvil: emoji | nombre+stock | outstock toggle (3 col) */
+  .inv-table-row,
+  .inv-table-header {
+    grid-template-columns: 28px 1fr auto;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  /* Ocultar categoría, mínimo y estado en móvil */
+  .inv-col-categoria,
+  .inv-col-minimo,
+  .inv-col-estado {
+    display: none;
+  }
+
+  /* Existencia ocupa el espacio liberado mostrándose en el nombre */
+  .inv-col-existencia {
+    display: none;
+  }
+
+  .inv-col-nombre {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .inv-col-nombre-stock {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .inv-search {
+    margin-left: 0;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .inv-header-btns {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .inv-header {
+    gap: 8px;
+  }
+}
+
