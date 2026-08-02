@@ -5,6 +5,134 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.3 — 2026-08-02
+
+### Resumen
+Módulo de Conteo Físico de Inventario completo (Fases 3 y 4): app PWA para contadores, bandeja de supervisión con alertas visuales, flujo BORRADOR → ENVIADO → APROBADO/RECHAZADO, ajuste automático de stock al aprobar y opción de compartir por WhatsApp. Página pública de inventario disponible. Atributo "Grupo" en productos (Para la Venta / Materia Prima / Servicio). Refactor de Productos: KPIs y grid siempre visibles, paginación 10/15/20/50. Campo "Nombre de Empresa" en Configuración. Correcciones de responsive en múltiples secciones.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `app/(main)/inventario/conteos/page.tsx` | Página dedicada Bandeja Conteos (permiso autorizarConteo) |
+| `app/(main)/inventario/conteo-app/page.tsx` | App de conteo para contadores (autenticación propia) |
+| `app/api/conteo/conteos/route.ts` | GET lista de conteos + DELETE por IDs o rango de fechas |
+| `app/api/conteo/conteos/[id]/route.ts` | GET detalle + PATCH (ENVIAR / APROBAR / RECHAZAR / CORREGIR_ITEM) |
+| `app/api/conteo/items/route.ts` | POST/PATCH ítems de conteo (app de contadores) |
+| `app/api/conteo/pendientes/route.ts` | GET cantidad de conteos ENVIADO (badge ShellBar / sidebar) |
+| `app/api/conteo/sesion/route.ts` | Login y logout para conteo_usuarios |
+| `app/api/inventario/disponible/route.ts` | GET público: productos Para la Venta con stock > 0 |
+| `app/(clean)/inventario-disponible/page.tsx` | Página pública de inventario disponible (sin auth) |
+| `components/ConteoAlerta.tsx` | Badge sidebar con conteo de conteos pendientes (ENVIADO) |
+| `components/ConteoAlertaShell.tsx` | Botón en ShellBar con badge de conteos pendientes |
+| `components/BandejaConteoClient.tsx` | Bandeja de supervisión: filtros, detalle, acciones, WhatsApp |
+| `components/ConteoAppClient.tsx` | Interfaz PWA de conteo para contadores |
+| `components/ConteoUsuariosConfigClient.tsx` | Gestión de usuarios de conteo en Admin |
+| `db/migrations/047_auditoria.sql` | Tabla `auditoria_inventario` |
+| `db/migrations/048_conteo_usuarios.sql` | Tabla `conteo_usuarios` (usuarios del app de conteo) |
+| `db/migrations/049_supervisor_conteo.sql` | Permiso `autorizar_conteo` en tabla `usuarios` |
+| `db/migrations/050_conteo_inventario.sql` | Tablas `conteo_inventario` y `conteo_inventario_items` |
+| `db/migrations/051_producto_grupo.sql` | Columna `grupo` en `productos`; semilla `nombre_empresa` en configuracion |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `components/ProductosClient.tsx` | Elimina toggle subTab; KPIs y grid siempre visibles; paginación 10/15/20/50; columna Grupo con chip de color; selector de Grupo en formulario de creación/edición |
+| `components/BandejaConteoClient.tsx` | Filtro Pendientes = BORRADOR + ENVIADO; botón Eliminar borrador en detalle; estado vacío para BORRADOR sin ítems; botón Enviar al supervisor desde detalle; encabezados de columna aclarados (Físico / Ajuste); nota explicativa del cálculo; banner WhatsApp post-aprobación |
+| `components/SidebarNav.tsx` | Ítem "Bandeja Conteos" con permiso autorizarConteo y badge de conteos pendientes; ítem "App Conteo" para contadores |
+| `components/ShellBar.tsx` | Agrega `ConteoAlertaShell`; añade ruta `/inventario/conteos` al mapa de nombres de módulo |
+| `components/ConfiguracionClient.tsx` | Campo `nombre_empresa` en sección General |
+| `components/AdminTabsClient.tsx` | Tab "Usuarios Conteo" con `ConteoUsuariosConfigClient` |
+| `app/api/conteo/conteos/[id]/route.ts` | Acción ENVIAR acepta sesión de supervisor (ADMIN / autorizarConteo) además de conteo_usuarios |
+| `app/api/productos/route.ts` | SELECT incluye `COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo`; respuesta incluye campo `grupo` |
+| `app/api/productos/[id]/route.ts` | PATCH acepta y persiste `grupo`; validación de valor permitido |
+| `app/api/inventarios/kpis/route.ts` | Fix: nombre de tabla corregido de `movimientos_inventario` a `inventario_movimientos` |
+| `lib/types.ts` | Agrega `GrupoProducto`, `GRUPOS_PRODUCTO`, `GRUPO_PRODUCTO_LABELS`; campo `grupo` en tipo `Producto`; permiso `autorizarConteo` |
+| `lib/auth.ts` | Lee `autorizar_conteo` (con fallback) en sesión de usuario |
+| `app/api/usuarios/route.ts` | GET/POST incluyen `autorizarConteo`; ADMIN recibe `true` |
+| `app/api/usuarios/[id]/route.ts` | PUT incluye `autorizarConteo` |
+| `app/globals.css` | Responsive para Stock & Costos (`.inv-sc-*`), Dashboard Inventario (`.inv-*`), Productos (`.prod-col-*`, `.prod-kpi-grid` 6→2 col en móvil) |
+
+### Migraciones SQL (ejecutar en Neon SQL Editor, en orden)
+
+**047_auditoria.sql**
+```sql
+CREATE TABLE IF NOT EXISTS auditoria_inventario (
+  id          SERIAL PRIMARY KEY,
+  tabla       TEXT NOT NULL,
+  operacion   TEXT NOT NULL,
+  registro_id INTEGER,
+  datos       JSONB,
+  usuario_id  INTEGER REFERENCES usuarios(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**048_conteo_usuarios.sql**
+```sql
+CREATE TABLE IF NOT EXISTS conteo_usuarios (
+  id         SERIAL PRIMARY KEY,
+  nombre     TEXT NOT NULL,
+  pin        TEXT NOT NULL,
+  activo     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**049_supervisor_conteo.sql**
+```sql
+ALTER TABLE usuarios
+  ADD COLUMN IF NOT EXISTS autorizar_conteo BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE usuarios SET autorizar_conteo = TRUE WHERE rol = 'ADMIN';
+```
+
+**050_conteo_inventario.sql**
+```sql
+CREATE TABLE IF NOT EXISTS conteo_inventario (
+  id                SERIAL PRIMARY KEY,
+  conteo_usuario_id INTEGER REFERENCES conteo_usuarios(id),
+  estado            TEXT NOT NULL DEFAULT 'BORRADOR',
+  nota              TEXT,
+  nota_supervisor   TEXT,
+  aprobado_por      INTEGER REFERENCES usuarios(id),
+  aprobado_at       TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS conteo_inventario_items (
+  id              SERIAL PRIMARY KEY,
+  conteo_id       INTEGER NOT NULL REFERENCES conteo_inventario(id) ON DELETE CASCADE,
+  producto_id     INTEGER NOT NULL REFERENCES productos(id),
+  stock_sistema   DECIMAL(12,4) NOT NULL,
+  stock_contado   DECIMAL(12,4) NOT NULL,
+  stock_corregido DECIMAL(12,4),
+  corregido_por   INTEGER REFERENCES usuarios(id),
+  corregido_at    TIMESTAMPTZ,
+  nota            TEXT,
+  UNIQUE(conteo_id, producto_id)
+);
+```
+
+**051_producto_grupo.sql**
+```sql
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS grupo VARCHAR(20) DEFAULT 'PARA_LA_VENTA';
+UPDATE productos SET grupo = 'PARA_LA_VENTA'
+  WHERE nombre ILIKE 'Bandeja%' OR nombre ILIKE 'Raci%' OR nombre ILIKE 'Combo%';
+INSERT INTO configuracion (clave, valor) VALUES ('nombre_empresa', '')
+  ON CONFLICT (clave) DO NOTHING;
+```
+
+### Notas técnicas
+- Los conteos BORRADOR son visibles en el filtro Pendientes de la bandeja (junto con ENVIADO).
+- El ajuste de stock al aprobar es: `stock_actual += COALESCE(stock_corregido, stock_contado) - stock_sistema`. Un producto en sistema con −1 y contado 1 produce ajuste +2 (correcto matemáticamente).
+- La página `/inventario-disponible` es pública (route group `(clean)`) y muestra solo productos con `grupo = 'PARA_LA_VENTA'` y `stock_actual > 0`.
+- El WhatsApp deep link usa `https://wa.me/?text=` con mensaje y enlace a `/inventario-disponible`.
+- `nombre_empresa` se guarda en la tabla `configuracion` (clave/valor) existente.
+
+### Sin nuevas variables de entorno
+
+---
+
 ## v3.2 — 2026-07-12
 
 ### Resumen
