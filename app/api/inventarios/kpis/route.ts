@@ -11,14 +11,14 @@ export async function GET() {
         SELECT
           COUNT(*) AS cantidad,
           COALESCE(SUM(mi.cantidad * p.costo), 0) AS valor_usd
-        FROM movimientos_inventario mi
+        FROM inventario_movimientos mi
         JOIN productos p ON p.id = mi.producto_id
         WHERE mi.tipo = 'ENTRADA'
           AND mi.created_at >= (SELECT inicio FROM mes_actual)
       ),
       movimientos_mes AS (
         SELECT COUNT(*) AS cantidad
-        FROM movimientos_inventario
+        FROM inventario_movimientos
         WHERE tipo IN ('ENTRADA', 'AJUSTE')
           AND created_at >= (SELECT inicio FROM mes_actual)
       )

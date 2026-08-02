@@ -138,6 +138,13 @@ textarea {
   margin: 0.5in;
 }
 
+/* ── Stock & Costos — columnas responsive ──────────────────────────────────── */
+@media (min-width: 641px) {
+  .inv-sc-cat       { display: table-cell !important; }
+  .inv-sc-min       { display: table-cell !important; }
+  .inv-sc-cat-mobile { display: none !important; }
+}
+
 /* ── Inventario Dashboard — responsive ─────────────────────────────────────── */
 
 /* KPI cards: 4 columnas en desktop, 2x2 en móvil */

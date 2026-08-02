@@ -32,16 +32,13 @@ const TIPO_MOVIMIENTO_LABELS: Record<MovimientoInventario["tipo"], string> = {
 };
 
 function formatFechaHora(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleString("es-VE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Date(iso).toLocaleString("es-VE", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
   });
 }
 
+// ── Historial + formulario por producto ──────────────────────────────────────
 function MovimientosProducto({
   producto,
   onStockChange,
@@ -64,37 +61,21 @@ function MovimientosProducto({
       const data = (await res.json()) as MovimientoInventario[];
       setMovimientos(data);
     } catch {
-      setError("No se pudo cargar el historial de inventario");
+      setError("No se pudo cargar el historial");
     } finally {
       setLoadingMov(false);
     }
   }
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadMovimientos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { loadMovimientos(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-
     const cantidadNum = Number(cantidad);
-    if (Number.isNaN(cantidadNum) || cantidadNum === 0) {
-      setError("Indica una cantidad válida");
-      return;
-    }
-
-    if (tipo === "ENTRADA" && cantidadNum <= 0) {
-      setError("La cantidad de una entrada debe ser mayor a 0");
-      return;
-    }
-
-    if (tipo === "AJUSTE" && !nota.trim()) {
-      setError("Indica el motivo del ajuste");
-      return;
-    }
+    if (Number.isNaN(cantidadNum) || cantidadNum === 0) { setError("Indica una cantidad válida"); return; }
+    if (tipo === "ENTRADA" && cantidadNum <= 0) { setError("La cantidad de una entrada debe ser mayor a 0"); return; }
+    if (tipo === "AJUSTE" && !nota.trim()) { setError("Indica el motivo del ajuste"); return; }
 
     setSaving(true);
     try {
@@ -103,16 +84,11 @@ function MovimientosProducto({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tipo, cantidad: cantidadNum, nota: nota.trim() || null }),
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Error al registrar el movimiento");
-      }
-
+      if (!res.ok) throw new Error(data.error ?? "Error al registrar el movimiento");
       setStockActual(data.stockActual);
       onStockChange(producto.id, data.stockActual);
-      setCantidad("");
-      setNota("");
+      setCantidad(""); setNota("");
       await loadMovimientos();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al registrar el movimiento");
@@ -123,116 +99,86 @@ function MovimientosProducto({
 
   if (producto.alertaOutstockDesactivada) {
     return (
-      <div className="flex flex-col gap-2">
-        <h4 className="text-sm font-semibold text-zinc-700">
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>
           Inventario de &quot;{producto.nombre}&quot; — Stock actual: {stockActual}
-        </h4>
+        </p>
         <div style={{ background: "#fef3e0", border: "1px solid #f59e0b", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#92400e", lineHeight: 1.5 }}>
-          <strong>🔕 Alerta OutStock desactivada.</strong> Este producto está marcado como sin inventario activo (descontinuado, temporada o proveedor sin despacho).
-          Para registrar un movimiento ve a la ficha del producto y desmarca el check <em>"Apagar Alerta OutStock"</em>.
+          <strong>🔕 Alerta OutStock desactivada.</strong> Para registrar un movimiento ve a la ficha del producto y desmarca <em>"Apagar Alerta OutStock"</em>.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <h4 className="text-sm font-semibold text-zinc-700">
-        Inventario de &quot;{producto.nombre}&quot; — Stock actual: {stockActual}
-      </h4>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>
+        Inventario de &quot;{producto.nombre}&quot; — Stock actual: <strong>{stockActual}</strong>
+      </p>
 
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-600">Tipo</label>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)" }}>Tipo</label>
           <select
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
             value={tipo}
             onChange={(e) => setTipo(e.target.value as "ENTRADA" | "AJUSTE")}
+            style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 13, background: "var(--erp-bg)", color: "var(--erp-text)" }}
           >
-            <option value="ENTRADA">Entrada (agregar unidades)</option>
+            <option value="ENTRADA">Entrada (agregar)</option>
             <option value="AJUSTE">Ajuste (corrección)</option>
           </select>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-600">
-            Cantidad {tipo === "AJUSTE" ? "(+ o -)" : ""}
-          </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)" }}>Cantidad {tipo === "AJUSTE" ? "(+ o −)" : ""}</label>
           <input
-            className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
-            type="number"
-            step="1"
-            value={cantidad}
+            type="number" step="1" value={cantidad}
             onChange={(e) => setCantidad(ajustarCantidadConFlechas(cantidad, e.target.value))}
             placeholder={tipo === "AJUSTE" ? "Ej: -2" : "Ej: 10"}
+            style={{ width: 100, padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 13, background: "var(--erp-bg)", color: "var(--erp-text)" }}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-600">
-            Nota {tipo === "AJUSTE" ? "(obligatoria)" : "(opcional)"}
-          </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 140 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)" }}>Nota {tipo === "AJUSTE" ? "(obligatoria)" : "(opcional)"}</label>
           <input
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            placeholder="Motivo"
+            value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Motivo"
+            style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 13, background: "var(--erp-bg)", color: "var(--erp-text)", width: "100%" }}
           />
         </div>
         <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+          type="submit" disabled={saving}
+          style={{ padding: "6px 16px", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
         >
           Registrar
         </button>
       </form>
 
-      {error && <div className="text-sm text-red-700">{error}</div>}
+      {error && <p style={{ margin: 0, color: "#dc2626", fontSize: 13 }}>{error}</p>}
 
-      <div className="overflow-x-auto rounded-md border border-zinc-200 bg-white">
-        <table className="min-w-full divide-y divide-zinc-200 text-sm">
-          <thead className="bg-zinc-50">
-            <tr>
-              <th className="px-3 py-1.5 text-left font-medium text-zinc-600">Fecha</th>
-              <th className="px-3 py-1.5 text-left font-medium text-zinc-600">Tipo</th>
-              <th className="px-3 py-1.5 text-right font-medium text-zinc-600">Cantidad</th>
-              <th className="px-3 py-1.5 text-left font-medium text-zinc-600">Nota</th>
-              <th className="px-3 py-1.5 text-left font-medium text-zinc-600">Quién</th>
+      <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--erp-border)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "var(--erp-surface)", borderBottom: "1px solid var(--erp-border)" }}>
+              {["Fecha", "Tipo", "Cantidad", "Nota", "Quién"].map((h, i) => (
+                <th key={h} style={{ padding: "6px 12px", textAlign: i === 2 ? "right" : "left", fontWeight: 600, fontSize: 11, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {loadingMov && (
-              <tr>
-                <td colSpan={5} className="px-3 py-3 text-center text-zinc-500">
-                  Cargando...
-                </td>
-              </tr>
-            )}
-            {!loadingMov && movimientos.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-3 text-center text-zinc-500">
-                  Sin movimientos registrados
-                </td>
-              </tr>
-            )}
+          <tbody>
+            {loadingMov && <tr><td colSpan={5} style={{ padding: "16px", textAlign: "center", color: "var(--erp-text-3)" }}>Cargando…</td></tr>}
+            {!loadingMov && movimientos.length === 0 && <tr><td colSpan={5} style={{ padding: "16px", textAlign: "center", color: "var(--erp-text-3)" }}>Sin movimientos registrados</td></tr>}
             {movimientos.map((mov) => (
-              <tr key={mov.id}>
-                <td className="px-3 py-1.5 whitespace-nowrap">{formatFechaHora(mov.createdAt)}</td>
-                <td className="px-3 py-1.5">{TIPO_MOVIMIENTO_LABELS[mov.tipo]}</td>
-                <td className="px-3 py-1.5 text-right font-variant-numeric">
-                  <span style={{ color: mov.cantidad > 0 ? "#15803d" : mov.cantidad < 0 ? "#dc2626" : undefined, fontWeight: 700 }}>
-                    {mov.cantidad > 0 ? `+${mov.cantidad}` : mov.cantidad}
-                  </span>
+              <tr key={mov.id} style={{ borderBottom: "1px solid var(--erp-border)" }}>
+                <td style={{ padding: "6px 12px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{formatFechaHora(mov.createdAt)}</td>
+                <td style={{ padding: "6px 12px" }}>{TIPO_MOVIMIENTO_LABELS[mov.tipo]}</td>
+                <td style={{ padding: "6px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: mov.cantidad > 0 ? "#15803d" : mov.cantidad < 0 ? "#dc2626" : undefined }}>
+                  {mov.cantidad > 0 ? `+${mov.cantidad}` : mov.cantidad}
                 </td>
-                <td className="px-3 py-1.5 text-zinc-600">{mov.nota ?? "-"}</td>
-                <td className="px-3 py-1.5 text-zinc-500 whitespace-nowrap text-xs">
-                  {mov.origen === "VENTA"
-                    ? <span title={`Venta #${mov.ventaId ?? ""}`}>🛒 Sistema (venta)</span>
-                    : mov.origen === "CONTEO"
-                    ? <span>📋 Conteo</span>
-                    : mov.usuarioNombre
-                    ? <span>👤 {mov.usuarioNombre}</span>
-                    : <span className="text-zinc-300">—</span>
-                  }
+                <td style={{ padding: "6px 12px", color: "var(--erp-text-2)" }}>{mov.nota ?? "—"}</td>
+                <td style={{ padding: "6px 12px", color: "var(--erp-text-3)", fontSize: 12, whiteSpace: "nowrap" }}>
+                  {mov.origen === "VENTA" ? <span title={`Venta #${mov.ventaId ?? ""}`}>🛒 Sistema</span>
+                    : mov.origen === "CONTEO" ? <span>📋 Conteo</span>
+                    : mov.usuarioNombre ? <span>👤 {mov.usuarioNombre}</span>
+                    : <span>—</span>}
                 </td>
               </tr>
             ))}
@@ -243,6 +189,7 @@ function MovimientosProducto({
   );
 }
 
+// ── KPI types ─────────────────────────────────────────────────────────────────
 type InventariosKpis = {
   productosEnStock: number;
   valorInventario: number;
@@ -252,13 +199,18 @@ type InventariosKpis = {
   movimientosMes: number;
 };
 
+const PAGE_SIZE_OPTIONS = [10, 15, 20, 50];
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function InventariosClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [kpis, setKpis] = useState<InventariosKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
-  const [showGrid, setShowGrid] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
 
   useEffect(() => {
     fetch("/api/productos")
@@ -273,160 +225,232 @@ export default function InventariosClient() {
   }, []);
 
   function handleStockChange(id: number, nuevoStock: number) {
-    setProductos((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, stockActual: nuevoStock } : p))
-    );
-    // Refrescar KPIs tras un movimiento
-    fetch("/api/inventarios/kpis")
-      .then((r) => r.json())
-      .then((data) => setKpis(data));
+    setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, stockActual: nuevoStock } : p)));
+    fetch("/api/inventarios/kpis").then((r) => r.json()).then(setKpis);
   }
 
   const productosInventario = productos.filter((p) => p.tipoProducto === "NORMAL");
 
+  const productosFiltrados = busqueda.trim()
+    ? productosInventario.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+          (p.categoriaNombre ?? "").toLowerCase().includes(busqueda.toLowerCase())
+      )
+    : productosInventario;
+
+  const totalPages = Math.max(1, Math.ceil(productosFiltrados.length / pageSize));
+  const paginaActual = Math.min(page, totalPages);
+  const productosPagina = productosFiltrados.slice((paginaActual - 1) * pageSize, paginaActual * pageSize);
+
+  function cambiarBusqueda(val: string) { setBusqueda(val); setPage(1); setExpandedId(null); }
+  function cambiarPageSize(val: number) { setPageSize(val); setPage(1); setExpandedId(null); }
+
   const kpiCards = [
-    {
-      label: "Productos en Stock",
-      value: kpisLoading ? "…" : String(kpis?.productosEnStock ?? 0),
-      sub: "con unidades disponibles",
-      color: "text-zinc-900",
-    },
-    {
-      label: "Valor del Inventario",
-      value: kpisLoading ? "…" : `$${(kpis?.valorInventario ?? 0).toFixed(2)}`,
-      sub: "stock × costo",
-      color: "text-emerald-700",
-    },
-    {
-      label: "Sin Stock",
-      value: kpisLoading ? "…" : String(kpis?.sinStock ?? 0),
-      sub: "productos en 0 unidades",
-      color: (kpis?.sinStock ?? 0) > 0 ? "text-red-600" : "text-zinc-900",
-    },
-    {
-      label: "Unidades Totales",
-      value: kpisLoading ? "…" : String(kpis?.unidadesTotales ?? 0),
-      sub: "suma de todo el stock",
-      color: "text-blue-700",
-    },
-    {
-      label: "Entradas del Mes",
-      value: kpisLoading ? "…" : `$${(kpis?.entradasMesUsd ?? 0).toFixed(2)}`,
-      sub: "inversión en reabastecimiento",
-      color: "text-violet-700",
-    },
-    {
-      label: "Movimientos del Mes",
-      value: kpisLoading ? "…" : String(kpis?.movimientosMes ?? 0),
-      sub: "entradas y ajustes",
-      color: "text-amber-700",
-    },
+    { label: "Productos en Stock", value: kpisLoading ? "…" : String(kpis?.productosEnStock ?? 0), sub: "con unidades disponibles", color: "var(--erp-text)" },
+    { label: "Valor del Inventario", value: kpisLoading ? "…" : `$${(kpis?.valorInventario ?? 0).toFixed(2)}`, sub: "stock × costo", color: "#15803d" },
+    { label: "Sin Stock", value: kpisLoading ? "…" : String(kpis?.sinStock ?? 0), sub: "productos en 0 unidades", color: (kpis?.sinStock ?? 0) > 0 ? "#dc2626" : "var(--erp-text)" },
+    { label: "Unidades Totales", value: kpisLoading ? "…" : String(kpis?.unidadesTotales ?? 0), sub: "suma de todo el stock", color: "#1d4ed8" },
+    { label: "Entradas del Mes", value: kpisLoading ? "…" : `$${(kpis?.entradasMesUsd ?? 0).toFixed(2)}`, sub: "inversión en reabastecimiento", color: "#7c3aed" },
+    { label: "Movimientos del Mes", value: kpisLoading ? "…" : String(kpis?.movimientosMes ?? 0), sub: "entradas y ajustes", color: "#d97706" },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Botón pill toggle */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setShowGrid((v) => !v)}
-          className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-            showGrid
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
-          }`}
-        >
-          Movimientos de Inventario
-          {productosInventario.length > 0 && (
-            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${showGrid ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-600"}`}>
-              {productosInventario.length}
-            </span>
-          )}
-        </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* KPI cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+        {kpiCards.map((card) => (
+          <div
+            key={card.label}
+            style={{ display: "flex", flexDirection: "column", gap: 4, borderRadius: 10, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", padding: "12px 14px" }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{card.label}</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: card.color, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{card.value}</span>
+            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{card.sub}</span>
+          </div>
+        ))}
       </div>
 
-      {/* KPIs — se ocultan cuando el grid está abierto */}
-      {!showGrid && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {kpiCards.map((card) => (
-            <div
-              key={card.label}
-              className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white px-4 py-3"
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => cambiarBusqueda(e.target.value)}
+          placeholder="🔍 Buscar producto o categoría…"
+          style={{ flex: "1 1 200px", minWidth: 0, padding: "7px 12px", border: "1px solid var(--erp-border)", borderRadius: 8, fontSize: 13, background: "var(--erp-bg)", color: "var(--erp-text)", outline: "none" }}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: "var(--erp-text-2)" }}>Mostrar</span>
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => cambiarPageSize(n)}
+              style={{ padding: "4px 10px", borderRadius: 6, border: `1.5px solid ${pageSize === n ? "var(--erp-primary)" : "var(--erp-border)"}`, background: pageSize === n ? "var(--erp-primary-lt)" : "transparent", color: pageSize === n ? "var(--erp-primary)" : "var(--erp-text-2)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
-              <span className="text-xs font-medium text-zinc-500">{card.label}</span>
-              <span className={`truncate text-lg font-bold leading-tight ${card.color}`}>{card.value}</span>
-              <span className="text-xs text-zinc-400">{card.sub}</span>
-            </div>
+              {n}
+            </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Grid de movimientos */}
-      {showGrid && (
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-          <table className="min-w-full divide-y divide-zinc-200 text-sm">
-            <thead className="bg-zinc-50">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-zinc-600">Producto</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-600">Categoría</th>
-                <th className="px-4 py-2 text-right font-medium text-zinc-600">Stock actual</th>
-                <th className="px-4 py-2 text-right font-medium text-zinc-600">Mínimo</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-600">Estado</th>
-                <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
+      {/* Tabla con paginación */}
+      <div style={{ borderRadius: 12, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "var(--erp-surface)", borderBottom: "1px solid var(--erp-border)" }}>
+                <th style={thStyle}>Producto</th>
+                <th style={{ ...thStyle, display: "none" }} className="inv-sc-cat">Categoría</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Stock</th>
+                <th style={{ ...thStyle, textAlign: "right" }} className="inv-sc-min">Mínimo</th>
+                <th style={thStyle}>Estado</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody>
               {loading && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
-                    Cargando...
-                  </td>
-                </tr>
+                <tr><td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "var(--erp-text-3)" }}>Cargando…</td></tr>
               )}
-              {!loading && productosInventario.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
-                    No hay productos con inventario individual
-                  </td>
-                </tr>
+              {!loading && productosFiltrados.length === 0 && (
+                <tr><td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                  {busqueda ? "Sin resultados para esa búsqueda" : "No hay productos con inventario"}
+                </td></tr>
               )}
-              {productosInventario.map((producto) => {
+              {productosPagina.map((producto, i) => {
                 const estado = computeEstadoStock(producto);
+                const isExpanded = expandedId === producto.id;
                 return (
-                <Fragment key={producto.id}>
-                  <tr>
-                    <td className="px-4 py-2 font-medium">{producto.nombre}</td>
-                    <td className="px-4 py-2 text-zinc-600">{producto.categoriaNombre ?? "-"}</td>
-                    <td className="px-4 py-2 text-right font-variant-numeric">{producto.stockActual}</td>
-                    <td className="px-4 py-2 text-right text-zinc-400 text-xs">{producto.stockMinimo > 0 ? producto.stockMinimo : "—"}</td>
-                    <td className="px-4 py-2">
-                      <span style={{ ...ESTADO_STOCK_STYLE[estado], fontSize: 11, padding: "2px 8px", borderRadius: 99, display: "inline-block" }}>
-                        {ESTADO_STOCK_LABEL[estado]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        onClick={() => setExpandedId(expandedId === producto.id ? null : producto.id)}
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                      >
-                        {expandedId === producto.id ? "Ocultar" : "Movimientos"}
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedId === producto.id && (
-                    <tr>
-                      <td colSpan={6} className="bg-zinc-50 px-4 py-3">
-                        <MovimientosProducto producto={producto} onStockChange={handleStockChange} />
+                  <Fragment key={producto.id}>
+                    <tr style={{ borderBottom: "1px solid var(--erp-border)", background: isExpanded ? "var(--erp-primary-lt)" : i % 2 === 1 ? "rgba(0,0,0,0.015)" : "transparent" }}>
+                      <td style={{ padding: "9px 14px" }}>
+                        <div style={{ fontWeight: 600, color: "var(--erp-text)" }}>{producto.nombre}</div>
+                        {/* Categoría visible solo en móvil bajo el nombre */}
+                        <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }} className="inv-sc-cat-mobile">
+                          {producto.categoriaNombre ?? ""}
+                        </div>
+                      </td>
+                      <td style={{ padding: "9px 14px", color: "var(--erp-text-2)", fontSize: 12, display: "none" }} className="inv-sc-cat">
+                        {producto.categoriaNombre ?? "—"}
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: producto.stockActual <= 0 ? "#dc2626" : "var(--erp-text)" }}>
+                        {producto.stockActual}
+                        <span style={{ fontSize: 10, color: "var(--erp-text-3)", marginLeft: 3 }}>{producto.unidadMedida}</span>
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "right", color: "var(--erp-text-3)", fontSize: 12, fontVariantNumeric: "tabular-nums", display: "none" }} className="inv-sc-min">
+                        {producto.stockMinimo > 0 ? producto.stockMinimo : "—"}
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <span style={{ ...ESTADO_STOCK_STYLE[estado], fontSize: 11, padding: "2px 8px", borderRadius: 99, display: "inline-block", whiteSpace: "nowrap" }}>
+                          {ESTADO_STOCK_LABEL[estado]}
+                        </span>
+                      </td>
+                      <td style={{ padding: "9px 14px", textAlign: "right" }}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId(isExpanded ? null : producto.id)}
+                          style={{ padding: "4px 12px", border: `1.5px solid ${isExpanded ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: isExpanded ? "var(--erp-primary)" : "var(--erp-surface)", color: isExpanded ? "#fff" : "var(--erp-text-2)", whiteSpace: "nowrap" }}
+                        >
+                          {isExpanded ? "Ocultar ▲" : "Movimientos ▼"}
+                        </button>
                       </td>
                     </tr>
-                  )}
-                </Fragment>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={6} style={{ padding: "16px 14px", background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)" }}>
+                          <MovimientosProducto producto={producto} onStockChange={handleStockChange} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
+        {totalPages > 1 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderTop: "1px solid var(--erp-border)", flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--erp-text-2)" }}>
+              {(paginaActual - 1) * pageSize + 1}–{Math.min(paginaActual * pageSize, productosFiltrados.length)} de {productosFiltrados.length} productos
+            </span>
+            <div style={{ display: "flex", gap: 4 }}>
+              <button
+                type="button"
+                onClick={() => setPage(1)}
+                disabled={paginaActual === 1}
+                style={pageBtn(paginaActual === 1)}
+              >«</button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={paginaActual === 1}
+                style={pageBtn(paginaActual === 1)}
+              >‹</button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(paginaActual - 2, totalPages - 4));
+                const n = start + i;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPage(n)}
+                    style={{ ...pageBtn(false), background: n === paginaActual ? "var(--erp-primary)" : "transparent", color: n === paginaActual ? "#fff" : "var(--erp-text-2)", borderColor: n === paginaActual ? "var(--erp-primary)" : "var(--erp-border)" }}
+                  >{n}</button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={paginaActual === totalPages}
+                style={pageBtn(paginaActual === totalPages)}
+              >›</button>
+              <button
+                type="button"
+                onClick={() => setPage(totalPages)}
+                disabled={paginaActual === totalPages}
+                style={pageBtn(paginaActual === totalPages)}
+              >»</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Conteo footer */}
+      {!loading && (
+        <div style={{ fontSize: 12, color: "var(--erp-text-3)", textAlign: "right" }}>
+          {productosFiltrados.length} producto{productosFiltrados.length !== 1 ? "s" : ""}
+          {busqueda ? ` · búsqueda: "${busqueda}"` : ""}
+        </div>
       )}
     </div>
   );
+}
+
+// ── Estilos base ──────────────────────────────────────────────────────────────
+const thStyle: React.CSSProperties = {
+  padding: "8px 14px",
+  textAlign: "left",
+  fontSize: 10,
+  fontWeight: 800,
+  color: "var(--erp-text-3)",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  whiteSpace: "nowrap",
+};
+
+function pageBtn(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "4px 9px",
+    border: "1px solid var(--erp-border)",
+    borderRadius: 6,
+    background: "transparent",
+    color: disabled ? "var(--erp-text-3)" : "var(--erp-text-2)",
+    fontSize: 13,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.4 : 1,
+  };
 }
