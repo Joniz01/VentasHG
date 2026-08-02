@@ -81,16 +81,31 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
 
-  // ── Enviar conteo (acción del contador) ──
+  // ── Enviar conteo (acción del contador o del supervisor) ──
   if (body.accion === "ENVIAR") {
-    const sesion = await getConteoFromRequest(request);
-    if (!sesion) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    const conteoSesion = await getConteoFromRequest(request);
+    const mainSesion = await getSesionFromRequest(request);
 
-    await pool.query(
-      `UPDATE conteo_inventario SET estado = 'ENVIADO', updated_at = NOW()
-       WHERE id = $1 AND estado = 'BORRADOR' AND conteo_usuario_id = $2`,
-      [id, sesion.id]
-    );
+    if (conteoSesion) {
+      // Counter app: only own conteos
+      await pool.query(
+        `UPDATE conteo_inventario SET estado = 'ENVIADO', updated_at = NOW()
+         WHERE id = $1 AND estado = 'BORRADOR' AND conteo_usuario_id = $2`,
+        [id, conteoSesion.id]
+      );
+    } else if (mainSesion && (mainSesion.rol === "ADMIN" || mainSesion.permisos?.autorizarConteo)) {
+      // Supervisor: can send any borrador
+      const res = await pool.query(
+        `UPDATE conteo_inventario SET estado = 'ENVIADO', updated_at = NOW()
+         WHERE id = $1 AND estado = 'BORRADOR'`,
+        [id]
+      );
+      if ((res.rowCount ?? 0) === 0) {
+        return NextResponse.json({ error: "Conteo no encontrado o no está en borrador" }, { status: 400 });
+      }
+    } else {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
     return NextResponse.json({ ok: true });
   }
 

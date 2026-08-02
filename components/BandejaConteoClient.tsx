@@ -40,14 +40,15 @@ export default function BandejaConteoClient() {
   const [detalleLoading, setDetalleLoading] = useState(false);
   const [notaSupervisor, setNotaSupervisor] = useState("");
   const [procesando, setProcesando] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   const [editItemId, setEditItemId] = useState<number | null>(null);
   const [editVal, setEditVal] = useState("");
   const [editNota, setEditNota] = useState("");
   const [correcting, setCorrecting] = useState(false);
   const [aprobadoId, setAprobadoId] = useState<number | null>(null);
   const [nombreEmpresa, setNombreEmpresa] = useState("");
+  const [accionError, setAccionError] = useState<string | null>(null);
 
-  // Filtro
   const [filtro, setFiltro] = useState<FiltroEstado>("PENDIENTES");
 
   // Selección para purga
@@ -90,7 +91,6 @@ export default function BandejaConteoClient() {
     else setDetalle(null);
   }, [detalleId, loadDetalle]);
 
-  // Reset selección cuando cambia el filtro
   useEffect(() => {
     setSeleccionados(new Set());
     setDesdeDate("");
@@ -98,15 +98,20 @@ export default function BandejaConteoClient() {
     setPurgeError(null);
   }, [filtro]);
 
+  // PENDIENTES = BORRADOR + ENVIADO (pendientes de acción)
+  // REALIZADOS = APROBADO + RECHAZADO
   const listaFiltrada = lista.filter((c) => {
-    if (filtro === "PENDIENTES") return c.estado === "ENVIADO";
+    if (filtro === "PENDIENTES") return c.estado === "BORRADOR" || c.estado === "ENVIADO";
     if (filtro === "REALIZADOS") return c.estado === "APROBADO" || c.estado === "RECHAZADO";
     return true;
   });
 
-  async function handleAccion(accion: "APROBAR" | "RECHAZAR") {
+  const cntPendientes = lista.filter((c) => c.estado === "BORRADOR" || c.estado === "ENVIADO").length;
+
+  async function handleAccion(accion: "APROBAR" | "RECHAZAR" | "ENVIAR") {
     if (!detalleId) return;
     setProcesando(true);
+    setAccionError(null);
     const res = await fetch(`/api/conteo/conteos/${detalleId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -117,8 +122,34 @@ export default function BandejaConteoClient() {
       setDetalleId(null);
       setNotaSupervisor("");
       await loadLista();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setAccionError(data.error ?? "Error al procesar la acción");
     }
     setProcesando(false);
+  }
+
+  async function handleEliminarDetalle() {
+    if (!detalleId) return;
+    if (!confirm(`¿Eliminar el conteo #${detalleId}? Esta acción es irreversible.`)) return;
+    setEliminando(true);
+    try {
+      const res = await fetch("/api/conteo/conteos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [detalleId] }),
+      });
+      if (res.ok) {
+        setDetalleId(null);
+        await loadLista();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? "No se pudo eliminar");
+      }
+    } catch {
+      alert("Error al eliminar");
+    }
+    setEliminando(false);
   }
 
   function getWhatsAppUrl() {
@@ -207,12 +238,16 @@ export default function BandejaConteoClient() {
 
   // ── Vista detalle ──
   if (detalleId != null) {
+    const esBorrador = detalle?.estado === "BORRADOR";
+    const esEnviado  = detalle?.estado === "ENVIADO";
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
           <button
             type="button"
-            onClick={() => setDetalleId(null)}
+            onClick={() => { setDetalleId(null); setAccionError(null); }}
             style={{ padding: "0.35rem 0.75rem", background: "transparent", border: "1px solid var(--erp-border)", borderRadius: "6px", cursor: "pointer", fontSize: "0.8rem", color: "var(--erp-text-2)" }}
           >
             ← Volver
@@ -224,6 +259,17 @@ export default function BandejaConteoClient() {
             <span style={{ padding: "0.2rem 0.55rem", borderRadius: "99px", fontSize: "0.75rem", fontWeight: 600, ...ESTADO_STYLE[detalle.estado] }}>
               {ESTADO_CONTEO_LABELS[detalle.estado]}
             </span>
+          )}
+          {/* Eliminar borrador desde detalle */}
+          {esBorrador && (
+            <button
+              type="button"
+              onClick={handleEliminarDetalle}
+              disabled={eliminando}
+              style={{ marginLeft: "auto", padding: "0.3rem 0.75rem", background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontSize: "0.78rem", fontWeight: 600 }}
+            >
+              🗑️ {eliminando ? "Eliminando…" : "Eliminar borrador"}
+            </button>
           )}
         </div>
 
@@ -237,77 +283,129 @@ export default function BandejaConteoClient() {
               {detalle.nota && <span>Nota: <strong>{detalle.nota}</strong></span>}
             </div>
 
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-                <thead>
-                  <tr style={{ background: "var(--erp-surface)" }}>
-                    {["Producto", "Categoría", "Sistema", "Contado", "Corregido", "Diferencia", "Nota", ""].map((h) => (
-                      <th key={h} style={{ ...cell, fontWeight: 600, textAlign: h === "Sistema" || h === "Contado" || h === "Corregido" || h === "Diferencia" ? "right" : "left", whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {detalle.items.map((item) => {
-                    const stockFinal = item.stockCorregido ?? item.stockContado;
-                    const diff = stockFinal - item.stockSistema;
-                    const isEditing = editItemId === item.id;
+            {/* Sin items */}
+            {detalle.items.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", border: "1px dashed var(--erp-border)", borderRadius: 8, color: "var(--erp-text-3)", fontSize: "0.875rem" }}>
+                Este conteo está vacío — aún no se registraron productos.
+                {esBorrador && (
+                  <p style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
+                    El contador debe ingresar a <strong>/conteo</strong> para completarlo antes de enviarlo.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                  <thead>
+                    <tr style={{ background: "var(--erp-surface)" }}>
+                      <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Producto</th>
+                      <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Categoría</th>
+                      <th style={{ ...cell, fontWeight: 600, textAlign: "right", whiteSpace: "nowrap" }}>Sistema</th>
+                      <th style={{ ...cell, fontWeight: 600, textAlign: "right", whiteSpace: "nowrap" }}>
+                        Físico
+                        <span style={{ display: "block", fontSize: "0.68rem", fontWeight: 400, color: "var(--erp-text-3)" }}>(total contado)</span>
+                      </th>
+                      <th style={{ ...cell, fontWeight: 600, textAlign: "right", whiteSpace: "nowrap" }}>Corregido</th>
+                      <th style={{ ...cell, fontWeight: 600, textAlign: "right", whiteSpace: "nowrap" }}>
+                        Ajuste
+                        <span style={{ display: "block", fontSize: "0.68rem", fontWeight: 400, color: "var(--erp-text-3)" }}>(físico − sistema)</span>
+                      </th>
+                      <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Nota</th>
+                      <th style={{ ...cell }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detalle.items.map((item) => {
+                      const stockFinal = item.stockCorregido ?? item.stockContado;
+                      const diff = stockFinal - item.stockSistema;
+                      const isEditing = editItemId === item.id;
 
-                    return (
-                      <tr key={item.id}>
-                        <td style={cell}>{item.productoNombre}</td>
-                        <td style={{ ...cell, color: "var(--erp-text-2)" }}>{item.categoriaNombre ?? "—"}</td>
-                        <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.stockSistema}</td>
-                        <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.stockContado}</td>
-                        <td style={{ ...cell, textAlign: "right" }}>
-                          {isEditing ? (
-                            <div style={{ display: "flex", gap: "0.3rem", alignItems: "center", justifyContent: "flex-end" }}>
-                              <input
-                                type="number"
-                                value={editVal}
-                                onChange={(e) => setEditVal(e.target.value)}
-                                style={{ width: "70px", padding: "0.25rem 0.4rem", border: "1px solid var(--erp-border)", borderRadius: "4px", fontSize: "0.875rem", textAlign: "right" }}
-                                autoFocus
-                              />
-                              <input
-                                type="text"
-                                placeholder="Motivo"
-                                value={editNota}
-                                onChange={(e) => setEditNota(e.target.value)}
-                                style={{ width: "90px", padding: "0.25rem 0.4rem", border: "1px solid var(--erp-border)", borderRadius: "4px", fontSize: "0.8rem" }}
-                              />
-                              <button type="button" onClick={() => handleCorregir(item)} disabled={correcting} style={{ padding: "0.2rem 0.5rem", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.775rem" }}>✓</button>
-                              <button type="button" onClick={() => setEditItemId(null)} style={{ padding: "0.2rem 0.5rem", border: "1px solid var(--erp-border)", borderRadius: "4px", cursor: "pointer", fontSize: "0.775rem", background: "var(--erp-surface)", color: "var(--erp-text)" }}>✕</button>
-                            </div>
-                          ) : (
-                            <span style={{ fontVariantNumeric: "tabular-nums", color: item.stockCorregido != null ? "#7c3aed" : "var(--erp-text-2)" }}>
-                              {item.stockCorregido != null ? item.stockCorregido : "—"}
-                              {item.corregidoPor && <span style={{ fontSize: "0.7rem", color: "var(--erp-text-3)", marginLeft: "0.25rem" }}>({item.corregidoPor})</span>}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ ...cell, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: diff === 0 ? "#16a34a" : diff > 0 ? "#2563eb" : "#dc2626" }}>
-                          {diff > 0 ? `+${diff}` : diff}
-                        </td>
-                        <td style={{ ...cell, color: "var(--erp-text-2)", fontSize: "0.8rem" }}>{item.nota ?? "—"}</td>
-                        <td style={cell}>
-                          {detalle.estado === "ENVIADO" && !isEditing && (
-                            <button
-                              type="button"
-                              onClick={() => { setEditItemId(item.id); setEditVal(String(item.stockCorregido ?? item.stockContado)); setEditNota(""); }}
-                              style={{ padding: "0.2rem 0.5rem", border: "1px solid var(--erp-border)", borderRadius: "4px", cursor: "pointer", fontSize: "0.775rem", background: "var(--erp-surface)", color: "var(--erp-text)", whiteSpace: "nowrap" }}
-                            >
-                              ✏️ Corregir
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      return (
+                        <tr key={item.id}>
+                          <td style={cell}>{item.productoNombre}</td>
+                          <td style={{ ...cell, color: "var(--erp-text-2)" }}>{item.categoriaNombre ?? "—"}</td>
+                          <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums", color: item.stockSistema < 0 ? "#dc2626" : "var(--erp-text)" }}>
+                            {item.stockSistema}
+                          </td>
+                          <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.stockContado}</td>
+                          <td style={{ ...cell, textAlign: "right" }}>
+                            {isEditing ? (
+                              <div style={{ display: "flex", gap: "0.3rem", alignItems: "center", justifyContent: "flex-end" }}>
+                                <input
+                                  type="number"
+                                  value={editVal}
+                                  onChange={(e) => setEditVal(e.target.value)}
+                                  style={{ width: "70px", padding: "0.25rem 0.4rem", border: "1px solid var(--erp-border)", borderRadius: "4px", fontSize: "0.875rem", textAlign: "right" }}
+                                  autoFocus
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Motivo"
+                                  value={editNota}
+                                  onChange={(e) => setEditNota(e.target.value)}
+                                  style={{ width: "90px", padding: "0.25rem 0.4rem", border: "1px solid var(--erp-border)", borderRadius: "4px", fontSize: "0.8rem" }}
+                                />
+                                <button type="button" onClick={() => handleCorregir(item)} disabled={correcting} style={{ padding: "0.2rem 0.5rem", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.775rem" }}>✓</button>
+                                <button type="button" onClick={() => setEditItemId(null)} style={{ padding: "0.2rem 0.5rem", border: "1px solid var(--erp-border)", borderRadius: "4px", cursor: "pointer", fontSize: "0.775rem", background: "var(--erp-surface)", color: "var(--erp-text)" }}>✕</button>
+                              </div>
+                            ) : (
+                              <span style={{ fontVariantNumeric: "tabular-nums", color: item.stockCorregido != null ? "#7c3aed" : "var(--erp-text-2)" }}>
+                                {item.stockCorregido != null ? item.stockCorregido : "—"}
+                                {item.corregidoPor && <span style={{ fontSize: "0.7rem", color: "var(--erp-text-3)", marginLeft: "0.25rem" }}>({item.corregidoPor})</span>}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ ...cell, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: diff === 0 ? "#16a34a" : diff > 0 ? "#2563eb" : "#dc2626" }}>
+                            {diff > 0 ? `+${diff}` : diff}
+                          </td>
+                          <td style={{ ...cell, color: "var(--erp-text-2)", fontSize: "0.8rem" }}>{item.nota ?? "—"}</td>
+                          <td style={cell}>
+                            {esEnviado && !isEditing && (
+                              <button
+                                type="button"
+                                onClick={() => { setEditItemId(item.id); setEditVal(String(item.stockCorregido ?? item.stockContado)); setEditNota(""); }}
+                                style={{ padding: "0.2rem 0.5rem", border: "1px solid var(--erp-border)", borderRadius: "4px", cursor: "pointer", fontSize: "0.775rem", background: "var(--erp-surface)", color: "var(--erp-text)", whiteSpace: "nowrap" }}
+                              >
+                                ✏️ Corregir
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-            {detalle.estado === "ENVIADO" && (
+            {/* Nota aclaratoria sobre diferencia */}
+            <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--erp-text-3)", fontStyle: "italic" }}>
+              💡 "Físico" = total de unidades contadas en el depósito. "Ajuste" = cuánto debe moverse el sistema (puede ser positivo si el sistema tenía menos de lo real, incluso negativo).
+            </p>
+
+            {accionError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#dc2626" }}>{accionError}</div>
+            )}
+
+            {/* Acciones BORRADOR: enviar al supervisor */}
+            {esBorrador && detalle.items.length > 0 && (
+              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", padding: "0.75rem", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "8px" }}>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--erp-text-2)", flex: 1 }}>
+                  Este conteo está en borrador. Una vez enviado, el supervisor podrá revisarlo y aprobarlo.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleAccion("ENVIAR")}
+                  disabled={procesando}
+                  style={{ padding: "0.5rem 1.25rem", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+                >
+                  📤 Enviar al supervisor
+                </button>
+              </div>
+            )}
+
+            {/* Acciones ENVIADO: aprobar/rechazar */}
+            {esEnviado && (
               <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap", padding: "0.75rem", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "8px" }}>
                 <div style={{ flex: 1, minWidth: "200px" }}>
                   <label style={{ fontSize: "0.8rem", color: "var(--erp-text-2)", display: "block", marginBottom: "0.35rem" }}>
@@ -384,7 +482,7 @@ export default function BandejaConteoClient() {
           Enviar por WhatsApp
         </a>
         <a
-          href={typeof window !== "undefined" ? `${window.location.origin}/inventario-disponible` : "/inventario-disponible"}
+          href="/inventario-disponible"
           target="_blank"
           rel="noopener noreferrer"
           style={{ fontSize: "0.8rem", color: "var(--erp-primary)", textDecoration: "underline" }}
@@ -435,9 +533,9 @@ export default function BandejaConteoClient() {
       <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid var(--erp-border)", paddingBottom: "0.5rem" }}>
         {(["PENDIENTES", "TODOS", "REALIZADOS"] as FiltroEstado[]).map((f) => {
           const labels: Record<FiltroEstado, string> = {
-            PENDIENTES: `⏳ Pendientes${lista.filter((c) => c.estado === "ENVIADO").length > 0 ? ` (${lista.filter((c) => c.estado === "ENVIADO").length})` : ""}`,
+            PENDIENTES: `⏳ Pendientes${cntPendientes > 0 ? ` (${cntPendientes})` : ""}`,
             TODOS: `📋 Todos (${lista.length})`,
-            REALIZADOS: `✅ Realizados`,
+            REALIZADOS: "✅ Realizados",
           };
           return (
             <button
@@ -514,7 +612,7 @@ export default function BandejaConteoClient() {
         <p style={{ color: "var(--erp-text-2)", fontSize: "0.875rem" }}>Cargando…</p>
       ) : listaFiltrada.length === 0 ? (
         <p style={{ color: "var(--erp-text-3)", fontSize: "0.875rem", padding: "1.5rem", textAlign: "center", borderRadius: "8px", border: "1px dashed var(--erp-border)" }}>
-          {filtro === "PENDIENTES" ? "No hay conteos pendientes de revisión 🎉" : "No hay conteos registrados"}
+          {filtro === "PENDIENTES" ? "No hay conteos pendientes 🎉" : "No hay conteos registrados"}
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
@@ -523,12 +621,7 @@ export default function BandejaConteoClient() {
               <tr style={{ background: "var(--erp-surface)" }}>
                 {modoSeleccion && (
                   <th style={{ ...cell, width: 36 }}>
-                    <input
-                      type="checkbox"
-                      checked={todosSeleccionados}
-                      onChange={toggleTodos}
-                      style={{ cursor: "pointer" }}
-                    />
+                    <input type="checkbox" checked={todosSeleccionados} onChange={toggleTodos} style={{ cursor: "pointer" }} />
                   </th>
                 )}
                 <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>#</th>
@@ -552,12 +645,7 @@ export default function BandejaConteoClient() {
                 >
                   {modoSeleccion && (
                     <td style={{ ...cell, width: 36 }} onClick={(e) => { e.stopPropagation(); toggleSeleccion(c.id); }}>
-                      <input
-                        type="checkbox"
-                        checked={seleccionados.has(c.id)}
-                        onChange={() => toggleSeleccion(c.id)}
-                        style={{ cursor: "pointer" }}
-                      />
+                      <input type="checkbox" checked={seleccionados.has(c.id)} onChange={() => toggleSeleccion(c.id)} style={{ cursor: "pointer" }} />
                     </td>
                   )}
                   <td style={cell}>#{c.id}</td>
@@ -572,7 +660,9 @@ export default function BandejaConteoClient() {
                   <td style={{ ...cell, color: "var(--erp-text-2)" }}>{c.aprobadoPor ?? "—"}</td>
                   <td style={cell}>
                     {!modoSeleccion && (
-                      <span style={{ fontSize: "0.775rem", color: "var(--erp-primary)" }}>Ver →</span>
+                      <span style={{ fontSize: "0.775rem", color: c.estado === "BORRADOR" ? "var(--erp-text-3)" : "var(--erp-primary)" }}>
+                        {c.estado === "BORRADOR" ? "Ver →" : "Revisar →"}
+                      </span>
                     )}
                   </td>
                 </tr>
