@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
               COALESCE(p.stock_minimo, 0) AS stock_minimo,
               COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
               COALESCE(p.alerta_outstock_desactivada, FALSE) AS alerta_outstock_desactivada,
-              p.alerta_outstock_motivo
+              p.alerta_outstock_motivo,
+              COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
        ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest) {
               p.categoria_id, c.nombre AS categoria_nombre,
               p.tipo_producto, p.stock_actual, p.variada_raciones,
               0 AS stock_minimo, 'unidad' AS unidad_medida,
-              FALSE AS alerta_outstock_desactivada, NULL AS alerta_outstock_motivo
+              FALSE AS alerta_outstock_desactivada, NULL AS alerta_outstock_motivo,
+              'PARA_LA_VENTA' AS grupo
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
        ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC`
@@ -87,6 +89,7 @@ export async function GET(request: NextRequest) {
     alertaOutstockDesactivada: Boolean(row.alerta_outstock_desactivada),
     alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,
+    grupo: row.grupo ?? "PARA_LA_VENTA",
     createdAt: row.created_at,
     extras: extrasResult.rows
       .filter((extra) => extra.producto_id === row.id)

@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent } from "react";
 
 type Config = {
+  nombre_empresa: string;
   imagen_retencion_dias: string;
   modo_entrega_default: string;
   wink_costo_default: string;
@@ -154,6 +155,7 @@ function TagList({
 
 export default function ConfiguracionClient() {
   const [config, setConfig] = useState<Config>({
+    nombre_empresa: "",
     imagen_retencion_dias: "7",
     modo_entrega_default: "DELIVERY",
     wink_costo_default: "3",
@@ -270,6 +272,19 @@ export default function ConfiguracionClient() {
 
       {/* General */}
       <SectionToggle id="general" title="General" icon="⚙️" open={open.general} onToggle={toggleSection}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Nombre de la Empresa</label>
+          <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>
+            Aparece en el encabezado de reportes compartidos por WhatsApp y en el reporte de inventario disponible.
+          </p>
+          <input
+            type="text"
+            style={{ ...inputSt, width: "100%", maxWidth: 320 }}
+            value={config.nombre_empresa}
+            onChange={(e) => setConfig({ ...config, nombre_empresa: e.target.value })}
+            placeholder="Ej: Hechizo Gourmet"
+          />
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
           <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Modo de entrega por defecto</label>
           <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>Valor inicial al registrar una venta nueva.</p>

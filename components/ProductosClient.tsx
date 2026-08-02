@@ -2,8 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useState, FormEvent } from "react";
 import Paginador from "@/components/Paginador";
-import type { Categoria, Producto, TipoProducto } from "@/lib/types";
-import { TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
+import type { Categoria, GrupoProducto, Producto, TipoProducto } from "@/lib/types";
+import { GRUPOS_PRODUCTO, GRUPO_PRODUCTO_LABELS, TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
 import ProductoExtrasPanel from "@/components/ProductoExtrasPanel";
 import ProductoComponentesPanel from "@/components/ProductoComponentesPanel";
 
@@ -21,6 +21,7 @@ const EMPTY_FORM = {
   unidadMedida: "unidad",
   alertaOutstockDesactivada: false,
   alertaOutstockMotivo: "",
+  grupo: "PARA_LA_VENTA" as GrupoProducto,
 };
 
 type ProductosKpis = {
@@ -128,6 +129,7 @@ export default function ProductosClient() {
       unidadMedida: producto.unidadMedida ?? "unidad",
       alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
       alertaOutstockMotivo: producto.alertaOutstockMotivo ?? "",
+      grupo: producto.grupo ?? "PARA_LA_VENTA",
     });
     setNuevaCategoriaNombre("");
     setShowForm(true);
@@ -185,6 +187,7 @@ export default function ProductosClient() {
         unidadMedida: form.unidadMedida.trim() || "unidad",
         alertaOutstockDesactivada: form.alertaOutstockDesactivada,
         alertaOutstockMotivo: form.alertaOutstockDesactivada ? (form.alertaOutstockMotivo.trim() || null) : null,
+        grupo: form.grupo,
       };
 
       const res = await fetch(
@@ -440,6 +443,19 @@ export default function ProductosClient() {
                 ))}
               </select>
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Grupo</label>
+              <select
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                value={form.grupo}
+                onChange={(e) => setForm({ ...form, grupo: e.target.value as GrupoProducto })}
+              >
+                {GRUPOS_PRODUCTO.map((g) => (
+                  <option key={g} value={g}>{GRUPO_PRODUCTO_LABELS[g]}</option>
+                ))}
+              </select>
+            </div>
+
             {form.tipoProducto === "VARIADA" && (
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Raciones a elegir</label>
@@ -617,6 +633,7 @@ export default function ProductosClient() {
                 <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Nombre</th>
                 <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Categoría</th>
                 <th className="prod-col-tipo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Tipo</th>
+                <th className="prod-col-grupo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Grupo</th>
                 <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Costo</th>
                 <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Precio</th>
                 <th className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Margen</th>
@@ -653,6 +670,15 @@ export default function ProductosClient() {
                       </td>
                       <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.categoriaNombre ?? "-"}</td>
                       <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
+                      <td className="prod-col-grupo" style={{ padding: "8px 12px" }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 99,
+                          background: producto.grupo === "PARA_LA_VENTA" ? "#dcfce7" : producto.grupo === "MATERIA_PRIMA" ? "#fef9c3" : "#ede9fe",
+                          color: producto.grupo === "PARA_LA_VENTA" ? "#166534" : producto.grupo === "MATERIA_PRIMA" ? "#854d0e" : "#5b21b6",
+                        }}>
+                          {GRUPO_PRODUCTO_LABELS[producto.grupo ?? "PARA_LA_VENTA"]}
+                        </span>
+                      </td>
                       <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toFixed(2)}</td>
                       <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
                       <td className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>

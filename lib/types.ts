@@ -116,6 +116,14 @@ export type ProductoExtra = {
   precioAdicional: number;
 };
 
+export const GRUPOS_PRODUCTO = ["PARA_LA_VENTA", "MATERIA_PRIMA", "SERVICIO"] as const;
+export type GrupoProducto = (typeof GRUPOS_PRODUCTO)[number];
+export const GRUPO_PRODUCTO_LABELS: Record<GrupoProducto, string> = {
+  PARA_LA_VENTA: "Para la Venta",
+  MATERIA_PRIMA:  "Materia Prima",
+  SERVICIO:       "Servicio",
+};
+
 export const TIPOS_PRODUCTO = ["NORMAL", "COMBO", "VARIADA"] as const;
 export type TipoProducto = (typeof TIPOS_PRODUCTO)[number];
 
@@ -169,6 +177,7 @@ export type Producto = {
   alertaOutstockDesactivada: boolean;
   alertaOutstockMotivo: string | null;
   variadaRaciones: number;
+  grupo: GrupoProducto;
   createdAt: string;
   extras: ProductoExtra[];
   componentes: ProductoComponente[];
