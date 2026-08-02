@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { PermisosUsuario, Rol } from "@/lib/types";
 import CuentasPorCobrarAlerta from "@/components/CuentasPorCobrarAlerta";
 import CasheaAlerta from "@/components/CasheaAlerta";
+import ConteoAlerta from "@/components/ConteoAlerta";
 
 type Props = { rol: Rol | null; permisos: PermisosUsuario | null };
 
@@ -15,7 +16,7 @@ type NavItem = {
   icon: string;
   permiso?: keyof PermisosUsuario;
   rolReq?: Rol;
-  badge?: "cxc" | "cashea";
+  badge?: "cxc" | "cashea" | "conteo";
 };
 
 type NavGroup = { label: string; items: NavItem[] };
@@ -46,8 +47,9 @@ const GRUPOS: NavGroup[] = [
     label: "Inventario",
     items: [
       { href: "/productos",   icon: "📦", label: "Productos",       permiso: "productos" },
-      { href: "/inventario",  icon: "🚦", label: "Dashboard Stock", permiso: "productos" },
-      { href: "/inventarios", icon: "📊", label: "Stock & Costos",  permiso: "productos" },
+      { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",   permiso: "productos" },
+      { href: "/inventarios",        icon: "📊", label: "Stock & Costos",     permiso: "productos" },
+      { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",    permiso: "autorizarConteo", badge: "conteo" },
     ],
   },
   {
@@ -151,6 +153,7 @@ export default function SidebarNav({ rol, permisos }: Props) {
                     <span className="flex-1 leading-tight">{item.label}</span>
                     {item.badge === "cxc" && puedeVerReportes && <CuentasPorCobrarAlerta />}
                     {item.badge === "cashea" && puedeVerReportes && <CasheaAlerta />}
+                    {item.badge === "conteo" && <ConteoAlerta />}
                   </Link>
                 );
               })}

@@ -5,10 +5,10 @@ import type { Conteo, ConteoItem, EstadoConteo } from "@/lib/types";
 import { ESTADO_CONTEO_LABELS } from "@/lib/types";
 
 const ESTADO_STYLE: Record<EstadoConteo, React.CSSProperties> = {
-  BORRADOR: { background: "#f3f4f6", color: "#374151" },
-  ENVIADO:  { background: "#fef9c3", color: "#854d0e" },
-  APROBADO: { background: "#dcfce7", color: "#166534" },
-  RECHAZADO:{ background: "#fee2e2", color: "#991b1b" },
+  BORRADOR:  { background: "#f3f4f6", color: "#374151" },
+  ENVIADO:   { background: "#fef9c3", color: "#854d0e" },
+  APROBADO:  { background: "#dcfce7", color: "#166534" },
+  RECHAZADO: { background: "#fee2e2", color: "#991b1b" },
 };
 
 const cell: React.CSSProperties = {
@@ -17,6 +17,8 @@ const cell: React.CSSProperties = {
   fontSize: "0.875rem",
   color: "var(--erp-text)",
 };
+
+type FiltroEstado = "PENDIENTES" | "TODOS" | "REALIZADOS";
 
 type ConteoResumen = {
   id: number;
@@ -43,10 +45,23 @@ export default function BandejaConteoClient() {
   const [editNota, setEditNota] = useState("");
   const [correcting, setCorrecting] = useState(false);
 
+  // Filtro
+  const [filtro, setFiltro] = useState<FiltroEstado>("PENDIENTES");
+
+  // Selección para purga
+  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
+  const [modoSeleccion, setModoSeleccion] = useState(false);
+  const [desdeDate, setDesdeDate] = useState("");
+  const [hastaDate, setHastaDate] = useState("");
+  const [purgando, setPurgando] = useState(false);
+  const [purgeError, setPurgeError] = useState<string | null>(null);
+
   const loadLista = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/conteo/conteos");
-    if (res.ok) setLista(await res.json());
+    try {
+      const res = await fetch("/api/conteo/conteos");
+      if (res.ok) setLista(await res.json());
+    } catch { /* silent */ }
     setLoading(false);
   }, []);
 
@@ -54,8 +69,10 @@ export default function BandejaConteoClient() {
 
   const loadDetalle = useCallback(async (id: number) => {
     setDetalleLoading(true);
-    const res = await fetch(`/api/conteo/conteos/${id}`);
-    if (res.ok) setDetalle(await res.json());
+    try {
+      const res = await fetch(`/api/conteo/conteos/${id}`);
+      if (res.ok) setDetalle(await res.json());
+    } catch { /* silent */ }
     setDetalleLoading(false);
   }, []);
 
@@ -63,6 +80,20 @@ export default function BandejaConteoClient() {
     if (detalleId != null) loadDetalle(detalleId);
     else setDetalle(null);
   }, [detalleId, loadDetalle]);
+
+  // Reset selección cuando cambia el filtro
+  useEffect(() => {
+    setSeleccionados(new Set());
+    setDesdeDate("");
+    setHastaDate("");
+    setPurgeError(null);
+  }, [filtro]);
+
+  const listaFiltrada = lista.filter((c) => {
+    if (filtro === "PENDIENTES") return c.estado === "ENVIADO";
+    if (filtro === "REALIZADOS") return c.estado === "APROBADO" || c.estado === "RECHAZADO";
+    return true;
+  });
 
   async function handleAccion(accion: "APROBAR" | "RECHAZAR") {
     if (!detalleId) return;
@@ -100,6 +131,58 @@ export default function BandejaConteoClient() {
     await loadDetalle(detalleId);
   }
 
+  function toggleSeleccion(id: number) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTodos() {
+    if (seleccionados.size === listaFiltrada.length) {
+      setSeleccionados(new Set());
+    } else {
+      setSeleccionados(new Set(listaFiltrada.map((c) => c.id)));
+    }
+  }
+
+  async function handlePurgar() {
+    const porIds = seleccionados.size > 0;
+    const porFecha = desdeDate || hastaDate;
+    if (!porIds && !porFecha) return;
+
+    const confirmMsg = porIds
+      ? `¿Eliminar ${seleccionados.size} conteo(s) seleccionado(s)? Esta acción es irreversible.`
+      : `¿Eliminar conteos del rango de fechas seleccionado? Esta acción es irreversible.`;
+    if (!confirm(confirmMsg)) return;
+
+    setPurgando(true);
+    setPurgeError(null);
+    try {
+      const body = porIds
+        ? { ids: [...seleccionados] }
+        : { desde: desdeDate || undefined, hasta: hastaDate || undefined };
+
+      const res = await fetch("/api/conteo/conteos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al purgar");
+      setSeleccionados(new Set());
+      setDesdeDate("");
+      setHastaDate("");
+      await loadLista();
+    } catch (err) {
+      setPurgeError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setPurgando(false);
+    }
+  }
+
   function formatDate(dt: string) {
     return new Date(dt).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" });
   }
@@ -108,7 +191,7 @@ export default function BandejaConteoClient() {
   if (detalleId != null) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
           <button
             type="button"
             onClick={() => setDetalleId(null)}
@@ -136,7 +219,6 @@ export default function BandejaConteoClient() {
               {detalle.nota && <span>Nota: <strong>{detalle.nota}</strong></span>}
             </div>
 
-            {/* Tabla de items */}
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                 <thead>
@@ -207,7 +289,6 @@ export default function BandejaConteoClient() {
               </table>
             </div>
 
-            {/* Acciones supervisor */}
             {detalle.estado === "ENVIADO" && (
               <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap", padding: "0.75rem", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: "8px" }}>
                 <div style={{ flex: 1, minWidth: "200px" }}>
@@ -226,17 +307,17 @@ export default function BandejaConteoClient() {
                   type="button"
                   onClick={() => handleAccion("RECHAZAR")}
                   disabled={procesando}
-                  style={{ padding: "0.5rem 1rem", background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+                  style={{ padding: "0.5rem 1.25rem", background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
                 >
-                  ✕ Rechazar
+                  ✕ Rechazar (recontar)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleAccion("APROBAR")}
                   disabled={procesando}
-                  style={{ padding: "0.5rem 1rem", background: "#dcfce7", color: "#166534", border: "1px solid #86efac", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+                  style={{ padding: "0.5rem 1.25rem", background: "#16a34a", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
                 >
-                  ✓ Aprobar y aplicar ajustes
+                  ✓ Aprobar y ajustar stock
                 </button>
               </div>
             )}
@@ -255,36 +336,163 @@ export default function BandejaConteoClient() {
   }
 
   // ── Vista lista ──
+  const todosSeleccionados = listaFiltrada.length > 0 && seleccionados.size === listaFiltrada.length;
+  const haySeleccion = seleccionados.size > 0 || desdeDate || hastaDate;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "var(--erp-text)" }}>
-          Conteos recibidos
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "var(--erp-text)" }}>
+          📋 Bandeja de Conteos de Inventario
         </h3>
-        <button type="button" onClick={loadLista} style={{ fontSize: "0.8rem", color: "var(--erp-text-2)", background: "none", border: "1px solid var(--erp-border)", borderRadius: "6px", padding: "0.3rem 0.6rem", cursor: "pointer" }}>
-          ↻ Actualizar
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => { setModoSeleccion((v) => !v); setSeleccionados(new Set()); setDesdeDate(""); setHastaDate(""); setPurgeError(null); }}
+            style={{ fontSize: "0.8rem", color: modoSeleccion ? "#dc2626" : "var(--erp-text-2)", background: modoSeleccion ? "#fee2e2" : "none", border: `1px solid ${modoSeleccion ? "#fca5a5" : "var(--erp-border)"}`, borderRadius: "6px", padding: "0.3rem 0.7rem", cursor: "pointer" }}
+          >
+            {modoSeleccion ? "✕ Cancelar" : "🗑️ Purgar"}
+          </button>
+          <button
+            type="button"
+            onClick={loadLista}
+            style={{ fontSize: "0.8rem", color: "var(--erp-text-2)", background: "none", border: "1px solid var(--erp-border)", borderRadius: "6px", padding: "0.3rem 0.6rem", cursor: "pointer" }}
+          >
+            ↻ Actualizar
+          </button>
+        </div>
       </div>
+
+      {/* Filtros de estado */}
+      <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid var(--erp-border)", paddingBottom: "0.5rem" }}>
+        {(["PENDIENTES", "TODOS", "REALIZADOS"] as FiltroEstado[]).map((f) => {
+          const labels: Record<FiltroEstado, string> = {
+            PENDIENTES: `⏳ Pendientes${lista.filter((c) => c.estado === "ENVIADO").length > 0 ? ` (${lista.filter((c) => c.estado === "ENVIADO").length})` : ""}`,
+            TODOS: `📋 Todos (${lista.length})`,
+            REALIZADOS: `✅ Realizados`,
+          };
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFiltro(f)}
+              style={{
+                padding: "0.3rem 0.85rem",
+                fontSize: "0.8rem",
+                fontWeight: filtro === f ? 700 : 400,
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                background: filtro === f ? "var(--erp-primary)" : "transparent",
+                color: filtro === f ? "#fff" : "var(--erp-text-2)",
+              }}
+            >
+              {labels[f]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Panel purga por rango de fechas */}
+      {modoSeleccion && (
+        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "0.75rem 1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <p style={{ margin: 0, fontSize: "0.8rem", fontWeight: 600, color: "#7c2d12" }}>
+            🗑️ Modo purga — Selecciona filas en la tabla o elige un rango de fechas
+          </p>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#9a3412" }}>Desde</label>
+              <input
+                type="date"
+                value={desdeDate}
+                onChange={(e) => { setDesdeDate(e.target.value); setSeleccionados(new Set()); }}
+                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#9a3412" }}>Hasta</label>
+              <input
+                type="date"
+                value={hastaDate}
+                onChange={(e) => { setHastaDate(e.target.value); setSeleccionados(new Set()); }}
+                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handlePurgar}
+              disabled={purgando || !haySeleccion}
+              style={{
+                background: haySeleccion ? "#dc2626" : "#e5e7eb",
+                color: haySeleccion ? "#fff" : "#9ca3af",
+                border: "none",
+                borderRadius: "6px",
+                padding: "0.4rem 1rem",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                cursor: haySeleccion ? "pointer" : "not-allowed",
+              }}
+            >
+              {purgando ? "Eliminando…" : seleccionados.size > 0 ? `Eliminar ${seleccionados.size} seleccionado(s)` : "Eliminar por rango"}
+            </button>
+          </div>
+          {purgeError && (
+            <p style={{ margin: 0, fontSize: "0.8rem", color: "#dc2626" }}>{purgeError}</p>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <p style={{ color: "var(--erp-text-2)", fontSize: "0.875rem" }}>Cargando…</p>
-      ) : lista.length === 0 ? (
+      ) : listaFiltrada.length === 0 ? (
         <p style={{ color: "var(--erp-text-3)", fontSize: "0.875rem", padding: "1.5rem", textAlign: "center", borderRadius: "8px", border: "1px dashed var(--erp-border)" }}>
-          No hay conteos registrados
+          {filtro === "PENDIENTES" ? "No hay conteos pendientes de revisión 🎉" : "No hay conteos registrados"}
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "var(--erp-surface)" }}>
-                {["#", "Contador", "Estado", "Items", "Fecha", ""].map((h) => (
-                  <th key={h} style={{ ...cell, fontWeight: 600, textAlign: "left" }}>{h}</th>
-                ))}
+                {modoSeleccion && (
+                  <th style={{ ...cell, width: 36 }}>
+                    <input
+                      type="checkbox"
+                      checked={todosSeleccionados}
+                      onChange={toggleTodos}
+                      style={{ cursor: "pointer" }}
+                    />
+                  </th>
+                )}
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>#</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Contador</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Estado</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "center" }}>Items</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Fecha</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Aprobado por</th>
+                <th style={{ ...cell }}></th>
               </tr>
             </thead>
             <tbody>
-              {lista.map((c) => (
-                <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => setDetalleId(c.id)}>
+              {listaFiltrada.map((c) => (
+                <tr
+                  key={c.id}
+                  style={{
+                    cursor: modoSeleccion ? "default" : "pointer",
+                    background: seleccionados.has(c.id) ? "#fef3c7" : undefined,
+                  }}
+                  onClick={() => modoSeleccion ? toggleSeleccion(c.id) : setDetalleId(c.id)}
+                >
+                  {modoSeleccion && (
+                    <td style={{ ...cell, width: 36 }} onClick={(e) => { e.stopPropagation(); toggleSeleccion(c.id); }}>
+                      <input
+                        type="checkbox"
+                        checked={seleccionados.has(c.id)}
+                        onChange={() => toggleSeleccion(c.id)}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </td>
+                  )}
                   <td style={cell}>#{c.id}</td>
                   <td style={cell}>{c.conteoUsuarioNombre ?? "—"}</td>
                   <td style={cell}>
@@ -294,8 +502,11 @@ export default function BandejaConteoClient() {
                   </td>
                   <td style={{ ...cell, textAlign: "center" }}>{c.totalItems}</td>
                   <td style={{ ...cell, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{formatDate(c.createdAt)}</td>
+                  <td style={{ ...cell, color: "var(--erp-text-2)" }}>{c.aprobadoPor ?? "—"}</td>
                   <td style={cell}>
-                    <span style={{ fontSize: "0.775rem", color: "var(--erp-primary)" }}>Ver →</span>
+                    {!modoSeleccion && (
+                      <span style={{ fontSize: "0.775rem", color: "var(--erp-primary)" }}>Ver →</span>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -6,11 +6,13 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
 import PerfilMenu from "@/components/PerfilMenu";
+import ConteoAlertaShell from "@/components/ConteoAlertaShell";
 
 const MODULE_NAMES: Record<string, string> = {
   "/ventas":             "Punto de Venta",
   "/pedidos-pendientes": "Pedidos Pendientes",
   "/productos":          "Inventario · Productos",
+  "/inventario/conteos": "Inventario · Bandeja Conteos",
   "/inventarios":        "Inventario · Stock",
   "/compras":            "Compras",
   "/mrp":                "MRP · Planificación",
@@ -243,6 +245,9 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
           </button>
         </>
       )}
+
+      {/* Conteos pendientes */}
+      {sesionActiva && <ConteoAlertaShell />}
 
       {/* Profile */}
       {sesionActiva && <PerfilMenu />}
