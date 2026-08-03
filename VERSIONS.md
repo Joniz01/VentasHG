@@ -5,6 +5,56 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.4 — 2026-08-03
+
+### Resumen
+Módulo de Empaque & Rendimiento: los productos pueden declarar desde qué empaque (producto padre) se pueden obtener y cuántas unidades genera al abrirlo. En ventas, al seleccionar un producto sin stock con empaques disponibles, aparece un modal de apertura automática que ejecuta la transacción atómica (descuenta empaque, suma unidades, registra movimiento APERTURA_EMPAQUE). Mejoras de UX en Productos: KPI cards se ocultan al abrir el formulario o al expandir paneles de extras/componentes.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/052_producto_empaques.sql` | Tabla `producto_empaques` (unidad_id, empaque_id, rendimiento, prioridad) |
+| `app/api/productos/[id]/empaques/route.ts` | GET lista de empaques + POST upsert de relación |
+| `app/api/productos/[id]/empaques/[empaqueId]/route.ts` | DELETE de relación empaque |
+| `app/api/inventario/abrir-empaque/route.ts` | POST transacción atómica: descuenta empaque, suma unidades, registra 2 movimientos APERTURA_EMPAQUE |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `lib/types.ts` | Agrega `EmpaqueProducto` type; añade campo `empaques: EmpaqueProducto[]` a `Producto` |
+| `app/api/productos/route.ts` | Batch query de empaques con fallback pre-migración; incluye `empaques[]` en cada producto del GET |
+| `app/api/productos/[id]/route.ts` | Respuesta PUT incluye campo `empaques: []` |
+| `app/api/productos/route.ts` (POST) | Respuesta POST incluye campo `empaques: []` |
+| `components/ProductosClient.tsx` | Sección "Empaque & Rendimiento" en formulario de productos NORMAL: hasta 3 empaques con selector, rendimiento y prioridad; vista previa inline; KPI cards se ocultan al abrir formulario (`showForm`) o al expandir paneles (`expandedId`) |
+| `components/VentasClient.tsx` | Al seleccionar producto con stock ≤ 0 y empaques disponibles: modal de apertura con resumen de impacto; si hay múltiples empaques muestra selector; al confirmar llama `/api/inventario/abrir-empaque` y actualiza stocks localmente sin recargar |
+
+### Migración SQL (ejecutar en Neon SQL Editor)
+
+**052_producto_empaques.sql**
+```sql
+CREATE TABLE IF NOT EXISTS producto_empaques (
+  id           SERIAL PRIMARY KEY,
+  unidad_id    INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  empaque_id   INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  rendimiento  INTEGER NOT NULL CHECK (rendimiento > 0),
+  prioridad    INTEGER NOT NULL DEFAULT 1,
+  activo       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (unidad_id, empaque_id)
+);
+```
+
+### Notas técnicas
+- La relación se configura desde el producto hijo (la ración/unidad de venta), no desde el empaque. El empaque no requiere configuración adicional.
+- La apertura es atómica: si falla cualquier paso, se hace ROLLBACK completo.
+- Los movimientos se registran con `origen = 'APERTURA_EMPAQUE'` para trazabilidad.
+- Fallback silencioso en el GET de productos si la migración aún no se ha aplicado (`empaques: []`).
+- KPI cards en Productos se ocultan automáticamente al abrir formulario o expandir paneles de extras/componentes; reaparecen al cerrar.
+
+### Sin nuevas variables de entorno
+
+---
+
 ## v3.3 — 2026-08-02
 
 ### Resumen
