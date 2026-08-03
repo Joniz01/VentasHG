@@ -336,8 +336,8 @@ export default function ProductosClient() {
         </div>
       </div>
 
-      {/* KPI Cards — siempre visibles */}
-      <div className="prod-kpi-grid">
+      {/* KPI Cards — se ocultan cuando el formulario está abierto */}
+      {!showForm && <div className="prod-kpi-grid">
         {kpiCards.map((card) => (
           <div
             key={card.label}
@@ -356,7 +356,7 @@ export default function ProductosClient() {
             <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{card.sub}</span>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Formulario Crear/Editar — colapsable */}
       {showForm && (
