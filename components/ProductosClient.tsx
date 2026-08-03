@@ -224,19 +224,25 @@ export default function ProductosClient() {
 
       // Guardar empaques configurados
       const productoId = saved.id as number;
+      const empaqueErrors: string[] = [];
       await Promise.all(
         formEmpaques.map(async (row) => {
           if (row.toDelete && row.id) {
-            await fetch(`/api/productos/${productoId}/empaques/${row.id}`, { method: "DELETE" });
+            const r = await fetch(`/api/productos/${productoId}/empaques/${row.id}`, { method: "DELETE" });
+            if (!r.ok) empaqueErrors.push(`Error eliminando empaque: ${(await r.json().catch(() => ({}))).error ?? r.status}`);
           } else if (!row.toDelete && row.empaqueId) {
-            await fetch(`/api/productos/${productoId}/empaques`, {
+            const r = await fetch(`/api/productos/${productoId}/empaques`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ empaqueId: Number(row.empaqueId), rendimiento: Number(row.rendimiento) || 1, prioridad: row.prioridad }),
             });
+            if (!r.ok) empaqueErrors.push(`Error guardando empaque: ${(await r.json().catch(() => ({}))).error ?? r.status}`);
           }
         })
       );
+      if (empaqueErrors.length > 0) {
+        throw new Error(empaqueErrors.join(" | "));
+      }
 
       await loadProductos();
       await loadKpis();
