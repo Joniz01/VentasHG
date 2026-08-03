@@ -4,7 +4,7 @@ import { FormEvent, useRef, useState } from "react";
 import Paginador from "@/components/Paginador";
 import { useSearchParams } from "next/navigation";
 import type { ReporteVentas } from "@/lib/types";
-import { METODO_PAGO_LABELS } from "@/lib/types";
+import { METODO_PAGO_LABELS, METODOS_PAGO } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
 
 function toIsoDate(date: Date) {
@@ -44,6 +44,7 @@ export default function ReportesClient() {
   const [imagenFullscreen, setImagenFullscreen] = useState(false);
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [resumenHoy, setResumenHoy] = useState<{ ventaHoy: number; ingresos: number } | null>(null);
+  const [metodosPago, setMetodosPago] = useState<string[]>([]);
   const [paginaCliente, setPaginaCliente] = useState(1);
   const [porPaginaCliente, setPorPaginaCliente] = useState(10);
   const [paginaProducto, setPaginaProducto] = useState(1);
@@ -323,6 +324,42 @@ export default function ReportesClient() {
             Mostrar ventas pendientes por pagar
           </label>
         </form>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-zinc-600 uppercase tracking-wide">Filtrar por forma de pago</span>
+          <div className="flex flex-wrap gap-2">
+            {METODOS_PAGO.map((m) => {
+              const activo = metodosPago.includes(m);
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() =>
+                    setMetodosPago((prev) =>
+                      activo ? prev.filter((x) => x !== m) : [...prev, m]
+                    )
+                  }
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    activo
+                      ? "border-zinc-800 bg-zinc-800 text-white"
+                      : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-500 hover:text-zinc-800"
+                  }`}
+                >
+                  {METODO_PAGO_LABELS[m]}
+                </button>
+              );
+            })}
+            {metodosPago.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setMetodosPago([])}
+                className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-400 hover:text-zinc-700"
+              >
+                Limpiar filtro
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -494,24 +531,33 @@ export default function ReportesClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {reporte.porFormaPago.map((fp) => (
-                  <tr key={fp.metodo}>
-                    <td className="px-4 py-2 font-medium">{METODO_PAGO_LABELS[fp.metodo]}</td>
-                    <td className="px-4 py-2 text-right">${fp.totalUsd.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-right">Bs {fp.totalBs.toFixed(2)}</td>
-                  </tr>
-                ))}
+                {reporte.porFormaPago
+                  .filter((fp) => metodosPago.length === 0 || metodosPago.includes(fp.metodo))
+                  .map((fp) => (
+                    <tr key={fp.metodo}>
+                      <td className="px-4 py-2 font-medium">{METODO_PAGO_LABELS[fp.metodo]}</td>
+                      <td className="px-4 py-2 text-right">${fp.totalUsd.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right">Bs {fp.totalBs.toFixed(2)}</td>
+                    </tr>
+                  ))}
               </tbody>
               <tfoot className="border-t border-zinc-200 bg-zinc-50">
-                <tr>
-                  <td className="px-4 py-2 font-semibold">Total</td>
-                  <td className="px-4 py-2 text-right font-semibold">
-                    ${reporte.porFormaPago.reduce((acc, fp) => acc + fp.totalUsd, 0).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-right font-semibold">
-                    Bs {reporte.porFormaPago.reduce((acc, fp) => acc + fp.totalBs, 0).toFixed(2)}
-                  </td>
-                </tr>
+                {(() => {
+                  const filtered = reporte.porFormaPago.filter(
+                    (fp) => metodosPago.length === 0 || metodosPago.includes(fp.metodo)
+                  );
+                  return (
+                    <tr>
+                      <td className="px-4 py-2 font-semibold">Total{metodosPago.length > 0 ? " (filtrado)" : ""}</td>
+                      <td className="px-4 py-2 text-right font-semibold">
+                        ${filtered.reduce((acc, fp) => acc + fp.totalUsd, 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold">
+                        Bs {filtered.reduce((acc, fp) => acc + fp.totalBs, 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })()}
               </tfoot>
             </table>
           </section>
