@@ -336,8 +336,8 @@ export default function ProductosClient() {
         </div>
       </div>
 
-      {/* KPI Cards — se ocultan cuando el formulario está abierto */}
-      {!showForm && <div className="prod-kpi-grid">
+      {/* KPI Cards — se ocultan cuando el formulario está abierto o hay un panel de producto expandido */}
+      {!showForm && !expandedId && <div className="prod-kpi-grid">
         {kpiCards.map((card) => (
           <div
             key={card.label}
@@ -358,7 +358,7 @@ export default function ProductosClient() {
         ))}
       </div>}
 
-      {/* Formulario Crear/Editar — colapsable */}
+      {/* Formulario Crear / Editar — colapsable */}
       {showForm && (
         <div
           style={{
