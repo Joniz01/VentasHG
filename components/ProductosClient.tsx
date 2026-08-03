@@ -2,8 +2,16 @@
 
 import { Fragment, useEffect, useMemo, useState, FormEvent } from "react";
 import Paginador from "@/components/Paginador";
-import type { Categoria, GrupoProducto, Producto, TipoProducto } from "@/lib/types";
+import type { Categoria, EmpaqueProducto, GrupoProducto, Producto, TipoProducto } from "@/lib/types";
 import { GRUPOS_PRODUCTO, GRUPO_PRODUCTO_LABELS, TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
+
+type EmpaqueFormRow = {
+  id?: number;
+  empaqueId: string;
+  rendimiento: string;
+  prioridad: number;
+  toDelete?: boolean;
+};
 import ProductoExtrasPanel from "@/components/ProductoExtrasPanel";
 import ProductoComponentesPanel from "@/components/ProductoComponentesPanel";
 
@@ -54,6 +62,7 @@ export default function ProductosClient() {
   const [porPagina, setPorPagina] = useState(15);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
+  const [formEmpaques, setFormEmpaques] = useState<EmpaqueFormRow[]>([]);
 
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
@@ -132,12 +141,19 @@ export default function ProductosClient() {
       grupo: producto.grupo ?? "PARA_LA_VENTA",
     });
     setNuevaCategoriaNombre("");
+    setFormEmpaques((producto.empaques ?? []).map((e: EmpaqueProducto) => ({
+      id: e.id,
+      empaqueId: String(e.empaqueId),
+      rendimiento: String(e.rendimiento),
+      prioridad: e.prioridad,
+    })));
     setShowForm(true);
   }
 
   function cancelEdit() {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setFormEmpaques([]);
     setNuevaCategoriaNombre("");
     setNuevaCategoriaOrden("99");
     setShowForm(false);
@@ -205,6 +221,23 @@ export default function ProductosClient() {
       }
 
       const saved = await res.json();
+
+      // Guardar empaques configurados
+      const productoId = saved.id as number;
+      await Promise.all(
+        formEmpaques.map(async (row) => {
+          if (row.toDelete && row.id) {
+            await fetch(`/api/productos/${productoId}/empaques/${row.id}`, { method: "DELETE" });
+          } else if (!row.toDelete && row.empaqueId) {
+            await fetch(`/api/productos/${productoId}/empaques`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ empaqueId: Number(row.empaqueId), rendimiento: Number(row.rendimiento) || 1, prioridad: row.prioridad }),
+            });
+          }
+        })
+      );
+
       await loadProductos();
       await loadKpis();
 
@@ -523,6 +556,85 @@ export default function ProductosClient() {
                 </div>
               </div>
             )}
+            {/* ── Empaque & Rendimiento ── */}
+            {form.tipoProducto === "NORMAL" && (
+              <div className="prod-form-full">
+                <div style={{ border: "2px dashed var(--erp-accent)", borderRadius: 8, padding: "12px 14px", background: "color-mix(in srgb, var(--erp-accent) 4%, var(--erp-surface))" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 16 }}>📦</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-accent)" }}>Empaque &amp; Rendimiento</span>
+                    <span style={{ fontSize: 10, fontWeight: 800, background: "var(--erp-accent)", color: "#fff", borderRadius: 999, padding: "1px 8px", letterSpacing: ".05em" }}>NUEVO</span>
+                    <span style={{ fontSize: 11.5, color: "var(--erp-text-3)", marginLeft: 4 }}>Indica desde qué empaque se puede obtener este producto cuando no haya stock</span>
+                  </div>
+
+                  {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
+                    const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
+                    return (
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
+                          <select
+                            style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }}
+                            value={row.empaqueId}
+                            onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, empaqueId: e.target.value } : r))}
+                          >
+                            <option value="">— seleccionar —</option>
+                            {productos.filter(p => p.activo && p.id !== (editingId ?? 0)).map(p => (
+                              <option key={p.id} value={String(p.id)}>{p.nombre} (stock: {p.stockActual})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Rinde (uds)</div>
+                          <input
+                            type="number" min="1"
+                            style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }}
+                            value={row.rendimiento}
+                            onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, rendimiento: e.target.value } : r))}
+                            placeholder="ej. 3"
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Prioridad</div>
+                          <select
+                            style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }}
+                            value={row.prioridad}
+                            onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, prioridad: Number(e.target.value) } : r))}
+                          >
+                            <option value={1}>1° Principal</option>
+                            <option value={2}>2° Alternativo</option>
+                            <option value={3}>3° Reserva</option>
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, toDelete: true } : r))}
+                          style={{ background: "var(--erp-surface)", border: "1px solid #fca5a5", borderRadius: 6, padding: "7px 10px", color: "#dc2626", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+                        >✕ Quitar</button>
+                        {empaqueProd && row.rendimiento && (
+                          <div style={{ gridColumn: "1 / -1", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 12px", fontSize: 12, color: "var(--erp-text-2)", display: "flex", gap: 8, alignItems: "center" }}>
+                            <span>📦 <strong>{empaqueProd.nombre}</strong> (stock: {empaqueProd.stockActual})</span>
+                            <span style={{ color: "var(--erp-text-3)" }}>→</span>
+                            <span>abriendo 1 se generan <strong style={{ color: "var(--erp-primary)" }}>{row.rendimiento} {form.unidadMedida || "unidad"}(es)</strong></span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {formEmpaques.filter(r => !r.toDelete).length < 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setFormEmpaques(prev => [...prev, { empaqueId: "", rendimiento: "", prioridad: formEmpaques.filter(r => !r.toDelete).length + 1 }])}
+                      style={{ marginTop: 4, background: "transparent", border: "1px dashed var(--erp-accent)", borderRadius: 6, padding: "5px 14px", fontSize: 12, fontWeight: 600, color: "var(--erp-accent)", cursor: "pointer" }}
+                    >
+                      + Agregar empaque
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="prod-form-full" style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4 }}>
               <button
                 type="submit"

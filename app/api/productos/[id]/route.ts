@@ -131,6 +131,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       componenteNombre: componente.nombre,
       cantidad: Number(componente.cantidad),
     })),
+    empaques: [],
   });
 }
 

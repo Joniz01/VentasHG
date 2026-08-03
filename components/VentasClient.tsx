@@ -10,6 +10,7 @@ import {
   TIPOS_DELIVERY,
   TIPO_DELIVERY_LABELS,
   CLIENTES_CONFIG_DEFAULT,
+  type EmpaqueProducto,
   type MetodoPago,
   type ModoEntrega,
   type TipoDelivery,
@@ -119,6 +120,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
+  const [modalEmpaque, setModalEmpaque] = useState<{
+    itemIndex: number;
+    producto: Producto;
+    empaques: EmpaqueProducto[];
+    seleccionado: number | null;
+    abriendo: boolean;
+    error: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -578,6 +587,32 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
   function removeItem(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleAbrirEmpaque() {
+    if (!modalEmpaque || !modalEmpaque.seleccionado) return;
+    setModalEmpaque((prev) => prev ? { ...prev, abriendo: true, error: null } : null);
+    try {
+      const res = await fetch("/api/inventario/abrir-empaque", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unidadId: modalEmpaque.producto.id, empaqueRelId: modalEmpaque.seleccionado }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al abrir empaque");
+      // Actualizar stocks localmente sin recargar toda la lista
+      const empaqueRel = modalEmpaque.empaques.find(e => e.id === modalEmpaque.seleccionado);
+      if (empaqueRel) {
+        setProductos((prev) => prev.map((p) => {
+          if (p.id === empaqueRel.empaqueId) return { ...p, stockActual: p.stockActual - 1 };
+          if (p.id === modalEmpaque.producto.id) return { ...p, stockActual: p.stockActual + data.rendimiento };
+          return p;
+        }));
+      }
+      setModalEmpaque(null);
+    } catch (err) {
+      setModalEmpaque((prev) => prev ? { ...prev, abriendo: false, error: err instanceof Error ? err.message : "Error" } : null);
+    }
   }
 
   function updatePago(index: number, patch: Partial<PagoRow>) {
@@ -1945,6 +1980,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                             ? Array.from({ length: match.variadaRaciones }, () => "")
                             : [],
                       });
+                      // Verificar si hay stock cero con empaques disponibles
+                      if (match && match.stockActual <= 0 && match.empaques && match.empaques.length > 0) {
+                        const empaquesConStock = match.empaques.filter(e => e.empaqueStock > 0);
+                        if (empaquesConStock.length > 0) {
+                          setModalEmpaque({
+                            itemIndex: index,
+                            producto: match,
+                            empaques: empaquesConStock,
+                            seleccionado: empaquesConStock[0].id,
+                            abriendo: false,
+                            error: null,
+                          });
+                        }
+                      }
                     }}
                     placeholder="Selecciona o escribe un producto"
                   />
@@ -2672,6 +2721,79 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         />
       </div>
       </div>
+      )}
+
+      {/* ── Modal apertura de empaque ── */}
+      {modalEmpaque && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, maxWidth: 440, width: "100%", overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,.2)" }}>
+            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--erp-border)", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📦</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--erp-text)" }}>Sin stock — empaque disponible</div>
+                <div style={{ fontSize: 12, color: "var(--erp-text-2)" }}>¿Abrir un empaque para continuar la venta?</div>
+              </div>
+            </div>
+            <div style={{ padding: "14px 18px" }}>
+              <div style={{ background: "#FEE2E2", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 13 }}>
+                <strong style={{ color: "#DC2626" }}>{modalEmpaque.producto.nombre}</strong>
+                <span style={{ color: "#991B1B", marginLeft: 8 }}>Sin stock disponible</span>
+              </div>
+
+              {modalEmpaque.empaques.length === 1 ? (
+                <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 6, padding: "10px 12px", fontSize: 13 }}>
+                  <div style={{ fontWeight: 700, color: "#92400E" }}>📦 {modalEmpaque.empaques[0].empaqueNombre}</div>
+                  <div style={{ color: "#78350F", marginTop: 2 }}>Stock: {modalEmpaque.empaques[0].empaqueStock} · Rinde {modalEmpaque.empaques[0].rendimiento} unidades al abrir</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {modalEmpaque.empaques.map((emp) => (
+                    <label key={emp.id} style={{ display: "flex", gap: 10, alignItems: "center", background: modalEmpaque.seleccionado === emp.id ? "#DBEAFE" : "var(--erp-bg)", border: `2px solid ${modalEmpaque.seleccionado === emp.id ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 6, padding: "9px 12px", cursor: "pointer", fontSize: 13 }}>
+                      <input type="radio" name="empaque-sel" checked={modalEmpaque.seleccionado === emp.id} onChange={() => setModalEmpaque(prev => prev ? { ...prev, seleccionado: emp.id } : null)} />
+                      <div>
+                        <div style={{ fontWeight: 700, color: "var(--erp-text)" }}>{emp.empaqueNombre} <span style={{ fontWeight: 400, color: "var(--erp-text-3)" }}>({emp.prioridad === 1 ? "Principal" : "Alternativo"})</span></div>
+                        <div style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Stock: {emp.empaqueStock} · Rinde {emp.rendimiento} unidades</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {modalEmpaque.seleccionado && (() => {
+                const sel = modalEmpaque.empaques.find(e => e.id === modalEmpaque.seleccionado);
+                if (!sel) return null;
+                return (
+                  <div style={{ marginTop: 10, background: "#DCFCE7", border: "1px solid #86EFAC", borderRadius: 6, padding: "10px 12px", fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, color: "#15803D", marginBottom: 4 }}>✓ Resultado si confirma</div>
+                    <div style={{ color: "#166534", display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span>📦 {sel.empaqueNombre}: −1 (quedan {sel.empaqueStock - 1})</span>
+                      <span>➕ {sel.rendimiento} unidades generadas</span>
+                      <span>🛒 −1 unidad vendida al pedido</span>
+                      <span style={{ borderTop: "1px solid #86EFAC", paddingTop: 4, marginTop: 2, fontWeight: 700 }}>✓ Quedan {sel.rendimiento - 1} en inventario</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {modalEmpaque.error && (
+                <div style={{ marginTop: 8, background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#DC2626" }}>{modalEmpaque.error}</div>
+              )}
+            </div>
+            <div style={{ padding: "12px 18px", borderTop: "1px solid var(--erp-border)", display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setModalEmpaque(null)}
+                style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "8px 16px", fontSize: 13, color: "var(--erp-text-2)", cursor: "pointer" }}
+              >Cancelar</button>
+              <button
+                type="button"
+                onClick={handleAbrirEmpaque}
+                disabled={!modalEmpaque.seleccionado || modalEmpaque.abriendo}
+                style={{ flex: 1, background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: modalEmpaque.abriendo ? 0.6 : 1 }}
+              >{modalEmpaque.abriendo ? "Abriendo empaque…" : "✓ Abrir empaque y vender"}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

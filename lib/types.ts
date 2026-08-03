@@ -141,6 +141,15 @@ export type ProductoComponente = {
   cantidad: number;
 };
 
+export type EmpaqueProducto = {
+  id: number;
+  empaqueId: number;
+  empaqueNombre: string;
+  empaqueStock: number;
+  rendimiento: number;
+  prioridad: number;
+};
+
 export const TIPOS_MOVIMIENTO_INVENTARIO = ["ENTRADA", "AJUSTE", "VENTA"] as const;
 export type TipoMovimientoInventario = (typeof TIPOS_MOVIMIENTO_INVENTARIO)[number];
 
@@ -181,6 +190,7 @@ export type Producto = {
   createdAt: string;
   extras: ProductoExtra[];
   componentes: ProductoComponente[];
+  empaques: EmpaqueProducto[];
 };
 
 export const METODOS_PAGO = [

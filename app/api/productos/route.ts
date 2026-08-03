@@ -73,6 +73,23 @@ export async function GET(request: NextRequest) {
       )
     : { rows: [] };
 
+  let empaquesResult: { rows: Record<string, unknown>[] } = { rows: [] };
+  if (productoIds.length) {
+    try {
+      empaquesResult = await pool.query(
+        `SELECT pe.id, pe.unidad_id, pe.empaque_id, p2.nombre AS empaque_nombre,
+                p2.stock_actual AS empaque_stock, pe.rendimiento, pe.prioridad
+         FROM producto_empaques pe
+         JOIN productos p2 ON p2.id = pe.empaque_id
+         WHERE pe.unidad_id = ANY($1::int[]) AND pe.activo = TRUE
+         ORDER BY pe.prioridad ASC`,
+        [productoIds]
+      );
+    } catch {
+      // tabla aún no migrada — fallback a vacío
+    }
+  }
+
   const productos = result.rows.map((row) => ({
     id: row.id,
     nombre: row.nombre,
@@ -108,6 +125,16 @@ export async function GET(request: NextRequest) {
         componenteId: componente.componente_id,
         componenteNombre: componente.nombre,
         cantidad: Number(componente.cantidad),
+      })),
+    empaques: empaquesResult.rows
+      .filter((e) => e.unidad_id === row.id)
+      .map((e) => ({
+        id: e.id,
+        empaqueId: e.empaque_id,
+        empaqueNombre: e.empaque_nombre,
+        empaqueStock: Number(e.empaque_stock),
+        rendimiento: e.rendimiento,
+        prioridad: e.prioridad,
       })),
   }));
 
@@ -192,6 +219,7 @@ export async function POST(request: NextRequest) {
       createdAt: row.created_at,
       extras: [],
       componentes: [],
+      empaques: [],
     },
     { status: 201 }
   );
