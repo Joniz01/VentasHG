@@ -2782,7 +2782,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             <div style={{ padding: "12px 18px", borderTop: "1px solid var(--erp-border)", display: "flex", gap: 8 }}>
               <button
                 type="button"
-                onClick={() => setModalEmpaque(null)}
+                onClick={() => {
+                  // Quitar el producto del ítem para no permitir la venta sin abrir empaque
+                  if (modalEmpaque) {
+                    updateItem(modalEmpaque.itemIndex, { productoId: "", extraId: "", cantidad: "1", variadaSelecciones: [] });
+                  }
+                  setModalEmpaque(null);
+                }}
                 style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "8px 16px", fontSize: 13, color: "var(--erp-text-2)", cursor: "pointer" }}
               >Cancelar</button>
               <button
