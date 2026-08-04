@@ -1318,15 +1318,33 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           </div>
                           {/* Monto input — shown when method is selected */}
                           {pago.metodo && pago.metodo !== "CASHEA" && pago.metodo !== "YUMMY" && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Monto ($)</span>
-                              <input
-                                type="number" step="0.01" min="0"
-                                className="w-32 rounded-md border px-3 py-2 text-sm"
-                                value={pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
-                                onChange={(e) => updatePago(index, { monto: e.target.value, montoAuto: false })}
-                                placeholder="Monto"
-                              />
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>
+                                  {METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]) ? "Monto ($)" : "Monto (Bs)"}
+                                </span>
+                                <input
+                                  type="number" step="0.01" min="0"
+                                  className="w-32 rounded-md border px-3 py-2 text-sm"
+                                  value={pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
+                                  onChange={(e) => updatePago(index, { monto: e.target.value, montoAuto: false })}
+                                  placeholder="Monto"
+                                />
+                              </div>
+                              {(() => {
+                                const montoRaw = pago.montoAuto ? totales.montoSugerido(index) : Number(pago.monto) || 0;
+                                const tasa = Number(tasaDelDia) || 0;
+                                const esUsd = METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]);
+                                if (!montoRaw || !tasa) return null;
+                                return (
+                                  <span className="ml-1 text-xs" style={{ color: "var(--erp-text-3)" }}>
+                                    {esUsd
+                                      ? <>≈ Bs {(montoRaw * tasa).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                                      : <>≈ ${(montoRaw / tasa).toFixed(2)}</>
+                                    }
+                                  </span>
+                                );
+                              })()}
                             </div>
                           )}
                           {/* keep the old code for CASHEA and YUMMY details below */}
@@ -2186,6 +2204,21 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     X
                   </button>
                 </div>
+                {/* Conversión $↔Bs en tiempo real */}
+                {pago.metodo && pago.metodo !== "CASHEA" && pago.metodo !== "YUMMY" && (() => {
+                  const montoRaw = pago.montoAuto ? totales.montoSugerido(index) : Number(pago.monto) || 0;
+                  const tasa = Number(tasaDelDia) || 0;
+                  const esUsd = METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]);
+                  if (!montoRaw || !tasa) return null;
+                  return (
+                    <div className="ml-1 text-xs" style={{ color: "var(--erp-text-3)" }}>
+                      {esUsd
+                        ? <span>≈ Bs {(montoRaw * tasa).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        : <span>≈ ${(montoRaw / tasa).toFixed(2)}</span>
+                      }
+                    </div>
+                  );
+                })()}
                 {pago.metodo === "CASHEA" && (
                   <div className="ml-0 rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex flex-col gap-2">
                     <div className="flex flex-wrap gap-3">

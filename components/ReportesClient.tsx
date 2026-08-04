@@ -193,6 +193,14 @@ export default function ReportesClient() {
       .catch(() => {});
   }
 
+  function handleAyer() {
+    setMesEspecifico("");
+    const ayer = new Date();
+    ayer.setDate(ayer.getDate() - 1);
+    const ayerStr = toIsoDate(ayer);
+    generar(ayerStr, ayerStr);
+  }
+
   function handleSemana() {
     setMesEspecifico("");
     const hoy = new Date();
@@ -279,6 +287,13 @@ export default function ReportesClient() {
             className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
           >
             Hoy
+          </button>
+          <button
+            type="button"
+            onClick={handleAyer}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+          >
+            Ayer
           </button>
           <button
             type="button"
