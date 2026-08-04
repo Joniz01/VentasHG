@@ -13,6 +13,89 @@ import { notificarNuevoPedido } from "@/lib/fcm";
 
 type Params = { params: Promise<{ id: string }> };
 
+export async function GET(_request: NextRequest, { params }: Params) {
+  const { id } = await params;
+
+  const ventaResult = await pool.query(
+    `SELECT v.id, v.fecha, v.tasa_dia, v.cliente, v.cliente_ci, v.cliente_telefono,
+            v.direccion, v.modalidad_compra, v.modo_entrega, v.tipo_delivery,
+            v.costo_delivery, v.descuento_porcentaje, v.observaciones,
+            v.despacho_pendiente, v.hora_entrega, v.hora_preparacion, v.hora_retiro,
+            v.delivery_asignado, v.cuenta_por_cobrar, v.cuenta_cobrada,
+            v.cuenta_cobrada_at, v.fecha_limite_pago,
+            m.nombre AS motorizado_nombre
+     FROM ventas v
+     LEFT JOIN motorizados m ON m.id = v.motorizado_id
+     WHERE v.id = $1`,
+    [id]
+  );
+
+  if (ventaResult.rowCount === 0) {
+    return NextResponse.json({ error: "Venta no encontrada" }, { status: 404 });
+  }
+
+  const venta = ventaResult.rows[0];
+
+  const itemsResult = await pool.query(
+    `SELECT vi.cantidad, vi.precio_unit, vi.costo_unit, p.nombre AS producto,
+            e.nombre AS extra
+     FROM venta_items vi
+     JOIN productos p ON p.id = vi.producto_id
+     LEFT JOIN productos e ON e.id = vi.extra_id
+     WHERE vi.venta_id = $1
+     ORDER BY vi.id`,
+    [id]
+  );
+
+  const pagosResult = await pool.query(
+    `SELECT metodo, monto, COALESCE(fecha_pago, $2) AS fecha_pago
+     FROM pagos_venta
+     WHERE venta_id = $1
+     ORDER BY id`,
+    [id, venta.fecha]
+  );
+
+  return NextResponse.json({
+    venta: {
+      id: venta.id,
+      fecha: venta.fecha,
+      tasaDia: Number(venta.tasa_dia),
+      cliente: venta.cliente,
+      clienteCi: venta.cliente_ci,
+      clienteTelefono: venta.cliente_telefono,
+      direccion: venta.direccion,
+      modalidadCompra: venta.modalidad_compra,
+      modoEntrega: venta.modo_entrega,
+      tipoDelivery: venta.tipo_delivery,
+      costoDelivery: Number(venta.costo_delivery),
+      descuentoPorcentaje: Number(venta.descuento_porcentaje),
+      observaciones: venta.observaciones,
+      despachoPendiente: venta.despacho_pendiente,
+      horaEntrega: venta.hora_entrega,
+      horaPreparacion: venta.hora_preparacion,
+      horaRetiro: venta.hora_retiro,
+      deliveryAsignado: venta.delivery_asignado,
+      motorizadoNombre: venta.motorizado_nombre,
+      cuentaPorCobrar: venta.cuenta_por_cobrar,
+      cuentaCobrada: venta.cuenta_cobrada,
+      cuentaCobradaAt: venta.cuenta_cobrada_at,
+      fechaLimitePago: venta.fecha_limite_pago,
+    },
+    items: itemsResult.rows.map((r) => ({
+      producto: r.producto,
+      extra: r.extra,
+      cantidad: Number(r.cantidad),
+      precioUnit: Number(r.precio_unit),
+      costoUnit: Number(r.costo_unit),
+    })),
+    pagos: pagosResult.rows.map((r) => ({
+      metodo: r.metodo,
+      monto: Number(r.monto),
+      fechaPago: r.fecha_pago,
+    })),
+  });
+}
+
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = (await request.json()) as VentaBody;
