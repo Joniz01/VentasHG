@@ -626,8 +626,8 @@ export default function ReportesClient() {
                     <td className="px-4 py-2 text-zinc-600">{c.clienteCi ?? "-"}</td>
                     <td className="px-4 py-2 text-right">{c.cantidadVentas}</td>
                     <td className="px-4 py-2 text-right tabular-nums">${c.totalUsd.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-right tabular-nums font-medium" style={{ color: c.pendienteUsd > 0 ? "#DC2626" : "inherit" }}>
-                      {c.pendienteUsd > 0 ? `$${c.pendienteUsd.toFixed(2)}` : "-"}
+                    <td className="px-4 py-2 text-right tabular-nums font-medium" style={{ color: c.pendienteUsd >= 0.01 ? "#DC2626" : "inherit" }}>
+                      {c.pendienteUsd >= 0.01 ? `$${c.pendienteUsd.toFixed(2)}` : "-"}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-zinc-600">
                       {c.cobradoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -647,9 +647,7 @@ export default function ReportesClient() {
                       ${reporte.porCliente.reduce((acc, c) => acc + c.totalUsd, 0).toFixed(2)}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums" style={{ color: "#DC2626" }}>
-                      {reporte.porCliente.reduce((acc, c) => acc + c.pendienteUsd, 0) > 0
-                        ? `$${reporte.porCliente.reduce((acc, c) => acc + c.pendienteUsd, 0).toFixed(2)}`
-                        : "-"}
+                      {(() => { const t = reporte.porCliente.reduce((acc, c) => acc + c.pendienteUsd, 0); return t >= 0.01 ? `$${t.toFixed(2)}` : "-"; })()}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-zinc-600">
                       {reporte.porCliente.reduce((acc, c) => acc + c.cobradoBs, 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
