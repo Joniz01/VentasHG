@@ -88,7 +88,7 @@ export default function ReportesClient() {
       `*Por forma de pago:*`,
       ...reporte.porFormaPago
         .filter((fp) => fp.totalUsd > 0)
-        .map((fp) => `• ${METODO_PAGO_LABELS[fp.metodo]}: $${fp.totalUsd.toFixed(2)} / Bs ${fp.totalBs.toFixed(2)}`),
+        .map((fp) => `• ${METODO_PAGO_LABELS[fp.metodo]}: $${fp.totalUsd.toFixed(2)} / Bs ${fp.totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
       ``,
       url,
     ].filter((l) => l !== null);
@@ -568,7 +568,7 @@ export default function ReportesClient() {
                     <tr key={fp.metodo}>
                       <td className="px-4 py-2 font-medium">{METODO_PAGO_LABELS[fp.metodo]}</td>
                       <td className="px-4 py-2 text-right">${fp.totalUsd.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-right">Bs {fp.totalBs.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right">Bs {fp.totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
               </tbody>
@@ -584,7 +584,7 @@ export default function ReportesClient() {
                         ${filtered.reduce((acc, fp) => acc + fp.totalUsd, 0).toFixed(2)}
                       </td>
                       <td className="px-4 py-2 text-right font-semibold">
-                        Bs {filtered.reduce((acc, fp) => acc + fp.totalBs, 0).toFixed(2)}
+                        Bs {filtered.reduce((acc, fp) => acc + fp.totalBs, 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   );
