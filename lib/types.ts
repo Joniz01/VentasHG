@@ -454,6 +454,13 @@ export type ReporteProducto = {
   margenUsd: number;
 };
 
+export type ReporteDetalleVenta = {
+  ventaId: number;
+  cliente: string;
+  montoUsd: number;
+  montoBs: number;
+};
+
 export type ReporteVentas = {
   desde: string;
   hasta: string;
@@ -463,6 +470,7 @@ export type ReporteVentas = {
   porFormaPago: ReporteFormaPago[];
   porCliente: ReporteCliente[];
   porProducto: ReporteProducto[];
+  ventasPorFormaPago: Record<string, ReporteDetalleVenta[]>;
 };
 
 export type ReporteDeliveryItem = {

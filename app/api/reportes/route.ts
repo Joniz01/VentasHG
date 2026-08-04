@@ -129,6 +129,37 @@ export async function GET(request: NextRequest) {
     margenUsd: Number(row.margen_usd),
   }));
 
+  // Detalle de ventas por forma de pago (para conciliación)
+  const detalleResult = await pool.query(
+    `SELECT pv.metodo, pv.monto, v.id, v.cliente, v.tasa_dia,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + v.costo_delivery AS total_venta_usd
+     FROM pagos_venta pv
+     JOIN ventas v ON v.id = pv.venta_id
+     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
+     ORDER BY pv.metodo, v.id DESC`,
+    [desde, hasta]
+  );
+
+  const ventasPorFormaPago: Record<string, { ventaId: number; cliente: string; montoUsd: number; montoBs: number }[]> = {};
+  for (const row of detalleResult.rows) {
+    const metodo = row.metodo as string;
+    const monto = Number(row.monto);
+    const tasa = Number(row.tasa_dia);
+    const esPagoUsd = (METODOS_PAGO_USD as readonly string[]).includes(metodo);
+    const montoUsd = esPagoUsd ? monto : (tasa > 0 ? monto / tasa : 0);
+    const montoBs = esPagoUsd ? monto * tasa : monto;
+    if (!ventasPorFormaPago[metodo]) ventasPorFormaPago[metodo] = [];
+    ventasPorFormaPago[metodo].push({
+      ventaId: row.id,
+      cliente: row.cliente,
+      montoUsd,
+      montoBs,
+    });
+  }
+
   return NextResponse.json({
     desde,
     hasta,
@@ -138,5 +169,6 @@ export async function GET(request: NextRequest) {
     porFormaPago,
     porCliente,
     porProducto,
+    ventasPorFormaPago,
   });
 }

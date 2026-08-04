@@ -3,7 +3,7 @@
 import { FormEvent, useRef, useState } from "react";
 import Paginador from "@/components/Paginador";
 import { useSearchParams } from "next/navigation";
-import type { ReporteVentas } from "@/lib/types";
+import type { ReporteVentas, ReporteDetalleVenta } from "@/lib/types";
 import { METODO_PAGO_LABELS, METODOS_PAGO } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
 
@@ -29,9 +29,10 @@ function startOfMonth(date: Date) {
 export default function ReportesClient() {
   const searchParams = useSearchParams();
   const tabInicial = searchParams.get("tab");
-  const [tab, setTab] = useState<"ventas" | "deliveries">(
-    tabInicial === "deliveries" ? "deliveries" : "ventas"
+  const [tab, setTab] = useState<"ventas" | "conciliacion" | "deliveries">(
+    tabInicial === "deliveries" ? "deliveries" : tabInicial === "conciliacion" ? "conciliacion" : "ventas"
   );
+  const [concilMetodo, setConcilMetodo] = useState<string>("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [mesEspecifico, setMesEspecifico] = useState("");
@@ -240,6 +241,17 @@ export default function ReportesClient() {
         </button>
         <button
           type="button"
+          onClick={() => setTab("conciliacion")}
+          className={`px-4 py-2 text-sm font-medium ${
+            tab === "conciliacion"
+              ? "border-b-2 border-zinc-900 text-zinc-900"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Conciliación
+        </button>
+        <button
+          type="button"
           onClick={() => setTab("deliveries")}
           className={`px-4 py-2 text-sm font-medium ${
             tab === "deliveries"
@@ -252,6 +264,10 @@ export default function ReportesClient() {
       </div>
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
+
+      {tab === "conciliacion" && (
+        <ConciliacionPanel reporte={reporte} metodo={concilMetodo} setMetodo={setConcilMetodo} loading={loading} />
+      )}
 
       {tab === "ventas" && (
       <>
@@ -685,6 +701,124 @@ export default function ReportesClient() {
       )}
       </>
       )}
+    </div>
+  );
+}
+
+// ── Conciliación por forma de pago ────────────────────────────────────────────
+function ConciliacionPanel({
+  reporte,
+  metodo,
+  setMetodo,
+  loading,
+}: {
+  reporte: ReporteVentas | null;
+  metodo: string;
+  setMetodo: (m: string) => void;
+  loading: boolean;
+}) {
+  if (loading) return <div className="text-sm text-zinc-500">Generando reporte...</div>;
+
+  if (!reporte) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
+        Genera un reporte en la pestaña <strong>Ventas</strong> para ver la conciliación por forma de pago.
+      </div>
+    );
+  }
+
+  const metodosConVentas = METODOS_PAGO.filter(
+    (m) => (reporte.ventasPorFormaPago?.[m]?.length ?? 0) > 0
+  );
+
+  const ventas: ReporteDetalleVenta[] = metodo
+    ? (reporte.ventasPorFormaPago?.[metodo] ?? [])
+    : metodosConVentas.flatMap((m) => reporte.ventasPorFormaPago?.[m] ?? []);
+
+  const totalUsd = ventas.reduce((s, v) => s + v.montoUsd, 0);
+  const totalBs = ventas.reduce((s, v) => s + v.montoBs, 0);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Selector de forma de pago */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setMetodo("")}
+          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+            !metodo ? "border-zinc-800 bg-zinc-800 text-white" : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-500"
+          }`}
+        >
+          Todos
+        </button>
+        {metodosConVentas.map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMetodo(metodo === m ? "" : m)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              metodo === m ? "border-zinc-800 bg-zinc-800 text-white" : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-500"
+            }`}
+          >
+            {METODO_PAGO_LABELS[m as keyof typeof METODO_PAGO_LABELS]} ({reporte.ventasPorFormaPago?.[m]?.length ?? 0})
+          </button>
+        ))}
+      </div>
+
+      {/* Tabla de ventas */}
+      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+        <div className="border-b border-zinc-200 px-4 py-3">
+          <h3 className="text-base font-semibold">
+            {metodo ? METODO_PAGO_LABELS[metodo as keyof typeof METODO_PAGO_LABELS] : "Todas las formas de pago"}
+            <span className="ml-2 text-sm font-normal text-zinc-500">{ventas.length} {ventas.length === 1 ? "venta" : "ventas"}</span>
+          </h3>
+        </div>
+        <table className="min-w-full divide-y divide-zinc-200 text-sm">
+          <thead className="bg-zinc-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-zinc-600">Pedido</th>
+              <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
+              <th className="px-4 py-2 text-right font-medium text-zinc-600">Monto $</th>
+              <th className="px-4 py-2 text-right font-medium text-zinc-600">Monto Bs</th>
+              <th className="px-4 py-2 text-right font-medium text-zinc-600">Detalle</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {ventas.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-zinc-400">Sin ventas en este período</td>
+              </tr>
+            ) : (
+              ventas.map((v) => (
+                <tr key={`${metodo}-${v.ventaId}`} className="hover:bg-zinc-50">
+                  <td className="px-4 py-2 font-medium text-zinc-700">#{v.ventaId}</td>
+                  <td className="px-4 py-2 text-zinc-700">{v.cliente}</td>
+                  <td className="px-4 py-2 text-right font-variant-numeric tabular-nums">${v.montoUsd.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right text-zinc-500 font-variant-numeric tabular-nums">Bs {v.montoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-2 text-right">
+                    <a
+                      href={`/ventas/${v.ventaId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100"
+                    >
+                      Ver →
+                    </a>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          <tfoot className="border-t border-zinc-200 bg-zinc-50">
+            <tr>
+              <td colSpan={2} className="px-4 py-2 font-semibold">Total</td>
+              <td className="px-4 py-2 text-right font-semibold">${totalUsd.toFixed(2)}</td>
+              <td className="px-4 py-2 text-right font-semibold">Bs {totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }

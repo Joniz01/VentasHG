@@ -37,6 +37,14 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
+    label: "Reportes & KPI",
+    items: [
+      { href: "/dashboard",   icon: "📈", label: "Dashboard",    permiso: "dashboard" },
+      { href: "/reportes",    icon: "📑", label: "Reportes",     permiso: "reportes" },
+      { href: "/ia-analisis", icon: "🤖", label: "IA Análisis" },
+    ],
+  },
+  {
     label: "CRM",
     items: [
       { href: "/clientes", icon: "👤", label: "Clientes", permiso: "ventas" },
@@ -80,15 +88,7 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Reportes & AI KPI",
-    items: [
-      { href: "/dashboard",   icon: "📈", label: "Dashboard",    permiso: "dashboard" },
-      { href: "/reportes",    icon: "📑", label: "Reportes",     permiso: "reportes" },
-      { href: "/ia-analisis", icon: "🤖", label: "IA Análisis" },
-    ],
-  },
-  {
-    label: "Configuración",
+    label: "Admin & Configuración",
     items: [
       { href: "/admin", icon: "⚙️", label: "Admin", rolReq: "ADMIN" },
     ],

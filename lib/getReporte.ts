@@ -120,5 +120,6 @@ export async function getReporte(desde: string, hasta: string, includePendientes
     porFormaPago,
     porCliente,
     porProducto,
+    ventasPorFormaPago: {},
   };
 }
