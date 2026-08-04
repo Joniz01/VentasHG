@@ -1027,11 +1027,27 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                   onChange={(e) => {
                     const usd = Number(e.target.value);
                     const tasa = Number(tasaDelDia) || 0;
-                    const el = document.getElementById("conversor-bs-result");
-                    if (el) el.textContent = usd > 0 && tasa > 0 ? `= Bs ${(usd * tasa).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "";
+                    const bsEl = document.getElementById("conversor-bs") as HTMLInputElement | null;
+                    if (bsEl) bsEl.value = usd > 0 && tasa > 0 ? (usd * tasa).toFixed(2) : "";
                   }}
                 />
-                <span id="conversor-bs-result" className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--erp-text-2)" }} />
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>=</span>
+                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="w-20 bg-transparent text-sm font-bold outline-none"
+                  style={{ color: "var(--erp-text-2)" }}
+                  placeholder="0.00"
+                  id="conversor-bs"
+                  onChange={(e) => {
+                    const bs = Number(e.target.value);
+                    const tasa = Number(tasaDelDia) || 0;
+                    const usdEl = document.getElementById("conversor-usd") as HTMLInputElement | null;
+                    if (usdEl) usdEl.value = bs > 0 && tasa > 0 ? (bs / tasa).toFixed(2) : "";
+                  }}
+                />
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>BCV</span>

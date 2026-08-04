@@ -114,14 +114,13 @@ export async function GET(request: NextRequest) {
      )
      SELECT vt.cliente, vt.cliente_ci,
             COUNT(*) AS cantidad_ventas,
-            SUM(vt.total_items + vt.costo_delivery) AS total_usd,
+            SUM(vt.total_items + COALESCE(vt.costo_delivery, 0)) AS total_usd,
             COALESCE(SUM(ppv.cobrado_usd), 0) AS cobrado_usd,
             COALESCE(SUM(ppv.cobrado_bs), 0) AS cobrado_bs,
-            SUM(
-              CASE WHEN vt.cuenta_por_cobrar AND NOT vt.cuenta_cobrada
-                   THEN (vt.total_items + vt.costo_delivery) - COALESCE(ppv.cobrado_usd, 0)
-                   ELSE 0
-              END
+            GREATEST(
+              SUM(vt.total_items + COALESCE(vt.costo_delivery, 0))
+              - COALESCE(SUM(ppv.cobrado_usd), 0),
+              0
             ) AS pendiente_usd
      FROM venta_totales vt
      LEFT JOIN pagos_por_venta ppv ON ppv.venta_id = vt.id
