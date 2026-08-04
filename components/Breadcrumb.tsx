@@ -9,7 +9,7 @@ const PATH_MAP: Record<string, Crumb[]> = {
   "/ventas":             [{ label: "Punto de Venta", href: "/ventas" }],
   "/pedidos-pendientes": [{ label: "Punto de Venta", href: "/ventas" }, { label: "Pedidos Pendientes" }],
   "/productos":          [{ label: "Inventario", href: "/productos" }, { label: "Productos" }],
-  "/inventarios":        [{ label: "Inventario", href: "/productos" }, { label: "Stock & Costos" }],
+  "/inventarios":        [{ label: "Inventario", href: "/productos" }, { label: "Inventario y Movimientos" }],
   "/compras":            [{ label: "Compras" }, { label: "Órdenes de Compra" }],
   "/mrp":                [{ label: "Producción" }, { label: "MRP · Planificación" }],
   "/nomina":             [{ label: "Nómina & Gastos" }, { label: "Nómina" }],

@@ -13,7 +13,7 @@ const MODULE_NAMES: Record<string, string> = {
   "/pedidos-pendientes": "Pedidos Pendientes",
   "/productos":          "Inventario · Productos",
   "/inventario/conteos": "Inventario · Bandeja Conteos",
-  "/inventarios":        "Inventario · Stock",
+  "/inventarios":        "Inventario · Movimientos",
   "/compras":            "Compras",
   "/mrp":                "MRP · Planificación",
   "/nomina":             "Nómina",

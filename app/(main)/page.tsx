@@ -40,7 +40,8 @@ const GRUPOS: TileGroup[] = [
     tiles: [
       { href: "/productos",   icon: "📦", label: "Productos",        sub: "Catálogo y categorías",         color: "#1D4ED8", permiso: "productos" },
       { href: "/inventario",  icon: "🚦", label: "Dashboard Stock",  sub: "Alertas y existencias",         color: "#15803D", permiso: "productos", new: true },
-      { href: "/inventarios", icon: "📊", label: "Stock & Costos",   sub: "Valorización y movimientos",    color: "#1D4ED8", permiso: "productos" },
+      { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos",    color: "#1D4ED8", permiso: "productos" },
+      { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",      color: "#7C3AED", permiso: "autorizarConteo" },
     ],
   },
   {

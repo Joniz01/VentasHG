@@ -755,7 +755,6 @@ export default function ProductosClient() {
                 <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Costo</th>
                 <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Precio</th>
                 <th className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Margen</th>
-                <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Stock</th>
                 <th className="prod-col-extras" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Extras</th>
                 <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Acciones</th>
               </tr>
@@ -763,14 +762,14 @@ export default function ProductosClient() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={9} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                  <td colSpan={8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
                     Cargando...
                   </td>
                 </tr>
               )}
               {!loading && productos.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                  <td colSpan={8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
                     No hay productos registrados
                   </td>
                 </tr>
@@ -801,9 +800,6 @@ export default function ProductosClient() {
                       <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
                       <td className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                         {(producto.precioVenta - producto.costo).toFixed(2)}
-                      </td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {producto.tipoProducto === "NORMAL" ? producto.stockActual : "-"}
                       </td>
                       <td className="prod-col-extras" style={{ padding: "8px 12px", color: "var(--erp-text-2)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {producto.extras.length === 0
@@ -851,14 +847,14 @@ export default function ProductosClient() {
                     </tr>
                     {expandedId === producto.id && expandedPanel === "extras" && (
                       <tr>
-                        <td colSpan={9} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
+                        <td colSpan={8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
                           <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
                         </td>
                       </tr>
                     )}
                     {expandedId === producto.id && expandedPanel === "componentes" && (
                       <tr>
-                        <td colSpan={9} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
+                        <td colSpan={8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
                           <ProductoComponentesPanel
                             producto={producto}
                             productos={productos}
