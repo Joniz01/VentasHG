@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { pool } from "@/lib/db";
 import { METODO_PAGO_LABELS, METODOS_PAGO_USD } from "@/lib/types";
 import type { MetodoPago } from "@/lib/types";
 
@@ -8,39 +9,80 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 async function getVentaDetalle(id: string) {
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-  const res = await fetch(`${base}/api/ventas/${id}`, { cache: "no-store" });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error("Error al cargar la venta");
-  return res.json() as Promise<{
+  const numId = parseInt(id, 10);
+  if (isNaN(numId)) return null;
+
+  const ventaResult = await pool.query(
+    `SELECT v.id, v.fecha, v.tasa_dia, v.cliente, v.cliente_ci, v.cliente_telefono,
+            v.direccion, v.modalidad_compra, v.modo_entrega, v.tipo_delivery,
+            v.costo_delivery, v.descuento_porcentaje, v.observaciones,
+            v.despacho_pendiente, v.hora_entrega, v.hora_preparacion, v.hora_retiro,
+            v.delivery_asignado, v.cuenta_por_cobrar, v.cuenta_cobrada,
+            v.cuenta_cobrada_at, v.fecha_limite_pago,
+            m.nombre AS motorizado_nombre
+     FROM ventas v
+     LEFT JOIN motorizados m ON m.id = v.motorizado_id
+     WHERE v.id = $1`,
+    [numId]
+  );
+
+  if (ventaResult.rowCount === 0) return null;
+  const v = ventaResult.rows[0];
+
+  const itemsResult = await pool.query(
+    `SELECT vi.cantidad, vi.precio_unit, vi.costo_unit, p.nombre AS producto,
+            e.nombre AS extra
+     FROM venta_items vi
+     JOIN productos p ON p.id = vi.producto_id
+     LEFT JOIN productos e ON e.id = vi.extra_id
+     WHERE vi.venta_id = $1
+     ORDER BY vi.id`,
+    [numId]
+  );
+
+  const pagosResult = await pool.query(
+    `SELECT metodo, monto, COALESCE(fecha_pago, $2) AS fecha_pago
+     FROM pagos_venta
+     WHERE venta_id = $1
+     ORDER BY id`,
+    [numId, v.fecha]
+  );
+
+  return {
     venta: {
-      id: number;
-      fecha: string;
-      tasaDia: number;
-      cliente: string;
-      clienteCi: string | null;
-      clienteTelefono: string | null;
-      direccion: string | null;
-      modalidadCompra: string | null;
-      modoEntrega: string;
-      tipoDelivery: string | null;
-      costoDelivery: number;
-      descuentoPorcentaje: number;
-      observaciones: string | null;
-      despachoPendiente: boolean;
-      horaEntrega: string | null;
-      horaPreparacion: string | null;
-      horaRetiro: string | null;
-      deliveryAsignado: string | null;
-      motorizadoNombre: string | null;
-      cuentaPorCobrar: boolean;
-      cuentaCobrada: boolean;
-      cuentaCobradaAt: string | null;
-      fechaLimitePago: string | null;
-    };
-    items: { producto: string; extra: string | null; cantidad: number; precioUnit: number; costoUnit: number }[];
-    pagos: { metodo: string; monto: number; fechaPago: string }[];
-  }>;
+      id: v.id,
+      fecha: v.fecha,
+      tasaDia: Number(v.tasa_dia),
+      cliente: v.cliente,
+      clienteCi: v.cliente_ci as string | null,
+      clienteTelefono: v.cliente_telefono as string | null,
+      direccion: v.direccion as string | null,
+      modoEntrega: v.modo_entrega as string,
+      tipoDelivery: v.tipo_delivery as string | null,
+      costoDelivery: Number(v.costo_delivery),
+      descuentoPorcentaje: Number(v.descuento_porcentaje),
+      observaciones: v.observaciones as string | null,
+      horaEntrega: v.hora_entrega as string | null,
+      horaPreparacion: v.hora_preparacion as string | null,
+      horaRetiro: v.hora_retiro as string | null,
+      deliveryAsignado: v.delivery_asignado as string | null,
+      motorizadoNombre: v.motorizado_nombre as string | null,
+      cuentaPorCobrar: v.cuenta_por_cobrar as boolean,
+      cuentaCobrada: v.cuenta_cobrada as boolean,
+      cuentaCobradaAt: v.cuenta_cobrada_at as string | null,
+      fechaLimitePago: v.fecha_limite_pago as string | null,
+    },
+    items: itemsResult.rows.map((r) => ({
+      producto: r.producto as string,
+      extra: r.extra as string | null,
+      cantidad: Number(r.cantidad),
+      precioUnit: Number(r.precio_unit),
+    })),
+    pagos: pagosResult.rows.map((r) => ({
+      metodo: r.metodo as string,
+      monto: Number(r.monto),
+    })),
+  };
 }
 
 function fmt(n: number, dec = 2) {
@@ -145,7 +187,6 @@ export default async function VentaDetallePage({ params }: Params) {
           </table>
         </div>
 
-        {/* Totales */}
         <div className="mt-3 space-y-1 text-xs" style={{ borderTop: "1px solid var(--erp-border)", paddingTop: "10px" }}>
           <TotalRow label="Subtotal" value={`$${fmt(subtotal)}`} />
           {venta.descuentoPorcentaje > 0 && (
@@ -187,7 +228,6 @@ export default async function VentaDetallePage({ params }: Params) {
           <span className="tabular-nums">${fmt(totalPagadoUsd)}</span>
         </div>
 
-        {/* Estado CxC */}
         {venta.cuentaPorCobrar && (
           <div
             className="mt-3 rounded-lg px-3 py-2 text-xs"
