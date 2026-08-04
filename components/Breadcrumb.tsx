@@ -7,6 +7,7 @@ type Crumb = { label: string; href?: string };
 
 const PATH_MAP: Record<string, Crumb[]> = {
   "/ventas":             [{ label: "Punto de Venta", href: "/ventas" }],
+  "/ventas/":            [{ label: "Punto de Venta", href: "/ventas" }, { label: "Detalle de Venta" }],
   "/pedidos-pendientes": [{ label: "Punto de Venta", href: "/ventas" }, { label: "Pedidos Pendientes" }],
   "/productos":          [{ label: "Inventario", href: "/productos" }, { label: "Productos" }],
   "/inventarios":        [{ label: "Inventario", href: "/productos" }, { label: "Inventario y Movimientos" }],
