@@ -596,6 +596,7 @@ export default function ReportesClient() {
           <section className="rounded-lg border border-zinc-200 bg-white">
             <h3 className="border-b border-zinc-200 px-4 py-3 text-base font-semibold">
               Ventas por cliente
+              <span className="ml-2 text-xs font-normal" style={{ color: "var(--erp-text-3)" }}>(incluye cargos por manejo y envío)</span>
             </h3>
             <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-zinc-200 text-sm">
