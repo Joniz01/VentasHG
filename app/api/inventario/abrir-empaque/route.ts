@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
     const notaEmpaque = `Apertura de empaque "${rel.empaque_nombre}": generó ${rendimiento} unidades`;
     const notaUnidad = `Generado desde apertura de empaque "${rel.empaque_nombre}"`;
 
+    // Usar SAVEPOINT para recuperar si las columnas usuario_id/origen aún no existen
+    await client.query("SAVEPOINT antes_movimientos");
     try {
       await client.query(
         `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota, usuario_id, origen)
@@ -64,6 +66,7 @@ export async function POST(request: NextRequest) {
         [unidadId, rendimiento, notaUnidad, sesion.id]
       );
     } catch {
+      await client.query("ROLLBACK TO SAVEPOINT antes_movimientos");
       await client.query(
         `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota)
          VALUES ($1, 'AJUSTE', -1, $2)`,
