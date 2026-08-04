@@ -631,7 +631,7 @@ export default function ReportesClient() {
                       {c.pendienteUsd >= 0.01 ? `$${c.pendienteUsd.toFixed(2)}` : "-"}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-zinc-600">
-                      {c.cobradoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      Bs {c.cobradoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums font-semibold">${c.cobradoUsd.toFixed(2)}</td>
                   </tr>
@@ -651,7 +651,7 @@ export default function ReportesClient() {
                       {(() => { const t = reporte.porCliente.reduce((acc, c) => acc + c.pendienteUsd, 0); return t >= 0.01 ? `$${t.toFixed(2)}` : "-"; })()}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-zinc-600">
-                      {reporte.porCliente.reduce((acc, c) => acc + c.cobradoBs, 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      Bs {reporte.porCliente.reduce((acc, c) => acc + c.cobradoBs, 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">
                       ${reporte.porCliente.reduce((acc, c) => acc + c.cobradoUsd, 0).toFixed(2)}
