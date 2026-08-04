@@ -201,6 +201,16 @@ type InventariosKpis = {
 
 const PAGE_SIZE_OPTIONS = [10, 15, 20, 50];
 
+type ModalArmarEmpaque = {
+  producto: Producto;
+  empaqueRelId: number;
+  empaqueNombre: string;
+  rendimiento: number;
+  unidadesInput: string;
+  armando: boolean;
+  error: string | null;
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function InventariosClient() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -211,6 +221,7 @@ export default function InventariosClient() {
   const [busqueda, setBusqueda] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
+  const [modalArmar, setModalArmar] = useState<ModalArmarEmpaque | null>(null);
 
   useEffect(() => {
     fetch("/api/productos")
@@ -223,6 +234,33 @@ export default function InventariosClient() {
       .then((data) => setKpis(data))
       .finally(() => setKpisLoading(false));
   }, []);
+
+  async function handleArmarEmpaque() {
+    if (!modalArmar) return;
+    const unidades = Number(modalArmar.unidadesInput);
+    if (!unidades || unidades < 1) return;
+    setModalArmar((prev) => prev ? { ...prev, armando: true, error: null } : null);
+    try {
+      const res = await fetch("/api/inventario/armar-empaque", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ empaqueRelId: modalArmar.empaqueRelId, unidadesAUsar: unidades }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al armar empaque");
+      // Actualizar stock localmente
+      setProductos((prev) => prev.map((p) => {
+        if (p.id === modalArmar.producto.id) return { ...p, stockActual: p.stockActual - unidades };
+        const emp = modalArmar.producto.empaques.find(e => e.id === modalArmar.empaqueRelId);
+        if (emp && p.id === emp.empaqueId) return { ...p, stockActual: p.stockActual + data.empaquesGenerados };
+        return p;
+      }));
+      fetch("/api/inventarios/kpis").then((r) => r.json()).then(setKpis);
+      setModalArmar(null);
+    } catch (err) {
+      setModalArmar((prev) => prev ? { ...prev, armando: false, error: err instanceof Error ? err.message : "Error" } : null);
+    }
+  }
 
   function handleStockChange(id: number, nuevoStock: number) {
     setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, stockActual: nuevoStock } : p)));
@@ -348,13 +386,35 @@ export default function InventariosClient() {
                         </span>
                       </td>
                       <td style={{ padding: "9px 14px", textAlign: "right" }}>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedId(isExpanded ? null : producto.id)}
-                          style={{ padding: "4px 12px", border: `1.5px solid ${isExpanded ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: isExpanded ? "var(--erp-primary)" : "var(--erp-surface)", color: isExpanded ? "#fff" : "var(--erp-text-2)", whiteSpace: "nowrap" }}
-                        >
-                          {isExpanded ? "Ocultar ▲" : "Movimientos ▼"}
-                        </button>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                          {producto.empaques && producto.empaques.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const emp = producto.empaques[0];
+                                setModalArmar({
+                                  producto,
+                                  empaqueRelId: emp.id,
+                                  empaqueNombre: emp.empaqueNombre,
+                                  rendimiento: emp.rendimiento,
+                                  unidadesInput: String(emp.rendimiento),
+                                  armando: false,
+                                  error: null,
+                                });
+                              }}
+                              style={{ padding: "4px 12px", border: "1.5px solid #d97706", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#fffbeb", color: "#92400e", whiteSpace: "nowrap" }}
+                            >
+                              📦 Armar
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(isExpanded ? null : producto.id)}
+                            style={{ padding: "4px 12px", border: `1.5px solid ${isExpanded ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: isExpanded ? "var(--erp-primary)" : "var(--erp-surface)", color: isExpanded ? "#fff" : "var(--erp-text-2)", whiteSpace: "nowrap" }}
+                          >
+                            {isExpanded ? "Ocultar ▲" : "Movimientos ▼"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {isExpanded && (
@@ -426,6 +486,103 @@ export default function InventariosClient() {
           {busqueda ? ` · búsqueda: "${busqueda}"` : ""}
         </div>
       )}
+
+      {/* ── Modal Armar Empaque ── */}
+      {modalArmar && (() => {
+        const unidades = Number(modalArmar.unidadesInput) || 0;
+        const esMultiplo = unidades > 0 && unidades % modalArmar.rendimiento === 0;
+        const empaquesGenerados = esMultiplo ? Math.floor(unidades / modalArmar.rendimiento) : 0;
+        const stockDisponible = modalArmar.producto.stockActual;
+        const stockInsuficiente = unidades > stockDisponible;
+        const puedeConfirmar = esMultiplo && !stockInsuficiente && !modalArmar.armando && unidades > 0;
+
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, maxWidth: 460, width: "100%", overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,.2)" }}>
+              {/* Header */}
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--erp-border)", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📦</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--erp-text)" }}>Armar empaque</div>
+                  <div style={{ fontSize: 12, color: "var(--erp-text-2)" }}>Convierte unidades en su empaque origen</div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Producto origen */}
+                <div style={{ background: "var(--erp-bg)", borderRadius: 8, padding: "10px 12px", fontSize: 13 }}>
+                  <div style={{ color: "var(--erp-text-2)", fontSize: 11, marginBottom: 3 }}>PRODUCTO A CONSUMIR</div>
+                  <div style={{ fontWeight: 700, color: "var(--erp-text)" }}>{modalArmar.producto.nombre}</div>
+                  <div style={{ color: "var(--erp-text-3)", fontSize: 12 }}>Stock actual: {stockDisponible} {modalArmar.producto.unidadMedida}</div>
+                </div>
+
+                {/* Empaque destino */}
+                <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "10px 12px", fontSize: 13 }}>
+                  <div style={{ color: "#92400E", fontSize: 11, marginBottom: 3 }}>EMPAQUE A GENERAR</div>
+                  <div style={{ fontWeight: 700, color: "#78350F" }}>{modalArmar.empaqueNombre}</div>
+                  <div style={{ color: "#92400E", fontSize: 12 }}>Requiere {modalArmar.rendimiento} unidades por empaque</div>
+                </div>
+
+                {/* Input cantidad */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--erp-text-2)" }}>
+                    ¿Cuántas unidades deseas reempaquetar?
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step={modalArmar.rendimiento}
+                    value={modalArmar.unidadesInput}
+                    onChange={(e) => setModalArmar((prev) => prev ? { ...prev, unidadesInput: e.target.value, error: null } : null)}
+                    style={{ border: `1.5px solid ${!esMultiplo && unidades > 0 ? "#EF4444" : "var(--erp-border)"}`, borderRadius: 6, padding: "8px 12px", fontSize: 14, fontWeight: 700, width: "100%", background: "var(--erp-bg)", color: "var(--erp-text)" }}
+                  />
+                  {unidades > 0 && !esMultiplo && (
+                    <div style={{ fontSize: 11, color: "#EF4444" }}>
+                      Debe ser múltiplo de {modalArmar.rendimiento} (valores válidos: {modalArmar.rendimiento}, {modalArmar.rendimiento * 2}, {modalArmar.rendimiento * 3}…)
+                    </div>
+                  )}
+                  {stockInsuficiente && (
+                    <div style={{ fontSize: 11, color: "#EF4444" }}>
+                      Stock insuficiente. Solo hay {stockDisponible} unidades disponibles.
+                    </div>
+                  )}
+                </div>
+
+                {/* Vista previa */}
+                {esMultiplo && !stockInsuficiente && unidades > 0 && (
+                  <div style={{ background: "#ECFDF5", border: "1px solid #6EE7B7", borderRadius: 8, padding: "10px 12px", fontSize: 13 }}>
+                    <div style={{ fontWeight: 700, color: "#065F46", marginBottom: 4 }}>✓ Resultado si confirmas</div>
+                    <div style={{ color: "#047857" }}>📦 {modalArmar.producto.nombre}: −{unidades} unidades (quedan {stockDisponible - unidades})</div>
+                    <div style={{ color: "#047857" }}>+ {empaquesGenerados} {empaquesGenerados === 1 ? "empaque generado" : "empaques generados"}: <strong>{modalArmar.empaqueNombre}</strong></div>
+                  </div>
+                )}
+
+                {modalArmar.error && (
+                  <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#DC2626" }}>
+                    {modalArmar.error}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: "12px 18px", borderTop: "1px solid var(--erp-border)", display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setModalArmar(null)}
+                  style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "8px 16px", fontSize: 13, color: "var(--erp-text-2)", cursor: "pointer" }}
+                >Cancelar</button>
+                <button
+                  type="button"
+                  onClick={handleArmarEmpaque}
+                  disabled={!puedeConfirmar}
+                  style={{ flex: 1, background: puedeConfirmar ? "#D97706" : "var(--erp-border)", color: puedeConfirmar ? "#fff" : "var(--erp-text-3)", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: puedeConfirmar ? "pointer" : "not-allowed" }}
+                >{modalArmar.armando ? "Armando…" : `✓ Armar ${empaquesGenerados > 0 ? empaquesGenerados : ""} empaque${empaquesGenerados !== 1 ? "s" : ""}`}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
