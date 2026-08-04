@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  try {
+
   const includePendientes = searchParams.get("pendientes") === "1";
 
   // Filtro base: ventas cobradas al contado + cuentas cobradas por fecha de cobro.
@@ -81,7 +83,6 @@ export async function GET(request: NextRequest) {
     ...(porFormaPagoMap.get(metodo) ?? { totalUsd: 0, totalBs: 0 }),
   }));
 
-  const USD_METHODS = "ARRAY['EFECTIVO_USD','ZELLE','CASHEA','YUMMY','CXC_DIRECTA']";
   const porClienteResult = await pool.query(
     `WITH venta_totales AS (
        SELECT v.id, v.cliente, v.cliente_ci, v.costo_delivery, v.tasa_dia,
@@ -96,13 +97,13 @@ export async function GET(request: NextRequest) {
      pagos_por_venta AS (
        SELECT pv.venta_id,
               SUM(
-                CASE WHEN pv.metodo = ANY(${USD_METHODS})
+                CASE WHEN pv.metodo IN ('EFECTIVO_USD','ZELLE','CASHEA','YUMMY','CXC_DIRECTA')
                      THEN pv.monto
                      ELSE pv.monto / NULLIF(vt.tasa_dia, 0)
                 END
               ) AS cobrado_usd,
               SUM(
-                CASE WHEN pv.metodo = ANY(${USD_METHODS})
+                CASE WHEN pv.metodo IN ('EFECTIVO_USD','ZELLE','CASHEA','YUMMY','CXC_DIRECTA')
                      THEN pv.monto * vt.tasa_dia
                      ELSE pv.monto
                 END
@@ -192,15 +193,20 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({
-    desde,
-    hasta,
-    totalVentasUsd,
-    totalVentasBs,
-    cantidadVentas: resumenResult.rowCount ?? 0,
-    porFormaPago,
-    porCliente,
-    porProducto,
-    ventasPorFormaPago,
-  });
+    return NextResponse.json({
+      desde,
+      hasta,
+      totalVentasUsd,
+      totalVentasBs,
+      cantidadVentas: resumenResult.rowCount ?? 0,
+      porFormaPago,
+      porCliente,
+      porProducto,
+      ventasPorFormaPago,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error al generar el reporte";
+    console.error("[GET /api/reportes]", err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
