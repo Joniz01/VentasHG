@@ -87,6 +87,9 @@ export async function getReporte(desde: string, hasta: string, includePendientes
     clienteCi: row.cliente_ci,
     cantidadVentas: Number(row.cantidad_ventas),
     totalUsd: Number(row.total_usd),
+    cobradoUsd: Number(row.total_usd),
+    cobradoBs: Number(row.total_usd) * 0,
+    pendienteUsd: 0,
   }));
 
   const porProductoResult = await pool.query(

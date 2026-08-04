@@ -443,7 +443,10 @@ export type ReporteCliente = {
   cliente: string;
   clienteCi: string | null;
   cantidadVentas: number;
-  totalUsd: number;
+  totalUsd: number;      // total valor de venta (items + delivery)
+  cobradoUsd: number;    // lo realmente cobrado en USD
+  cobradoBs: number;     // lo realmente cobrado en Bs
+  pendienteUsd: number;  // saldo pendiente por cobrar
 };
 
 export type ReporteProducto = {

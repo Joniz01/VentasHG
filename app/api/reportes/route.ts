@@ -81,21 +81,50 @@ export async function GET(request: NextRequest) {
     ...(porFormaPagoMap.get(metodo) ?? { totalUsd: 0, totalBs: 0 }),
   }));
 
+  const USD_METHODS = "ARRAY['EFECTIVO_USD','ZELLE','CASHEA','YUMMY','CXC_DIRECTA']";
   const porClienteResult = await pool.query(
     `WITH venta_totales AS (
-       SELECT v.id, v.cliente, v.cliente_ci, v.costo_delivery,
+       SELECT v.id, v.cliente, v.cliente_ci, v.costo_delivery, v.tasa_dia,
+              v.cuenta_por_cobrar, v.cuenta_cobrada,
               COALESCE(
                 (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
                 0
               ) AS total_items
        FROM ventas v
        WHERE ${filtroBase}
+     ),
+     pagos_por_venta AS (
+       SELECT pv.venta_id,
+              SUM(
+                CASE WHEN pv.metodo = ANY(${USD_METHODS})
+                     THEN pv.monto
+                     ELSE pv.monto / NULLIF(vt.tasa_dia, 0)
+                END
+              ) AS cobrado_usd,
+              SUM(
+                CASE WHEN pv.metodo = ANY(${USD_METHODS})
+                     THEN pv.monto * vt.tasa_dia
+                     ELSE pv.monto
+                END
+              ) AS cobrado_bs
+       FROM pagos_venta pv
+       JOIN venta_totales vt ON vt.id = pv.venta_id
+       GROUP BY pv.venta_id
      )
-     SELECT cliente, cliente_ci,
+     SELECT vt.cliente, vt.cliente_ci,
             COUNT(*) AS cantidad_ventas,
-            SUM(total_items + costo_delivery) AS total_usd
-     FROM venta_totales
-     GROUP BY cliente, cliente_ci
+            SUM(vt.total_items + vt.costo_delivery) AS total_usd,
+            COALESCE(SUM(ppv.cobrado_usd), 0) AS cobrado_usd,
+            COALESCE(SUM(ppv.cobrado_bs), 0) AS cobrado_bs,
+            SUM(
+              CASE WHEN vt.cuenta_por_cobrar AND NOT vt.cuenta_cobrada
+                   THEN (vt.total_items + vt.costo_delivery) - COALESCE(ppv.cobrado_usd, 0)
+                   ELSE 0
+              END
+            ) AS pendiente_usd
+     FROM venta_totales vt
+     LEFT JOIN pagos_por_venta ppv ON ppv.venta_id = vt.id
+     GROUP BY vt.cliente, vt.cliente_ci
      ORDER BY total_usd DESC`,
     [desde, hasta]
   );
@@ -105,6 +134,9 @@ export async function GET(request: NextRequest) {
     clienteCi: row.cliente_ci,
     cantidadVentas: Number(row.cantidad_ventas),
     totalUsd: Number(row.total_usd),
+    cobradoUsd: Number(row.cobrado_usd),
+    cobradoBs: Number(row.cobrado_bs),
+    pendienteUsd: Number(row.pendiente_usd),
   }));
 
   const porProductoResult = await pool.query(

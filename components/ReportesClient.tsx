@@ -588,14 +588,17 @@ export default function ReportesClient() {
                 <tr>
                   <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
                   <th className="px-4 py-2 text-left font-medium text-zinc-600">Cédula</th>
-                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Ventas</th>
-                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Total $</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600"># Ventas</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Total Venta $</th>
+                  <th className="px-4 py-2 text-right font-medium text-red-600">Pendiente $</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Cobrado Bs</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-600">Cobrado $</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {reporte.porCliente.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
                       No hay ventas en el periodo seleccionado
                     </td>
                   </tr>
@@ -603,23 +606,41 @@ export default function ReportesClient() {
                 {reporte.porCliente
                   .slice((paginaCliente - 1) * porPaginaCliente, paginaCliente * porPaginaCliente)
                   .map((c) => (
-                  <tr key={`${c.cliente}-${c.clienteCi ?? ""}`}>
+                  <tr key={`${c.cliente}-${c.clienteCi ?? ""}`} className="hover:bg-zinc-50">
                     <td className="px-4 py-2 font-medium">{c.cliente}</td>
                     <td className="px-4 py-2 text-zinc-600">{c.clienteCi ?? "-"}</td>
                     <td className="px-4 py-2 text-right">{c.cantidadVentas}</td>
-                    <td className="px-4 py-2 text-right">${c.totalUsd.toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">${c.totalUsd.toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums font-medium" style={{ color: c.pendienteUsd > 0 ? "#DC2626" : "inherit" }}>
+                      {c.pendienteUsd > 0 ? `$${c.pendienteUsd.toFixed(2)}` : "-"}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-zinc-600">
+                      {c.cobradoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums font-semibold">${c.cobradoUsd.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
               {reporte.porCliente.length > 0 && (
-                <tfoot className="border-t border-zinc-200 bg-zinc-50">
+                <tfoot className="border-t border-zinc-200 bg-zinc-50 font-semibold">
                   <tr>
-                    <td colSpan={2} className="px-4 py-2 font-semibold">Total</td>
-                    <td className="px-4 py-2 text-right font-semibold">
+                    <td colSpan={2} className="px-4 py-2">Total</td>
+                    <td className="px-4 py-2 text-right">
                       {reporte.porCliente.reduce((acc, c) => acc + c.cantidadVentas, 0)}
                     </td>
-                    <td className="px-4 py-2 text-right font-semibold">
+                    <td className="px-4 py-2 text-right tabular-nums">
                       ${reporte.porCliente.reduce((acc, c) => acc + c.totalUsd, 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums" style={{ color: "#DC2626" }}>
+                      {reporte.porCliente.reduce((acc, c) => acc + c.pendienteUsd, 0) > 0
+                        ? `$${reporte.porCliente.reduce((acc, c) => acc + c.pendienteUsd, 0).toFixed(2)}`
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-zinc-600">
+                      {reporte.porCliente.reduce((acc, c) => acc + c.cobradoBs, 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      ${reporte.porCliente.reduce((acc, c) => acc + c.cobradoUsd, 0).toFixed(2)}
                     </td>
                   </tr>
                 </tfoot>
