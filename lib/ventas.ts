@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { METODOS_PAGO, MODOS_ENTREGA } from "@/lib/types";
+import { METODOS_PAGO, METODOS_PAGO_USD, MODOS_ENTREGA } from "@/lib/types";
 
 export type VentaBody = {
   fecha: string;
@@ -324,12 +324,17 @@ export async function insertarItemsYPagos(
     );
 
     // El inicial sí es dinero cobrado ese día por una forma de pago real
-    // (Punto de Venta, Efectivo, etc.) y debe reflejarse en pagos_venta para
+    // (Punto de Venta, Efectivo Bs, etc.) y debe reflejarse en pagos_venta para
     // que los reportes por forma de pago y el resumen del día lo contabilicen.
+    // montoInicial está en USD; si el método es Bs hay que convertir antes de guardar.
     if (cd.metodoInicial && cd.montoInicial > 0) {
+      const esPagoUsd = (METODOS_PAGO_USD as readonly string[]).includes(cd.metodoInicial);
+      const montoParaGuardar = esPagoUsd
+        ? cd.montoInicial
+        : cd.montoInicial * (body.tasaDelDia ?? 1);
       await client.query(
         `INSERT INTO pagos_venta (venta_id, metodo, monto) VALUES ($1, $2, $3)`,
-        [ventaId, cd.metodoInicial, cd.montoInicial]
+        [ventaId, cd.metodoInicial, montoParaGuardar]
       );
     }
   }
