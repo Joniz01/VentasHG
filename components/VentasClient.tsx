@@ -1173,7 +1173,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                               <button type="button" onClick={() => removeItem(index)} className="rounded-md border border-red-200 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50">Eliminar</button>
                             </div>
                             <div className="flex flex-col gap-1">
-                              <label className="text-sm font-medium text-zinc-700">Producto</label>
+                              <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-zinc-700">Producto</label>
+                                {producto && (
+                                  <span className={`text-xs font-medium ${producto.stockActual <= 0 ? "text-red-600" : "text-zinc-500"}`}>
+                                    Stock: {producto.stockActual} {producto.unidadMedida}
+                                    {producto.stockActual <= 0 && producto.empaques && producto.empaques.length > 0 && (
+                                      <span className="ml-1 text-amber-600">· 📦 empaque disponible</span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
                               <input
                                 list="productos-list-pasos"
                                 className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
@@ -1187,6 +1197,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                     extraId: "",
                                     variadaSelecciones: match?.tipoProducto === "VARIADA" ? Array.from({ length: match.variadaRaciones }, () => "") : [],
                                   });
+                                  // Detectar stock cero con empaque disponible
+                                  if (match && match.stockActual <= 0 && match.empaques && match.empaques.length > 0) {
+                                    const empaquesConStock = match.empaques.filter(e => e.empaqueStock > 0);
+                                    if (empaquesConStock.length > 0) {
+                                      setModalEmpaque({
+                                        itemIndex: index,
+                                        producto: match,
+                                        empaques: empaquesConStock,
+                                        seleccionado: empaquesConStock[0].id,
+                                        abriendo: false,
+                                        error: null,
+                                      });
+                                    }
+                                  }
                                 }}
                                 placeholder="Buscar producto..."
                               />
@@ -1964,6 +1988,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
               return (
                 <div key={index} className="grid grid-cols-12 items-center gap-2">
+                  {producto && (
+                    <div className="col-span-12 -mb-1 flex items-center gap-2">
+                      <span className={`text-xs font-medium ${producto.stockActual <= 0 ? "text-red-600" : "text-zinc-500"}`}>
+                        Stock disponible: {producto.stockActual} {producto.unidadMedida}
+                      </span>
+                      {producto.stockActual <= 0 && producto.empaques && producto.empaques.length > 0 && (
+                        <span className="text-xs text-amber-600">· 📦 empaque disponible</span>
+                      )}
+                    </div>
+                  )}
                   <input
                     list="productos-list"
                     className="col-span-6 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-4"
