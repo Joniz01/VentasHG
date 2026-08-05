@@ -377,7 +377,7 @@ export default function InventariosClient() {
                         {producto.stockActual}
                         <span style={{ fontSize: 10, color: "var(--erp-text-3)", marginLeft: 3 }}>{producto.unidadMedida}</span>
                       </td>
-                      <td style={{ padding: "9px 14px", textAlign: "right", color: "var(--erp-text-3)", fontSize: 12, fontVariantNumeric: "tabular-nums", display: "none" }} className="inv-sc-min">
+                      <td style={{ padding: "9px 14px", textAlign: "right", color: "var(--erp-text-3)", fontSize: 12, fontVariantNumeric: "tabular-nums" }} className="inv-sc-min">
                         {producto.stockMinimo > 0 ? producto.stockMinimo : "—"}
                       </td>
                       <td className="inv-sc-estado" style={{ padding: "9px 14px" }}>
