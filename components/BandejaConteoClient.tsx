@@ -295,7 +295,7 @@ export default function BandejaConteoClient() {
               </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 700 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 560 }}>
                   <thead>
                     <tr style={{ background: "var(--erp-surface)" }}>
                       <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Producto</th>
@@ -616,7 +616,7 @@ export default function BandejaConteoClient() {
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 600 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "var(--erp-surface)" }}>
                 {modoSeleccion && (
@@ -624,12 +624,12 @@ export default function BandejaConteoClient() {
                     <input type="checkbox" checked={todosSeleccionados} onChange={toggleTodos} style={{ cursor: "pointer" }} />
                   </th>
                 )}
-                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>#</th>
-                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Contador</th>
+                <th className="bc-col-id" style={{ ...cell, fontWeight: 600, textAlign: "left" }}>#</th>
+                <th className="bc-col-contador" style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Contador</th>
                 <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Estado</th>
                 <th style={{ ...cell, fontWeight: 600, textAlign: "center" }}>Items</th>
                 <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Fecha</th>
-                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Aprobado por</th>
+                <th className="bc-col-aprobado" style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Aprobado por</th>
                 <th style={{ ...cell }}></th>
               </tr>
             </thead>
@@ -648,8 +648,8 @@ export default function BandejaConteoClient() {
                       <input type="checkbox" checked={seleccionados.has(c.id)} onChange={() => toggleSeleccion(c.id)} style={{ cursor: "pointer" }} />
                     </td>
                   )}
-                  <td style={cell}>#{c.id}</td>
-                  <td style={cell}>{c.conteoUsuarioNombre ?? "—"}</td>
+                  <td className="bc-col-id" style={cell}>#{c.id}</td>
+                  <td className="bc-col-contador" style={cell}>{c.conteoUsuarioNombre ?? "—"}</td>
                   <td style={cell}>
                     <span style={{ padding: "0.2rem 0.55rem", borderRadius: "99px", fontSize: "0.75rem", fontWeight: 600, ...ESTADO_STYLE[c.estado] }}>
                       {ESTADO_CONTEO_LABELS[c.estado]}
@@ -657,7 +657,7 @@ export default function BandejaConteoClient() {
                   </td>
                   <td style={{ ...cell, textAlign: "center" }}>{c.totalItems}</td>
                   <td style={{ ...cell, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{formatDate(c.createdAt)}</td>
-                  <td style={{ ...cell, color: "var(--erp-text-2)" }}>{c.aprobadoPor ?? "—"}</td>
+                  <td className="bc-col-aprobado" style={{ ...cell, color: "var(--erp-text-2)" }}>{c.aprobadoPor ?? "—"}</td>
                   <td style={cell}>
                     {!modoSeleccion && (
                       <span style={{ fontSize: "0.775rem", color: c.estado === "BORRADOR" ? "var(--erp-text-3)" : "var(--erp-primary)" }}>

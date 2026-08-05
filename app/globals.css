@@ -142,7 +142,26 @@ textarea {
 @media (min-width: 641px) {
   .inv-sc-cat       { display: table-cell !important; }
   .inv-sc-min       { display: table-cell !important; }
+  .inv-sc-estado    { display: table-cell !important; }
   .inv-sc-cat-mobile { display: none !important; }
+}
+
+@media (max-width: 640px) {
+  .inv-sc-estado { display: none !important; }
+  .inv-btn-full  { display: none; }
+  .inv-btn-short { display: inline; }
+}
+
+@media (min-width: 641px) {
+  .inv-btn-full  { display: inline; }
+  .inv-btn-short { display: none; }
+}
+
+/* ── Bandeja Conteo — columnas responsive ───────────────────────────────────── */
+@media (max-width: 640px) {
+  .bc-col-id,
+  .bc-col-contador,
+  .bc-col-aprobado { display: none !important; }
 }
 
 /* ── Inventario Dashboard — responsive ─────────────────────────────────────── */
