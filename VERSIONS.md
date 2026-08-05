@@ -5,6 +5,33 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.5 — 2026-08-05
+
+### Resumen
+Correcciones de reportes (conversor bidireccional USD↔Bs, pendiente por cliente calculado aritméticamente, formato Bs venezolano, uniformidad de guiones) y mejoras de UX (subtítulo en Ventas por Cliente, prefijo "Bs" en cobrado, ojo en claves de conteo). Corrección completa de responsive móvil para Productos, Inventario Dashboard, Inventarios, Bandeja de Conteo: sin scroll horizontal en el body, tablas con ocultamiento de columnas no esenciales en móvil, targets táctiles de 44px, grids colapsables.
+
+### Sin archivos nuevos
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `components/VentasClient.tsx` | Conversor USD↔Bs bidireccional: dos inputs enlazados — escribir $ calcula Bs y viceversa |
+| `app/api/reportes/route.ts` | `pendiente_usd` calculado con `GREATEST(total - cobrado, 0)` en vez de flags CxC; incluye `cuenta_por_cobrar` y `cuenta_cobrada` en CTE |
+| `lib/getReporte.ts` | Misma corrección de cálculo `pendiente_usd` que la ruta API |
+| `components/ReportesClient.tsx` | Umbral `>= 0.01` para mostrar pendiente (evita "$0.00" por flotantes); "-" cuando no hay pendiente; subtítulo "(incluye cargos por manejo y envío)" en Ventas por Cliente; formato Bs venezolano (`toLocaleString("es-VE", ...)`) en Ventas por forma de pago y Total Bs; prefijo "Bs " en columna cobrado de Ventas por cliente |
+| `components/ConteoUsuariosConfigClient.tsx` | Ojo toggle (show/hide) en campos de clave al crear y editar usuario de conteo |
+| `app/(main)/layout.tsx` | `overflowX: "hidden"` en `<body>` para eliminar scroll horizontal; `minWidth: 0 / maxWidth: "100%"` en `<main>` |
+| `app/globals.css` | `.inv-col-nombre-stock { display: none }` en desktop; clase `.prod-empaque-row` con grid responsivo (4 col → 2 col en móvil) con `min-width: 0` en celdas; `min-width: 0` en `.prod-form-grid`, `.inv-table-row`; ocultar `.inv-sc-estado` y `.bc-col-id / .bc-col-contador / .bc-col-aprobado` en móvil; `.inv-btn-full / .inv-btn-short` para acortar botón Movimientos en móvil |
+| `components/ProductosClient.tsx` | Grid empaque usa clase `.prod-empaque-row`; botones de acción `padding: "6px 10px"`; KPI cards con `overflow: hidden / minWidth: 0` para truncar texto largo |
+| `components/BandejaConteoClient.tsx` | Filtros de estado con `flexWrap: wrap`; tabla lista sin `minWidth` forzado; columnas #, Contador, Aprobado por con clase `bc-col-*` (ocultas en móvil); fecha inputs con `width: 100%`; tabla detalle con `minWidth: 560` |
+| `components/InventarioDashboardClient.tsx` | Botones OutstockToggle con `padding: "7px 12px"` (target táctil); input motivo `width: "100%"`; botones confirmar/cancelar `padding: "7px 10px"`; filtros toolbar `padding: "9px 14px"` |
+| `components/InventariosClient.tsx` | Columna Estado con clase `inv-sc-estado` (oculta en móvil); columna Mínimo siempre visible (quitado `display: none` inline del `<td>`); botón Movimientos con span `.inv-btn-full / .inv-btn-short`; `padding: "7px 12px"` en botón |
+
+### Sin migraciones SQL nuevas
+### Sin nuevas variables de entorno
+
+---
+
 ## v3.4 — 2026-08-03
 
 ### Resumen
