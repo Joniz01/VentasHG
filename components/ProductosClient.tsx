@@ -355,6 +355,8 @@ export default function ProductosClient() {
               display: "flex",
               flexDirection: "column",
               gap: 3,
+              overflow: "hidden",
+              minWidth: 0,
             }}
           >
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{card.label}</span>

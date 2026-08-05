@@ -162,6 +162,12 @@ textarea {
   gap: 8px;
   align-items: center;
   padding: 9px 14px;
+  min-width: 0;
+}
+
+.inv-table-row > *,
+.inv-table-header > * {
+  min-width: 0;
 }
 
 /* Columnas que se ocultan en móvil */
@@ -211,6 +217,11 @@ textarea {
   gap: 8px;
   margin-bottom: 8px;
   align-items: end;
+  min-width: 0;
+}
+
+.prod-empaque-row > * {
+  min-width: 0;
 }
 
 @media (max-width: 640px) {
@@ -252,6 +263,11 @@ textarea {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 10px;
+  min-width: 0;
+}
+
+.prod-form-grid > * {
+  min-width: 0;
 }
 
 .prod-form-col2 {
