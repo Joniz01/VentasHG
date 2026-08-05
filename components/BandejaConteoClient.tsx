@@ -295,7 +295,7 @@ export default function BandejaConteoClient() {
               </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 700 }}>
                   <thead>
                     <tr style={{ background: "var(--erp-surface)" }}>
                       <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Producto</th>
@@ -530,7 +530,7 @@ export default function BandejaConteoClient() {
       </div>
 
       {/* Filtros de estado */}
-      <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid var(--erp-border)", paddingBottom: "0.5rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderBottom: "1px solid var(--erp-border)", paddingBottom: "0.5rem" }}>
         {(["PENDIENTES", "TODOS", "REALIZADOS"] as FiltroEstado[]).map((f) => {
           const labels: Record<FiltroEstado, string> = {
             PENDIENTES: `⏳ Pendientes${cntPendientes > 0 ? ` (${cntPendientes})` : ""}`,
@@ -572,7 +572,7 @@ export default function BandejaConteoClient() {
                 type="date"
                 value={desdeDate}
                 onChange={(e) => { setDesdeDate(e.target.value); setSeleccionados(new Set()); }}
-                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
+                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box" }}
               />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
@@ -581,7 +581,7 @@ export default function BandejaConteoClient() {
                 type="date"
                 value={hastaDate}
                 onChange={(e) => { setHastaDate(e.target.value); setSeleccionados(new Set()); }}
-                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
+                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box" }}
               />
             </div>
             <button
@@ -616,7 +616,7 @@ export default function BandejaConteoClient() {
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 600 }}>
             <thead>
               <tr style={{ background: "var(--erp-surface)" }}>
                 {modoSeleccion && (

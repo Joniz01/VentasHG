@@ -171,6 +171,11 @@ textarea {
   display: block;
 }
 
+/* Stock inline en nombre: visible solo en móvil */
+.inv-col-nombre-stock {
+  display: none;
+}
+
 /* Buscador: se pone en línea propia en móvil */
 .inv-toolbar {
   display: flex;
@@ -197,6 +202,21 @@ textarea {
   gap: 8px;
   margin-left: auto;
   flex-wrap: wrap;
+}
+
+/* ── Empaque row — responsive ───────────────────────────────────────────────── */
+.prod-empaque-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 80px auto;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: end;
+}
+
+@media (max-width: 640px) {
+  .prod-empaque-row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* ── Productos — responsive ─────────────────────────────────────────────────── */
