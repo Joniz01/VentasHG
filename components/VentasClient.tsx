@@ -133,6 +133,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [saving, setSaving] = useState(false);
 
   // ── Salida Cortesías ──
+  type SalidaHistRow = {
+    id: number; tipo: string; fecha: string; beneficiario: string | null;
+    motivo: string | null; responsable: string | null; anulada: boolean;
+    items: { nombre: string; cantidad: number }[];
+  };
   const [cortTipo, setCortTipo] = useState<"CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO" | "FIDELIDAD">("CORTESIA");
   const [cortFecha, setCortFecha] = useState(today());
   const [cortBeneficiario, setCortBeneficiario] = useState("");
@@ -141,6 +146,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [cortSaving, setCortSaving] = useState(false);
   const [cortError, setCortError] = useState<string | null>(null);
   const [cortSuccess, setCortSuccess] = useState(false);
+  const [cortHistorial, setCortHistorial] = useState<SalidaHistRow[]>([]);
+  const [cortHistLoading, setCortHistLoading] = useState(false);
+  const [cortPorPagina, setCortPorPagina] = useState(10);
+  const [cortPagina, setCortPagina] = useState(1);
+  const [cortAnulando, setCortAnulando] = useState<number | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(today());
@@ -988,6 +998,32 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }
   }
 
+  async function loadCortHistorial() {
+    setCortHistLoading(true);
+    try {
+      const res = await fetch("/api/salidas-gratuitas");
+      if (res.ok) setCortHistorial(await res.json());
+    } finally {
+      setCortHistLoading(false);
+    }
+  }
+
+  async function handleAnularSalida(id: number) {
+    if (!confirm("¿Anular esta salida? El stock será restaurado.")) return;
+    setCortAnulando(id);
+    try {
+      const res = await fetch(`/api/salidas-gratuitas/${id}/anular`, { method: "POST" });
+      if (res.ok) {
+        await loadCortHistorial();
+      } else {
+        const data = await res.json();
+        alert(data.error ?? "Error al anular");
+      }
+    } finally {
+      setCortAnulando(null);
+    }
+  }
+
   async function handleCortesiaSubmit(e: FormEvent) {
     e.preventDefault();
     setCortError(null);
@@ -1011,6 +1047,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         setCortMotivo("");
         setCortTipo("CORTESIA");
         setCortFecha(today());
+        setCortPagina(1);
+        await loadCortHistorial();
       }
     } catch {
       setCortError("Error de red. Intenta de nuevo.");
@@ -1033,7 +1071,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             <button
               key={v}
               type="button"
-              onClick={() => setVista(v)}
+              onClick={() => { setVista(v); if (v === "cortesias") loadCortHistorial(); }}
               className="px-4 py-2.5 text-[12.5px] font-medium transition-colors whitespace-nowrap"
               style={{
                 color: active ? "var(--erp-primary)" : "var(--erp-text-2)",
@@ -1192,6 +1230,111 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               onClick={() => { setCortItems([{ productoId: "", cantidad: "1" }]); setCortBeneficiario(""); setCortMotivo(""); setCortTipo("CORTESIA"); setCortError(null); setCortSuccess(false); }}
               style={{ padding: "10px 16px", background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, cursor: "pointer" }}
             >Limpiar</button>
+          </div>
+
+          {/* ── Historial de salidas ── */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", flex: 1 }}>Historial de salidas registradas</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                <span style={{ color: "var(--erp-text-3)" }}>Mostrar:</span>
+                {[5, 10, 15, 20].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => { setCortPorPagina(n); setCortPagina(1); }}
+                    style={{
+                      padding: "3px 10px", borderRadius: 5, border: "1px solid var(--erp-border)", fontSize: 12, cursor: "pointer",
+                      background: cortPorPagina === n ? "var(--erp-primary)" : "var(--erp-surface)",
+                      color: cortPorPagina === n ? "#fff" : "var(--erp-text-2)",
+                      fontWeight: cortPorPagina === n ? 700 : 400,
+                    }}
+                  >{n}</button>
+                ))}
+              </div>
+            </div>
+
+            {cortHistLoading ? (
+              <div style={{ padding: "20px 0", textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>Cargando historial…</div>
+            ) : cortHistorial.length === 0 ? (
+              <div style={{ padding: "20px 0", textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>No hay salidas registradas aún.</div>
+            ) : (() => {
+              const totalPags = Math.ceil(cortHistorial.length / cortPorPagina);
+              const pagActual = Math.min(cortPagina, totalPags);
+              const filas = cortHistorial.slice((pagActual - 1) * cortPorPagina, pagActual * cortPorPagina);
+              const tipoPill: Record<string, { bg: string; color: string }> = {
+                CORTESIA:  { bg: "#EDE9FE", color: "#6D28D9" },
+                SORTEO:    { bg: "#FEF9C3", color: "#92400E" },
+                MUESTRA:   { bg: "#E0F2FE", color: "#0369A1" },
+                EVENTO:    { bg: "#FCE7F3", color: "#9D174D" },
+                FIDELIDAD: { bg: "#FEF3C7", color: "#92400E" },
+              };
+              return (
+                <>
+                  <div style={{ overflowX: "auto", border: "1.5px solid var(--erp-border)", borderRadius: 8 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ background: "var(--erp-bg)" }}>
+                          {["#", "Fecha", "Tipo", "Productos", "Beneficiario", "Responsable", "Estado", ""].map((h) => (
+                            <th key={h} style={{ padding: "7px 11px", textAlign: "left", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)", borderBottom: "1.5px solid var(--erp-border)", whiteSpace: "nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filas.map((s) => {
+                          const pill = tipoPill[s.tipo] ?? { bg: "var(--erp-bg)", color: "var(--erp-text-2)" };
+                          return (
+                            <tr key={s.id} style={{ borderBottom: "1px solid var(--erp-border)", opacity: s.anulada ? 0.5 : 1 }}>
+                              <td style={{ padding: "8px 11px", color: "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>#{s.id}</td>
+                              <td style={{ padding: "8px 11px", whiteSpace: "nowrap" }}>{s.fecha ? s.fecha.slice(0, 10) : "—"}</td>
+                              <td style={{ padding: "8px 11px" }}>
+                                <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, background: pill.bg, color: pill.color, whiteSpace: "nowrap" }}>{s.tipo}</span>
+                              </td>
+                              <td style={{ padding: "8px 11px", maxWidth: 200 }}>
+                                {s.items?.map((it, i) => (
+                                  <div key={i} style={{ fontSize: 11.5, color: "var(--erp-text-2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {it.cantidad}× {it.nombre}
+                                  </div>
+                                ))}
+                              </td>
+                              <td style={{ padding: "8px 11px", color: "var(--erp-text-2)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.beneficiario || "—"}</td>
+                              <td style={{ padding: "8px 11px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{s.responsable || "—"}</td>
+                              <td style={{ padding: "8px 11px" }}>
+                                {s.anulada
+                                  ? <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, background: "#FEE2E2", color: "#DC2626" }}>ANULADA</span>
+                                  : <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, background: "#DCFCE7", color: "#15803D" }}>ACTIVA</span>
+                                }
+                              </td>
+                              <td style={{ padding: "8px 11px" }}>
+                                {!s.anulada && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAnularSalida(s.id)}
+                                    disabled={cortAnulando === s.id}
+                                    style={{ padding: "4px 10px", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", opacity: cortAnulando === s.id ? 0.6 : 1 }}
+                                  >{cortAnulando === s.id ? "…" : "Anular"}</button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Paginación */}
+                  {totalPags > 1 && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 10 }}>
+                      <button type="button" onClick={() => setCortPagina((p) => Math.max(1, p - 1))} disabled={pagActual === 1}
+                        style={{ padding: "4px 10px", border: "1px solid var(--erp-border)", borderRadius: 5, background: "var(--erp-surface)", cursor: "pointer", fontSize: 12, color: "var(--erp-text-2)", opacity: pagActual === 1 ? 0.4 : 1 }}>← Ant</button>
+                      <span style={{ fontSize: 12, color: "var(--erp-text-2)" }}>Pág {pagActual} / {totalPags}</span>
+                      <button type="button" onClick={() => setCortPagina((p) => Math.min(totalPags, p + 1))} disabled={pagActual === totalPags}
+                        style={{ padding: "4px 10px", border: "1px solid var(--erp-border)", borderRadius: 5, background: "var(--erp-surface)", cursor: "pointer", fontSize: 12, color: "var(--erp-text-2)", opacity: pagActual === totalPags ? 0.4 : 1 }}>Sig →</button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </form>
       )}

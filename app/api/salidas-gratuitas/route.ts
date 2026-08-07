@@ -130,7 +130,9 @@ export async function GET(request: NextRequest) {
               'nombre', p.nombre,
               'cantidad', sgi.cantidad,
               'costoUnit', sgi.costo
-            ) ORDER BY sgi.id) AS items
+            ) ORDER BY sgi.id) AS items,
+            sg.anulada,
+            sg.anulada_at
      FROM salidas_gratuitas sg
      LEFT JOIN usuarios u ON u.id = sg.usuario_id
      JOIN salidas_gratuitas_items sgi ON sgi.salida_id = sg.id
