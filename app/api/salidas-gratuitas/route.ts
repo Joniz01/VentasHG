@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     items: { productoId: string; cantidad: string }[];
   };
 
-  const tiposValidos = ["CORTESIA", "SORTEO", "MUESTRA", "EVENTO"];
+  const tiposValidos = ["CORTESIA", "SORTEO", "MUESTRA", "EVENTO", "FIDELIDAD"];
   if (!tiposValidos.includes(tipo)) {
     return NextResponse.json({ error: "Tipo de salida inválido" }, { status: 400 });
   }

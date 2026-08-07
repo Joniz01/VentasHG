@@ -133,7 +133,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [saving, setSaving] = useState(false);
 
   // ── Salida Cortesías ──
-  const [cortTipo, setCortTipo] = useState<"CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO">("CORTESIA");
+  const [cortTipo, setCortTipo] = useState<"CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO" | "FIDELIDAD">("CORTESIA");
   const [cortFecha, setCortFecha] = useState(today());
   const [cortBeneficiario, setCortBeneficiario] = useState("");
   const [cortMotivo, setCortMotivo] = useState("");
@@ -1056,9 +1056,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 10 }}>Tipo de salida</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-              {(["CORTESIA", "SORTEO", "MUESTRA", "EVENTO"] as const).map((t) => {
-                const icons: Record<string, string> = { CORTESIA: "🤝", SORTEO: "🎯", MUESTRA: "📋", EVENTO: "🎪" };
-                const labels: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo / Premio", MUESTRA: "Muestra", EVENTO: "Evento" };
+              {(["CORTESIA", "SORTEO", "MUESTRA", "EVENTO", "FIDELIDAD"] as const).map((t) => {
+                const icons: Record<string, string> = { CORTESIA: "🤝", SORTEO: "🎯", MUESTRA: "📋", EVENTO: "🎪", FIDELIDAD: "🎖️" };
+                const labels: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo / Premio", MUESTRA: "Muestra", EVENTO: "Evento", FIDELIDAD: "Pasaporte de Fidelidad" };
                 const sel = cortTipo === t;
                 return (
                   <button
