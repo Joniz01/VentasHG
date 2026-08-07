@@ -81,14 +81,14 @@ export async function POST(request: NextRequest) {
       try {
         await client.query(
           `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota, usuario_id, origen)
-           VALUES ($1, 'SALIDA', $2, $3, $4, 'SALIDA_GRATUITA')`,
+           VALUES ($1, 'AJUSTE', $2, $3, $4, 'SALIDA_GRATUITA')`,
           [productoId, -cantidad, nota, sesion.id]
         );
       } catch {
         await client.query("ROLLBACK TO SAVEPOINT antes_mov");
         await client.query(
           `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota)
-           VALUES ($1, 'SALIDA', $2, $3)`,
+           VALUES ($1, 'AJUSTE', $2, $3)`,
           [productoId, -cantidad, nota]
         );
       }
