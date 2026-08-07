@@ -47,9 +47,9 @@ export async function POST(request: NextRequest) {
       const productoId = Number(item.productoId);
       const cantidad = Number(item.cantidad);
 
-      // Leer costo_unit y verificar stock
+      // Leer costo y verificar stock
       const prodResult = await client.query(
-        `SELECT stock_actual, costo_unit, nombre FROM productos WHERE id = $1 FOR UPDATE`,
+        `SELECT stock_actual, costo, nombre FROM productos WHERE id = $1 FOR UPDATE`,
         [productoId]
       );
       if ((prodResult.rowCount ?? 0) === 0) {
@@ -64,9 +64,9 @@ export async function POST(request: NextRequest) {
 
       // Insertar ítem de salida
       await client.query(
-        `INSERT INTO salidas_gratuitas_items (salida_id, producto_id, cantidad, costo_unit)
+        `INSERT INTO salidas_gratuitas_items (salida_id, producto_id, cantidad, costo)
          VALUES ($1, $2, $3, $4)`,
-        [salidaId, productoId, cantidad, prod.costo_unit]
+        [salidaId, productoId, cantidad, prod.costo]
       );
 
       // Descontar stock
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
               'productoId', sgi.producto_id,
               'nombre', p.nombre,
               'cantidad', sgi.cantidad,
-              'costoUnit', sgi.costo_unit
+              'costoUnit', sgi.costo
             ) ORDER BY sgi.id) AS items
      FROM salidas_gratuitas sg
      LEFT JOIN usuarios u ON u.id = sg.usuario_id

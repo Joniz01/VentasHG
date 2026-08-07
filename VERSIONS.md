@@ -38,7 +38,7 @@ CREATE TABLE salidas_gratuitas_items (
   salida_id   INTEGER NOT NULL REFERENCES salidas_gratuitas(id) ON DELETE CASCADE,
   producto_id INTEGER NOT NULL REFERENCES productos(id),
   cantidad    DECIMAL(12,4) NOT NULL,
-  costo_unit  DECIMAL(12,2) NOT NULL
+  costo       DECIMAL(12,2) NOT NULL
 );
 ```
 
