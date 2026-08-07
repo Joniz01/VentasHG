@@ -151,6 +151,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [cortPorPagina, setCortPorPagina] = useState(10);
   const [cortPagina, setCortPagina] = useState(1);
   const [cortAnulando, setCortAnulando] = useState<number | null>(null);
+  const [cortEditingId, setCortEditingId] = useState<number | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(today());
@@ -998,6 +999,18 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }
   }
 
+  function startCortEdit(s: SalidaHistRow) {
+    setCortEditingId(s.id);
+    setCortTipo(s.tipo as "CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO" | "FIDELIDAD");
+    setCortFecha(s.fecha ? s.fecha.slice(0, 10) : today());
+    setCortBeneficiario(s.beneficiario ?? "");
+    setCortMotivo(s.motivo ?? "");
+    setCortItems(s.items.map((it) => ({ productoId: String((it as { productoId?: number; nombre: string; cantidad: number }).productoId ?? ""), cantidad: String(it.cantidad) })));
+    setCortError(null);
+    setCortSuccess(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function loadCortHistorial() {
     setCortHistLoading(true);
     try {
@@ -1032,8 +1045,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     if (!items.length) { setCortError("Agrega al menos un producto con cantidad válida."); return; }
     setCortSaving(true);
     try {
-      const res = await fetch("/api/salidas-gratuitas", {
-        method: "POST",
+      const url = cortEditingId ? `/api/salidas-gratuitas/${cortEditingId}` : "/api/salidas-gratuitas";
+      const method = cortEditingId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tipo: cortTipo, fecha: cortFecha, beneficiario: cortBeneficiario, motivo: cortMotivo, items }),
       });
@@ -1042,6 +1057,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         setCortError(data.error ?? "Error al registrar la salida.");
       } else {
         setCortSuccess(true);
+        setCortEditingId(null);
         setCortItems([{ productoId: "", cantidad: "1" }]);
         setCortBeneficiario("");
         setCortMotivo("");
@@ -1090,6 +1106,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
       {vista === "cortesias" && (
         <form onSubmit={handleCortesiaSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Banner edición */}
+          {cortEditingId && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 8, padding: "10px 14px" }}>
+              <span style={{ fontSize: 16 }}>✏️</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#92400E" }}>Editando salida #{cortEditingId} — los cambios actualizarán el stock automáticamente.</span>
+              <button type="button" onClick={() => { setCortEditingId(null); setCortItems([{ productoId: "", cantidad: "1" }]); setCortBeneficiario(""); setCortMotivo(""); setCortTipo("CORTESIA"); setCortError(null); setCortSuccess(false); }} style={{ fontSize: 11, color: "#92400E", background: "transparent", border: "1px solid #F59E0B", borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontWeight: 700 }}>Cancelar edición</button>
+            </div>
+          )}
           {/* Tipo */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 10 }}>Tipo de salida</div>
@@ -1224,10 +1248,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               type="submit"
               disabled={cortSaving}
               style={{ flex: 1, padding: "10px 20px", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: cortSaving ? 0.6 : 1 }}
-            >{cortSaving ? "Registrando…" : "✓ Registrar Salida Gratuita"}</button>
+            >{cortSaving ? "Guardando…" : cortEditingId ? "✓ Guardar cambios" : "✓ Registrar Salida Gratuita"}</button>
             <button
               type="button"
-              onClick={() => { setCortItems([{ productoId: "", cantidad: "1" }]); setCortBeneficiario(""); setCortMotivo(""); setCortTipo("CORTESIA"); setCortError(null); setCortSuccess(false); }}
+              onClick={() => { setCortEditingId(null); setCortItems([{ productoId: "", cantidad: "1" }]); setCortBeneficiario(""); setCortMotivo(""); setCortTipo("CORTESIA"); setCortError(null); setCortSuccess(false); }}
               style={{ padding: "10px 16px", background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, cursor: "pointer" }}
             >Limpiar</button>
           </div>
@@ -1307,12 +1331,19 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                               </td>
                               <td style={{ padding: "8px 11px" }}>
                                 {!s.anulada && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAnularSalida(s.id)}
-                                    disabled={cortAnulando === s.id}
-                                    style={{ padding: "4px 10px", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", opacity: cortAnulando === s.id ? 0.6 : 1 }}
-                                  >{cortAnulando === s.id ? "…" : "Anular"}</button>
+                                  <div style={{ display: "flex", gap: 5 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => startCortEdit(s)}
+                                      style={{ padding: "4px 10px", background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-primary)", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                                    >Editar</button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAnularSalida(s.id)}
+                                      disabled={cortAnulando === s.id}
+                                      style={{ padding: "4px 10px", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", opacity: cortAnulando === s.id ? 0.6 : 1 }}
+                                    >{cortAnulando === s.id ? "…" : "Anular"}</button>
+                                  </div>
                                 )}
                               </td>
                             </tr>
