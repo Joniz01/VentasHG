@@ -5,6 +5,47 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.6 — 2026-08-07
+
+### Resumen
+Nuevo módulo **Salida Cortesías**: pestaña independiente entre "Registro de Ventas" e "Historial" en el Punto de Venta. Permite registrar salidas de inventario sin cobro (cortesía, sorteo, muestra, evento) con descuento automático de stock y registro de movimiento de inventario. Incluye API REST completa con validación de stock.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `app/api/salidas-gratuitas/route.ts` | API POST (registra salida + descuenta stock + movimiento inventario) y GET (lista con filtros por tipo/fecha) |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `components/VentasClient.tsx` | Nueva tab "Salida Cortesías" entre Registro de Ventas e Historial; estado local del formulario (`cortTipo`, `cortFecha`, `cortBeneficiario`, `cortMotivo`, `cortItems`); handler `handleCortesiaSubmit`; panel con selector de tipo, lista de productos con stock, campo beneficiario, motivo y confirmación |
+| `VERSIONS.md` | Versión v3.6 documentada |
+
+### Migración SQL requerida (aplicar en Neon antes de usar el módulo)
+```sql
+CREATE TABLE salidas_gratuitas (
+  id          SERIAL PRIMARY KEY,
+  tipo        TEXT NOT NULL CHECK (tipo IN ('CORTESIA','SORTEO','MUESTRA','EVENTO')),
+  fecha       DATE NOT NULL,
+  beneficiario TEXT,
+  motivo      TEXT,
+  usuario_id  INTEGER REFERENCES usuarios(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE salidas_gratuitas_items (
+  id          SERIAL PRIMARY KEY,
+  salida_id   INTEGER NOT NULL REFERENCES salidas_gratuitas(id) ON DELETE CASCADE,
+  producto_id INTEGER NOT NULL REFERENCES productos(id),
+  cantidad    DECIMAL(12,4) NOT NULL,
+  costo_unit  DECIMAL(12,2) NOT NULL
+);
+```
+
+### Sin variables de entorno nuevas
+
+---
+
 ## v3.5 — 2026-08-05
 
 ### Resumen

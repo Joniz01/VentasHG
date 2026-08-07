@@ -113,7 +113,7 @@ type Props = {
 };
 
 export default function VentasClient({ rol = null, puedeDescuento = false }: Props) {
-  const [vista, setVista] = useState<"ventas" | "historial" | "notas">("ventas");
+  const [vista, setVista] = useState<"ventas" | "cortesias" | "historial" | "notas">("ventas");
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
@@ -131,6 +131,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // ── Salida Cortesías ──
+  const [cortTipo, setCortTipo] = useState<"CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO">("CORTESIA");
+  const [cortFecha, setCortFecha] = useState(today());
+  const [cortBeneficiario, setCortBeneficiario] = useState("");
+  const [cortMotivo, setCortMotivo] = useState("");
+  const [cortItems, setCortItems] = useState<{ productoId: string; cantidad: string }[]>([{ productoId: "", cantidad: "1" }]);
+  const [cortSaving, setCortSaving] = useState(false);
+  const [cortError, setCortError] = useState<string | null>(null);
+  const [cortSuccess, setCortSuccess] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(today());
@@ -978,6 +988,37 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }
   }
 
+  async function handleCortesiaSubmit(e: FormEvent) {
+    e.preventDefault();
+    setCortError(null);
+    setCortSuccess(false);
+    const items = cortItems.filter((i) => i.productoId && Number(i.cantidad) > 0);
+    if (!items.length) { setCortError("Agrega al menos un producto con cantidad válida."); return; }
+    setCortSaving(true);
+    try {
+      const res = await fetch("/api/salidas-gratuitas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: cortTipo, fecha: cortFecha, beneficiario: cortBeneficiario, motivo: cortMotivo, items }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setCortError(data.error ?? "Error al registrar la salida.");
+      } else {
+        setCortSuccess(true);
+        setCortItems([{ productoId: "", cantidad: "1" }]);
+        setCortBeneficiario("");
+        setCortMotivo("");
+        setCortTipo("CORTESIA");
+        setCortFecha(today());
+      }
+    } catch {
+      setCortError("Error de red. Intenta de nuevo.");
+    } finally {
+      setCortSaving(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* ERP anchor tab bar */}
@@ -985,8 +1026,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         className="flex gap-0 print:hidden border-b"
         style={{ borderColor: "var(--erp-border)" }}
       >
-        {(["ventas", "historial", "notas"] as const).map((v) => {
-          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", notas: "Notas de Entrega" };
+        {(["ventas", "cortesias", "historial", "notas"] as const).map((v) => {
+          const labels: Record<string, string> = { ventas: "Registro de Ventas", cortesias: "Salida Cortesías", historial: "Historial", notas: "Notas de Entrega" };
           const active = vista === v;
           return (
             <button
@@ -1008,6 +1049,152 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       </div>
 
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
+
+      {vista === "cortesias" && (
+        <form onSubmit={handleCortesiaSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Tipo */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 10 }}>Tipo de salida</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+              {(["CORTESIA", "SORTEO", "MUESTRA", "EVENTO"] as const).map((t) => {
+                const icons: Record<string, string> = { CORTESIA: "🤝", SORTEO: "🎯", MUESTRA: "📋", EVENTO: "🎪" };
+                const labels: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo / Premio", MUESTRA: "Muestra", EVENTO: "Evento" };
+                const sel = cortTipo === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setCortTipo(t)}
+                    style={{
+                      padding: "10px 8px", border: `1.5px solid ${sel ? "var(--erp-primary)" : "var(--erp-border)"}`,
+                      borderRadius: 9, textAlign: "center", cursor: "pointer", background: sel ? "var(--erp-primary-lt)" : "var(--erp-surface)",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                    }}
+                  >
+                    <span style={{ fontSize: 22 }}>{icons[t]}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: sel ? "var(--erp-primary)" : "var(--erp-text-2)" }}>{labels[t]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Fecha y Beneficiario */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Fecha</label>
+              <input
+                type="date"
+                value={cortFecha}
+                onChange={(e) => setCortFecha(e.target.value)}
+                required
+                style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Beneficiario / Destinatario</label>
+              <input
+                type="text"
+                value={cortBeneficiario}
+                onChange={(e) => setCortBeneficiario(e.target.value)}
+                placeholder="Ej: María González — cliente frecuente"
+                style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
+              />
+            </div>
+          </div>
+
+          {/* Productos */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 8 }}>Productos a entregar</div>
+            <div style={{ border: "1.5px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 36px", gap: 8, padding: "7px 12px", background: "var(--erp-bg)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)" }}>
+                <div>Producto</div>
+                <div>Cantidad</div>
+                <div />
+              </div>
+              {cortItems.map((item, idx) => (
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 110px 36px", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--erp-border)", alignItems: "center" }}>
+                  <select
+                    value={item.productoId}
+                    onChange={(e) => {
+                      const next = [...cortItems];
+                      next[idx] = { ...next[idx], productoId: e.target.value };
+                      setCortItems(next);
+                    }}
+                    required={idx === 0}
+                    style={{ padding: "6px 8px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12.5, background: "var(--erp-surface)", color: "var(--erp-text)", width: "100%" }}
+                  >
+                    <option value="">— Seleccionar producto —</option>
+                    {productos.filter((p) => p.stockActual > 0 || item.productoId === String(p.id)).map((p) => (
+                      <option key={p.id} value={String(p.id)}>{p.nombre} (stock: {p.stockActual})</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    value={item.cantidad}
+                    onChange={(e) => {
+                      const next = [...cortItems];
+                      next[idx] = { ...next[idx], cantidad: e.target.value };
+                      setCortItems(next);
+                    }}
+                    style={{ padding: "6px 8px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12.5, background: "var(--erp-surface)", color: "var(--erp-text)", width: "100%", textAlign: "right" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCortItems(cortItems.filter((_, i) => i !== idx))}
+                    disabled={cortItems.length === 1}
+                    style={{ width: 28, height: 28, border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-bg)", color: "var(--erp-text-3)", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", opacity: cortItems.length === 1 ? 0.3 : 1 }}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCortItems([...cortItems, { productoId: "", cantidad: "1" }])}
+              style={{ marginTop: 8, width: "100%", padding: "8px 12px", background: "var(--erp-bg)", border: "1.5px dashed var(--erp-border)", borderRadius: 8, cursor: "pointer", fontSize: 12, color: "var(--erp-text-2)", fontWeight: 600 }}
+            >+ Agregar producto</button>
+          </div>
+
+          {/* Motivo */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Motivo / descripción</label>
+            <textarea
+              value={cortMotivo}
+              onChange={(e) => setCortMotivo(e.target.value)}
+              placeholder="Ej: Cortesía por fidelidad — cliente lleva 1 año con nosotros"
+              rows={3}
+              style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)", resize: "vertical", fontFamily: "inherit" }}
+            />
+          </div>
+
+          {/* Aviso */}
+          <div style={{ background: "var(--erp-primary-lt)", border: "1.5px solid var(--erp-primary)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--erp-text-2)", display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <span>🎁</span>
+            <div>Esta salida <strong>descuenta el inventario</strong> pero <strong>no genera ingreso ni cobro</strong>. Quedará registrada en el historial de salidas con el tipo seleccionado.</div>
+          </div>
+
+          {cortError && (
+            <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 7, padding: "9px 13px", fontSize: 12.5, color: "#DC2626" }}>{cortError}</div>
+          )}
+          {cortSuccess && (
+            <div style={{ background: "#DCFCE7", border: "1px solid #86EFAC", borderRadius: 7, padding: "9px 13px", fontSize: 12.5, color: "#15803D", fontWeight: 600 }}>✓ Salida registrada correctamente. El inventario fue actualizado.</div>
+          )}
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              type="submit"
+              disabled={cortSaving}
+              style={{ flex: 1, padding: "10px 20px", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: cortSaving ? 0.6 : 1 }}
+            >{cortSaving ? "Registrando…" : "✓ Registrar Salida Gratuita"}</button>
+            <button
+              type="button"
+              onClick={() => { setCortItems([{ productoId: "", cantidad: "1" }]); setCortBeneficiario(""); setCortMotivo(""); setCortTipo("CORTESIA"); setCortError(null); setCortSuccess(false); }}
+              style={{ padding: "10px 16px", background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, cursor: "pointer" }}
+            >Limpiar</button>
+          </div>
+        </form>
+      )}
 
       {vista === "ventas" && modoVista === "pasos" && (
         <>
