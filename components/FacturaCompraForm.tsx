@@ -109,6 +109,7 @@ export default function FacturaCompraForm({
   const [observaciones, setObservaciones] = useState(initialData?.observaciones ?? "");
   const [tasaDia, setTasaDia] = useState(initialData ? String(initialData.tasaDia) : (tasaBcv > 0 ? String(tasaBcv) : ""));
   const [fechaVencimientoPago, setFechaVencimientoPago] = useState(initialData?.fechaVencimientoPago?.slice(0, 10) ?? "");
+  const [tipoUsoFactura, setTipoUsoFactura] = useState<"VENTA" | "MATERIA_PRIMA">("VENTA");
   const [imagenBase64, setImagenBase64] = useState<string | null>(initialData?.imagenFactura ?? null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -332,6 +333,7 @@ export default function FacturaCompraForm({
           tasaDia: Number(tasaDia) || 0,
           fechaVencimientoPago: fechaVencimientoPago || null,
           imagenFactura: imagenBase64,
+          tipoUso: tipoUsoFactura,
           items: resolvedItems.map(it => ({ productoId: it.productoId, nombreProducto: it.nombreProducto.trim(), cantidad: Number(it.cantidad), costoUnitBs: Number(it.costoUnitBs) })),
         }),
       });
@@ -647,9 +649,22 @@ export default function FacturaCompraForm({
 
         {/* ② Productos */}
         <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--erp-border)" }}>
-          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <span>② Productos</span>
-            <span style={{ fontWeight: 400 }}>{items.length} línea{items.length !== 1 ? "s" : ""}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--erp-text-3)", fontWeight: 500 }}>Tipo:</span>
+              <div style={{ display: "flex", borderRadius: 6, border: "1px solid var(--erp-border)", overflow: "hidden", fontSize: 12 }}>
+                {([["VENTA", "Para venta"], ["MATERIA_PRIMA", "Materia prima"]] as const).map(([val, label]) => (
+                  <button key={val} type="button" onClick={() => setTipoUsoFactura(val)}
+                    style={{ padding: "4px 10px", border: "none", cursor: "pointer", fontWeight: tipoUsoFactura === val ? 600 : 400,
+                      background: tipoUsoFactura === val ? "var(--erp-primary)" : "var(--erp-surface)",
+                      color: tipoUsoFactura === val ? "#fff" : "var(--erp-text-2)" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span style={{ fontWeight: 400, fontSize: 11, color: "var(--erp-text-3)" }}>{items.length} línea{items.length !== 1 ? "s" : ""}</span>
+            </div>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
