@@ -1105,7 +1105,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
 
       {vista === "cortesias" && (
-        <form onSubmit={handleCortesiaSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <form onSubmit={handleCortesiaSubmit} className="flex flex-col gap-4">
           {/* Banner edición */}
           {cortEditingId && (
             <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 8, padding: "10px 14px" }}>
@@ -1142,7 +1142,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           </div>
 
           {/* Fecha y Beneficiario */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Fecha</label>
               <input
@@ -1295,7 +1295,41 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               };
               return (
                 <>
-                  <div style={{ overflowX: "auto", border: "1.5px solid var(--erp-border)", borderRadius: 8 }}>
+                  {/* Tarjetas móvil */}
+                  <div className="flex flex-col gap-2 sm:hidden">
+                    {filas.map((s) => {
+                      const pill = tipoPill[s.tipo] ?? { bg: "var(--erp-bg)", color: "var(--erp-text-2)" };
+                      return (
+                        <div key={s.id} style={{ border: "1.5px solid var(--erp-border)", borderRadius: 8, padding: "10px 12px", background: "var(--erp-surface)", opacity: s.anulada ? 0.6 : 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>#{s.id}</span>
+                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: pill.bg, color: pill.color }}>{s.tipo}</span>
+                              {s.anulada
+                                ? <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#FEE2E2", color: "#DC2626" }}>ANULADA</span>
+                                : <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D" }}>ACTIVA</span>
+                              }
+                            </div>
+                            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{s.fecha ? s.fecha.slice(0, 10) : "—"}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--erp-text-2)", marginBottom: 4 }}>
+                            {s.items?.map((it, i) => <span key={i}>{i > 0 ? ", " : ""}{it.cantidad}× {it.nombre}</span>)}
+                          </div>
+                          {s.beneficiario && <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginBottom: 2 }}>Para: {s.beneficiario}</div>}
+                          {!s.anulada && (
+                            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                              <button type="button" onClick={() => startCortEdit(s)}
+                                style={{ flex: 1, padding: "5px 0", background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-primary)", borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Editar</button>
+                              <button type="button" onClick={() => handleAnularSalida(s.id)} disabled={cortAnulando === s.id}
+                                style={{ flex: 1, padding: "5px 0", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: cortAnulando === s.id ? 0.6 : 1 }}>{cortAnulando === s.id ? "…" : "Anular"}</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Tabla desktop */}
+                  <div className="hidden sm:block" style={{ overflowX: "auto", border: "1.5px solid var(--erp-border)", borderRadius: 8 }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                       <thead>
                         <tr style={{ background: "var(--erp-bg)" }}>
@@ -1332,17 +1366,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                               <td style={{ padding: "8px 11px" }}>
                                 {!s.anulada && (
                                   <div style={{ display: "flex", gap: 5 }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => startCortEdit(s)}
-                                      style={{ padding: "4px 10px", background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-primary)", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
-                                    >Editar</button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAnularSalida(s.id)}
-                                      disabled={cortAnulando === s.id}
-                                      style={{ padding: "4px 10px", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", opacity: cortAnulando === s.id ? 0.6 : 1 }}
-                                    >{cortAnulando === s.id ? "…" : "Anular"}</button>
+                                    <button type="button" onClick={() => startCortEdit(s)}
+                                      style={{ padding: "4px 10px", background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-primary)", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Editar</button>
+                                    <button type="button" onClick={() => handleAnularSalida(s.id)} disabled={cortAnulando === s.id}
+                                      style={{ padding: "4px 10px", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", opacity: cortAnulando === s.id ? 0.6 : 1 }}>{cortAnulando === s.id ? "…" : "Anular"}</button>
                                   </div>
                                 )}
                               </td>
