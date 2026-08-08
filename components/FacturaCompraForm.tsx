@@ -560,27 +560,27 @@ export default function FacturaCompraForm({
   return (
     <div style={{ maxWidth: 760 }}>
       {/* OCR Strip */}
-      <div style={{ background: "#0F172A", borderRadius: "12px 12px 0 0", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ width: 40, height: 40, background: "rgba(56,189,248,.15)", border: "1px solid rgba(56,189,248,.3)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📷</div>
+      <div style={{ background: "var(--erp-primary)", borderRadius: "12px 12px 0 0", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 40, height: 40, background: "rgba(255,255,255,.15)", border: "1px solid rgba(255,255,255,.3)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📷</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: "#F8FAFC", fontSize: 13, fontWeight: 600 }}>Escanear / Cargar factura</div>
-          <div style={{ color: "#94A3B8", fontSize: 12, marginTop: 2 }}>Extrae proveedor, N° factura, fecha y productos automáticamente</div>
+          <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>Escanear / Cargar factura</div>
+          <div style={{ color: "rgba(255,255,255,.7)", fontSize: 12, marginTop: 2 }}>Extrae proveedor, N° factura, fecha y productos automáticamente</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          <button type="button" onClick={() => cameraRef.current?.click()} style={{ background: "#38BDF8", color: "#0F172A", border: "none", padding: "7px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📸 Cámara</button>
-          <button type="button" onClick={() => fileRef.current?.click()} style={{ background: "rgba(255,255,255,.08)", color: "#CBD5E1", border: "1px solid rgba(255,255,255,.12)", padding: "7px 14px", borderRadius: 6, fontSize: 13, cursor: "pointer" }}>⬆ Subir</button>
+          <button type="button" onClick={() => cameraRef.current?.click()} style={{ background: "rgba(255,255,255,0.2)", color: "#fff", border: "1px solid rgba(255,255,255,0.35)", padding: "7px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📸 Cámara</button>
+          <button type="button" onClick={() => fileRef.current?.click()} style={{ background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.85)", border: "1px solid rgba(255,255,255,.2)", padding: "7px 14px", borderRadius: 6, fontSize: 13, cursor: "pointer" }}>⬆ Subir</button>
         </div>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
       </div>
 
       {(ocrLoading || ocrError || (imagenBase64 && !ocrLoading)) && (
-        <div style={{ background: "#1E293B", borderTop: "1px solid rgba(56,189,248,.2)", padding: "10px 20px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {ocrLoading && <><span style={{ color: "#38BDF8" }}>🔍</span><span style={{ color: "#94A3B8", fontSize: 13 }}>Analizando factura con IA...</span></>}
+        <div style={{ background: "var(--erp-primary-lt)", borderTop: "1px solid var(--erp-border)", padding: "10px 20px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {ocrLoading && <><span style={{ color: "var(--erp-primary)" }}>🔍</span><span style={{ color: "var(--erp-text-2)", fontSize: 13 }}>Analizando factura con IA...</span></>}
           {!ocrLoading && imagenBase64 && !ocrError && (
             <>
-              <span style={{ background: "rgba(56,189,248,.15)", color: "#38BDF8", border: "1px solid rgba(56,189,248,.3)", borderRadius: 99, padding: "2px 10px", fontSize: 12, fontWeight: 500 }}>✓ Procesada</span>
-              <span style={{ color: "#94A3B8", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>
+              <span style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 99, padding: "2px 10px", fontSize: 12, fontWeight: 500 }}>✓ Procesada</span>
+              <span style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>
               <img src={imagenBase64} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginLeft: "auto" }} />
             </>
           )}
