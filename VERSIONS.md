@@ -5,6 +5,57 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.7 — 2026-08-08
+
+### Resumen
+Normalización de clientes (split Nombre/Apellido): nueva pestaña en Admin, campo dividido en Registrar Venta y Salida Cortesías con autocompletado y registro inline. Tipo "Muestra" renombrado a "Consumo Interno" en Salida Cortesías. Tipos de salida personalizados configurables desde Admin. Mejoras de UX: forma de pago al marcar CxC como pagada, banner home más compacto, responsive en Salida Cortesías, paginación en Normalización, fix scroll horizontal.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `app/api/admin/clientes-normalizar/route.ts` | GET lista clientes con auto-split y stats; POST bulk-approve de nombres simples (2 palabras) |
+| `app/api/admin/clientes-normalizar/[id]/route.ts` | PATCH aprueba y guarda nombre+apellido normalizados por cliente |
+| `components/NormalizacionClientesTab.tsx` | Tab de normalización: KPIs, barra de progreso, paginación 10/20/50, staging de aprobaciones, edición inline |
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `lib/types.ts` | Agrega campo `apellido` a tipo `Cliente` y `ClienteInput` |
+| `app/api/clientes/route.ts` | GET busca por `apellido` y `nombre+apellido` combinado; devuelve `apellido`; POST guarda `apellido` con `normalizado=TRUE` |
+| `components/VentasClient.tsx` | Campo Cliente dividido en Nombre+Apellido con autocompletado, auto-split al seleccionar, warning para 3+ palabras, panel de registro inline, toTitleCase onBlur; Beneficiario en Salida Cortesías con el mismo flujo; tipo MUESTRA→CONSUMO_INTERNO; tipos de salida dinámicos (lee `salidas_tipos_extra` del config) |
+| `components/ConfiguracionClient.tsx` | Nueva sección "Salidas Cortesía — Tipos": tipos base (no editables) + gestión de tipos adicionales guardados en `salidas_tipos_extra` |
+| `components/AdminTabsClient.tsx` | Nueva pestaña "Normalización" (🔤) con `NormalizacionClientesTab` |
+| `components/FechaPagoConfirm.tsx` | Prop `showMetodoPago`; selector de forma de pago (Efectivo USD/Bs, Transferencia, Punto de Venta, Pago Móvil, Zelle) al marcar CxC Directa como pagada |
+| `components/CuentasPorCobrarPanel.tsx` | Pasa `metodoPago` al API al liquidar CxC Directa; `FechaPagoConfirm` con `showMetodoPago` solo para CxC Directa |
+| `app/api/reportes/cuentas-por-cobrar/[id]/route.ts` | Acepta `metodoPago`; DELETE limpia todos los métodos CxC posibles; INSERT con `metodo = metodoPago \|\| "CXC_DIRECTA"` |
+| `app/(main)/page.tsx` | Banner de saludo con fondo `var(--erp-surface)` translúcido y menor altura vertical |
+| `app/api/salidas-gratuitas/route.ts` | `tiposValidos` incluye CONSUMO_INTERNO, mantiene MUESTRA para compatibilidad; acepta tipos extras de `salidas_tipos_extra` en configuración |
+| `app/api/salidas-gratuitas/[id]/route.ts` | Misma actualización de validación de tipos |
+
+### Migración SQL requerida (aplicar en Neon)
+```sql
+-- Columnas para normalización de clientes
+ALTER TABLE clientes
+  ADD COLUMN IF NOT EXISTS apellido TEXT,
+  ADD COLUMN IF NOT EXISTS normalizado BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS normalizado_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS normalizado_por INTEGER REFERENCES usuarios(id);
+
+-- Clave de configuración para tipos de salida extra (opcional, se crea al guardar)
+INSERT INTO configuracion (clave, valor) VALUES ('salidas_tipos_extra', '')
+  ON CONFLICT (clave) DO NOTHING;
+```
+
+### Notas técnicas
+- El campo `cliente` en ventas sigue siendo un solo texto; la división Nombre/Apellido se concatena antes de guardar. La normalización en BD es independiente (tabla `clientes`).
+- Los registros de Salida Cortesías con `tipo = 'MUESTRA'` existentes se muestran como "Consumo interno" por compatibilidad retroactiva vía el mapa de labels.
+- Los tipos de salida adicionales se guardan como lista CSV en `configuracion.salidas_tipos_extra`.
+- La validación API de tipos de salida consulta `configuracion` en cada request para aceptar los tipos extra configurados.
+
+### Sin nuevas variables de entorno
+
+---
+
 ## v3.6 — 2026-08-07
 
 ### Resumen
