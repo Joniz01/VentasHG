@@ -69,15 +69,20 @@ export async function POST(request: NextRequest) {
     await client.query("BEGIN");
 
     const cResult = await client.query(
-      `INSERT INTO compras (fecha, proveedor_id, proveedor_nombre, proveedor_rif, numero_factura, observaciones, tasa_dia, imagen_factura, fecha_vencimiento_pago, tipo_uso, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      `INSERT INTO compras (fecha, proveedor_id, proveedor_nombre, proveedor_rif, numero_factura, observaciones, tasa_dia, imagen_factura, fecha_vencimiento_pago, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [fecha || new Date().toISOString().slice(0,10), proveedorId || null,
        proveedorNombre.trim(), proveedorRif?.trim() || null,
        numeroFactura?.trim() || null, observaciones?.trim() || null,
-       Number(tasaDia) || 0, imagenFactura || null, fechaVencimientoPago?.trim() || null,
-       tipoUso === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "VENTA", sesion.id]
+       Number(tasaDia) || 0, imagenFactura || null, fechaVencimientoPago?.trim() || null, sesion.id]
     );
     const compraId = cResult.rows[0].id;
+
+    // tipo_uso — silently skip if column not yet migrated
+    try {
+      const tu = tipoUso === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "VENTA";
+      await client.query(`UPDATE compras SET tipo_uso = $1 WHERE id = $2`, [tu, compraId]);
+    } catch { /* columna pendiente de migración */ }
 
     for (const item of items) {
       const cantidad = Number(item.cantidad);
