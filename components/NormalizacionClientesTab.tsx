@@ -42,6 +42,9 @@ export default function NormalizacionClientesTab() {
   const [saving, setSaving] = useState<number | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  // Staged approvals — IDs selected but not yet saved
+  const [staged, setStaged] = useState<Set<number>>(new Set());
+  const [committing, setCommitting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,21 +70,43 @@ export default function NormalizacionClientesTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function aprobar(row: ClienteRow) {
-    setSaving(row.id);
-    try {
-      const res = await fetch(`/api/admin/clientes-normalizar/${row.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: row.propNombre, apellido: row.propApellido }),
-      });
-      if (!res.ok) throw new Error("Error al aprobar");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
-    } finally {
-      setSaving(null);
-    }
+  // Toggle staged approval for a row (no API call yet)
+  function toggleStaged(row: ClienteRow) {
+    setStaged((prev) => {
+      const next = new Set(prev);
+      if (next.has(row.id)) next.delete(row.id);
+      else next.add(row.id);
+      return next;
+    });
+  }
+
+  // Commit all staged approvals at once
+  async function commitStaged() {
+    if (staged.size === 0) return;
+    setCommitting(true);
+    setError(null);
+    setBulkResult(null);
+    let ok = 0; let fail = 0;
+    const rowMap = new Map(rows.map((r) => [r.id, r]));
+    await Promise.all(
+      Array.from(staged).map(async (id) => {
+        const row = rowMap.get(id);
+        if (!row) return;
+        try {
+          const res = await fetch(`/api/admin/clientes-normalizar/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombre: row.propNombre, apellido: row.propApellido }),
+          });
+          if (!res.ok) throw new Error();
+          ok++;
+        } catch { fail++; }
+      })
+    );
+    setStaged(new Set());
+    setCommitting(false);
+    setBulkResult(`✓ ${ok} aprobados correctamente.${fail > 0 ? ` ${fail} fallaron.` : ""}`);
+    await load();
   }
 
   function startEdit(row: ClienteRow) {
@@ -142,7 +167,7 @@ export default function NormalizacionClientesTab() {
   const cellP: React.CSSProperties = { padding: "10px 12px", borderBottom: "1px solid var(--erp-border)", verticalAlign: "middle" };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: staged.size > 0 ? 72 : 0 }}>
       {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
         {[
@@ -242,9 +267,10 @@ export default function NormalizacionClientesTab() {
             <tbody>
               {filtered.map((row) => {
                 const isEditing = editingId === row.id;
-                const rowBg = row.normalizado ? "#FAFFFE" : row.flagged ? "#FFFEF5" : "var(--erp-surface)";
+                const isStaged = staged.has(row.id);
+                const rowBg = isStaged ? "#F0FDF4" : isEditing ? "var(--erp-primary-lt)" : row.normalizado ? "#FAFFFE" : row.flagged ? "#FFFEF5" : "var(--erp-surface)";
                 return (
-                  <tr key={row.id} style={{ borderBottom: "1px solid var(--erp-border)", background: isEditing ? "var(--erp-primary-lt)" : rowBg }}>
+                  <tr key={row.id} style={{ borderBottom: "1px solid var(--erp-border)", background: rowBg, transition: "background .15s" }}>
                     <td style={{ ...cellP, color: "var(--erp-text-3)", fontVariantNumeric: "tabular-nums", width: 40 }}>{row.id}</td>
                     <td style={cellP}>
                       <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--erp-text-3)", background: "var(--erp-bg)", padding: "2px 7px", borderRadius: 4 }}>{row.nombreOriginal}{row.apellidoDb ? ` ${row.apellidoDb}` : ""}</span>
@@ -258,13 +284,15 @@ export default function NormalizacionClientesTab() {
                       </td>
                     ) : (
                       <>
-                        <td style={{ ...cellP, fontWeight: 700, color: row.normalizado ? "#15803D" : row.flagged ? "#92400E" : "#0369A1" }}>{row.propNombre}</td>
-                        <td style={{ ...cellP, fontWeight: 600, color: row.normalizado ? "#0369A1" : row.flagged ? "#92400E" : "#0369A1" }}>{row.propApellido || <span style={{ color: "var(--erp-text-3)" }}>—</span>}</td>
+                        <td style={{ ...cellP, fontWeight: 700, color: isStaged ? "#15803D" : row.normalizado ? "#15803D" : row.flagged ? "#92400E" : "#0369A1" }}>{row.propNombre}</td>
+                        <td style={{ ...cellP, fontWeight: 600, color: isStaged ? "#15803D" : row.normalizado ? "#0369A1" : row.flagged ? "#92400E" : "#0369A1" }}>{row.propApellido || <span style={{ color: "var(--erp-text-3)" }}>—</span>}</td>
                       </>
                     )}
                     <td style={cellP}>
                       {row.normalizado ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#F0FDF4", color: "#15803D" }}>✓ Aprobado</span>
+                      ) : isStaged ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D" }}>● Seleccionado</span>
                       ) : row.flagged ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#FFFBEB", color: "#92400E" }}>⚠ Revisar</span>
                       ) : (
@@ -284,9 +312,9 @@ export default function NormalizacionClientesTab() {
                       ) : (
                         <div style={{ display: "flex", gap: 5 }}>
                           {!row.normalizado && (
-                            <button type="button" onClick={() => aprobar(row)} disabled={saving === row.id}
-                              style={{ padding: "4px 10px", background: "#F0FDF4", color: "#15803D", border: "1px solid #86EFAC", borderRadius: 5, fontSize: 11, fontWeight: 800, cursor: "pointer", opacity: saving === row.id ? 0.6 : 1 }}>
-                              {saving === row.id ? "…" : "✓ Aprobar"}
+                            <button type="button" onClick={() => toggleStaged(row)}
+                              style={{ padding: "4px 10px", background: isStaged ? "#15803D" : "#F0FDF4", color: isStaged ? "#fff" : "#15803D", border: `1px solid ${isStaged ? "#15803D" : "#86EFAC"}`, borderRadius: 5, fontSize: 11, fontWeight: 800, cursor: "pointer", transition: "background .15s, color .15s" }}>
+                              {isStaged ? "✓ Seleccionado" : "✓ Aprobar"}
                             </button>
                           )}
                           <button type="button" onClick={() => startEdit(row)}
@@ -307,6 +335,24 @@ export default function NormalizacionClientesTab() {
       <div style={{ fontSize: 11, color: "var(--erp-text-3)", paddingTop: 4 }}>
         Los cambios se guardan en la columna <code style={{ fontSize: 10, background: "var(--erp-bg)", padding: "1px 5px", borderRadius: 3 }}>apellido</code> de la tabla <code style={{ fontSize: 10, background: "var(--erp-bg)", padding: "1px 5px", borderRadius: 3 }}>clientes</code>. La normalización es permanente y se registra con fecha y usuario.
       </div>
+
+      {/* Botón flotante de confirmar selección */}
+      {staged.size > 0 && (
+        <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 100, display: "flex", gap: 8, alignItems: "center", background: "var(--erp-surface)", border: "1.5px solid #86EFAC", borderRadius: 12, padding: "10px 16px", boxShadow: "0 4px 24px rgba(0,0,0,.18)" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{staged.size} seleccionado{staged.size > 1 ? "s" : ""}</span>
+          <button
+            type="button"
+            onClick={commitStaged}
+            disabled={committing}
+            style={{ padding: "8px 20px", background: "#15803D", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap", opacity: committing ? 0.7 : 1 }}
+          >{committing ? "Guardando…" : `✓ Aprobar ${staged.size} cambio${staged.size > 1 ? "s" : ""}`}</button>
+          <button
+            type="button"
+            onClick={() => setStaged(new Set())}
+            style={{ padding: "8px 10px", background: "transparent", color: "var(--erp-text-3)", border: "1px solid var(--erp-border)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}
+          >✕</button>
+        </div>
+      )}
     </div>
   );
 }
