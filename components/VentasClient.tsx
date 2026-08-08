@@ -1074,12 +1074,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 min-w-0 w-full overflow-x-hidden">
       {/* ERP anchor tab bar */}
       <div
-        className="flex gap-0 print:hidden border-b"
+        className="print:hidden border-b overflow-x-auto"
         style={{ borderColor: "var(--erp-border)" }}
       >
+      <div className="flex gap-0 min-w-max">
         {(["ventas", "cortesias", "historial", "notas"] as const).map((v) => {
           const labels: Record<string, string> = { ventas: "Registro de Ventas", cortesias: "Salida Cortesías", historial: "Historial", notas: "Notas de Entrega" };
           const active = vista === v;
@@ -1100,6 +1101,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </button>
           );
         })}
+      </div>
       </div>
 
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
