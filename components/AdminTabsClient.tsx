@@ -9,6 +9,7 @@ import AdminAccesoClient from "@/components/AdminAccesoClient";
 import InventarioInicialClient from "@/components/InventarioInicialClient";
 import LLMAdminPanel from "@/components/LLMAdminPanel";
 import ConteoUsuariosConfigClient from "@/components/ConteoUsuariosConfigClient";
+import NormalizacionClientesTab from "@/components/NormalizacionClientesTab";
 
 type Props = {
   usuarioActualId: number;
@@ -24,6 +25,7 @@ const TABS = [
   { key: "acceso",        label: "Acceso al Sistema",   icon: "🔐", desc: "Contraseña y sesión" },
   { key: "llm",           label: "IA / LLM",            icon: "🤖", desc: "API keys de Gemini y Groq" },
   { key: "conteo",        label: "Conteo Inventario",   icon: "📋", desc: "Usuarios de conteo físico" },
+  { key: "normalizacion", label: "Normalización",        icon: "🔤", desc: "Split Nombre/Apellido de clientes" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -179,6 +181,16 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             <a href="/conteo" target="_blank" style={{ color: "var(--erp-primary)" }}>/conteo</a>.
           </p>
           <ConteoUsuariosConfigClient />
+        </div>
+      )}
+
+      {tab === "normalizacion" && (
+        <div>
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
+            Revisa y aprueba el split de Nombre / Apellido para todos los clientes registrados.
+            Los clientes simples (2 palabras) pueden aprobarse en lote; los complejos requieren revisión manual.
+          </p>
+          <NormalizacionClientesTab />
         </div>
       )}
     </div>
