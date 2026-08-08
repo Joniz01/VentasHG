@@ -48,12 +48,18 @@ export default function NormalizacionClientesTab() {
     setError(null);
     try {
       const res = await fetch("/api/admin/clientes-normalizar");
-      if (!res.ok) throw new Error("Error al cargar");
-      const data = await res.json();
-      setRows(data.rows);
-      setStats(data.stats);
+      const text = await res.text();
+      let data: { rows?: ClienteRow[]; stats?: Stats; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Respuesta no válida del servidor (HTTP ${res.status}): ${text.slice(0, 300)}`);
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status} — ${data.error ?? text.slice(0, 300)}`);
+      setRows(data.rows ?? []);
+      setStats(data.stats ?? { total: 0, aprobados: 0, flagged: 0, pendientes: 0 });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -190,7 +196,10 @@ export default function NormalizacionClientesTab() {
       )}
 
       {error && (
-        <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "9px 13px", fontSize: 12.5, color: "#DC2626" }}>{error}</div>
+        <div style={{ background: "#FEE2E2", border: "1.5px solid #FCA5A5", borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#DC2626", marginBottom: 6 }}>⚠ Error al cargar clientes</div>
+          <pre style={{ fontSize: 11, color: "#7F1D1D", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, padding: "8px 10px", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0, fontFamily: "monospace" }}>{error}</pre>
+        </div>
       )}
 
       {/* Filtros */}
