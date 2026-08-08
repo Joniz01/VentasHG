@@ -22,7 +22,10 @@ export async function PUT(
     items: { productoId: string; cantidad: string }[];
   };
 
-  const tiposValidos = ["CORTESIA", "SORTEO", "MUESTRA", "EVENTO", "FIDELIDAD"];
+  const tiposBase = ["CORTESIA", "SORTEO", "CONSUMO_INTERNO", "MUESTRA", "EVENTO", "FIDELIDAD"];
+  const cfgRow = await pool.query(`SELECT valor FROM configuracion WHERE clave = 'salidas_tipos_extra'`);
+  const tiposExtra = cfgRow.rows[0]?.valor ? cfgRow.rows[0].valor.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+  const tiposValidos = [...tiposBase, ...tiposExtra];
   if (!tiposValidos.includes(tipo)) return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
   if (!fecha) return NextResponse.json({ error: "La fecha es requerida" }, { status: 400 });
   const itemsValidos = (items ?? []).filter((i) => i.productoId && Number(i.cantidad) > 0);

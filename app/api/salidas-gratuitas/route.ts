@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
     items: { productoId: string; cantidad: string }[];
   };
 
-  const tiposValidos = ["CORTESIA", "SORTEO", "MUESTRA", "EVENTO", "FIDELIDAD"];
+  const tiposBase = ["CORTESIA", "SORTEO", "CONSUMO_INTERNO", "MUESTRA", "EVENTO", "FIDELIDAD"];
+  const cfgRow = await pool.query(`SELECT valor FROM configuracion WHERE clave = 'salidas_tipos_extra'`);
+  const tiposExtra = cfgRow.rows[0]?.valor ? cfgRow.rows[0].valor.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+  const tiposValidos = [...tiposBase, ...tiposExtra];
   if (!tiposValidos.includes(tipo)) {
     return NextResponse.json({ error: "Tipo de salida inválido" }, { status: 400 });
   }

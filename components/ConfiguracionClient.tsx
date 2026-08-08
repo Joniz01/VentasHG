@@ -20,9 +20,10 @@ type Config = {
   ventas_paso3_abierto: string;
   ventas_paso4_abierto: string;
   ventas_meta_total_hoy: string;
+  salidas_tipos_extra: string;
 };
 
-const SECTION_KEYS = ["general", "cashea", "yummy", "ventas"] as const;
+const SECTION_KEYS = ["general", "cashea", "yummy", "ventas", "salidas"] as const;
 type SectionKey = typeof SECTION_KEYS[number];
 
 function SectionToggle({
@@ -172,6 +173,7 @@ export default function ConfiguracionClient() {
     ventas_paso3_abierto: "true",
     ventas_paso4_abierto: "true",
     ventas_meta_total_hoy: "1",
+    salidas_tipos_extra: "",
   });
 
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
@@ -179,8 +181,10 @@ export default function ConfiguracionClient() {
     cashea: false,
     yummy: false,
     ventas: false,
+    salidas: false,
   });
 
+  const [nuevoTipoSalida, setNuevoTipoSalida] = useState("");
   const [nuevoPorcentaje, setNuevoPorcentaje] = useState("");
   const [nuevoDias, setNuevoDias] = useState("");
   const [nuevoYummyDias, setNuevoYummyDias] = useState("");
@@ -199,8 +203,8 @@ export default function ConfiguracionClient() {
     setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
-  function expandAll() { setOpen({ general: true, cashea: true, yummy: true, ventas: true }); }
-  function collapseAll() { setOpen({ general: false, cashea: false, yummy: false, ventas: false }); }
+  function expandAll() { setOpen({ general: true, cashea: true, yummy: true, ventas: true, salidas: true }); }
+  function collapseAll() { setOpen({ general: false, cashea: false, yummy: false, ventas: false, salidas: false }); }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -220,6 +224,19 @@ export default function ConfiguracionClient() {
     } finally {
       setSaving(false);
     }
+  }
+
+  const TIPOS_BASE = ["CORTESIA", "SORTEO", "CONSUMO_INTERNO", "EVENTO", "FIDELIDAD"];
+  const tiposExtraArr = (config.salidas_tipos_extra ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+  function addTipoSalida() {
+    const val = nuevoTipoSalida.trim().toUpperCase().replace(/\s+/g, "_");
+    if (!val || tiposExtraArr.includes(val) || TIPOS_BASE.includes(val)) return;
+    setConfig((p) => ({ ...p, salidas_tipos_extra: [...tiposExtraArr, val].join(",") }));
+    setNuevoTipoSalida("");
+  }
+  function removeTipoSalida(val: string) {
+    setConfig((p) => ({ ...p, salidas_tipos_extra: tiposExtraArr.filter((v) => v !== val).join(",") }));
   }
 
   const porcentajesArr = (config.cashea_porcentajes ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -466,6 +483,44 @@ export default function ConfiguracionClient() {
               fontSize: "0.875rem",
             }}
           />
+        </div>
+      </SectionToggle>
+
+      {/* Salidas Cortesía */}
+      <SectionToggle id="salidas" title="Salidas Cortesía — Tipos" icon="📦" open={open.salidas} onToggle={toggleSection}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Tipos base (no editables)</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.25rem" }}>
+            {[
+              { key: "CORTESIA", label: "🤝 Cortesía" },
+              { key: "SORTEO", label: "🎯 Sorteo" },
+              { key: "CONSUMO_INTERNO", label: "🏠 Consumo interno" },
+              { key: "EVENTO", label: "🎪 Evento" },
+              { key: "FIDELIDAD", label: "🎖️ Fidelidad" },
+            ].map(({ key, label }) => (
+              <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", padding: "0.15rem 0.55rem", borderRadius: "20px", border: "1px solid var(--erp-border)", background: "var(--erp-bg)", fontSize: "0.78rem", fontWeight: 500, color: "var(--erp-text-3)" }}>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label style={{ fontSize: "0.825rem", fontWeight: 500, color: "var(--erp-text-2)" }}>Tipos adicionales</label>
+          <p style={{ fontSize: "0.775rem", color: "var(--erp-text-3)", margin: "0 0 0.35rem 0" }}>
+            Se agregarán como tarjetas de tipo junto a los base. El nombre se convierte a mayúsculas con guión bajo (ej: "Publicidad" → PUBLICIDAD).
+          </p>
+          <TagList items={tiposExtraArr} onRemove={removeTipoSalida} />
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <input
+              type="text"
+              value={nuevoTipoSalida}
+              onChange={(e) => setNuevoTipoSalida(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTipoSalida())}
+              placeholder="Ej: Publicidad"
+              style={{ ...inputSt, width: 160 }}
+            />
+            <button type="button" onClick={addTipoSalida} style={{ padding: "0.35rem 0.8rem", border: "1px solid var(--erp-border)", borderRadius: "6px", background: "transparent", color: "var(--erp-text)", fontSize: "0.8rem", cursor: "pointer" }}>Agregar</button>
+          </div>
         </div>
       </SectionToggle>
 

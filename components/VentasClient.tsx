@@ -149,7 +149,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     motivo: string | null; responsable: string | null; anulada: boolean;
     items: { nombre: string; cantidad: number }[];
   };
-  const [cortTipo, setCortTipo] = useState<"CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO" | "FIDELIDAD">("CORTESIA");
+  const [cortTipo, setCortTipo] = useState<string>("CORTESIA");
+  const [cortTiposExtra, setCortTiposExtra] = useState<string[]>([]);
   const [cortFecha, setCortFecha] = useState(today());
   const [cortBeneficiario, setCortBeneficiario] = useState("");
   const [cortBenefNombre, setCortBenefNombre] = useState("");
@@ -382,6 +383,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           setYummyDiasOpciones(opts);
           const def = cfg.yummy_dias_default ?? opts[0] ?? "2";
           setYummyDiasSeleccion(def);
+        }
+        if (cfg.salidas_tipos_extra) {
+          setCortTiposExtra(cfg.salidas_tipos_extra.split(",").map((s: string) => s.trim()).filter(Boolean));
         }
         // Modo de vista y secciones — se aplica después de cargar preferencias de usuario
         fetch("/api/usuarios/perfil")
@@ -1076,7 +1080,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
   function startCortEdit(s: SalidaHistRow) {
     setCortEditingId(s.id);
-    setCortTipo(s.tipo as "CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO" | "FIDELIDAD");
+    setCortTipo(s.tipo);
     setCortFecha(s.fecha ? s.fecha.slice(0, 10) : today());
     setCortBeneficiario(s.beneficiario ?? "");
     setCortMotivo(s.motivo ?? "");
@@ -1201,28 +1205,29 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           {/* Tipo */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 10 }}>Tipo de salida</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5 }}>
-              {(["CORTESIA", "SORTEO", "MUESTRA", "EVENTO", "FIDELIDAD"] as const).map((t) => {
-                const icons: Record<string, string> = { CORTESIA: "🤝", SORTEO: "🎯", MUESTRA: "📋", EVENTO: "🎪", FIDELIDAD: "🎖️" };
-                const labels: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo", MUESTRA: "Muestra", EVENTO: "Evento", FIDELIDAD: "Fidelidad" };
-                const sel = cortTipo === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setCortTipo(t)}
-                    style={{
-                      padding: "7px 4px", border: `1.5px solid ${sel ? "var(--erp-primary)" : "var(--erp-border)"}`,
-                      borderRadius: 8, textAlign: "center", cursor: "pointer", background: sel ? "var(--erp-primary-lt)" : "var(--erp-surface)",
-                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                    }}
-                  >
-                    <span style={{ fontSize: 17 }}>{icons[t]}</span>
-                    <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".03em", color: sel ? "var(--erp-primary)" : "var(--erp-text-2)", lineHeight: 1.2 }}>{labels[t]}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {(() => {
+              const BASE_TIPOS = ["CORTESIA", "SORTEO", "CONSUMO_INTERNO", "EVENTO", "FIDELIDAD"];
+              const ALL_TIPOS = [...BASE_TIPOS, ...cortTiposExtra.filter((x) => !BASE_TIPOS.includes(x))];
+              const ICONS: Record<string, string> = { CORTESIA: "🤝", SORTEO: "🎯", CONSUMO_INTERNO: "🏠", EVENTO: "🎪", FIDELIDAD: "🎖️" };
+              const LABELS: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo", CONSUMO_INTERNO: "Consumo interno", EVENTO: "Evento", FIDELIDAD: "Fidelidad" };
+              const cols = Math.min(ALL_TIPOS.length, 5);
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 5 }}>
+                  {ALL_TIPOS.map((t) => {
+                    const sel = cortTipo === t;
+                    const label = LABELS[t] ?? t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                    return (
+                      <button key={t} type="button" onClick={() => setCortTipo(t)}
+                        style={{ padding: "7px 4px", border: `1.5px solid ${sel ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 8, textAlign: "center", cursor: "pointer", background: sel ? "var(--erp-primary-lt)" : "var(--erp-surface)", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
+                      >
+                        <span style={{ fontSize: 17 }}>{ICONS[t] ?? "📦"}</span>
+                        <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".03em", color: sel ? "var(--erp-primary)" : "var(--erp-text-2)", lineHeight: 1.2 }}>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Fecha y Beneficiario */}
@@ -1431,12 +1436,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               const pagActual = Math.min(cortPagina, totalPags);
               const filas = cortHistorial.slice((pagActual - 1) * cortPorPagina, pagActual * cortPorPagina);
               const tipoPill: Record<string, { bg: string; color: string }> = {
-                CORTESIA:  { bg: "#EDE9FE", color: "#6D28D9" },
-                SORTEO:    { bg: "#FEF9C3", color: "#92400E" },
-                MUESTRA:   { bg: "#E0F2FE", color: "#0369A1" },
-                EVENTO:    { bg: "#FCE7F3", color: "#9D174D" },
-                FIDELIDAD: { bg: "#FEF3C7", color: "#92400E" },
+                CORTESIA:        { bg: "#EDE9FE", color: "#6D28D9" },
+                SORTEO:          { bg: "#FEF9C3", color: "#92400E" },
+                CONSUMO_INTERNO: { bg: "#E0F2FE", color: "#0369A1" },
+                MUESTRA:         { bg: "#E0F2FE", color: "#0369A1" },
+                EVENTO:          { bg: "#FCE7F3", color: "#9D174D" },
+                FIDELIDAD:       { bg: "#FEF3C7", color: "#92400E" },
               };
+              const tipoLabel = (t: string) => ({ CORTESIA: "Cortesía", SORTEO: "Sorteo", CONSUMO_INTERNO: "Consumo interno", MUESTRA: "Consumo interno", EVENTO: "Evento", FIDELIDAD: "Fidelidad" }[t] ?? t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
               return (
                 <>
                   {/* Tarjetas móvil */}
@@ -1448,7 +1455,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                               <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>#{s.id}</span>
-                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: pill.bg, color: pill.color }}>{s.tipo}</span>
+                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: pill.bg, color: pill.color }}>{tipoLabel(s.tipo)}</span>
                               {s.anulada
                                 ? <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#FEE2E2", color: "#DC2626" }}>ANULADA</span>
                                 : <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D" }}>ACTIVA</span>
