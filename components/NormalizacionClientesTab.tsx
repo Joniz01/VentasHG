@@ -45,6 +45,8 @@ export default function NormalizacionClientesTab() {
   // Staged approvals — IDs selected but not yet saved
   const [staged, setStaged] = useState<Set<number>>(new Set());
   const [committing, setCommitting] = useState(false);
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -161,6 +163,10 @@ export default function NormalizacionClientesTab() {
     return true;
   });
 
+  const totalPaginas = Math.max(1, Math.ceil(filtered.length / porPagina));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const paginados = filtered.slice((paginaActual - 1) * porPagina, paginaActual * porPagina);
+
   const pct = stats.total > 0 ? Math.round((stats.aprobados / stats.total) * 100) : 0;
   const pendSimples = stats.pendientes; // non-flagged, non-normalized
 
@@ -238,7 +244,7 @@ export default function NormalizacionClientesTab() {
           <button
             key={f.key}
             type="button"
-            onClick={() => setFiltro(f.key)}
+            onClick={() => { setFiltro(f.key); setPagina(1); }}
             style={{
               padding: "5px 12px", border: "1.5px solid", borderRadius: 99, fontSize: 11.5, fontWeight: 600, cursor: "pointer",
               background: filtro === f.key ? "var(--erp-primary)" : "var(--erp-surface)",
@@ -265,7 +271,7 @@ export default function NormalizacionClientesTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => {
+              {paginados.map((row) => {
                 const isEditing = editingId === row.id;
                 const isStaged = staged.has(row.id);
                 const rowBg = isStaged ? "#F0FDF4" : isEditing ? "var(--erp-primary-lt)" : row.normalizado ? "#FAFFFE" : row.flagged ? "#FFFEF5" : "var(--erp-surface)";
@@ -329,6 +335,33 @@ export default function NormalizacionClientesTab() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Paginación */}
+      {filtered.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11.5, color: "var(--erp-text-3)" }}>Filas por página:</span>
+            {[10, 20, 50].map((n) => (
+              <button key={n} type="button" onClick={() => { setPorPagina(n); setPagina(1); }}
+                style={{ padding: "3px 10px", border: "1.5px solid", borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer",
+                  background: porPagina === n ? "var(--erp-primary)" : "var(--erp-surface)",
+                  color: porPagina === n ? "#fff" : "var(--erp-text-2)",
+                  borderColor: porPagina === n ? "var(--erp-primary)" : "var(--erp-border)" }}
+              >{n}</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11.5, color: "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>
+              {(paginaActual - 1) * porPagina + 1}–{Math.min(paginaActual * porPagina, filtered.length)} de {filtered.length}
+            </span>
+            <button type="button" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={paginaActual === 1}
+              style={{ padding: "3px 10px", border: "1.5px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text-2)", cursor: "pointer", opacity: paginaActual === 1 ? 0.4 : 1 }}>←</button>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--erp-text)", minWidth: 28, textAlign: "center" }}>{paginaActual} / {totalPaginas}</span>
+            <button type="button" onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas}
+              style={{ padding: "3px 10px", border: "1.5px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text-2)", cursor: "pointer", opacity: paginaActual === totalPaginas ? 0.4 : 1 }}>→</button>
+          </div>
         </div>
       )}
 
