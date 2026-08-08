@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import type { ReporteVentas, ReporteDetalleVenta } from "@/lib/types";
 import { METODO_PAGO_LABELS, METODOS_PAGO } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
+import RentabilidadPanel from "@/components/RentabilidadPanel";
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -29,8 +30,8 @@ function startOfMonth(date: Date) {
 export default function ReportesClient() {
   const searchParams = useSearchParams();
   const tabInicial = searchParams.get("tab");
-  const [tab, setTab] = useState<"ventas" | "conciliacion" | "deliveries">(
-    tabInicial === "deliveries" ? "deliveries" : tabInicial === "conciliacion" ? "conciliacion" : "ventas"
+  const [tab, setTab] = useState<"ventas" | "conciliacion" | "deliveries" | "rentabilidad">(
+    tabInicial === "deliveries" ? "deliveries" : tabInicial === "conciliacion" ? "conciliacion" : tabInicial === "rentabilidad" ? "rentabilidad" : "ventas"
   );
   const [concilMetodo, setConcilMetodo] = useState<string>("");
   const [desde, setDesde] = useState("");
@@ -269,9 +270,22 @@ export default function ReportesClient() {
         >
           Pagos a Delivery
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("rentabilidad")}
+          className={`px-4 py-2 text-sm font-medium ${
+            tab === "rentabilidad"
+              ? "border-b-2 border-zinc-900 text-zinc-900"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Rentabilidad
+        </button>
       </div>
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
+
+      {tab === "rentabilidad" && <RentabilidadPanel />}
 
       {tab === "conciliacion" && (
         <ConciliacionPanel reporte={reporte} metodo={concilMetodo} setMetodo={setConcilMetodo} loading={loading} />
