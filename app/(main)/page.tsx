@@ -108,19 +108,17 @@ export default async function Home() {
     <div className="max-w-4xl">
       {/* Welcome banner */}
       <div
-        className="mb-6 rounded-xl px-6 py-5 flex items-center justify-between gap-4 flex-wrap overflow-hidden relative"
-        style={{ background: "var(--erp-shell)" }}
+        className="mb-4 rounded-xl px-4 py-2.5 flex items-center gap-3 overflow-hidden relative"
+        style={{
+          background: "var(--erp-surface)",
+          border: "1px solid var(--erp-border)",
+        }}
       >
-        {/* Decorative circle */}
-        <div
-          className="absolute right-[-40px] top-[-40px] w-48 h-48 rounded-full pointer-events-none"
-          style={{ background: "rgba(255,255,255,.04)" }}
-        />
         <div>
-          <p className="text-lg font-bold text-white">
+          <p className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>
             {saludo}, {nombre.split(" ")[0]} 👋
           </p>
-          <p className="text-xs mt-0.5 capitalize" style={{ color: "rgba(255,255,255,.55)" }}>
+          <p className="text-xs capitalize" style={{ color: "var(--erp-text-3)" }}>
             {hoy}
           </p>
         </div>
