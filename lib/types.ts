@@ -78,6 +78,7 @@ export type Categoria = {
 export type Cliente = {
   id: number;
   nombre: string;
+  apellido: string | null;
   cedula: string | null;
   direccion: string | null;
   telefono: string | null;
@@ -85,6 +86,7 @@ export type Cliente = {
 
 export type ClienteInput = {
   nombre: string;
+  apellido?: string;
   cedula: string;
   direccion: string;
   telefono: string;

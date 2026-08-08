@@ -101,6 +101,17 @@ function usdToBs(montoUsd: number, tasa: number) {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+function toTitleCase(s: string): string {
+  return s.trim().replace(/\s+/g, " ").replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function autoSplitNombre(fullName: string): { nombre: string; apellido: string; flagged: boolean } {
+  const parts = fullName.trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+  if (parts.length <= 1) return { nombre: toTitleCase(fullName), apellido: "", flagged: false };
+  if (parts.length === 2) return { nombre: toTitleCase(parts[0]), apellido: toTitleCase(parts[1]), flagged: false };
+  return { nombre: toTitleCase(parts[0]), apellido: toTitleCase(parts.slice(1).join(" ")), flagged: true };
+}
+
 function combinarFechaHora(fecha: string, hora: string): Date | null {
   if (!fecha || !hora) return null;
   const date = new Date(`${fecha}T${hora}:00`);
@@ -141,6 +152,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [cortTipo, setCortTipo] = useState<"CORTESIA" | "SORTEO" | "MUESTRA" | "EVENTO" | "FIDELIDAD">("CORTESIA");
   const [cortFecha, setCortFecha] = useState(today());
   const [cortBeneficiario, setCortBeneficiario] = useState("");
+  const [cortBenefNombre, setCortBenefNombre] = useState("");
+  const [cortBenefApellido, setCortBenefApellido] = useState("");
+  const [cortBenefSplitWarning, setCortBenefSplitWarning] = useState(false);
+  const [cortBenefResultados, setCortBenefResultados] = useState<Cliente[]>([]);
+  const [cortBenefMostrar, setCortBenefMostrar] = useState(false);
+  const [cortBenefBuscando, setCortBenefBuscando] = useState(false);
+  const [cortBenefNuevoPanel, setCortBenefNuevoPanel] = useState(false);
+  const [cortBenefNuevoCi, setCortBenefNuevoCi] = useState("");
+  const [cortBenefNuevoTel, setCortBenefNuevoTel] = useState("");
+  const [cortBenefNuevoDir, setCortBenefNuevoDir] = useState("");
+  const [cortBenefGuardando, setCortBenefGuardando] = useState(false);
   const [cortMotivo, setCortMotivo] = useState("");
   const [cortItems, setCortItems] = useState<{ productoId: string; cantidad: string }[]>([{ productoId: "", cantidad: "1" }]);
   const [cortSaving, setCortSaving] = useState(false);
@@ -157,6 +179,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [fecha, setFecha] = useState(today());
   const [tasaDelDia, setTasaDelDia] = useState("");
   const [cliente, setCliente] = useState("");
+  const [clienteNombre, setClienteNombre] = useState("");
+  const [clienteApellido, setClienteApellido] = useState("");
+  const [clienteSplitWarning, setClienteSplitWarning] = useState(false);
+  const [clienteNuevoPanel, setClienteNuevoPanel] = useState(false);
   const [clienteCi, setClienteCi] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -257,14 +283,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const hayDatosIngresados = useCallback(() => {
     if (editingId !== null) return false;
     return (
-      cliente.trim() !== "" ||
+      clienteNombre.trim() !== "" ||
+      clienteApellido.trim() !== "" ||
       clienteCi.trim() !== "" ||
       clienteTelefono.trim() !== "" ||
       observaciones.trim() !== "" ||
       items.some((i) => i.productoId !== "") ||
       pagos.some((p) => p.monto !== "")
     );
-  }, [editingId, cliente, clienteCi, clienteTelefono, observaciones, items, pagos]);
+  }, [editingId, clienteNombre, clienteApellido, clienteCi, clienteTelefono, observaciones, items, pagos]);
 
   // Ref para que el guard de pushState siempre lea el valor actual sin re-registrarse
   const dirtyRef = useRef(false);
@@ -433,7 +460,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   }
 
   useEffect(() => {
-    const query = cliente.trim() || clienteCi.trim();
+    const query = (clienteNombre.trim() + " " + clienteApellido.trim()).trim() || clienteCi.trim();
     if (query.length < 4) {
       return;
     }
@@ -443,13 +470,54 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [cliente, clienteCi]);
+  }, [clienteNombre, clienteApellido, clienteCi]);
 
   const puedeMostrarResultados =
-    mostrarResultados && (cliente.trim().length >= 4 || clienteCi.trim().length >= 4);
+    mostrarResultados && ((clienteNombre.trim() + clienteApellido.trim()).length >= 4 || clienteCi.trim().length >= 4);
+
+  async function buscarCortBenef(query: string) {
+    if (query.trim().length < 4) return;
+    setCortBenefBuscando(true);
+    try {
+      const res = await fetch(`/api/clientes?q=${encodeURIComponent(query.trim())}`);
+      const data = (await res.json()) as Cliente[];
+      setCortBenefResultados(data);
+      setCortBenefMostrar(true);
+    } catch {
+      setCortBenefResultados([]);
+    } finally {
+      setCortBenefBuscando(false);
+    }
+  }
+
+  function seleccionarCortBenef(c: Cliente) {
+    if (c.apellido) {
+      setCortBenefNombre(toTitleCase(c.nombre));
+      setCortBenefApellido(toTitleCase(c.apellido));
+      setCortBenefSplitWarning(false);
+    } else {
+      const split = autoSplitNombre(c.nombre);
+      setCortBenefNombre(split.nombre);
+      setCortBenefApellido(split.apellido);
+      setCortBenefSplitWarning(split.flagged);
+    }
+    setCortBenefMostrar(false);
+    setCortBenefNuevoPanel(false);
+  }
 
   function seleccionarCliente(c: Cliente) {
-    setCliente(c.nombre);
+    setCliente((c.nombre + " " + (c.apellido ?? "")).trim());
+    if (c.apellido) {
+      setClienteNombre(toTitleCase(c.nombre));
+      setClienteApellido(toTitleCase(c.apellido));
+      setClienteSplitWarning(false);
+    } else {
+      const split = autoSplitNombre(c.nombre);
+      setClienteNombre(split.nombre);
+      setClienteApellido(split.apellido);
+      setClienteSplitWarning(split.flagged);
+    }
+    setClienteNuevoPanel(false);
     setClienteCi(c.cedula ?? "");
     setClienteTelefono(c.telefono ?? "");
     setDireccion(c.direccion ?? "");
@@ -677,6 +745,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setEditingId(null);
     setFecha(today());
     setCliente("");
+    setClienteNombre("");
+    setClienteApellido("");
+    setClienteSplitWarning(false);
+    setClienteNuevoPanel(false);
     setClienteCi("");
     setClienteTelefono("");
     setDireccion("");
@@ -711,6 +783,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setFecha(String(venta.fecha).slice(0, 10));
     setTasaDelDia(String(venta.tasaDelDia));
     setCliente(venta.cliente);
+    { const split = autoSplitNombre(venta.cliente); setClienteNombre(split.nombre); setClienteApellido(split.apellido); setClienteSplitWarning(false); }
     setClienteCi(venta.clienteCi ?? "");
     setClienteTelefono(venta.clienteTelefono ?? "");
     setDireccion(venta.direccion ?? "");
@@ -792,10 +865,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     e.preventDefault();
     setError(null);
 
-    if (!cliente.trim()) {
-      setError("El cliente es obligatorio");
+    const clienteFullName = (clienteNombre.trim() + " " + clienteApellido.trim()).trim();
+    if (!clienteFullName) {
+      setError("El nombre del cliente es obligatorio");
       return;
     }
+    setCliente(clienteFullName);
 
     const ciRifError = validarCedulaRif(clienteCi);
     if (ciRifError) {
@@ -862,7 +937,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       const payload = {
         fecha,
         tasaDelDia: Number(tasaDelDia) || 0,
-        cliente: cliente.trim(),
+        cliente: clienteFullName,
         clienteCi: clienteCi.trim(),
         clienteTelefono: clienteTelefono.trim(),
         direccion: direccion.trim(),
@@ -1050,7 +1125,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: cortTipo, fecha: cortFecha, beneficiario: cortBeneficiario, motivo: cortMotivo, items }),
+        body: JSON.stringify({ tipo: cortTipo, fecha: cortFecha, beneficiario: (cortBenefNombre.trim() + " " + cortBenefApellido.trim()).trim() || cortBeneficiario, motivo: cortMotivo, items }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -1060,6 +1135,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         setCortEditingId(null);
         setCortItems([{ productoId: "", cantidad: "1" }]);
         setCortBeneficiario("");
+        setCortBenefNombre("");
+        setCortBenefApellido("");
+        setCortBenefSplitWarning(false);
+        setCortBenefNuevoPanel(false);
+        setCortBenefNuevoCi("");
+        setCortBenefNuevoTel("");
+        setCortBenefNuevoDir("");
         setCortMotivo("");
         setCortTipo("CORTESIA");
         setCortFecha(today());
@@ -1157,13 +1239,73 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Beneficiario / Destinatario</label>
-              <input
-                type="text"
-                value={cortBeneficiario}
-                onChange={(e) => setCortBeneficiario(e.target.value)}
-                placeholder="Ej: María González — cliente frecuente"
-                style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
-              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="text"
+                    value={cortBenefNombre}
+                    onChange={(e) => { setCortBenefNombre(e.target.value); buscarCortBenef((e.target.value + " " + cortBenefApellido).trim()); }}
+                    onBlur={(e) => setCortBenefNombre(toTitleCase(e.target.value))}
+                    placeholder="Nombre"
+                    style={{ width: "100%", padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)", boxSizing: "border-box" }}
+                  />
+                  {cortBenefMostrar && cortBenefResultados.length > 0 && (
+                    <ul style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 7, boxShadow: "0 4px 12px rgba(0,0,0,.12)", maxHeight: 180, overflowY: "auto", margin: 0, padding: 0, listStyle: "none" }}>
+                      {cortBenefResultados.map((c) => (
+                        <li key={c.id}>
+                          <button type="button" onClick={() => seleccionarCortBenef(c)} style={{ width: "100%", textAlign: "left", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>
+                            <span style={{ fontWeight: 600 }}>{c.nombre}{c.apellido ? " " + c.apellido : ""}</span>
+                            <span style={{ fontSize: 11, color: "var(--erp-text-3)", display: "block" }}>{c.cedula ?? "Sin C.I"}{c.telefono ? " · " + c.telefono : ""}</span>
+                          </button>
+                        </li>
+                      ))}
+                      <li>
+                        <button type="button" onClick={() => { setCortBenefMostrar(false); setCortBenefNuevoPanel(true); }} style={{ width: "100%", textAlign: "left", padding: "8px 12px", background: "none", border: "none", borderTop: "1px solid var(--erp-border)", cursor: "pointer", fontSize: 12, color: "var(--erp-primary)", fontWeight: 600 }}>
+                          + Registrar como nuevo cliente
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={cortBenefApellido}
+                  onChange={(e) => setCortBenefApellido(e.target.value)}
+                  onBlur={(e) => setCortBenefApellido(toTitleCase(e.target.value))}
+                  placeholder="Apellido"
+                  style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
+                />
+              </div>
+              {cortBenefSplitWarning && (
+                <div style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "4px 8px" }}>
+                  Nombre con 3+ palabras — confirma cómo dividirlo entre Nombre y Apellido.
+                </div>
+              )}
+              {cortBenefNuevoPanel && (
+                <div style={{ background: "var(--erp-bg)", border: "1.5px solid var(--erp-border)", borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 7, marginTop: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-primary)", textTransform: "uppercase", letterSpacing: ".05em" }}>Registrar cliente</div>
+                  <input type="text" placeholder="C.I / Rif (opcional)" value={cortBenefNuevoCi} onChange={(e) => setCortBenefNuevoCi(e.target.value)} style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text)" }} />
+                  <input type="text" placeholder="Teléfono (opcional)" value={cortBenefNuevoTel} onChange={(e) => setCortBenefNuevoTel(e.target.value)} style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text)" }} />
+                  <input type="text" placeholder="Dirección (opcional)" value={cortBenefNuevoDir} onChange={(e) => setCortBenefNuevoDir(e.target.value)} style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text)" }} />
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button type="button" disabled={cortBenefGuardando} onClick={async () => {
+                      const nombre = toTitleCase(cortBenefNombre);
+                      const apellido = toTitleCase(cortBenefApellido);
+                      if (!nombre) return;
+                      setCortBenefGuardando(true);
+                      try {
+                        const res = await fetch("/api/clientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre, apellido, cedula: cortBenefNuevoCi, telefono: cortBenefNuevoTel, direccion: cortBenefNuevoDir }) });
+                        if (res.ok) { setCortBenefNuevoPanel(false); setCortBenefNuevoCi(""); setCortBenefNuevoTel(""); setCortBenefNuevoDir(""); }
+                      } finally { setCortBenefGuardando(false); }
+                    }} style={{ padding: "5px 12px", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      {cortBenefGuardando ? "Guardando..." : "Guardar cliente"}
+                    </button>
+                    <button type="button" onClick={() => setCortBenefNuevoPanel(false)} style={{ padding: "5px 12px", background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "var(--erp-text-2)" }}>
+                      Continuar sin registrar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1995,22 +2137,43 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       {tasaBcvError && <span className="text-xs text-red-600">{tasaBcvError}</span>}
                     </div>
                     <div className="relative flex flex-col gap-1 sm:col-span-2">
-                      <label className="text-sm font-medium text-zinc-700">Cliente</label>
+                      <label className="text-sm font-medium text-zinc-700">Nombre</label>
                       <div className="flex gap-1">
-                        <input className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={cliente} onChange={(e) => setCliente(e.target.value)} onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)} placeholder="Nombre del cliente" required />
-                        <button type="button" onClick={() => buscarClientes(cliente || clienteCi)} disabled={buscandoClientes} className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50">{buscandoClientes ? "..." : "Buscar"}</button>
+                        <input className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={clienteNombre} onChange={(e) => { setClienteNombre(e.target.value); buscarClientes((e.target.value + " " + clienteApellido).trim() || clienteCi); }} onBlur={(e) => setClienteNombre(toTitleCase(e.target.value))} onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)} placeholder="Nombre" required />
+                        <input className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={clienteApellido} onChange={(e) => setClienteApellido(e.target.value)} onBlur={(e) => setClienteApellido(toTitleCase(e.target.value))} placeholder="Apellido" />
                       </div>
+                      {clienteSplitWarning && <span className="text-xs" style={{ color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "2px 6px" }}>Nombre con 3+ palabras — confirma la división.</span>}
                       {puedeMostrarResultados && clientesResultados.length > 0 && (
                         <ul className="absolute top-full left-0 z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg">
                           {clientesResultados.map((c) => (
                             <li key={c.id}>
                               <button type="button" onClick={() => seleccionarCliente(c)} className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-zinc-100">
-                                <span className="font-medium">{c.nombre}</span>
+                                <span className="font-medium">{c.nombre}{c.apellido ? " " + c.apellido : ""}</span>
                                 <span className="text-xs text-zinc-500">{c.cedula ?? "Sin C.I/Rif"}{c.telefono ? ` · ${c.telefono}` : ""}{c.direccion ? ` · ${c.direccion}` : ""}</span>
                               </button>
                             </li>
                           ))}
+                          <li>
+                            <button type="button" onClick={() => { setMostrarResultados(false); setClienteNuevoPanel(true); }} className="flex w-full items-start px-3 py-2 text-left text-sm font-semibold" style={{ color: "var(--erp-primary)", borderTop: "1px solid var(--erp-border)" }}>+ Registrar nuevo cliente</button>
+                          </li>
                         </ul>
+                      )}
+                      {clienteNuevoPanel && (
+                        <div className="mt-1 rounded-md border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)", background: "var(--erp-bg)" }}>
+                          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--erp-primary)" }}>Registrar como nuevo cliente</span>
+                          <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="C.I / Rif (obligatorio)" value={clienteCi} onChange={(e) => setClienteCi(e.target.value)} />
+                          <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Teléfono (opcional)" value={clienteTelefono} onChange={(e) => setClienteTelefono(e.target.value)} />
+                          <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Dirección (opcional)" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+                          <div className="flex gap-2">
+                            <button type="button" className="rounded-md px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--erp-primary)" }} onClick={async () => {
+                              const n = toTitleCase(clienteNombre); const a = toTitleCase(clienteApellido);
+                              if (!n) return;
+                              const res = await fetch("/api/clientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: n, apellido: a, cedula: clienteCi, telefono: clienteTelefono, direccion }) });
+                              if (res.ok) { setClienteNuevoPanel(false); }
+                            }}>Guardar cliente</button>
+                            <button type="button" className="rounded-md border px-3 py-1.5 text-xs" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }} onClick={() => setClienteNuevoPanel(false)}>Continuar sin registrar</button>
+                          </div>
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-col gap-1">
@@ -2129,26 +2292,26 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             )}
           </div>
           <div className="relative flex flex-col gap-1 sm:col-span-2">
-            <label className="text-sm font-medium text-zinc-700">Cliente</label>
+            <label className="text-sm font-medium text-zinc-700">Nombre / Apellido</label>
             <div className="flex gap-1">
               <input
                 className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                value={cliente}
-                onChange={(e) => setCliente(e.target.value)}
+                value={clienteNombre}
+                onChange={(e) => { setClienteNombre(e.target.value); buscarClientes((e.target.value + " " + clienteApellido).trim() || clienteCi); }}
+                onBlur={(e) => setClienteNombre(toTitleCase(e.target.value))}
                 onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)}
-                placeholder="Nombre del cliente"
+                placeholder="Nombre"
                 required
               />
-              <button
-                type="button"
-                onClick={() => buscarClientes(cliente || clienteCi)}
-                disabled={buscandoClientes}
-                title="Buscar cliente"
-                className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
-              >
-                {buscandoClientes ? "..." : "Buscar"}
-              </button>
+              <input
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={clienteApellido}
+                onChange={(e) => setClienteApellido(e.target.value)}
+                onBlur={(e) => setClienteApellido(toTitleCase(e.target.value))}
+                placeholder="Apellido"
+              />
             </div>
+            {clienteSplitWarning && <span className="text-xs rounded px-1.5 py-0.5" style={{ color: "#92400e", background: "#fef3c7" }}>Nombre con 3+ palabras — confirma la división.</span>}
             {puedeMostrarResultados && clientesResultados.length > 0 && (
               <ul className="absolute top-full left-0 z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg">
                 {clientesResultados.map((c) => (
@@ -2158,7 +2321,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       onClick={() => seleccionarCliente(c)}
                       className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-zinc-100"
                     >
-                      <span className="font-medium">{c.nombre}</span>
+                      <span className="font-medium">{c.nombre}{c.apellido ? " " + c.apellido : ""}</span>
                       <span className="text-xs text-zinc-500">
                         {c.cedula ?? "Sin C.I/Rif"}
                         {c.telefono ? ` · ${c.telefono}` : ""}
@@ -2167,7 +2330,29 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     </button>
                   </li>
                 ))}
+                <li>
+                  <button type="button" onClick={() => { setMostrarResultados(false); setClienteNuevoPanel(true); }} className="flex w-full items-start px-3 py-2 text-left text-sm font-semibold" style={{ color: "var(--erp-primary)", borderTop: "1px solid var(--erp-border)" }}>
+                    + Registrar nuevo cliente
+                  </button>
+                </li>
               </ul>
+            )}
+            {clienteNuevoPanel && (
+              <div className="mt-1 rounded-md border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)", background: "var(--erp-bg)" }}>
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--erp-primary)" }}>Registrar como nuevo cliente</span>
+                <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="C.I / Rif (opcional)" value={clienteCi} onChange={(e) => setClienteCi(e.target.value)} />
+                <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Teléfono (opcional)" value={clienteTelefono} onChange={(e) => setClienteTelefono(e.target.value)} />
+                <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Dirección (opcional)" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+                <div className="flex gap-2">
+                  <button type="button" className="rounded-md px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--erp-primary)" }} onClick={async () => {
+                    const n = toTitleCase(clienteNombre); const a = toTitleCase(clienteApellido);
+                    if (!n) return;
+                    const res = await fetch("/api/clientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: n, apellido: a, cedula: clienteCi, telefono: clienteTelefono, direccion }) });
+                    if (res.ok) { setClienteNuevoPanel(false); }
+                  }}>Guardar cliente</button>
+                  <button type="button" className="rounded-md border px-3 py-1.5 text-xs" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }} onClick={() => setClienteNuevoPanel(false)}>Continuar sin registrar</button>
+                </div>
+              </div>
             )}
           </div>
           <div className="flex flex-col gap-1">
