@@ -22,39 +22,61 @@ function autoSplit(nombre: string): { nombre: string; apellido: string; flagged:
 }
 
 export async function GET(request: NextRequest) {
-  const sesion = await getSesionFromRequest(request);
-  if (!sesion || sesion.rol !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  try {
+    const sesion = await getSesionFromRequest(request);
+    if (!sesion || sesion.rol !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
-  const result = await pool.query(
-    `SELECT id, nombre, apellido, normalizado, normalizado_at,
-            u.nombre AS normalizado_por_nombre
-     FROM clientes c
-     LEFT JOIN usuarios u ON u.id = c.normalizado_por
-     ORDER BY normalizado ASC, id ASC`
-  );
+    // Check which columns actually exist before querying
+    const colCheck = await pool.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'clientes'
+      ORDER BY ordinal_position
+    `);
+    const cols = colCheck.rows.map((r: { column_name: string }) => r.column_name);
+    const hasApellido = cols.includes("apellido");
+    const hasNormalizado = cols.includes("normalizado");
+    const hasNormalizadoAt = cols.includes("normalizado_at");
+    const hasNormalizadoPor = cols.includes("normalizado_por");
 
-  const rows = result.rows.map((r) => {
-    const split = autoSplit(r.nombre);
-    return {
-      id: r.id,
-      nombreOriginal: r.nombre,
-      apellidoDb: r.apellido ?? null,
-      normalizado: r.normalizado ?? false,
-      normalizadoAt: r.normalizado_at ?? null,
-      normalizadoPor: r.normalizado_por_nombre ?? null,
-      // Proposed split (use DB values if already set)
-      propNombre: r.apellido !== null ? toTitleCase(r.nombre) : split.nombre,
-      propApellido: r.apellido !== null ? toTitleCase(r.apellido) : split.apellido,
-      flagged: split.flagged && !r.normalizado,
-    };
-  });
+    if (!hasApellido || !hasNormalizado) {
+      return NextResponse.json({
+        error: `Faltan columnas en la tabla clientes. Columnas encontradas: [${cols.join(", ")}]. Falta: ${[!hasApellido && "apellido", !hasNormalizado && "normalizado", !hasNormalizadoAt && "normalizado_at", !hasNormalizadoPor && "normalizado_por"].filter(Boolean).join(", ")}. Aplica la migración SQL en Neon.`,
+      }, { status: 500 });
+    }
 
-  const total = rows.length;
-  const aprobados = rows.filter((r) => r.normalizado).length;
-  const flagged = rows.filter((r) => r.flagged).length;
-  const pendientes = rows.filter((r) => !r.normalizado && !r.flagged).length;
+    const result = await pool.query(
+      `SELECT c.id, c.nombre, c.apellido, c.normalizado, c.normalizado_at,
+              u.nombre AS normalizado_por_nombre
+       FROM clientes c
+       LEFT JOIN usuarios u ON u.id = c.normalizado_por
+       ORDER BY c.normalizado ASC, c.id ASC`
+    );
 
-  return NextResponse.json({ rows, stats: { total, aprobados, flagged, pendientes } });
+    const rows = result.rows.map((r) => {
+      const split = autoSplit(r.nombre);
+      return {
+        id: r.id,
+        nombreOriginal: r.nombre,
+        apellidoDb: r.apellido ?? null,
+        normalizado: r.normalizado ?? false,
+        normalizadoAt: r.normalizado_at ?? null,
+        normalizadoPor: r.normalizado_por_nombre ?? null,
+        propNombre: r.apellido !== null ? toTitleCase(r.nombre) : split.nombre,
+        propApellido: r.apellido !== null ? toTitleCase(r.apellido) : split.apellido,
+        flagged: split.flagged && !r.normalizado,
+      };
+    });
+
+    const total = rows.length;
+    const aprobados = rows.filter((r) => r.normalizado).length;
+    const flagged = rows.filter((r) => r.flagged).length;
+    const pendientes = rows.filter((r) => !r.normalizado && !r.flagged).length;
+
+    return NextResponse.json({ rows, stats: { total, aprobados, flagged, pendientes } });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // Bulk approve all simple (non-flagged, non-normalized) clients
