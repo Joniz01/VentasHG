@@ -115,7 +115,7 @@ export default function DeliveryPagosPanel() {
             >
               <option value="TODOS">Todos</option>
               <option value="PAGADO">Pagados</option>
-              <option value="PENDIENTE">No pagados</option>
+              <option value="PENDIENTE">Pendiente</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
