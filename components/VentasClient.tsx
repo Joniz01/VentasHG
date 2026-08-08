@@ -1117,10 +1117,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           {/* Tipo */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 10 }}>Tipo de salida</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5 }}>
               {(["CORTESIA", "SORTEO", "MUESTRA", "EVENTO", "FIDELIDAD"] as const).map((t) => {
                 const icons: Record<string, string> = { CORTESIA: "🤝", SORTEO: "🎯", MUESTRA: "📋", EVENTO: "🎪", FIDELIDAD: "🎖️" };
-                const labels: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo / Premio", MUESTRA: "Muestra", EVENTO: "Evento", FIDELIDAD: "Pasaporte de Fidelidad" };
+                const labels: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo", MUESTRA: "Muestra", EVENTO: "Evento", FIDELIDAD: "Fidelidad" };
                 const sel = cortTipo === t;
                 return (
                   <button
@@ -1128,13 +1128,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     type="button"
                     onClick={() => setCortTipo(t)}
                     style={{
-                      padding: "10px 8px", border: `1.5px solid ${sel ? "var(--erp-primary)" : "var(--erp-border)"}`,
-                      borderRadius: 9, textAlign: "center", cursor: "pointer", background: sel ? "var(--erp-primary-lt)" : "var(--erp-surface)",
-                      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                      padding: "7px 4px", border: `1.5px solid ${sel ? "var(--erp-primary)" : "var(--erp-border)"}`,
+                      borderRadius: 8, textAlign: "center", cursor: "pointer", background: sel ? "var(--erp-primary-lt)" : "var(--erp-surface)",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
                     }}
                   >
-                    <span style={{ fontSize: 22 }}>{icons[t]}</span>
-                    <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: sel ? "var(--erp-primary)" : "var(--erp-text-2)" }}>{labels[t]}</span>
+                    <span style={{ fontSize: 17 }}>{icons[t]}</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".03em", color: sel ? "var(--erp-primary)" : "var(--erp-text-2)", lineHeight: 1.2 }}>{labels[t]}</span>
                   </button>
                 );
               })}
