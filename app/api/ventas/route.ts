@@ -8,11 +8,13 @@ import {
   validarVenta,
   type VentaBody,
 } from "@/lib/ventas";
+import { notificarNuevoPedido } from "@/lib/fcm";
 
 export async function GET() {
   const ventasResult = await pool.query(
     `SELECT id, fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega,
-            costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro,
+            tipo_delivery, costo_delivery, descuento_porcentaje, observaciones, despacho_pendiente,
+            hora_entrega, hora_preparacion, hora_retiro,
             delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado,
             cuenta_por_cobrar, fecha_limite_pago, cuenta_cobrada, cuenta_cobrada_at, created_at
      FROM ventas
@@ -53,6 +55,24 @@ export async function GET() {
       )
     : { rows: [] };
 
+  const casheaResult = ventaIds.length
+    ? await pool.query(
+        `SELECT venta_id, porcentaje, monto_inicial, monto_financiado, dias, fecha_vencimiento, liquidado, liquidado_at, metodo_inicial
+         FROM cashea_pagos
+         WHERE venta_id = ANY($1::int[])`,
+        [ventaIds]
+      ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
+  const yummyResult = ventaIds.length
+    ? await pool.query(
+        `SELECT venta_id, monto, dias, fecha_vencimiento, liquidado, liquidado_at
+         FROM yummy_pagos
+         WHERE venta_id = ANY($1::int[])`,
+        [ventaIds]
+      ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
   const ventas = ventasResult.rows.map((row) => ({
     id: row.id,
     fecha: row.fecha,
@@ -63,7 +83,9 @@ export async function GET() {
     direccion: row.direccion,
     modalidadCompra: row.modalidad_compra,
     modoEntrega: row.modo_entrega,
+    tipoDelivery: row.tipo_delivery,
     costoDelivery: Number(row.costo_delivery),
+    descuentoPorcentaje: Number(row.descuento_porcentaje),
     observaciones: row.observaciones,
     despachoPendiente: row.despacho_pendiente,
     horaEntrega: row.hora_entrega,
@@ -105,6 +127,31 @@ export async function GET() {
         metodo: pago.metodo,
         monto: Number(pago.monto),
       })),
+    casheaDatos: (() => {
+      const cp = casheaResult.rows.find((r) => r.venta_id === row.id);
+      if (!cp) return null;
+      return {
+        porcentaje: Number(cp.porcentaje),
+        montoInicial: Number(cp.monto_inicial),
+        montoFinanciado: Number(cp.monto_financiado),
+        dias: Number(cp.dias),
+        fechaVencimiento: cp.fecha_vencimiento,
+        liquidado: cp.liquidado,
+        liquidadoAt: cp.liquidado_at,
+        metodoInicial: cp.metodo_inicial ?? null,
+      };
+    })(),
+    yummyDatos: (() => {
+      const yp = yummyResult.rows.find((r) => r.venta_id === row.id);
+      if (!yp) return null;
+      return {
+        monto: Number(yp.monto),
+        dias: Number(yp.dias),
+        fechaVencimiento: yp.fecha_vencimiento,
+        liquidado: yp.liquidado,
+        liquidadoAt: yp.liquidado_at,
+      };
+    })(),
   }));
 
   return NextResponse.json(ventas);
@@ -132,8 +179,8 @@ export async function POST(request: NextRequest) {
     const cuentaPorCobrar = !body.pagos || body.pagos.length === 0;
 
     const ventaResult = await client.query(
-      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, costo_delivery, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro, delivery_asignado, motorizado_id, cuenta_por_cobrar, fecha_limite_pago)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      `INSERT INTO ventas (fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega, tipo_delivery, costo_delivery, descuento_porcentaje, observaciones, despacho_pendiente, hora_entrega, hora_preparacion, hora_retiro, delivery_asignado, motorizado_id, cuenta_por_cobrar, fecha_limite_pago)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        RETURNING id`,
       [
         body.fecha,
@@ -143,8 +190,10 @@ export async function POST(request: NextRequest) {
         body.clienteTelefono || null,
         body.direccion || null,
         body.modalidadCompra || null,
-        body.modoEntrega || "LOCAL",
+        body.modoEntrega || "DELIVERY",
+        body.modoEntrega === "DELIVERY" ? body.tipoDelivery || null : null,
         Number(body.costoDelivery),
+        Number(body.descuentoPorcentaje) || 0,
         body.observaciones || null,
         Boolean(body.despachoPendiente),
         body.despachoPendiente ? body.horaEntrega : null,
@@ -163,6 +212,11 @@ export async function POST(request: NextRequest) {
     await insertarItemsYPagos(client, ventaId, body);
 
     await client.query("COMMIT");
+
+    // Notificación push al motorizado si el pedido tiene despacho pendiente
+    if (body.despachoPendiente && body.motorizadoId) {
+      notificarNuevoPedido(body.motorizadoId, ventaId, body.cliente).catch(() => {});
+    }
 
     return NextResponse.json({ id: ventaId }, { status: 201 });
   } catch (err) {

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   if (q === null) {
     const result = await pool.query(
-      `SELECT id, nombre, cedula, direccion, telefono
+      `SELECT id, nombre, apellido, cedula, direccion, telefono
        FROM clientes
        ORDER BY nombre`
     );
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       result.rows.map((row) => ({
         id: row.id,
         nombre: row.nombre,
+        apellido: row.apellido ?? null,
         cedula: row.cedula,
         direccion: row.direccion,
         telefono: row.telefono,
@@ -31,12 +32,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([]);
   }
 
-  // Búsqueda por prefijo (case-insensitive) sobre nombre o cédula, usando
-  // los índices lower(...) text_pattern_ops para que sea eficiente.
   const result = await pool.query(
-    `SELECT id, nombre, cedula, direccion, telefono
+    `SELECT id, nombre, apellido, cedula, direccion, telefono
      FROM clientes
      WHERE lower(nombre) LIKE lower($1) || '%'
+        OR lower(COALESCE(apellido,'')) LIKE lower($1) || '%'
+        OR lower(nombre || ' ' || COALESCE(apellido,'')) LIKE lower($1) || '%'
         OR lower(cedula) LIKE lower($1) || '%'
      ORDER BY nombre
      LIMIT 10`,
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
     result.rows.map((row) => ({
       id: row.id,
       nombre: row.nombre,
+      apellido: row.apellido ?? null,
       cedula: row.cedula,
       direccion: row.direccion,
       telefono: row.telefono,
@@ -68,15 +70,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: errorCedula }, { status: 400 });
   }
 
+  const apellido = body.apellido?.trim() ?? "";
   const direccion = body.direccion?.trim() ?? "";
   const telefono = body.telefono?.trim() ?? "";
 
   try {
     const result = await pool.query(
-      `INSERT INTO clientes (nombre, cedula, direccion, telefono)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, nombre, cedula, direccion, telefono`,
-      [nombre, cedula || null, direccion || null, telefono || null]
+      `INSERT INTO clientes (nombre, apellido, cedula, direccion, telefono, normalizado, normalizado_at)
+       VALUES ($1, $2, $3, $4, $5, TRUE, NOW())
+       RETURNING id, nombre, apellido, cedula, direccion, telefono`,
+      [nombre, apellido || null, cedula || null, direccion || null, telefono || null]
     );
 
     return NextResponse.json(result.rows[0], { status: 201 });

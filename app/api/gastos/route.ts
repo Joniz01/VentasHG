@@ -1,0 +1,159 @@
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
+import { getSesionFromRequest } from "@/lib/auth";
+import type { EstadoGasto, FrecuenciaRecurrencia, TipoGasto } from "@/lib/types";
+
+const DIAS_FRECUENCIA: Record<FrecuenciaRecurrencia, number> = {
+  SEMANAL: 7,
+  QUINCENAL: 15,
+  MENSUAL: 30,
+};
+
+function calcularProximoRecordatorio(fecha: string, frecuencia: FrecuenciaRecurrencia): string {
+  const d = new Date(`${fecha}T00:00:00`);
+  d.setDate(d.getDate() + DIAS_FRECUENCIA[frecuencia]);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function mapGasto(r: Record<string, unknown>) {
+  const montoBs = Number(r.monto_bs);
+  const tasaDia = Number(r.tasa_dia);
+  return {
+    id: r.id,
+    tipoGastoId: r.tipo_gasto_id,
+    tipoGastoNombre: r.tipo_gasto_nombre,
+    tipo: r.tipo,
+    proveedor: r.proveedor,
+    descripcion: r.descripcion,
+    locacionId: r.locacion_id,
+    locacionNombre: r.locacion_nombre,
+    fecha: r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10),
+    montoBs,
+    tasaDia,
+    montoUsd: tasaDia > 0 ? montoBs / tasaDia : 0,
+    estado: r.estado,
+    pagadoAt: r.pagado_at,
+    comprobanteUrl: r.comprobante_url,
+    recurrente: r.recurrente,
+    frecuencia: r.frecuencia,
+    proximoRecordatorio: r.proximo_recordatorio,
+    recordatorioVisto: r.recordatorio_visto,
+    createdAt: r.created_at,
+  };
+}
+
+export async function GET(request: NextRequest) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const desde = searchParams.get("desde");
+  const hasta = searchParams.get("hasta");
+  const proveedor = searchParams.get("proveedor");
+  const tipoGastoId = searchParams.get("tipoGastoId");
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 10));
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (desde) { params.push(desde); conditions.push(`g.fecha >= $${params.length}`); }
+  if (hasta) { params.push(hasta); conditions.push(`g.fecha <= $${params.length}`); }
+  if (proveedor) { params.push(`%${proveedor}%`); conditions.push(`lower(g.proveedor) LIKE lower($${params.length})`); }
+  if (tipoGastoId) { params.push(Number(tipoGastoId)); conditions.push(`g.tipo_gasto_id = $${params.length}`); }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  try {
+    const countResult = await pool.query(`SELECT COUNT(*) AS total FROM gastos g ${where}`, params);
+    const total = Number(countResult.rows[0]?.total ?? 0);
+
+    const offset = (page - 1) * pageSize;
+    const listParams = [...params, pageSize, offset];
+
+    const result = await pool.query(
+      `SELECT g.*, l.nombre AS locacion_nombre, tg.nombre AS tipo_gasto_nombre
+       FROM gastos g
+       LEFT JOIN locaciones l ON l.id = g.locacion_id
+       LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
+       ${where}
+       ORDER BY g.fecha DESC, g.id DESC
+       LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+      listParams
+    );
+
+    return NextResponse.json({
+      items: result.rows.map(mapGasto),
+      total,
+      page,
+      pageSize,
+    });
+  } catch {
+    // Migración 034 pendiente de aplicar en la base de datos
+    return NextResponse.json({ items: [], total: 0, page, pageSize });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.gastos)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const body = (await request.json()) as {
+    tipoGastoId?: number;
+    tipo?: TipoGasto;
+    proveedor?: string;
+    descripcion?: string;
+    locacionId?: number | null;
+    fecha?: string;
+    montoBs?: number;
+    tasaDia?: number;
+    estado?: EstadoGasto;
+    comprobanteUrl?: string;
+    recurrente?: boolean;
+    frecuencia?: FrecuenciaRecurrencia | null;
+  };
+
+  if (!body.tipoGastoId || !body.tipo || !body.proveedor?.trim() || !body.fecha) {
+    return NextResponse.json({ error: "Tipo de gasto, tipo, proveedor y fecha son obligatorios" }, { status: 400 });
+  }
+
+  if (body.recurrente && !body.frecuencia) {
+    return NextResponse.json({ error: "Indica la frecuencia de recurrencia" }, { status: 400 });
+  }
+
+  const proximoRecordatorio =
+    body.recurrente && body.frecuencia ? calcularProximoRecordatorio(body.fecha, body.frecuencia) : null;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO gastos
+        (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
+         pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+               CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
+               $10,$11,$12,$13,$14)
+       RETURNING id`,
+      [
+        body.tipoGastoId,
+        body.tipo,
+        body.proveedor.trim(),
+        body.descripcion?.trim() || null,
+        body.locacionId || null,
+        body.fecha,
+        Number(body.montoBs) || 0,
+        Number(body.tasaDia) || 0,
+        body.estado || "PENDIENTE",
+        body.comprobanteUrl?.trim() || null,
+        Boolean(body.recurrente),
+        body.recurrente ? body.frecuencia : null,
+        proximoRecordatorio,
+        sesion.id,
+      ]
+    );
+    return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: "Error al registrar el gasto" }, { status: 400 });
+  }
+}

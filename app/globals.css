@@ -4,6 +4,94 @@
   --background: #ffffff;
   --foreground: #171717;
   color-scheme: light;
+
+  /* ── ERP Theme Tokens — Corporate (default) ── */
+  --erp-shell:        #0F1B2D;
+  --erp-shell-text:   #CBD5E1;
+  --erp-primary:      #1D4ED8;
+  --erp-primary-lt:   #DBEAFE;
+  --erp-accent:       #EA6B0A;
+  --erp-bg:           #F1F3F6;
+  --erp-surface:      #FFFFFF;
+  --erp-border:       #E2E8F0;
+  --erp-text:         #0F172A;
+  --erp-text-2:       #475569;
+  --erp-text-3:       #94A3B8;
+}
+
+/* ── Naranja & Verde ── */
+[data-theme="ng"] {
+  --erp-shell:       #12291A;
+  --erp-shell-text:  #A7F3D0;
+  --erp-primary:     #16A34A;
+  --erp-primary-lt:  #DCFCE7;
+  --erp-accent:      #EA580C;
+  --erp-bg:          #F0FDF4;
+  --erp-surface:     #FFFFFF;
+  --erp-border:      #BBF7D0;
+  --erp-text:        #052E16;
+  --erp-text-2:      #166534;
+  --erp-text-3:      #4ADE80;
+}
+
+/* ── Hechizo Gourmet ── */
+[data-theme="hg"] {
+  --erp-shell:       #1A1A1A;
+  --erp-shell-text:  #F5D77A;
+  --erp-primary:     #C81515;
+  --erp-primary-lt:  #FEE2E2;
+  --erp-accent:      #D4870A;
+  --erp-bg:          #FEF9F0;
+  --erp-surface:     #FFFFFF;
+  --erp-border:      #F5DEB3;
+  --erp-text:        #1A1A1A;
+  --erp-text-2:      #5C3A1E;
+  --erp-text-3:      #A07040;
+}
+
+/* ── Corporate Oscuro ── */
+[data-theme="dark"] {
+  --erp-shell:       #050D1A;
+  --erp-shell-text:  #94A3B8;
+  --erp-primary:     #3B82F6;
+  --erp-primary-lt:  #1E3A5F;
+  --erp-accent:      #F97316;
+  --erp-bg:          #0A0F1A;
+  --erp-surface:     #111827;
+  --erp-border:      #1F2937;
+  --erp-text:        #F1F5F9;
+  --erp-text-2:      #94A3B8;
+  --erp-text-3:      #4B5563;
+}
+
+/* ── Naranja & Verde Oscuro ── */
+[data-theme="ng-dark"] {
+  --erp-shell:       #0A1A0F;
+  --erp-shell-text:  #6EE7B7;
+  --erp-primary:     #22C55E;
+  --erp-primary-lt:  #052E16;
+  --erp-accent:      #F97316;
+  --erp-bg:          #0A1A0F;
+  --erp-surface:     #0F2518;
+  --erp-border:      #14532D;
+  --erp-text:        #D1FAE5;
+  --erp-text-2:      #6EE7B7;
+  --erp-text-3:      #166534;
+}
+
+/* ── Hechizo Gourmet Oscuro ── */
+[data-theme="hg-dark"] {
+  --erp-shell:       #0F0F0F;
+  --erp-shell-text:  #F5D77A;
+  --erp-primary:     #E03030;
+  --erp-primary-lt:  #3B0A0A;
+  --erp-accent:      #E8971A;
+  --erp-bg:          #1A1208;
+  --erp-surface:     #231A0C;
+  --erp-border:      #3D2A10;
+  --erp-text:        #FEF3E2;
+  --erp-text-2:      #D4A85A;
+  --erp-text-3:      #7A5530;
 }
 
 @theme inline {
@@ -22,8 +110,9 @@ body {
 input,
 select,
 textarea {
-  background-color: #ffffff;
-  color: #171717;
+  background-color: var(--erp-surface);
+  color: var(--erp-text);
+  border-color: var(--erp-border);
 }
 
 @media print {
@@ -47,5 +136,257 @@ textarea {
 @page {
   size: letter;
   margin: 0.5in;
+}
+
+/* ── Stock & Costos — columnas responsive ──────────────────────────────────── */
+@media (min-width: 641px) {
+  .inv-sc-cat       { display: table-cell !important; }
+  .inv-sc-min       { display: table-cell !important; }
+  .inv-sc-estado    { display: table-cell !important; }
+  .inv-sc-cat-mobile { display: none !important; }
+}
+
+@media (max-width: 640px) {
+  .inv-sc-estado { display: none !important; }
+  .inv-btn-full  { display: none; }
+  .inv-btn-short { display: inline; }
+}
+
+@media (min-width: 641px) {
+  .inv-btn-full  { display: inline; }
+  .inv-btn-short { display: none; }
+}
+
+/* ── Bandeja Conteo — columnas responsive ───────────────────────────────────── */
+@media (max-width: 640px) {
+  .bc-col-id,
+  .bc-col-contador,
+  .bc-col-aprobado { display: none !important; }
+}
+
+/* ── Inventario Dashboard — responsive ─────────────────────────────────────── */
+
+/* KPI cards: 4 columnas en desktop, 2x2 en móvil */
+.inv-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+/* Tabla: columnas completas en desktop */
+.inv-table-row,
+.inv-table-header {
+  display: grid;
+  grid-template-columns: 36px 1.8fr 1fr 1.1fr 72px 100px 152px;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 14px;
+  min-width: 0;
+}
+
+.inv-table-row > *,
+.inv-table-header > * {
+  min-width: 0;
+}
+
+/* Columnas que se ocultan en móvil */
+.inv-col-categoria,
+.inv-col-minimo,
+.inv-col-estado {
+  display: block;
+}
+
+/* Stock inline en nombre: visible solo en móvil */
+.inv-col-nombre-stock {
+  display: none;
+}
+
+/* Buscador: se pone en línea propia en móvil */
+.inv-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inv-search {
+  margin-left: auto;
+  min-width: 160px;
+}
+
+/* Header del dashboard */
+.inv-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inv-header-btns {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+/* ── Empaque row — responsive ───────────────────────────────────────────────── */
+.prod-empaque-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 80px auto;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: end;
+  min-width: 0;
+}
+
+.prod-empaque-row > * {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .prod-empaque-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── Productos — responsive ─────────────────────────────────────────────────── */
+.prod-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.prod-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prod-header-btns {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.prod-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.prod-form-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.prod-form-grid > * {
+  min-width: 0;
+}
+
+.prod-form-col2 {
+  grid-column: span 2;
+}
+
+.prod-form-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .prod-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .prod-header-btns {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .prod-col-cat,
+  .prod-col-tipo,
+  .prod-col-grupo,
+  .prod-col-costo,
+  .prod-col-margen,
+  .prod-col-extras {
+    display: none;
+  }
+
+  .prod-mobile-meta {
+    display: block !important;
+  }
+
+  .prod-toolbar {
+    gap: 8px;
+  }
+
+  .prod-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .prod-form-col2 {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .inv-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  /* En móvil: emoji | nombre+stock | outstock toggle (3 col) */
+  .inv-table-row,
+  .inv-table-header {
+    grid-template-columns: 28px 1fr auto;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  /* Ocultar categoría, mínimo y estado en móvil */
+  .inv-col-categoria,
+  .inv-col-minimo,
+  .inv-col-estado {
+    display: none;
+  }
+
+  /* Existencia ocupa el espacio liberado mostrándose en el nombre */
+  .inv-col-existencia {
+    display: none;
+  }
+
+  .inv-col-nombre {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .inv-col-nombre-stock {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .inv-search {
+    margin-left: 0;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .inv-header-btns {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .inv-header {
+    gap: 8px;
+  }
 }
 

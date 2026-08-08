@@ -33,6 +33,7 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
   const [clienteCi, setClienteCi] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [costoDelivery, setCostoDelivery] = useState("");
   const [items, setItems] = useState<NotaItem[]>([
     { ...EMPTY_ITEM },
     { ...EMPTY_ITEM },
@@ -158,7 +159,9 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
     [items]
   );
 
-  const totalGeneral = itemsConTotal.reduce((acc, it) => acc + it.total, 0);
+  const subtotalProductos = itemsConTotal.reduce((acc, it) => acc + it.total, 0);
+  const delivery = Number(costoDelivery) || 0;
+  const totalGeneral = subtotalProductos + delivery;
 
   const filasImpresion = useMemo(() => {
     const filas = itemsConTotal.filter((it) => it.descripcion.trim() && it.cantidad > 0);
@@ -311,6 +314,18 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
               placeholder="Opcional"
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-zinc-700">Costo de Delivery</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={costoDelivery}
+              onChange={(e) => setCostoDelivery(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
         </div>
 
         <div>
@@ -380,9 +395,21 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
           </div>
         </div>
 
-        <div className="rounded-md bg-zinc-50 p-3 text-right text-sm">
-          <span className="font-medium text-zinc-600">Total a pagar: </span>
-          <span className="text-base font-semibold">${totalGeneral.toFixed(2)}</span>
+        <div className="rounded-md bg-zinc-50 p-3 text-sm">
+          <div className="flex justify-between text-zinc-600">
+            <span>Subtotal productos</span>
+            <span>${subtotalProductos.toFixed(2)}</span>
+          </div>
+          {delivery > 0 && (
+            <div className="flex justify-between text-zinc-600">
+              <span>Delivery</span>
+              <span>${delivery.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="mt-1 flex justify-between border-t border-zinc-200 pt-1 font-semibold text-zinc-900">
+            <span>Total a pagar</span>
+            <span className="text-base">${totalGeneral.toFixed(2)}</span>
+          </div>
         </div>
 
         {error && (
@@ -455,12 +482,26 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
           </tbody>
         </table>
 
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-4 flex items-start justify-between">
           <div className="text-sm">
             <span className="font-semibold">Fecha límite de pago: </span>
             {fechaLimitePago ? formatFechaDDMMYYYY(fechaLimitePago) : ""}
           </div>
-          <div className="text-lg font-semibold">Total a Pagar ${totalGeneral.toFixed(2)}</div>
+          <div className="flex flex-col items-end gap-0.5 text-sm">
+            {delivery > 0 && (
+              <>
+                <div className="flex gap-8">
+                  <span>Subtotal</span>
+                  <span>${subtotalProductos.toFixed(2)}</span>
+                </div>
+                <div className="flex gap-8">
+                  <span>Delivery</span>
+                  <span>${delivery.toFixed(2)}</span>
+                </div>
+              </>
+            )}
+            <div className="text-lg font-semibold">Total a Pagar ${totalGeneral.toFixed(2)}</div>
+          </div>
         </div>
       </div>
     </div>

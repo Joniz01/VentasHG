@@ -9,26 +9,60 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { cuentaCobrada, alarmaSilenciadaHasta } = body;
 
   if (typeof cuentaCobrada === "boolean") {
-    const result = await pool.query(
-      `UPDATE ventas
-       SET cuenta_cobrada = $1,
-           cuenta_cobrada_at = CASE WHEN $1 THEN now() ELSE NULL END
-       WHERE id = $2 AND cuenta_por_cobrar = TRUE
-       RETURNING id, cuenta_cobrada, cuenta_cobrada_at, alarma_vencimiento_silenciada_hasta`,
-      [cuentaCobrada, id]
-    );
+    const { fechaPago, metodoPago } = body as { fechaPago?: string; metodoPago?: string };
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    if (result.rowCount === 0) {
-      return NextResponse.json({ error: "Cuenta por cobrar no encontrada" }, { status: 404 });
+      const result = await client.query(
+        `UPDATE ventas
+         SET cuenta_cobrada = $1,
+             cuenta_cobrada_at = CASE WHEN $1 THEN now() ELSE NULL END
+         WHERE id = $2 AND cuenta_por_cobrar = TRUE
+           AND NOT EXISTS (SELECT 1 FROM cashea_pagos cp WHERE cp.venta_id = $2)
+           AND NOT EXISTS (SELECT 1 FROM yummy_pagos  yp WHERE yp.venta_id = $2)
+         RETURNING id, cuenta_cobrada, cuenta_cobrada_at, alarma_vencimiento_silenciada_hasta,
+                   tasa_dia,
+                   COALESCE((SELECT SUM(vi.precio_unit * vi.cantidad) FROM venta_items vi WHERE vi.venta_id = $2), 0)
+                     + COALESCE(costo_delivery, 0) AS total_usd`,
+        [cuentaCobrada, id]
+      );
+
+      if (result.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Cuenta por cobrar no encontrada" }, { status: 404 });
+      }
+
+      const row = result.rows[0];
+
+      // Sincronizar pagos_venta: borrar entrada previa y reinsertar si cobrada
+      const metodo = metodoPago || "CXC_DIRECTA";
+      await client.query(
+        `DELETE FROM pagos_venta WHERE venta_id = $1 AND metodo = ANY($2::text[])`,
+        [id, ["CXC_DIRECTA","EFECTIVO_USD","EFECTIVO_BS","TRANSFERENCIA","PUNTO_VENTA","PAGO_MOVIL","ZELLE"]]
+      );
+      if (cuentaCobrada) {
+        const fp = fechaPago || new Date().toISOString().slice(0, 10);
+        await client.query(
+          `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
+           VALUES ($1, $2, $3, $4)`,
+          [id, metodo, row.total_usd, fp]
+        );
+      }
+
+      await client.query("COMMIT");
+      return NextResponse.json({
+        ventaId: row.id,
+        cuentaCobrada: row.cuenta_cobrada,
+        cuentaCobradaAt: row.cuenta_cobrada_at,
+        alarmaSilenciadaHasta: row.alarma_vencimiento_silenciada_hasta,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
     }
-
-    const row = result.rows[0];
-    return NextResponse.json({
-      ventaId: row.id,
-      cuentaCobrada: row.cuenta_cobrada,
-      cuentaCobradaAt: row.cuenta_cobrada_at,
-      alarmaSilenciadaHasta: row.alarma_vencimiento_silenciada_hasta,
-    });
   }
 
   if (typeof alarmaSilenciadaHasta === "string" || alarmaSilenciadaHasta === null) {

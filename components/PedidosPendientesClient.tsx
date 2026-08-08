@@ -235,10 +235,21 @@ export default function PedidosPendientesClient() {
                 Pedido #{pedido.id} — {pedido.cliente}
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-zinc-700">
-                  <span className="font-medium">Hora de entrega: </span>
-                  {formatHora(pedido.horaEntrega)}
-                </span>
+                <div className="flex flex-col text-sm text-zinc-700">
+                  <span>
+                    <span className="font-medium">Hora de entrega: </span>
+                    {formatHora(pedido.horaEntrega)}
+                  </span>
+                  {(pedido.horaEntrega || pedido.fecha) && (
+                    <span>
+                      <span className="font-medium">Fecha: </span>
+                      {(() => {
+                        const d = pedido.horaEntrega ? new Date(pedido.horaEntrega).toLocaleDateString("en-CA", { timeZone: "America/Caracas" }) : pedido.fecha;
+                        return d.slice(8,10) + "/" + d.slice(5,7) + "/" + d.slice(0,4);
+                      })()}
+                    </span>
+                  )}
+                </div>
                 <span className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold uppercase">
                   {ESTADO_LABELS[estado]}
                 </span>
@@ -377,10 +388,18 @@ export default function PedidosPendientesClient() {
                       Pedido #{pedido.id} — {pedido.cliente}
                     </h3>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-zinc-700">
-                        <span className="font-medium">Hora de entrega: </span>
-                        {formatHora(pedido.horaEntrega)}
-                      </span>
+                      <div className="flex flex-col text-sm text-zinc-700">
+                        <span>
+                          <span className="font-medium">Hora de entrega: </span>
+                          {formatHora(pedido.horaEntrega)}
+                        </span>
+                        {pedido.fecha && (
+                          <span>
+                            <span className="font-medium">Fecha: </span>
+                            {pedido.fecha.slice(8,10) + "/" + pedido.fecha.slice(5,7) + "/" + pedido.fecha.slice(0,4)}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-col items-stretch gap-1">
                         <span className="rounded-md border border-green-400 bg-white px-2 py-1 text-center text-xs font-semibold uppercase text-green-800">
                           Entregado

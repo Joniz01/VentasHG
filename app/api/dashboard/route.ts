@@ -1,54 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSesionFromRequest } from "@/lib/auth";
+import { getResumenLocal, ResumenData } from "@/lib/resumen";
+async function fetchResumen(baseUrl: string): Promise<ResumenData> {
+  const empresa = baseUrl.replace(/https?:\/\//, "").replace(/\/$/, "");
+  const empty = (): ResumenData => ({
+    empresa,
+    hoy: { cantidad: 0, total_usd: 0 },
+    semana: { cantidad: 0, total_usd: 0 },
+    mes: { cantidad: 0, total_usd: 0 },
+    cxcPendiente: { cantidad: 0, total_usd: 0 },
+    ventaHoy: { cantidad: 0, total_usd: 0 },
+    ingresos: { cantidad: 0, total_usd: 0 },
+    stock: { total_productos: 0, sin_stock: 0 },
+  });
 
-type ResumenEmpresa = {
-  empresa: string;
-  hoy: { cantidad: number; total_usd: number };
-  semana: { cantidad: number; total_usd: number };
-  mes: { cantidad: number; total_usd: number };
-  cxcPendiente: { cantidad: number; total_usd: number };
-  stock: { total_productos: number; sin_stock: number };
-  error?: string;
-};
-
-async function fetchResumen(baseUrl: string, apiKey: string): Promise<ResumenEmpresa> {
-  const url = `${baseUrl}/api/resumen?apikey=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    const empresa = baseUrl.replace(/https?:\/\//, "");
-    return {
-      empresa,
-      hoy: { cantidad: 0, total_usd: 0 },
-      semana: { cantidad: 0, total_usd: 0 },
-      mes: { cantidad: 0, total_usd: 0 },
-      cxcPendiente: { cantidad: 0, total_usd: 0 },
-      stock: { total_productos: 0, sin_stock: 0 },
-      error: `No se pudo conectar (${res.status})`,
-    };
+  try {
+    const res = await fetch(`${baseUrl}/api/resumen`, { cache: "no-store" });
+    if (!res.ok) {
+      return { ...empty(), error: `No se pudo conectar (${res.status})` };
+    }
+    return (await res.json()) as ResumenData;
+  } catch {
+    return { ...empty(), error: "Error de red al conectar" };
   }
-  return res.json() as Promise<ResumenEmpresa>;
 }
 
 export async function GET(request: NextRequest) {
-  const sesion = await getSesionFromRequest(request);
-  if (!sesion || sesion.rol !== "ADMIN") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  try {
+    const sesion = await getSesionFromRequest(request);
+    if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.dashboard)) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    const empresa2Url = process.env.EMPRESA2_URL ?? "";
+
+    const empresa1Promise = getResumenLocal().catch(
+      (): ResumenData => ({
+        empresa: process.env.EMPRESA_NOMBRE ?? "Empresa",
+        hoy: { cantidad: 0, total_usd: 0 },
+        semana: { cantidad: 0, total_usd: 0 },
+        mes: { cantidad: 0, total_usd: 0 },
+        cxcPendiente: { cantidad: 0, total_usd: 0 },
+        ventaHoy: { cantidad: 0, total_usd: 0 },
+        ingresos: { cantidad: 0, total_usd: 0 },
+        stock: { total_productos: 0, sin_stock: 0 },
+        error: "Error al consultar base de datos",
+      })
+    );
+
+    const fetches: Promise<ResumenData>[] = [empresa1Promise];
+    if (empresa2Url) {
+      fetches.push(fetchResumen(empresa2Url));
+    }
+
+    const empresas = await Promise.all(fetches);
+    return NextResponse.json({ empresas });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Error interno del dashboard" },
+      { status: 500 }
+    );
   }
-
-  const apiKey = process.env.DASHBOARD_API_KEY ?? "";
-  const empresa1Url = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000";
-  const empresa2Url = process.env.EMPRESA2_URL ?? "";
-
-  const fetches: Promise<ResumenEmpresa>[] = [
-    fetchResumen(empresa1Url, apiKey),
-  ];
-  if (empresa2Url) {
-    fetches.push(fetchResumen(empresa2Url, apiKey));
-  }
-
-  const empresas = await Promise.all(fetches);
-
-  return NextResponse.json({ empresas });
 }

@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { METODOS_PAGO, MODOS_ENTREGA } from "@/lib/types";
+import { METODOS_PAGO, METODOS_PAGO_USD, MODOS_ENTREGA } from "@/lib/types";
 
 export type VentaBody = {
   fecha: string;
@@ -10,7 +10,9 @@ export type VentaBody = {
   direccion?: string | null;
   modalidadCompra?: string | null;
   modoEntrega?: string | null;
+  tipoDelivery?: string | null;
   costoDelivery: number;
+  descuentoPorcentaje?: number;
   observaciones?: string | null;
   despachoPendiente?: boolean;
   horaEntrega?: string | null;
@@ -26,6 +28,19 @@ export type VentaBody = {
     variadaSelecciones?: number[];
   }[];
   pagos?: { metodo: string; monto: number }[];
+  casheaDatos?: {
+    porcentaje: number;
+    montoInicial: number;
+    montoFinanciado: number;
+    dias: number;
+    fechaVencimiento: string;
+    metodoInicial?: string | null;
+  } | null;
+  yummyDatos?: {
+    monto: number;
+    dias: number;
+    fechaVencimiento: string;
+  } | null;
 };
 
 export function validarVenta(body: VentaBody): string | null {
@@ -268,6 +283,8 @@ export async function insertarItemsYPagos(
   }
 
   for (const pago of body.pagos ?? []) {
+    if (pago.metodo === "CASHEA") continue; // Cashea se registra en cashea_pagos, no en pagos_venta
+    if (pago.metodo === "YUMMY") continue;  // Yummy se registra en yummy_pagos, no en pagos_venta
     const montoNum = Number(pago.monto);
     if (Number.isNaN(montoNum) || montoNum <= 0) continue;
 
@@ -276,5 +293,49 @@ export async function insertarItemsYPagos(
        VALUES ($1, $2, $3)`,
       [ventaId, pago.metodo, montoNum]
     );
+  }
+
+  if (body.yummyDatos) {
+    const yd = body.yummyDatos;
+    await client.query(
+      `INSERT INTO yummy_pagos (venta_id, monto, dias, fecha_vencimiento)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (venta_id) DO UPDATE
+         SET monto = EXCLUDED.monto,
+             dias = EXCLUDED.dias,
+             fecha_vencimiento = EXCLUDED.fecha_vencimiento`,
+      [ventaId, yd.monto, yd.dias, yd.fechaVencimiento]
+    );
+  }
+
+  if (body.casheaDatos) {
+    const cd = body.casheaDatos;
+    await client.query(
+      `INSERT INTO cashea_pagos (venta_id, porcentaje, monto_inicial, monto_financiado, dias, fecha_vencimiento, metodo_inicial)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (venta_id) DO UPDATE
+         SET porcentaje = EXCLUDED.porcentaje,
+             monto_inicial = EXCLUDED.monto_inicial,
+             monto_financiado = EXCLUDED.monto_financiado,
+             dias = EXCLUDED.dias,
+             fecha_vencimiento = EXCLUDED.fecha_vencimiento,
+             metodo_inicial = EXCLUDED.metodo_inicial`,
+      [ventaId, cd.porcentaje, cd.montoInicial, cd.montoFinanciado, cd.dias, cd.fechaVencimiento, cd.metodoInicial ?? null]
+    );
+
+    // El inicial sí es dinero cobrado ese día por una forma de pago real
+    // (Punto de Venta, Efectivo Bs, etc.) y debe reflejarse en pagos_venta para
+    // que los reportes por forma de pago y el resumen del día lo contabilicen.
+    // montoInicial está en USD; si el método es Bs hay que convertir antes de guardar.
+    if (cd.metodoInicial && cd.montoInicial > 0) {
+      const esPagoUsd = (METODOS_PAGO_USD as readonly string[]).includes(cd.metodoInicial);
+      const montoParaGuardar = esPagoUsd
+        ? cd.montoInicial
+        : cd.montoInicial * (body.tasaDelDia ?? 1);
+      await client.query(
+        `INSERT INTO pagos_venta (venta_id, metodo, monto) VALUES ($1, $2, $3)`,
+        [ventaId, cd.metodoInicial, montoParaGuardar]
+      );
+    }
   }
 }

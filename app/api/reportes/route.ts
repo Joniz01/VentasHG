@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  try {
+
   const includePendientes = searchParams.get("pendientes") === "1";
 
   // Filtro base: ventas cobradas al contado + cuentas cobradas por fecha de cobro.
@@ -29,7 +31,7 @@ export async function GET(request: NextRequest) {
   // - ventas normales (no CxC) por su fecha de venta
   // - cuentas por cobrar ya cobradas por la fecha en que se marcaron como cobradas
   const resumenResult = await pool.query(
-    `SELECT v.id, v.costo_delivery,
+    `SELECT v.id, v.costo_delivery, v.tasa_dia,
             COALESCE(
               (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
               0
@@ -40,15 +42,18 @@ export async function GET(request: NextRequest) {
   );
 
   let totalVentasUsd = 0;
+  let totalVentasBs = 0;
   for (const row of resumenResult.rows) {
-    totalVentasUsd += Number(row.total_items) + Number(row.costo_delivery);
+    const usd = Number(row.total_items) + Number(row.costo_delivery);
+    totalVentasUsd += usd;
+    totalVentasBs += usd * Number(row.tasa_dia);
   }
 
   const pagosResult = await pool.query(
     `SELECT pv.metodo, pv.monto, v.tasa_dia
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
-     WHERE v.fecha BETWEEN $1 AND $2`,
+     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2`,
     [desde, hasta]
   );
 
@@ -80,19 +85,46 @@ export async function GET(request: NextRequest) {
 
   const porClienteResult = await pool.query(
     `WITH venta_totales AS (
-       SELECT v.id, v.cliente, v.cliente_ci, v.costo_delivery,
+       SELECT v.id, v.cliente, v.cliente_ci, v.costo_delivery, v.tasa_dia,
+              v.cuenta_por_cobrar, v.cuenta_cobrada,
               COALESCE(
                 (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
                 0
               ) AS total_items
        FROM ventas v
        WHERE ${filtroBase}
+     ),
+     pagos_por_venta AS (
+       SELECT pv.venta_id,
+              SUM(
+                CASE WHEN pv.metodo IN ('EFECTIVO_USD','ZELLE','CASHEA','YUMMY','CXC_DIRECTA')
+                     THEN pv.monto
+                     ELSE pv.monto / NULLIF(vt.tasa_dia, 0)
+                END
+              ) AS cobrado_usd,
+              SUM(
+                CASE WHEN pv.metodo IN ('EFECTIVO_USD','ZELLE','CASHEA','YUMMY','CXC_DIRECTA')
+                     THEN pv.monto * vt.tasa_dia
+                     ELSE pv.monto
+                END
+              ) AS cobrado_bs
+       FROM pagos_venta pv
+       JOIN venta_totales vt ON vt.id = pv.venta_id
+       GROUP BY pv.venta_id
      )
-     SELECT cliente, cliente_ci,
+     SELECT vt.cliente, vt.cliente_ci,
             COUNT(*) AS cantidad_ventas,
-            SUM(total_items + costo_delivery) AS total_usd
-     FROM venta_totales
-     GROUP BY cliente, cliente_ci
+            SUM(vt.total_items + COALESCE(vt.costo_delivery, 0)) AS total_usd,
+            COALESCE(SUM(ppv.cobrado_usd), 0) AS cobrado_usd,
+            COALESCE(SUM(ppv.cobrado_bs), 0) AS cobrado_bs,
+            GREATEST(
+              SUM(vt.total_items + COALESCE(vt.costo_delivery, 0))
+              - COALESCE(SUM(ppv.cobrado_usd), 0),
+              0
+            ) AS pendiente_usd
+     FROM venta_totales vt
+     LEFT JOIN pagos_por_venta ppv ON ppv.venta_id = vt.id
+     GROUP BY vt.cliente, vt.cliente_ci
      ORDER BY total_usd DESC`,
     [desde, hasta]
   );
@@ -102,6 +134,9 @@ export async function GET(request: NextRequest) {
     clienteCi: row.cliente_ci,
     cantidadVentas: Number(row.cantidad_ventas),
     totalUsd: Number(row.total_usd),
+    cobradoUsd: Number(row.cobrado_usd),
+    cobradoBs: Number(row.cobrado_bs),
+    pendienteUsd: Number(row.pendiente_usd),
   }));
 
   const porProductoResult = await pool.query(
@@ -126,13 +161,51 @@ export async function GET(request: NextRequest) {
     margenUsd: Number(row.margen_usd),
   }));
 
-  return NextResponse.json({
-    desde,
-    hasta,
-    totalVentasUsd,
-    cantidadVentas: resumenResult.rowCount ?? 0,
-    porFormaPago,
-    porCliente,
-    porProducto,
-  });
+  // Detalle de ventas por forma de pago (para conciliación)
+  const detalleResult = await pool.query(
+    `SELECT pv.metodo, pv.monto, v.id, v.cliente, v.tasa_dia,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + v.costo_delivery AS total_venta_usd
+     FROM pagos_venta pv
+     JOIN ventas v ON v.id = pv.venta_id
+     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
+     ORDER BY pv.metodo, v.id DESC`,
+    [desde, hasta]
+  );
+
+  const ventasPorFormaPago: Record<string, { ventaId: number; cliente: string; montoUsd: number; montoBs: number }[]> = {};
+  for (const row of detalleResult.rows) {
+    const metodo = row.metodo as string;
+    const monto = Number(row.monto);
+    const tasa = Number(row.tasa_dia);
+    const esPagoUsd = (METODOS_PAGO_USD as readonly string[]).includes(metodo);
+    const montoUsd = esPagoUsd ? monto : (tasa > 0 ? monto / tasa : 0);
+    const montoBs = esPagoUsd ? monto * tasa : monto;
+    if (!ventasPorFormaPago[metodo]) ventasPorFormaPago[metodo] = [];
+    ventasPorFormaPago[metodo].push({
+      ventaId: row.id,
+      cliente: row.cliente,
+      montoUsd,
+      montoBs,
+    });
+  }
+
+    return NextResponse.json({
+      desde,
+      hasta,
+      totalVentasUsd,
+      totalVentasBs,
+      cantidadVentas: resumenResult.rowCount ?? 0,
+      porFormaPago,
+      porCliente,
+      porProducto,
+      ventasPorFormaPago,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error al generar el reporte";
+    console.error("[GET /api/reportes]", err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

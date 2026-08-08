@@ -7,7 +7,10 @@ type Params = { params: Promise<{ id: string }> };
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  const { nombre, descripcion, costo, precioVenta, activo, categoriaId, tipoProducto, variadaRaciones } = body;
+  const {
+    nombre, descripcion, costo, precioVenta, activo, categoriaId, tipoProducto, variadaRaciones,
+    stockMinimo, unidadMedida, alertaOutstockDesactivada, alertaOutstockMotivo, grupo,
+  } = body;
 
   const costoNum = Number(costo);
   const precioNum = Number(precioVenta);
@@ -25,15 +28,43 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const categoriaIdNum = categoriaId ? Number(categoriaId) : null;
   const variadaRacionesNum = Number(variadaRaciones) || 0;
+  const stockMinimoNum = Math.max(0, Number(stockMinimo) || 0);
+  const unidadMedidaStr = typeof unidadMedida === "string" && unidadMedida.trim() ? unidadMedida.trim() : "unidad";
+  const outstockBool = Boolean(alertaOutstockDesactivada);
+  const outstockMotivo = typeof alertaOutstockMotivo === "string" && alertaOutstockMotivo.trim() ? alertaOutstockMotivo.trim() : null;
+  const grupoStr = ["PARA_LA_VENTA", "MATERIA_PRIMA", "SERVICIO"].includes(grupo) ? grupo : "PARA_LA_VENTA";
 
-  const result = await pool.query(
-    `UPDATE productos
-     SET nombre = $1, descripcion = $2, costo = $3, precio_venta = $4, activo = $5, categoria_id = $6,
-         tipo_producto = $7, variada_raciones = $8
-     WHERE id = $9
-     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at, tipo_producto, stock_actual, variada_raciones`,
-    [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum, tipoProducto || "NORMAL", variadaRacionesNum, id]
-  );
+  // Try with new columns first; fall back gracefully if migration 046 hasn't run yet
+  let result;
+  try {
+    result = await pool.query(
+      `UPDATE productos
+       SET nombre = $1, descripcion = $2, costo = $3, precio_venta = $4, activo = $5, categoria_id = $6,
+           tipo_producto = $7, variada_raciones = $8,
+           stock_minimo = $9, unidad_medida = $10,
+           alerta_outstock_desactivada = $11, alerta_outstock_motivo = $12,
+           grupo = $13
+       WHERE id = $14
+       RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at,
+                 tipo_producto, stock_actual, variada_raciones,
+                 stock_minimo, unidad_medida, alerta_outstock_desactivada, alerta_outstock_motivo,
+                 COALESCE(grupo, 'PARA_LA_VENTA') AS grupo`,
+      [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum,
+       tipoProducto || "NORMAL", variadaRacionesNum,
+       stockMinimoNum, unidadMedidaStr, outstockBool, outstockMotivo, grupoStr, id]
+    );
+  } catch {
+    result = await pool.query(
+      `UPDATE productos
+       SET nombre = $1, descripcion = $2, costo = $3, precio_venta = $4, activo = $5, categoria_id = $6,
+           tipo_producto = $7, variada_raciones = $8
+       WHERE id = $9
+       RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at,
+                 tipo_producto, stock_actual, variada_raciones`,
+      [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum,
+       tipoProducto || "NORMAL", variadaRacionesNum, id]
+    );
+  }
 
   if (result.rowCount === 0) {
     return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
@@ -79,7 +110,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
     categoriaNombre,
     tipoProducto: row.tipo_producto,
     stockActual: Number(row.stock_actual),
+    stockMinimo: Number(row.stock_minimo ?? 0),
+    unidadMedida: row.unidad_medida ?? "unidad",
+    alertaOutstockDesactivada: Boolean(row.alerta_outstock_desactivada),
+    alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,
+    grupo: row.grupo ?? "PARA_LA_VENTA",
     createdAt: row.created_at,
     extras: extrasResult.rows.map((extra) => ({
       id: extra.id,
@@ -95,6 +131,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       componenteNombre: componente.nombre,
       cantidad: Number(componente.cantidad),
     })),
+    empaques: [],
   });
 }
 
