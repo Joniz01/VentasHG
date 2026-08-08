@@ -564,7 +564,7 @@ export default function FacturaCompraForm({
         <div style={{ width: 40, height: 40, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📷</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "var(--erp-text)", fontSize: 13, fontWeight: 600 }}>Escanear / Cargar factura</div>
-          <div style={{ color: "var(--erp-text-2)", fontSize: 12, marginTop: 2 }}>Extrae proveedor, N° factura, fecha y productos automáticamente</div>
+          <div style={{ color: "var(--erp-text-3)", fontSize: 11, marginTop: 2 }}>Auto-extrae datos de la factura</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           <button type="button" onClick={() => cameraRef.current?.click()} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", padding: "7px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📸 Cámara</button>
