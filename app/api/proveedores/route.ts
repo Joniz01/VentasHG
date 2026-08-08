@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const body = await request.json();
-  const { nombre, rifCi, direccion, telefono } = body;
+  const { nombre, rifCi, direccion, telefono, diasCredito } = body;
   if (!nombre?.trim()) return NextResponse.json({ error: "Nombre requerido" }, { status: 400 });
 
   try {
@@ -56,9 +56,9 @@ export async function POST(request: NextRequest) {
     }
 
     const r = await pool.query(
-      `INSERT INTO proveedores (nombre, rif_ci, direccion, telefono)
-       VALUES ($1,$2,$3,$4) RETURNING id`,
-      [nombre.trim(), rifCi?.trim() || null, direccion?.trim() || null, telefono?.trim() || null]
+      `INSERT INTO proveedores (nombre, rif_ci, direccion, telefono, dias_credito)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [nombre.trim(), rifCi?.trim() || null, direccion?.trim() || null, telefono?.trim() || null, Number(diasCredito) || 0]
     );
     return NextResponse.json({ id: r.rows[0].id }, { status: 201 });
   } catch (err) {
