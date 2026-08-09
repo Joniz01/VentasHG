@@ -12,25 +12,16 @@ export async function POST(request: NextRequest) {
 
   try {
     // Obtener prompt editable desde configuracion
+    // El formato JSON siempre se fuerza; el prompt de BD agrega contexto extra si existe
     const cfgResult = await pool.query(
       `SELECT valor FROM configuracion WHERE clave = 'compras_ocr_prompt'`
     );
-    const defaultPrompt = `Analiza esta imagen de factura y extrae los datos en formato JSON estricto. No agregues texto antes ni después del JSON.
+    const extraContext = cfgResult.rows[0]?.valor ?? "";
 
-Devuelve ÚNICAMENTE este objeto JSON (sin bloques de código, sin markdown):
-{
-  "proveedorNombre": "nombre del emisor/proveedor",
-  "proveedorRif": "RIF o CI del emisor (incluye el prefijo J-, V-, E-, G- si aparece)",
-  "proveedorTelefono": "teléfono del proveedor (busca palabras clave: Teléfono, Telf, Tlf, Tel, Cel, Celular, Móvil, Fono)",
-  "numeroFactura": "número de factura",
-  "fecha": "fecha en formato YYYY-MM-DD o null si no aparece",
-  "items": [
-    { "nombre": "descripción del producto/servicio", "cantidad": 1, "costoUnitBs": 0.00 }
-  ]
-}
+    const promptTemplate = `Analiza esta imagen de factura venezolana y extrae los datos.${extraContext ? ` ${extraContext}` : ""}
 
-Si algún dato no aparece en la imagen, usa null para strings y [] para arrays.`;
-    const promptTemplate = cfgResult.rows[0]?.valor ?? defaultPrompt;
+Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloques de código, sin markdown):
+{"proveedorNombre":"nombre del emisor/empresa","proveedorRif":"RIF del emisor con prefijo J-, V-, E- o G- si aparece","proveedorTelefono":"teléfono (busca: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil)","numeroFactura":"número de factura","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
 
     // Obtener API key Gemini activa
     const keyResult = await pool.query(
@@ -55,7 +46,7 @@ Si algún dato no aparece en la imagen, usa null para strings y [] para arrays.`
           { inline_data: { mime_type: mimeType, data: imagenBase64 } },
         ],
       }],
-      generationConfig: { maxOutputTokens: 1500 },
+      generationConfig: { maxOutputTokens: 2048, temperature: 0 },
     };
 
     const res = await fetch(url, {
