@@ -2,7 +2,7 @@ import { PROVIDER_TIMEOUTS, DEFAULT_MODELS } from "../llm-config";
 import type { LLMResult } from "./gemini";
 
 // Modelo Groq con soporte de visión para OCR de facturas
-const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL ?? "llama-3.2-11b-vision-preview";
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL ?? "llama-4-scout-17b-16e-instruct";
 
 export async function callGroqVision(
   prompt: string,
@@ -43,7 +43,9 @@ export async function callGroqVision(
   clearTimeout(timer);
 
   if (!res.ok) {
-    const error = new Error(`Groq vision HTTP ${res.status}`) as Error & { statusCode: number };
+    let detail = "";
+    try { const d = await res.json(); detail = d?.error?.message ?? JSON.stringify(d); } catch { /* ignore */ }
+    const error = new Error(`Groq vision HTTP ${res.status}${detail ? ": " + detail.slice(0, 200) : ""}`) as Error & { statusCode: number };
     error.statusCode = res.status;
     throw error;
   }
