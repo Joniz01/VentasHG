@@ -50,6 +50,27 @@ Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloq
         maxOutputTokens: 8192,
         temperature: 0,
         responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            proveedorNombre: { type: "STRING" },
+            proveedorRif: { type: "STRING" },
+            proveedorTelefono: { type: "STRING" },
+            numeroFactura: { type: "STRING" },
+            fecha: { type: "STRING" },
+            items: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  nombre: { type: "STRING" },
+                  cantidad: { type: "NUMBER" },
+                  costoUnitBs: { type: "NUMBER" },
+                },
+              },
+            },
+          },
+        },
       },
     };
 
