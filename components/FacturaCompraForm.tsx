@@ -117,6 +117,30 @@ export default function FacturaCompraForm({
   const cameraRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [consultandoTasa, setConsultandoTasa] = useState(false);
+  const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
+  const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
+
+  async function handleConsultarTasaBcv() {
+    setTasaBcvError(null);
+    setConsultandoTasa(true);
+    try {
+      const res = await fetch("/api/tasa-bcv");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo consultar la tasa BCV");
+      setTasaDia(String(data.tasa));
+      setTasaBcvFecha(data.fecha);
+    } catch (err) {
+      setTasaBcvError(err instanceof Error ? err.message : "No se pudo consultar la tasa BCV");
+    } finally {
+      setConsultandoTasa(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isEdit && tasa <= 0) handleConsultarTasaBcv();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const tasa = Number(tasaDia) || 0;
   const totalBs = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
@@ -574,7 +598,18 @@ export default function FacturaCompraForm({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
             <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 00001234" style={S} /></div>
-            <div><label style={lbl}>Tasa del día (Bs/$)</label><input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} style={S} /></div>
+            <div>
+              <label style={lbl}>Tasa del día (Bs/$)</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} style={S} />
+                <button type="button" onClick={handleConsultarTasaBcv} disabled={consultandoTasa}
+                  style={{ flexShrink: 0, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: consultandoTasa ? "not-allowed" : "pointer" }}>
+                  {consultandoTasa ? "..." : "BCV"}
+                </button>
+              </div>
+              {tasaBcvFecha && <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3 }}>BCV: {tasaBcvFecha}</div>}
+              {tasaBcvError && <div style={{ fontSize: 11, color: "#B91C1C", marginTop: 3 }}>{tasaBcvError}</div>}
+            </div>
             <div><label style={lbl}>Vencimiento pago</label><input type="date" value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} /></div>
             <div style={{ gridColumn: "1 / -1" }}><label style={lbl}>Observaciones</label><input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Opcional" style={S} /></div>
           </div>
@@ -753,7 +788,15 @@ export default function FacturaCompraForm({
             <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 0045" style={S} /></div>
             <div>
               <label style={lbl}>Tasa del día (Bs/$)</label>
-              <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} placeholder="0.00" style={S} />
+              <div style={{ display: "flex", gap: 6 }}>
+                <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} placeholder="0.00" style={S} />
+                <button type="button" onClick={handleConsultarTasaBcv} disabled={consultandoTasa}
+                  style={{ flexShrink: 0, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: consultandoTasa ? "not-allowed" : "pointer" }}>
+                  {consultandoTasa ? "..." : "BCV"}
+                </button>
+              </div>
+              {tasaBcvFecha && <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3 }}>BCV: {tasaBcvFecha}</div>}
+              {tasaBcvError && <div style={{ fontSize: 11, color: "#B91C1C", marginTop: 3 }}>{tasaBcvError}</div>}
             </div>
             <div>
               <label style={lbl}>Vencimiento pago</label>
