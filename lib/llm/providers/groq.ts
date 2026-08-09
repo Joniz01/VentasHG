@@ -45,7 +45,23 @@ export async function callGroqVision(
   if (!res.ok) {
     let detail = "";
     try { const d = await res.json(); detail = d?.error?.message ?? JSON.stringify(d); } catch { /* ignore */ }
-    const error = new Error(`Groq vision HTTP ${res.status}${detail ? ": " + detail.slice(0, 200) : ""}`) as Error & { statusCode: number };
+
+    // Diagnóstico: si el modelo no existe/no hay acceso, listar modelos reales disponibles en la cuenta
+    let modelsHint = "";
+    if (res.status === 404) {
+      try {
+        const mRes = await fetch("https://api.groq.com/openai/v1/models", {
+          headers: { Authorization: `Bearer ${opts.apiKey}` },
+        });
+        if (mRes.ok) {
+          const mData = await mRes.json();
+          const ids: string[] = (mData?.data ?? []).map((m: { id: string }) => m.id);
+          modelsHint = ` | Modelos disponibles en tu cuenta: ${ids.join(", ")}`;
+        }
+      } catch { /* ignore */ }
+    }
+
+    const error = new Error(`Groq vision HTTP ${res.status}${detail ? ": " + detail.slice(0, 200) : ""}${modelsHint}`) as Error & { statusCode: number };
     error.statusCode = res.status;
     throw error;
   }
