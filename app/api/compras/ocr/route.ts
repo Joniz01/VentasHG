@@ -117,7 +117,7 @@ Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloq
       return NextResponse.json({ error: `JSON inválido en respuesta OCR: "${rawText.slice(0, 200)}"` }, { status: 422 });
     }
 
-    return NextResponse.json({ ok: true, data: parsed });
+    return NextResponse.json({ ok: true, data: parsed, _raw: rawText.slice(0, 500) });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
