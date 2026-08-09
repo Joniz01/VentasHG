@@ -182,11 +182,25 @@ function restarDias(fecha: string, dias: number): string {
  * no publicó ese día exacto (fin de semana/feriado). En ese caso se busca en
  * /rates/history el día hábil más reciente igual o anterior a la fecha pedida.
  */
+function describirErrorFetch(err: unknown): string {
+  if (err instanceof Error) {
+    const cause = (err as Error & { cause?: unknown }).cause;
+    const causaTexto = cause instanceof Error ? cause.message : cause ? String(cause) : "";
+    return causaTexto ? `${err.message} (${causaTexto})` : err.message;
+  }
+  return String(err);
+}
+
 export async function obtenerTasaBcvPorFecha(fecha: string): Promise<TasaBcv> {
-  const resDia = await fetch(`https://bcv-api.rafnixg.dev/rates/${fecha}`, {
-    cache: "no-store",
-    headers: { "User-Agent": NAVEGADOR_USER_AGENT },
-  });
+  let resDia: Response;
+  try {
+    resDia = await fetch(`https://bcv-api.rafnixg.dev/rates/${fecha}`, {
+      cache: "no-store",
+      headers: { "User-Agent": NAVEGADOR_USER_AGENT },
+    });
+  } catch (err) {
+    throw new Error(`No se pudo conectar a bcv-api.rafnixg.dev/rates/${fecha}: ${describirErrorFetch(err)}`);
+  }
 
   if (resDia.ok) {
     const data = await resDia.json();
@@ -200,10 +214,15 @@ export async function obtenerTasaBcvPorFecha(fecha: string): Promise<TasaBcv> {
 
   // Sin dato exacto (404): buscar el día hábil más cercano anterior en el historial
   const startDate = restarDias(fecha, 10);
-  const resHist = await fetch(
-    `https://bcv-api.rafnixg.dev/rates/history?start_date=${startDate}&end_date=${fecha}`,
-    { cache: "no-store", headers: { "User-Agent": NAVEGADOR_USER_AGENT } }
-  );
+  let resHist: Response;
+  try {
+    resHist = await fetch(
+      `https://bcv-api.rafnixg.dev/rates/history?start_date=${startDate}&end_date=${fecha}`,
+      { cache: "no-store", headers: { "User-Agent": NAVEGADOR_USER_AGENT } }
+    );
+  } catch (err) {
+    throw new Error(`No se pudo conectar a bcv-api.rafnixg.dev/rates/history: ${describirErrorFetch(err)}`);
+  }
 
   if (!resHist.ok) {
     throw new Error(`bcv-api.rafnixg.dev /rates/history respondió con estado ${resHist.status}`);
