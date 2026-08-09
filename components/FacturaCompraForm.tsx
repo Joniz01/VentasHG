@@ -128,7 +128,7 @@ export default function FacturaCompraForm({
       const url = fechaConsulta ? `/api/tasa-bcv?fecha=${fechaConsulta}` : "/api/tasa-bcv";
       const res = await fetch(url);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "No se pudo consultar la tasa BCV");
+      if (!res.ok) throw new Error(data.detalle ? `${data.error}: ${data.detalle}` : (data.error ?? "No se pudo consultar la tasa BCV"));
       setTasaDia(String(data.tasa));
       setTasaBcvFecha(data.fecha);
     } catch (err) {

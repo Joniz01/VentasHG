@@ -60,8 +60,9 @@ export async function GET(request: NextRequest) {
     await guardarCache(fecha, resultado.tasa, "pydolarve-history");
     return NextResponse.json(resultado);
   } catch (err) {
+    // Temporalmente siempre se incluye el detalle para diagnosticar el formato real de la API externa
     return NextResponse.json(
-      { error: "No se pudo consultar la tasa BCV histórica", ...(debug && err instanceof Error ? { detalle: err.message } : {}) },
+      { error: "No se pudo consultar la tasa BCV histórica", detalle: err instanceof Error ? err.message : String(err) },
       { status: 502 }
     );
   }
