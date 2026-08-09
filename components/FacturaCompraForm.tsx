@@ -228,12 +228,8 @@ export default function FacturaCompraForm({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const d = data.data ?? {};
-        // Diagnóstico temporal: mostrar estructura recibida si no hay items
-        if (!Array.isArray(d.items) || d.items.length === 0) {
-          setOcrDebug(`RAW: ${data._raw ?? ""}\n\nPARSED keys: ${Object.keys(d).join(", ")}\nitems=${JSON.stringify(d.items)}`);
-        } else {
-          setOcrDebug(null);
-        }
+        // Diagnóstico temporal: siempre mostrar estructura de respuesta OCR
+        setOcrDebug(`keys: ${Object.keys(d).join(", ")}\nnFact: ${JSON.stringify(d.numeroFactura)}\nitems.len: ${Array.isArray(d.items) ? d.items.length : "no-array"}\nitem[0]: ${JSON.stringify(d.items?.[0]).slice(0, 150)}`);
 
         // Filtra strings vacías, "null" o "undefined" que Gemini puede retornar literalmente
         const clean = (v: unknown): string => {
