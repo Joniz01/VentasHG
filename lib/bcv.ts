@@ -170,87 +170,57 @@ export async function obtenerTasaBcv(): Promise<TasaBcv> {
   throw new Error(`No se pudo consultar la tasa BCV: ${JSON.stringify(errores)}`);
 }
 
-// Busca un número (precio/tasa) dentro de un objeto probando varias claves comunes
-function extraerNumero(obj: Record<string, unknown>, claves: string[]): number | null {
-  for (const clave of claves) {
-    const v = obj[clave];
-    if (v !== undefined && v !== null) {
-      const n = Number(v);
-      if (!Number.isNaN(n) && n > 0) return n;
-    }
-  }
-  return null;
-}
-
-function extraerFecha(obj: Record<string, unknown>, claves: string[]): string | null {
-  for (const clave of claves) {
-    const v = obj[clave];
-    if (typeof v === "string" && v.trim()) return v.slice(0, 10);
-  }
-  return null;
-}
-
-// Encuentra en un array de entradas históricas la más cercana (igual o anterior) a la fecha pedida
-function entradaMasCercana(
-  entradas: Record<string, unknown>[],
-  fecha: string
-): { tasa: number; fecha: string } | null {
-  let mejor: { tasa: number; fecha: string } | null = null;
-  for (const it of entradas) {
-    const f = extraerFecha(it, ["fecha", "date", "last_update", "created_at"]);
-    const t = extraerNumero(it, ["price", "promedio", "tasa", "value", "monto"]);
-    if (!f || !t) continue;
-    if (f > fecha) continue; // solo fechas iguales o anteriores a la pedida
-    if (!mejor || f > mejor.fecha) mejor = { tasa: t, fecha: f };
-  }
-  return mejor;
+function restarDias(fecha: string, dias: number): string {
+  const d = new Date(`${fecha}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
 }
 
 /**
- * Consulta la tasa BCV histórica de una fecha específica (YYYY-MM-DD) vía pyDolarVenezuela.
- * Si el BCV no publicó ese día exacto (fin de semana/feriado), retorna la tasa del
- * día hábil más reciente igual o anterior a la fecha pedida.
+ * Consulta la tasa BCV histórica de una fecha específica (YYYY-MM-DD) vía bcv-api.rafnixg.dev.
+ * Endpoint confirmado: GET /rates/{fecha} → { dollar, date }; responde 404 si el BCV
+ * no publicó ese día exacto (fin de semana/feriado). En ese caso se busca en
+ * /rates/history el día hábil más reciente igual o anterior a la fecha pedida.
  */
 export async function obtenerTasaBcvPorFecha(fecha: string): Promise<TasaBcv> {
-  const res = await fetch(
-    `https://pydolarve.org/api/v2/dollar/history?monitor=bcv&start_date=${fecha}&end_date=${fecha}`,
+  const resDia = await fetch(`https://bcv-api.rafnixg.dev/rates/${fecha}`, {
+    cache: "no-store",
+    headers: { "User-Agent": NAVEGADOR_USER_AGENT },
+  });
+
+  if (resDia.ok) {
+    const data = await resDia.json();
+    const tasa = Number(data?.dollar);
+    if (!Number.isNaN(tasa) && tasa > 0) {
+      return { tasa, fecha: (data?.date ?? fecha).slice(0, 10) };
+    }
+  } else if (resDia.status !== 404) {
+    throw new Error(`bcv-api.rafnixg.dev /rates/${fecha} respondió con estado ${resDia.status}`);
+  }
+
+  // Sin dato exacto (404): buscar el día hábil más cercano anterior en el historial
+  const startDate = restarDias(fecha, 10);
+  const resHist = await fetch(
+    `https://bcv-api.rafnixg.dev/rates/history?start_date=${startDate}&end_date=${fecha}`,
     { cache: "no-store", headers: { "User-Agent": NAVEGADOR_USER_AGENT } }
   );
 
-  if (!res.ok) {
-    throw new Error(`pyDolarVenezuela history respondió con estado ${res.status}`);
+  if (!resHist.ok) {
+    throw new Error(`bcv-api.rafnixg.dev /rates/history respondió con estado ${resHist.status}`);
   }
 
-  const data = await res.json();
+  const hist = await resHist.json();
+  const rates: { dollar: number; date: string }[] = Array.isArray(hist?.rates) ? hist.rates : [];
 
-  // El formato exacto de respuesta no está confirmado; se prueban varias formas comunes
-  const candidatosArray: unknown =
-    (Array.isArray(data) && data) ||
-    data?.data ||
-    data?.history ||
-    data?.monitors?.bcv?.history ||
-    data?.monitors?.bcv ||
-    null;
-
-  const entradas: Record<string, unknown>[] = Array.isArray(candidatosArray)
-    ? (candidatosArray as Record<string, unknown>[])
-    : [];
-
-  if (entradas.length > 0) {
-    const mejor = entradaMasCercana(entradas, fecha);
-    if (mejor) return { tasa: mejor.tasa, fecha: mejor.fecha };
+  let mejor: { tasa: number; fecha: string } | null = null;
+  for (const r of rates) {
+    const f = String(r.date).slice(0, 10);
+    const t = Number(r.dollar);
+    if (Number.isNaN(t) || t <= 0 || f > fecha) continue;
+    if (!mejor || f > mejor.fecha) mejor = { tasa: t, fecha: f };
   }
 
-  // Respuesta de un solo objeto (no array) con el valor del día
-  if (data && typeof data === "object" && !Array.isArray(data)) {
-    const t = extraerNumero(data, ["price", "promedio", "tasa", "value"]);
-    if (t) {
-      const f = extraerFecha(data, ["fecha", "date", "last_update"]) ?? fecha;
-      return { tasa: t, fecha: f };
-    }
-  }
+  if (mejor) return mejor;
 
-  throw new Error(
-    `Respuesta inesperada de pyDolarVenezuela history: ${JSON.stringify(data).slice(0, 300)}`
-  );
+  throw new Error(`No hay tasa BCV publicada cerca de ${fecha} en bcv-api.rafnixg.dev`);
 }
