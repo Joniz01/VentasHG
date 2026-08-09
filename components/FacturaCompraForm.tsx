@@ -113,7 +113,6 @@ export default function FacturaCompraForm({
   const [imagenBase64, setImagenBase64] = useState<string | null>(initialData?.imagenFactura ?? null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
-  const [ocrDebug, setOcrDebug] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -228,8 +227,6 @@ export default function FacturaCompraForm({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const d = data.data ?? {};
-        // Diagnóstico temporal: siempre mostrar estructura de respuesta OCR
-        setOcrDebug(`keys: ${Object.keys(d).join(", ")}\nnFact: ${JSON.stringify(d.numeroFactura)}\nitems.len: ${Array.isArray(d.items) ? d.items.length : "no-array"}\nitem[0]: ${JSON.stringify(d.items?.[0]).slice(0, 150)}`);
 
         // Filtra strings vacías, "null" o "undefined" que Gemini puede retornar literalmente
         const clean = (v: unknown): string => {
@@ -612,12 +609,6 @@ export default function FacturaCompraForm({
             </>
           )}
           {ocrError && <span style={{ color: "#FCA5A5", fontSize: 12 }}>⚠ {ocrError}</span>}
-          {ocrDebug && (
-            <details style={{ width: "100%", marginTop: 6 }}>
-              <summary style={{ fontSize: 11, color: "var(--erp-text-3)", cursor: "pointer" }}>🔍 Diagnóstico OCR (toca para ver)</summary>
-              <pre style={{ fontSize: 10, color: "var(--erp-text-2)", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: 8, marginTop: 4, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{ocrDebug}</pre>
-            </details>
-          )}
         </div>
       )}
 
