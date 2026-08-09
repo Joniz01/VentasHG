@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { obtenerTasaBcv, obtenerTasaBcvPorFecha } from "@/lib/bcv";
+import { obtenerTasaBcv } from "@/lib/bcv";
 import { pool } from "@/lib/db";
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const debug = request.nextUrl.searchParams.get("debug") === "1";
   const fecha = request.nextUrl.searchParams.get("fecha");
 
-  // Sin fecha: comportamiento original (tasa vigente/más reciente)
+  // Sin fecha: tasa vigente (bcv.org.ve / respaldos), se cachea por su propia fecha de publicación
   if (!fecha) {
     try {
       const resultado = await obtenerTasaBcv();
@@ -49,21 +49,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Formato de fecha inválido (use YYYY-MM-DD)" }, { status: 400 });
   }
 
-  // Con fecha: primero caché local, luego histórico externo
+  // Con fecha: solo caché local (no hay fuente externa de histórico confiable disponible).
+  // El caché se llena con el tiempo cada vez que se consulta la tasa vigente en cualquier factura.
   const cacheado = await leerCache(fecha);
   if (cacheado) {
     return NextResponse.json({ tasa: cacheado.tasa, fecha, fromCache: true });
   }
 
-  try {
-    const resultado = await obtenerTasaBcvPorFecha(fecha);
-    await guardarCache(fecha, resultado.tasa, "pydolarve-history");
-    return NextResponse.json(resultado);
-  } catch (err) {
-    // Temporalmente siempre se incluye el detalle para diagnosticar el formato real de la API externa
-    return NextResponse.json(
-      { error: "No se pudo consultar la tasa BCV histórica", detalle: err instanceof Error ? err.message : String(err) },
-      { status: 502 }
-    );
-  }
+  return NextResponse.json({ error: "No hay tasa guardada para esta fecha", noCache: true }, { status: 404 });
 }
