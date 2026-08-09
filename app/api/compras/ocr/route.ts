@@ -11,11 +11,16 @@ export async function POST(request: NextRequest) {
   if (!imagenBase64) return NextResponse.json({ error: "Imagen requerida" }, { status: 400 });
 
   try {
-    // Obtener prompt editable desde configuracion
+    // Obtener contexto adicional desde configuracion (opcional)
     const cfgResult = await pool.query(
       `SELECT valor FROM configuracion WHERE clave = 'compras_ocr_prompt'`
     );
-    const promptTemplate = cfgResult.rows[0]?.valor ?? "Extrae de esta factura los datos del proveedor, número de factura, fecha e ítems con nombre, cantidad y costo en Bs. Responde en JSON.";
+    const extraContext = cfgResult.rows[0]?.valor ?? "";
+
+    const promptTemplate = `Analiza esta imagen de factura venezolana y extrae los datos.${extraContext ? ` ${extraContext}` : ""}
+
+Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloques de código, sin markdown):
+{"proveedorNombre":"nombre del emisor/empresa","proveedorRif":"RIF del emisor con prefijo J-, V-, E- o G- si aparece","proveedorTelefono":"teléfono (busca: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil)","numeroFactura":"número de factura","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
 
     // Obtener API key Gemini activa
     const keyResult = await pool.query(
@@ -40,7 +45,32 @@ export async function POST(request: NextRequest) {
           { inline_data: { mime_type: mimeType, data: imagenBase64 } },
         ],
       }],
-      generationConfig: { maxOutputTokens: 1500 },
+      generationConfig: {
+        maxOutputTokens: 8192,
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            proveedorNombre: { type: "STRING" },
+            proveedorRif: { type: "STRING" },
+            proveedorTelefono: { type: "STRING" },
+            numeroFactura: { type: "STRING" },
+            fecha: { type: "STRING" },
+            items: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  nombre: { type: "STRING" },
+                  cantidad: { type: "NUMBER" },
+                  costoUnitBs: { type: "NUMBER" },
+                },
+              },
+            },
+          },
+        },
+      },
     };
 
     const res = await fetch(url, {
@@ -55,14 +85,36 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await res.json();
-    const rawText: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
-    // Intentar parsear JSON de la respuesta
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return NextResponse.json({ error: "No se pudo extraer JSON de la respuesta", raw: rawText }, { status: 422 });
+    const candidate = data?.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    if (!candidate || finishReason === "SAFETY" || finishReason === "RECITATION") {
+      return NextResponse.json({ error: `OCR bloqueado por Gemini (${finishReason ?? "sin candidatos"}). Intenta con otra imagen.` }, { status: 422 });
+    }
+    if (finishReason === "MAX_TOKENS") {
+      return NextResponse.json({ error: "La factura tiene demasiados ítems. Intenta con menos productos visibles." }, { status: 422 });
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    return NextResponse.json({ ok: true, data: parsed });
+    const rawText: string = candidate?.content?.parts?.[0]?.text ?? "";
+
+    if (!rawText.trim()) {
+      return NextResponse.json({ error: `Gemini no devolvió texto. finishReason=${finishReason}` }, { status: 422 });
+    }
+
+    const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return NextResponse.json({ error: `OCR sin JSON válido: "${rawText.slice(0, 200)}"` }, { status: 422 });
+    }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: `JSON inválido en OCR: "${rawText.slice(0, 200)}"` }, { status: 422 });
+    }
+
+    return NextResponse.json({ ok: true, data: parsed, _raw: rawText.slice(0, 500) });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
