@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSesionFromRequest } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { getActiveKey, incrementQuotaUsed } from "@/lib/llm/key-manager";
+import { callGroqVision } from "@/lib/llm/providers/groq";
+import { logUsage } from "@/lib/llm/usage-logger";
+
+// Prompt base compartido (Gemini y Groq)
+const BASE_PROMPT = `Analiza esta imagen de factura venezolana y extrae los datos del encabezado y los productos.
+
+Instrucciones:
+- El RIF del emisor aparece cerca de "SENIAT" e inicia con J-, V-, E- o G-
+- El teléfono puede venir precedido de: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil
+- Si un ítem no tiene cantidad explícita, usa 1
+- Reemplaza comas decimales por punto en los montos (ej: 2.189,58 → 2189.58)
+- Si un campo no es legible usa null
+
+Responde ÚNICAMENTE con este objeto JSON (sin texto, sin markdown, sin bloques de código):
+{"proveedorNombre":"nombre del emisor","proveedorRif":"RIF con prefijo J-, V-, E- o G-","proveedorTelefono":"teléfono o null","numeroFactura":"número de factura o null","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
+
+function parseOcrResponse(rawText: string): Record<string, unknown> | null {
+  const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+  try {
+    return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
@@ -10,112 +37,120 @@ export async function POST(request: NextRequest) {
   const { imagenBase64, mimeType = "image/jpeg" } = body;
   if (!imagenBase64) return NextResponse.json({ error: "Imagen requerida" }, { status: 400 });
 
+  // Contexto adicional configurable desde la BD
+  let extraContext = "";
   try {
-    // Obtener contexto adicional desde configuracion (opcional)
     const cfgResult = await pool.query(
       `SELECT valor FROM configuracion WHERE clave = 'compras_ocr_prompt'`
     );
-    const extraContext = cfgResult.rows[0]?.valor ?? "";
+    extraContext = cfgResult.rows[0]?.valor ?? "";
+  } catch { /* tabla o clave no existe */ }
 
-    const promptTemplate = `Analiza esta imagen de factura venezolana y extrae los datos.${extraContext ? ` ${extraContext}` : ""}
+  const promptFull = extraContext
+    ? `${BASE_PROMPT}\n\nContexto adicional: ${extraContext}`
+    : BASE_PROMPT;
 
-Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloques de código, sin markdown):
-{"proveedorNombre":"nombre del emisor/empresa","proveedorRif":"RIF del emisor con prefijo J-, V-, E- o G- si aparece","proveedorTelefono":"teléfono (busca: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil)","numeroFactura":"número de factura","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
+  // ── 1. Intentar con Gemini (visión nativa + responseSchema) ─────────────────
+  const geminiKey = await getActiveKey("gemini");
+  if (geminiKey) {
+    try {
+      const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey.decryptedKey}`;
 
-    // Obtener API key Gemini activa
-    const keyResult = await pool.query(
-      `SELECT id, api_key FROM llm_api_keys WHERE provider = 'gemini' AND is_active = TRUE ORDER BY id LIMIT 1`
-    );
-    if (!keyResult.rowCount) {
-      return NextResponse.json({ error: "No hay API key Gemini configurada" }, { status: 503 });
-    }
-
-    const { api_key } = keyResult.rows[0];
-
-    const { decryptKey } = await import("@/lib/llm/llm-config");
-    const apiKey = decryptKey(api_key);
-
-    const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-    const geminiBody = {
-      contents: [{
-        parts: [
-          { text: promptTemplate },
+      const geminiBody = {
+        contents: [{ parts: [
+          { text: promptFull },
           { inline_data: { mime_type: mimeType, data: imagenBase64 } },
-        ],
-      }],
-      generationConfig: {
-        maxOutputTokens: 8192,
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            proveedorNombre: { type: "STRING" },
-            proveedorRif: { type: "STRING" },
-            proveedorTelefono: { type: "STRING" },
-            numeroFactura: { type: "STRING" },
-            fecha: { type: "STRING" },
-            items: {
-              type: "ARRAY",
+        ]}],
+        generationConfig: {
+          maxOutputTokens: 8192,
+          temperature: 0,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              proveedorNombre:   { type: "STRING" },
+              proveedorRif:      { type: "STRING" },
+              proveedorTelefono: { type: "STRING" },
+              numeroFactura:     { type: "STRING" },
+              fecha:             { type: "STRING" },
               items: {
-                type: "OBJECT",
-                properties: {
-                  nombre: { type: "STRING" },
-                  cantidad: { type: "NUMBER" },
-                  costoUnitBs: { type: "NUMBER" },
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    nombre:      { type: "STRING" },
+                    cantidad:    { type: "NUMBER" },
+                    costoUnitBs: { type: "NUMBER" },
+                  },
                 },
               },
             },
           },
         },
-      },
-    };
+      };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiBody),
-    });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiBody),
+      });
 
-    if (!res.ok) {
-      const err = await res.text();
-      return NextResponse.json({ error: `Gemini error ${res.status}: ${err}` }, { status: 502 });
-    }
+      if (res.ok) {
+        const data = await res.json();
+        const candidate = data?.candidates?.[0];
+        const finishReason = candidate?.finishReason;
 
-    const data = await res.json();
-
-    const candidate = data?.candidates?.[0];
-    const finishReason = candidate?.finishReason;
-    if (!candidate || finishReason === "SAFETY" || finishReason === "RECITATION") {
-      return NextResponse.json({ error: `OCR bloqueado por Gemini (${finishReason ?? "sin candidatos"}). Intenta con otra imagen.` }, { status: 422 });
-    }
-    if (finishReason === "MAX_TOKENS") {
-      return NextResponse.json({ error: "La factura tiene demasiados ítems. Intenta con menos productos visibles." }, { status: 422 });
-    }
-
-    const rawText: string = candidate?.content?.parts?.[0]?.text ?? "";
-
-    if (!rawText.trim()) {
-      return NextResponse.json({ error: `Gemini no devolvió texto. finishReason=${finishReason}` }, { status: 422 });
-    }
-
-    const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: `OCR sin JSON válido: "${rawText.slice(0, 200)}"` }, { status: 422 });
-    }
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+        if (candidate && finishReason !== "SAFETY" && finishReason !== "RECITATION") {
+          if (finishReason === "MAX_TOKENS") {
+            return NextResponse.json({ error: "La factura tiene demasiados ítems. Intenta con menos productos visibles." }, { status: 422 });
+          }
+          const rawText: string = candidate?.content?.parts?.[0]?.text ?? "";
+          if (rawText.trim()) {
+            const parsed = parseOcrResponse(rawText);
+            if (parsed) {
+              await incrementQuotaUsed(geminiKey.id, 0);
+              await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", model: modelName, tokens: { prompt: 0, completion: 0, total: 0 }, latency: 0, status: "ok", context: "ocr" });
+              return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500) });
+            }
+          }
+        }
+      } else if (res.status !== 429 && res.status !== 503) {
+        // Error no recuperable (400, 401, etc.) → no hacer fallback
+        const err = await res.text();
+        return NextResponse.json({ error: `Gemini error ${res.status}: ${err}` }, { status: 502 });
+      }
+      // 429 / 503 → continúa al fallback con Groq
+      await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: String(res.status), context: "ocr" });
     } catch {
-      return NextResponse.json({ error: `JSON inválido en OCR: "${rawText.slice(0, 200)}"` }, { status: 422 });
+      // timeout u otro error → continúa al fallback
+    }
+  }
+
+  // ── 2. Fallback: Groq visión ─────────────────────────────────────────────────
+  const groqKey = await getActiveKey("groq");
+  if (!groqKey) {
+    return NextResponse.json({ error: "Sin API keys disponibles para OCR (Gemini y Groq agotados o no configurados)." }, { status: 503 });
+  }
+
+  try {
+    const start = Date.now();
+    const result = await callGroqVision(promptFull, imagenBase64, mimeType, {
+      maxTokens: 4096,
+      apiKey: groqKey.decryptedKey,
+    });
+    const latency = Date.now() - start;
+
+    const parsed = parseOcrResponse(result.text);
+    if (!parsed) {
+      return NextResponse.json({ error: `OCR (Groq) sin JSON válido: "${result.text.slice(0, 200)}"` }, { status: 422 });
     }
 
-    return NextResponse.json({ ok: true, data: parsed, _raw: rawText.slice(0, 500) });
+    await incrementQuotaUsed(groqKey.id, result.tokens.total);
+    await logUsage({ apiKeyId: groqKey.id, provider: "groq", model: result.model, tokens: result.tokens, latency, status: "ok", context: "ocr" });
+
+    return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500) });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    return NextResponse.json({ error: `OCR Groq error: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 });
   }
 }

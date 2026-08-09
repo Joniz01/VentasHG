@@ -1,6 +1,68 @@
 import { PROVIDER_TIMEOUTS, DEFAULT_MODELS } from "../llm-config";
 import type { LLMResult } from "./gemini";
 
+// Modelo Groq con soporte de visión para OCR de facturas
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct";
+
+export async function callGroqVision(
+  prompt: string,
+  imageBase64: string,
+  mimeType: string,
+  opts: { maxTokens?: number; apiKey: string }
+): Promise<LLMResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUTS.groq);
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${opts.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_VISION_MODEL,
+        max_tokens: opts.maxTokens ?? 4096,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+          ],
+        }],
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    const error = new Error("Groq vision timeout o error de red") as Error & { statusCode: number };
+    error.statusCode = 503;
+    throw error;
+  }
+  clearTimeout(timer);
+
+  if (!res.ok) {
+    const error = new Error(`Groq vision HTTP ${res.status}`) as Error & { statusCode: number };
+    error.statusCode = res.status;
+    throw error;
+  }
+
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
+  const usage = data?.usage ?? {};
+
+  return {
+    text,
+    model: GROQ_VISION_MODEL,
+    tokens: {
+      prompt:     usage.prompt_tokens     ?? 0,
+      completion: usage.completion_tokens ?? 0,
+      total:      usage.total_tokens      ?? 0,
+    },
+  };
+}
+
 export async function callGroq(
   prompt: string,
   opts: { system?: string; maxTokens?: number; model?: string; apiKey: string }
