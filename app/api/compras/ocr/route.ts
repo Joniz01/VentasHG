@@ -46,7 +46,11 @@ Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloq
           { inline_data: { mime_type: mimeType, data: imagenBase64 } },
         ],
       }],
-      generationConfig: { maxOutputTokens: 2048, temperature: 0 },
+      generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0,
+        responseMimeType: "application/json",
+      },
     };
 
     const res = await fetch(url, {
@@ -61,20 +65,32 @@ Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloq
     }
 
     const data = await res.json();
-    const rawText: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    // Verificar bloqueo por seguridad u otro problema
+    const candidate = data?.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    if (!candidate || finishReason === "SAFETY" || finishReason === "RECITATION") {
+      return NextResponse.json({ error: `OCR bloqueado por Gemini (${finishReason ?? "sin candidatos"}). Intenta con otra imagen.` }, { status: 422 });
+    }
+
+    const rawText: string = candidate?.content?.parts?.[0]?.text ?? "";
+
+    if (!rawText.trim()) {
+      return NextResponse.json({ error: `Gemini no devolvió texto. finishReason=${finishReason}` }, { status: 422 });
+    }
 
     // Extraer JSON: quitar bloques markdown si existen, luego buscar primer objeto
     const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
     const jsonMatch = stripped.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return NextResponse.json({ error: "No se pudo extraer datos de la factura. Intenta con una imagen más clara.", raw: rawText }, { status: 422 });
+      return NextResponse.json({ error: `OCR no encontró JSON en la respuesta: "${rawText.slice(0, 200)}"` }, { status: 422 });
     }
 
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
     } catch {
-      return NextResponse.json({ error: "La respuesta del OCR no tiene formato válido. Intenta nuevamente.", raw: rawText }, { status: 422 });
+      return NextResponse.json({ error: `JSON inválido en respuesta OCR: "${rawText.slice(0, 200)}"` }, { status: 422 });
     }
 
     return NextResponse.json({ ok: true, data: parsed });
