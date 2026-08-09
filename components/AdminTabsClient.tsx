@@ -9,11 +9,13 @@ import AdminAccesoClient from "@/components/AdminAccesoClient";
 import InventarioInicialClient from "@/components/InventarioInicialClient";
 import LLMAdminPanel from "@/components/LLMAdminPanel";
 import ConteoUsuariosConfigClient from "@/components/ConteoUsuariosConfigClient";
+import TiposGastoConfigClient from "@/components/TiposGastoConfigClient";
 
 type Props = {
   usuarioActualId: number;
   nombre: string;
   usuario: string;
+  esAdmin?: boolean;
 };
 
 const TABS = [
@@ -24,12 +26,14 @@ const TABS = [
   { key: "acceso",        label: "Acceso al Sistema",   icon: "🔐", desc: "Contraseña y sesión" },
   { key: "llm",           label: "IA / LLM",            icon: "🤖", desc: "API keys de Gemini y Groq" },
   { key: "conteo",        label: "Conteo Inventario",   icon: "📋", desc: "Usuarios de conteo físico" },
+  { key: "gastos-config", label: "Gastos",              icon: "🧾", desc: "Tipos de gasto configurables" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
-export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Props) {
+export default function AdminTabsClient({ usuarioActualId, nombre, usuario, esAdmin = true }: Props) {
   const [tab, setTab] = useState<TabKey | null>(null);
+  const tabsVisibles = esAdmin ? TABS : TABS.filter((t) => t.key === "gastos-config");
 
   if (!tab) {
     return (
@@ -41,7 +45,7 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             gap: "0.75rem",
           }}
         >
-          {TABS.map((t) => (
+          {tabsVisibles.map((t) => (
             <button
               key={t.key}
               type="button"
@@ -179,6 +183,12 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             <a href="/conteo" target="_blank" style={{ color: "var(--erp-primary)" }}>/conteo</a>.
           </p>
           <ConteoUsuariosConfigClient />
+        </div>
+      )}
+
+      {tab === "gastos-config" && (
+        <div>
+          <TiposGastoConfigClient />
         </div>
       )}
     </div>

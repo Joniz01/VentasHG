@@ -11,11 +11,11 @@ export default async function AdminPage() {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   const sesion = token ? await getUsuarioFromSession(token) : null;
 
-  if (sesion && sesion.rol !== "ADMIN") {
+  if (sesion && sesion.rol !== "ADMIN" && !sesion.permisos.gastos) {
     redirect("/");
   }
 
-  if (sesion && sesion.rol === "ADMIN") {
+  if (sesion && (sesion.rol === "ADMIN" || sesion.permisos.gastos)) {
     return (
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         <h2 className="text-lg font-semibold">Configuración</h2>
@@ -23,6 +23,7 @@ export default async function AdminPage() {
           usuarioActualId={sesion.id}
           nombre={sesion.nombre}
           usuario={sesion.usuario}
+          esAdmin={sesion.rol === "ADMIN"}
         />
       </div>
     );

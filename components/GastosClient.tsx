@@ -90,7 +90,6 @@ export default function GastosClient() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [nuevaLocacion, setNuevaLocacion] = useState("");
-  const [nuevoTipoGasto, setNuevoTipoGasto] = useState("");
 
   const [recordatorios, setRecordatorios] = useState<
     { id: number; proveedor: string; tipoGastoNombre: string; montoBs: number; proximoRecordatorio: string }[]
@@ -195,22 +194,6 @@ export default function GastosClient() {
       setLocaciones((prev) => [...prev, loc].sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setForm((p) => ({ ...p, locacionId: String(loc.id) }));
       setNuevaLocacion("");
-    }
-  }
-
-  async function handleAgregarTipoGasto() {
-    const nombre = nuevoTipoGasto.trim();
-    if (!nombre) return;
-    const res = await fetch("/api/tipos-gasto", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre }),
-    });
-    if (res.ok) {
-      const tipo = await res.json();
-      setTiposGasto((prev) => [...prev, tipo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      setForm((p) => ({ ...p, tipoGastoId: String(tipo.id) }));
-      setNuevoTipoGasto("");
     }
   }
 
@@ -401,18 +384,6 @@ export default function GastosClient() {
                   <option key={t.id} value={t.id}>{t.nombre}</option>
                 ))}
               </select>
-              <div className="flex gap-1 mt-1">
-                <input
-                  className="rounded-md border px-2 py-1 text-xs flex-1"
-                  style={{ borderColor: "var(--erp-border)" }}
-                  value={nuevoTipoGasto}
-                  onChange={(e) => setNuevoTipoGasto(e.target.value)}
-                  placeholder="Nuevo tipo de gasto"
-                />
-                <button type="button" onClick={handleAgregarTipoGasto} className="text-xs px-2 rounded-md border" style={{ borderColor: "var(--erp-border)" }}>
-                  +
-                </button>
-              </div>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fijo / Ocasional</label>
