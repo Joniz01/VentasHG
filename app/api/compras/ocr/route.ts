@@ -47,7 +47,7 @@ Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloq
         ],
       }],
       generationConfig: {
-        maxOutputTokens: 2048,
+        maxOutputTokens: 8192,
         temperature: 0,
         responseMimeType: "application/json",
       },
@@ -71,6 +71,9 @@ Responde ÚNICAMENTE con el siguiente objeto JSON (sin texto adicional, sin bloq
     const finishReason = candidate?.finishReason;
     if (!candidate || finishReason === "SAFETY" || finishReason === "RECITATION") {
       return NextResponse.json({ error: `OCR bloqueado por Gemini (${finishReason ?? "sin candidatos"}). Intenta con otra imagen.` }, { status: 422 });
+    }
+    if (finishReason === "MAX_TOKENS") {
+      return NextResponse.json({ error: "La factura tiene demasiados ítems para procesar en un solo escaneo. Intenta con menos productos visibles." }, { status: 422 });
     }
 
     const rawText: string = candidate?.content?.parts?.[0]?.text ?? "";
