@@ -19,7 +19,8 @@ Responde ÚNICAMENTE con este objeto JSON (sin texto, sin markdown, sin bloques 
 {"proveedorNombre":"nombre del emisor","proveedorRif":"RIF con prefijo J-, V-, E- o G-","proveedorTelefono":"teléfono o null","numeroFactura":"número de factura o null","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
 
 function parseOcrResponse(rawText: string): Record<string, unknown> | null {
-  const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const noThink = rawText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, "");
+  const stripped = noThink.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = stripped.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
   try {
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
   try {
     const start = Date.now();
     const result = await callGroqVision(promptFull, imagenBase64, mimeType, {
-      maxTokens: 4096,
+      maxTokens: 8192,
       apiKey: groqKey.decryptedKey,
     });
     const latency = Date.now() - start;

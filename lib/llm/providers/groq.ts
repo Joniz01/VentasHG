@@ -24,6 +24,7 @@ export async function callGroqVision(
       body: JSON.stringify({
         model: GROQ_VISION_MODEL,
         max_tokens: opts.maxTokens ?? 4096,
+        reasoning_effort: "none",
         messages: [{
           role: "user",
           content: [
