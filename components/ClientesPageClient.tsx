@@ -5,7 +5,7 @@ import type { Cliente, ClienteInput, ClientesConfig, Rol } from "@/lib/types";
 import { CLIENTES_CONFIG_DEFAULT } from "@/lib/types";
 import { validarCedulaRif } from "@/lib/validacion";
 
-const EMPTY_FORM: ClienteInput = { nombre: "", cedula: "", direccion: "", telefono: "" };
+const EMPTY_FORM: ClienteInput & { esProveedor: boolean } = { nombre: "", cedula: "", direccion: "", telefono: "", esProveedor: false };
 const PAGE_SIZES = [5, 10, 25, 50];
 
 type Vista = null | "lista" | "crear";
@@ -46,7 +46,7 @@ export default function ClientesPageClient({ rol }: Props) {
   const [page, setPage] = useState(1);
 
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<ClienteInput>({ ...EMPTY_FORM });
+  const [form, setForm] = useState<ClienteInput & { esProveedor: boolean }>({ ...EMPTY_FORM });
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const [config, setConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
@@ -86,9 +86,9 @@ export default function ClientesPageClient({ rol }: Props) {
     setFormSuccess(null);
   }
 
-  function startEdit(c: Cliente) {
+  function startEdit(c: Cliente & { esProveedor?: boolean }) {
     setEditingId(c.id);
-    setForm({ nombre: c.nombre, cedula: c.cedula ?? "", direccion: c.direccion ?? "", telefono: c.telefono ?? "" });
+    setForm({ nombre: c.nombre, cedula: c.cedula ?? "", direccion: c.direccion ?? "", telefono: c.telefono ?? "", esProveedor: c.esProveedor ?? false });
     setError(null);
     setFormSuccess(null);
     setVista("crear");
@@ -108,7 +108,7 @@ export default function ClientesPageClient({ rol }: Props) {
       const res = await fetch(editingId ? `/api/clientes/${editingId}` : "/api/clientes", {
         method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre, cedula: form.cedula.trim(), direccion: form.direccion.trim(), telefono: form.telefono.trim() }),
+        body: JSON.stringify({ nombre, cedula: form.cedula.trim(), direccion: form.direccion.trim(), telefono: form.telefono.trim(), esProveedor: form.esProveedor }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -276,30 +276,47 @@ export default function ClientesPageClient({ rol }: Props) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "var(--erp-surface)", borderBottom: "1px solid var(--erp-border)" }}>
-                {["Nombre", "C.I/Rif", "Teléfono", "Dirección", "Acciones"].map((h) => (
+                {["Nombre", "C.I/Rif", "Teléfono", "Dirección", "Proveedor", "Acciones"].map((h) => (
                   <th key={h} style={{ padding: "0.6rem 0.875rem", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} style={{ padding: "2rem", textAlign: "center", color: "var(--erp-text-3)" }}>Cargando...</td></tr>
+                <tr><td colSpan={6} style={{ padding: "2rem", textAlign: "center", color: "var(--erp-text-3)" }}>Cargando...</td></tr>
               ) : paged.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding: "2rem", textAlign: "center", color: "var(--erp-text-3)" }}>No hay clientes registrados</td></tr>
-              ) : paged.map((c, idx) => (
+                <tr><td colSpan={6} style={{ padding: "2rem", textAlign: "center", color: "var(--erp-text-3)" }}>No hay clientes registrados</td></tr>
+              ) : paged.map((c, idx) => {
+                const cp = c as Cliente & { esProveedor?: boolean };
+                return (
                 <tr key={c.id} style={{ borderBottom: idx < paged.length - 1 ? "1px solid var(--erp-border)" : "none" }}>
                   <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500, whiteSpace: "nowrap" }}>{c.nombre}</td>
                   <td style={{ padding: "0.6rem 0.875rem", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{c.cedula ?? "—"}</td>
                   <td style={{ padding: "0.6rem 0.875rem", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{c.telefono ?? "—"}</td>
                   <td style={{ padding: "0.6rem 0.875rem", color: "var(--erp-text-2)" }}>{c.direccion ?? "—"}</td>
+                  <td style={{ padding: "0.6rem 0.875rem", textAlign: "center" }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nuevo = !(cp.esProveedor ?? false);
+                        await fetch(`/api/clientes/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ esProveedor: nuevo }) });
+                        setClientes(prev => prev.map(x => x.id === c.id ? { ...x, esProveedor: nuevo } as typeof x : x));
+                      }}
+                      title={cp.esProveedor ? "Quitar etiqueta proveedor" : "Marcar como proveedor"}
+                      style={{ padding: "0.2rem 0.6rem", borderRadius: 99, fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "1px solid", background: cp.esProveedor ? "var(--erp-primary-lt)" : "transparent", color: cp.esProveedor ? "var(--erp-primary)" : "var(--erp-text-3)", borderColor: cp.esProveedor ? "var(--erp-primary)" : "var(--erp-border)" }}
+                    >
+                      {cp.esProveedor ? "Proveedor" : "+ Marcar"}
+                    </button>
+                  </td>
                   <td style={{ padding: "0.6rem 0.875rem" }}>
                     <div style={{ display: "flex", gap: "0.35rem" }}>
-                      <button onClick={() => startEdit(c)} style={{ padding: "0.25rem 0.65rem", background: "transparent", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: "5px", cursor: "pointer", fontSize: "0.78rem", fontWeight: 500 }}>Editar</button>
+                      <button onClick={() => startEdit(cp)} style={{ padding: "0.25rem 0.65rem", background: "transparent", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: "5px", cursor: "pointer", fontSize: "0.78rem", fontWeight: 500 }}>Editar</button>
                       <button onClick={() => handleDelete(c.id)} style={{ padding: "0.25rem 0.65rem", background: "transparent", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: "5px", cursor: "pointer", fontSize: "0.78rem", fontWeight: 500 }}>Eliminar</button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -343,6 +360,10 @@ export default function ClientesPageClient({ rol }: Props) {
             <input style={inputSt} value={form.direccion} onChange={(e) => setForm((p) => ({ ...p, direccion: e.target.value }))} />
           </label>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "var(--erp-text)", cursor: "pointer", padding: "0.5rem 0.65rem", background: form.esProveedor ? "var(--erp-primary-lt)" : "var(--erp-bg)", borderRadius: 6, border: "1px solid", borderColor: form.esProveedor ? "var(--erp-primary)" : "var(--erp-border)" }}>
+          <input type="checkbox" checked={form.esProveedor} onChange={(e) => setForm((p) => ({ ...p, esProveedor: e.target.checked }))} />
+          <span>Es proveedor <span style={{ color: "var(--erp-text-3)", fontWeight: 400 }}>— aparecerá en la búsqueda al registrar compras</span></span>
+        </label>
 
         {error && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", padding: "0.5rem 0.75rem", color: "#b91c1c", fontSize: "0.825rem" }}>{error}</div>}
         {formSuccess && <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "6px", padding: "0.5rem 0.75rem", color: "#166534", fontSize: "0.825rem" }}>{formSuccess}</div>}

@@ -13,19 +13,41 @@ export async function GET(request: NextRequest) {
     const rif = searchParams.get("rif");
     let queryText: string;
     let queryParams: string[];
+    let items: { id: number; nombre: string; rifCi: string | null; direccion: string | null; telefono: string | null; diasCredito: number; fuente: string }[];
+
     if (rif) {
       queryText = `SELECT id, nombre, rif_ci, direccion, telefono, dias_credito FROM proveedores WHERE activo = TRUE AND lower(rif_ci) = lower($1) LIMIT 1`;
       queryParams = [rif.trim()];
+      const result = await pool.query(queryText, queryParams);
+      items = result.rows.map((r) => ({ id: r.id, nombre: r.nombre, rifCi: r.rif_ci, direccion: r.direccion, telefono: r.telefono, diasCredito: Number(r.dias_credito ?? 0), fuente: "proveedor" }));
     } else {
-      queryText = `SELECT id, nombre, rif_ci, direccion, telefono, dias_credito FROM proveedores WHERE activo = TRUE ${q ? "AND (lower(nombre) LIKE lower($1) OR lower(COALESCE(rif_ci,'')) LIKE lower($1))" : ""} ORDER BY nombre ASC LIMIT 50`;
-      queryParams = q ? [`%${q}%`] : [];
+      const filter = q ? `AND (lower(nombre) LIKE lower($1) OR lower(COALESCE(rif_ci,'')) LIKE lower($1))` : "";
+      const params = q ? [`%${q}%`] : [];
+
+      // Proveedores registrados
+      const rProv = await pool.query(
+        `SELECT id, nombre, rif_ci, direccion, telefono, dias_credito FROM proveedores WHERE activo = TRUE ${filter} ORDER BY nombre ASC LIMIT 50`,
+        params
+      );
+
+      // Clientes marcados como proveedor (tolerante a columna no migrada)
+      let clienteRows: { id: number; nombre: string; cedula: string | null; direccion: string | null; telefono: string | null }[] = [];
+      try {
+        const rCli = await pool.query(
+          `SELECT id, nombre, cedula AS rif_ci, direccion, telefono FROM clientes WHERE es_proveedor = TRUE ${q ? "AND (lower(nombre) LIKE lower($1) OR lower(COALESCE(cedula,'')) LIKE lower($1))" : ""} ORDER BY nombre ASC LIMIT 50`,
+          params
+        );
+        clienteRows = rCli.rows;
+      } catch { /* columna es_proveedor pendiente de migración */ }
+
+      const provIds = new Set(rProv.rows.map((r) => r.id));
+      items = [
+        ...rProv.rows.map((r) => ({ id: r.id, nombre: r.nombre, rifCi: r.rif_ci, direccion: r.direccion, telefono: r.telefono, diasCredito: Number(r.dias_credito ?? 0), fuente: "proveedor" })),
+        ...clienteRows
+          .filter((r) => !provIds.has(r.id))
+          .map((r) => ({ id: -r.id, nombre: r.nombre, rifCi: r.cedula ?? null, direccion: r.direccion ?? null, telefono: r.telefono ?? null, diasCredito: 0, fuente: "cliente" })),
+      ];
     }
-    const result = await pool.query(queryText, queryParams);
-    const items = result.rows.map((r) => ({
-      id: r.id, nombre: r.nombre, rifCi: r.rif_ci,
-      direccion: r.direccion, telefono: r.telefono,
-      diasCredito: Number(r.dias_credito ?? 0),
-    }));
     return NextResponse.json({ items });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   if (q === null) {
     const result = await pool.query(
-      `SELECT id, nombre, apellido, cedula, direccion, telefono
+      `SELECT id, nombre, apellido, cedula, direccion, telefono, COALESCE(es_proveedor, FALSE) AS es_proveedor
        FROM clientes
        ORDER BY nombre`
     );
@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
         cedula: row.cedula,
         direccion: row.direccion,
         telefono: row.telefono,
+        esProveedor: row.es_proveedor ?? false,
       }))
     );
   }
