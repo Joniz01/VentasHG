@@ -121,11 +121,12 @@ export default function FacturaCompraForm({
   const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
 
-  async function handleConsultarTasaBcv() {
+  async function handleConsultarTasaBcv(fechaConsulta?: string) {
     setTasaBcvError(null);
     setConsultandoTasa(true);
     try {
-      const res = await fetch("/api/tasa-bcv");
+      const url = fechaConsulta ? `/api/tasa-bcv?fecha=${fechaConsulta}` : "/api/tasa-bcv";
+      const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo consultar la tasa BCV");
       setTasaDia(String(data.tasa));
@@ -137,10 +138,16 @@ export default function FacturaCompraForm({
     }
   }
 
+  // Consulta automáticamente la tasa BCV de la fecha de la factura (al abrir el formulario
+  // y cada vez que la fecha cambia, ej. al editarla manualmente o al extraerla por OCR)
+  const fechaFetchedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isEdit && tasa <= 0) handleConsultarTasaBcv();
+    if (isEdit) return;
+    if (fechaFetchedRef.current === fecha) return;
+    fechaFetchedRef.current = fecha;
+    handleConsultarTasaBcv(fecha);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fecha]);
 
   const tasa = Number(tasaDia) || 0;
   const totalBs = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
@@ -602,7 +609,7 @@ export default function FacturaCompraForm({
               <label style={lbl}>Tasa del día (Bs/$)</label>
               <div style={{ display: "flex", gap: 6 }}>
                 <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} style={S} />
-                <button type="button" onClick={handleConsultarTasaBcv} disabled={consultandoTasa}
+                <button type="button" onClick={() => handleConsultarTasaBcv(fecha)} disabled={consultandoTasa}
                   style={{ flexShrink: 0, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: consultandoTasa ? "not-allowed" : "pointer" }}>
                   {consultandoTasa ? "..." : "BCV"}
                 </button>
@@ -790,7 +797,7 @@ export default function FacturaCompraForm({
               <label style={lbl}>Tasa del día (Bs/$)</label>
               <div style={{ display: "flex", gap: 6 }}>
                 <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} placeholder="0.00" style={S} />
-                <button type="button" onClick={handleConsultarTasaBcv} disabled={consultandoTasa}
+                <button type="button" onClick={() => handleConsultarTasaBcv(fecha)} disabled={consultandoTasa}
                   style={{ flexShrink: 0, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: consultandoTasa ? "not-allowed" : "pointer" }}>
                   {consultandoTasa ? "..." : "BCV"}
                 </button>
