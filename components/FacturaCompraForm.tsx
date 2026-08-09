@@ -228,9 +228,11 @@ export default function FacturaCompraForm({
         if (!res.ok) throw new Error(data.error);
         const d = data.data ?? {};
 
-        const ocrNombre = typeof d.proveedor === "string" ? d.proveedor : (d.proveedor?.nombre ?? "");
-        const ocrRif = typeof d.proveedor === "object" ? (d.proveedor?.rif ?? "") : "";
-        const ocrDir = typeof d.proveedor === "object" ? (d.proveedor?.direccion ?? "") : "";
+        // Soporta tanto el formato nuevo (campos raíz) como el legacy (objeto proveedor anidado)
+        const ocrNombre: string = d.proveedorNombre ?? (typeof d.proveedor === "string" ? d.proveedor : (d.proveedor?.nombre ?? ""));
+        const ocrRif: string = d.proveedorRif ?? (typeof d.proveedor === "object" ? (d.proveedor?.rif ?? "") : "");
+        const ocrDir: string = d.proveedorDireccion ?? (typeof d.proveedor === "object" ? (d.proveedor?.direccion ?? "") : "");
+        const ocrTel: string = d.proveedorTelefono ?? "";
         let encontrado = false;
 
         if (ocrRif) {
@@ -270,16 +272,22 @@ export default function FacturaCompraForm({
           if (ocrNombre) setProveedorQ(ocrNombre);
           if (ocrRif) { const p = parseRif(ocrRif); setRifTipo(p.tipo); setRifNumero(p.numero); }
           if (ocrDir) setProveedorDir(ocrDir);
+          if (ocrTel) setProveedorTel(ocrTel);
           setProvNuevoPanel(true);
+        } else if (ocrTel) {
+          // Completar teléfono extraído aunque el proveedor ya exista
+          setProveedorTel(ocrTel);
         }
-        if (d.numero_factura) setNumeroFactura(String(d.numero_factura));
-        if (d.fecha) setFecha(String(d.fecha).slice(0, 10));
+        const numFact = d.numeroFactura ?? d.numero_factura;
+        if (numFact) setNumeroFactura(String(numFact));
+        const fechaOcr = d.fecha;
+        if (fechaOcr) setFecha(String(fechaOcr).slice(0, 10));
         if (Array.isArray(d.items) && d.items.length > 0) {
-          setItems(d.items.map((it: { nombre?: string; cantidad?: number; costo_unitario_bs?: number; costo?: number }) => ({
+          setItems(d.items.map((it: { nombre?: string; cantidad?: number; costoUnitBs?: number; costo_unitario_bs?: number; costo?: number }) => ({
             key: nextKey(), productoId: null,
             nombreProducto: it.nombre ?? "",
             cantidad: String(it.cantidad ?? 1),
-            costoUnitBs: String(it.costo_unitario_bs ?? it.costo ?? ""),
+            costoUnitBs: String(it.costoUnitBs ?? it.costo_unitario_bs ?? it.costo ?? ""),
             costoUnitUsd: "",
             paraVenta: true,
           })));

@@ -15,7 +15,22 @@ export async function POST(request: NextRequest) {
     const cfgResult = await pool.query(
       `SELECT valor FROM configuracion WHERE clave = 'compras_ocr_prompt'`
     );
-    const promptTemplate = cfgResult.rows[0]?.valor ?? "Extrae de esta factura los datos del proveedor, número de factura, fecha e ítems con nombre, cantidad y costo en Bs. Responde en JSON.";
+    const defaultPrompt = `Analiza esta imagen de factura y extrae los datos en formato JSON estricto. No agregues texto antes ni después del JSON.
+
+Devuelve ÚNICAMENTE este objeto JSON (sin bloques de código, sin markdown):
+{
+  "proveedorNombre": "nombre del emisor/proveedor",
+  "proveedorRif": "RIF o CI del emisor (incluye el prefijo J-, V-, E-, G- si aparece)",
+  "proveedorTelefono": "teléfono del proveedor (busca palabras clave: Teléfono, Telf, Tlf, Tel, Cel, Celular, Móvil, Fono)",
+  "numeroFactura": "número de factura",
+  "fecha": "fecha en formato YYYY-MM-DD o null si no aparece",
+  "items": [
+    { "nombre": "descripción del producto/servicio", "cantidad": 1, "costoUnitBs": 0.00 }
+  ]
+}
+
+Si algún dato no aparece en la imagen, usa null para strings y [] para arrays.`;
+    const promptTemplate = cfgResult.rows[0]?.valor ?? defaultPrompt;
 
     // Obtener API key Gemini activa
     const keyResult = await pool.query(
@@ -57,11 +72,20 @@ export async function POST(request: NextRequest) {
     const data = await res.json();
     const rawText: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
-    // Intentar parsear JSON de la respuesta
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return NextResponse.json({ error: "No se pudo extraer JSON de la respuesta", raw: rawText }, { status: 422 });
+    // Extraer JSON: quitar bloques markdown si existen, luego buscar primer objeto
+    const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return NextResponse.json({ error: "No se pudo extraer datos de la factura. Intenta con una imagen más clara.", raw: rawText }, { status: 422 });
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "La respuesta del OCR no tiene formato válido. Intenta nuevamente.", raw: rawText }, { status: 422 });
+    }
+
     return NextResponse.json({ ok: true, data: parsed });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
