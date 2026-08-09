@@ -9,21 +9,30 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q");
 
   if (q === null) {
-    const result = await pool.query(
-      `SELECT id, nombre, apellido, cedula, direccion, telefono, COALESCE(es_proveedor, FALSE) AS es_proveedor
-       FROM clientes
-       ORDER BY nombre`
-    );
+    let rows: Record<string, unknown>[];
+    try {
+      const result = await pool.query(
+        `SELECT id, nombre, apellido, cedula, direccion, telefono, COALESCE(es_proveedor, FALSE) AS es_proveedor
+         FROM clientes ORDER BY nombre`
+      );
+      rows = result.rows;
+    } catch {
+      // columna es_proveedor pendiente de migración
+      const result = await pool.query(
+        `SELECT id, nombre, apellido, cedula, direccion, telefono FROM clientes ORDER BY nombre`
+      );
+      rows = result.rows;
+    }
 
     return NextResponse.json(
-      result.rows.map((row) => ({
+      rows.map((row) => ({
         id: row.id,
         nombre: row.nombre,
         apellido: row.apellido ?? null,
         cedula: row.cedula,
         direccion: row.direccion,
         telefono: row.telefono,
-        esProveedor: row.es_proveedor ?? false,
+        esProveedor: (row.es_proveedor as boolean) ?? false,
       }))
     );
   }

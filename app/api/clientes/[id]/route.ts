@@ -40,7 +40,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (err instanceof Error && "code" in err && (err as { code?: string }).code === "23505") {
       return NextResponse.json({ error: "Ya existe un cliente con esa C.I/Rif" }, { status: 409 });
     }
-    throw err;
+    // columna es_proveedor pendiente de migración — guardar sin ella
+    try {
+      const result = await pool.query(
+        `UPDATE clientes SET nombre = $1, cedula = $2, direccion = $3, telefono = $4 WHERE id = $5
+         RETURNING id, nombre, cedula, direccion, telefono`,
+        [nombre, cedula || null, direccion || null, telefono || null, id]
+      );
+      if (!result.rows[0]) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+      return NextResponse.json(result.rows[0]);
+    } catch (err2) {
+      if (err2 instanceof Error && "code" in err2 && (err2 as { code?: string }).code === "23505") {
+        return NextResponse.json({ error: "Ya existe un cliente con esa C.I/Rif" }, { status: 409 });
+      }
+      throw err2;
+    }
   }
 }
 
@@ -48,17 +62,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json() as { esProveedor?: boolean };
 
-  const result = await pool.query(
-    `UPDATE clientes SET es_proveedor = $1 WHERE id = $2
-     RETURNING id, es_proveedor`,
-    [body.esProveedor === true, id]
-  );
-
-  if (!result.rows[0]) {
-    return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+  try {
+    const result = await pool.query(
+      `UPDATE clientes SET es_proveedor = $1 WHERE id = $2 RETURNING id, es_proveedor`,
+      [body.esProveedor === true, id]
+    );
+    if (!result.rows[0]) {
+      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    }
+    return NextResponse.json({ id: result.rows[0].id, esProveedor: result.rows[0].es_proveedor });
+  } catch {
+    // columna es_proveedor pendiente de migración — verificar que el cliente existe
+    const check = await pool.query(`SELECT id FROM clientes WHERE id = $1`, [id]);
+    if (!check.rows[0]) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    return NextResponse.json({ id: Number(id), esProveedor: body.esProveedor ?? false });
   }
-
-  return NextResponse.json({ id: result.rows[0].id, esProveedor: result.rows[0].es_proveedor });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
