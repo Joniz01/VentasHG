@@ -134,24 +134,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sin API keys disponibles para OCR (Gemini y Groq agotados o no configurados)." }, { status: 503 });
   }
 
-  try {
-    const start = Date.now();
-    const result = await callGroqVision(promptFull, imagenBase64, mimeType, {
-      maxTokens: 8192,
-      apiKey: groqKey.decryptedKey,
-    });
-    const latency = Date.now() - start;
+  // Límite TPM de Groq (8000 tok/min en tier on-demand) incluye max_tokens en el cálculo de la solicitud;
+  // se intenta con un presupuesto bajo y, si aun así excede el límite (413), se reintenta más bajo.
+  for (const maxTokens of [2000, 800]) {
+    try {
+      const start = Date.now();
+      const result = await callGroqVision(promptFull, imagenBase64, mimeType, {
+        maxTokens,
+        apiKey: groqKey.decryptedKey,
+      });
+      const latency = Date.now() - start;
 
-    const parsed = parseOcrResponse(result.text);
-    if (!parsed) {
-      return NextResponse.json({ error: `OCR (Groq) sin JSON válido: "${result.text.slice(0, 200)}"` }, { status: 422 });
+      const parsed = parseOcrResponse(result.text);
+      if (!parsed) {
+        return NextResponse.json({ error: `OCR (Groq) sin JSON válido: "${result.text.slice(0, 200)}"` }, { status: 422 });
+      }
+
+      await incrementQuotaUsed(groqKey.id, result.tokens.total);
+      await logUsage({ apiKeyId: groqKey.id, provider: "groq", model: result.model, tokens: result.tokens, latency, status: "ok", context: "ocr" });
+
+      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500) });
+    } catch (err) {
+      const code = (err as { statusCode?: number }).statusCode;
+      if (code === 413 && maxTokens !== 800) continue; // reintentar con presupuesto menor
+      return NextResponse.json({ error: `OCR Groq error: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 });
     }
-
-    await incrementQuotaUsed(groqKey.id, result.tokens.total);
-    await logUsage({ apiKeyId: groqKey.id, provider: "groq", model: result.model, tokens: result.tokens, latency, status: "ok", context: "ocr" });
-
-    return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500) });
-  } catch (err) {
-    return NextResponse.json({ error: `OCR Groq error: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 });
   }
+  return NextResponse.json({ error: "OCR Groq: no se pudo procesar la imagen dentro del límite de tokens." }, { status: 502 });
 }
