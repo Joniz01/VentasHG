@@ -2,7 +2,7 @@ import { PROVIDER_TIMEOUTS, DEFAULT_MODELS } from "../llm-config";
 import type { LLMResult } from "./gemini";
 
 // Modelo Groq con soporte de visión para OCR de facturas
-const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct";
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL ?? "llama-3.2-11b-vision-preview";
 
 export async function callGroqVision(
   prompt: string,
