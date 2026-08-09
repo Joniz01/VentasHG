@@ -122,6 +122,27 @@ export default function FacturaCompraForm({
   const totalBs = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
   const totalUsd = tasa > 0 ? totalBs / tasa : 0;
 
+  // Ref con la tasa más reciente, para usar en callbacks con closures obsoletas (ej. OCR)
+  const tasaRef = useRef(tasa);
+  tasaRef.current = tasa;
+
+  // Recalcula el costo USD de cada ítem cuando cambia la tasa (ej. tasa cargada/editada después de escanear)
+  useEffect(() => {
+    if (tasa <= 0) return;
+    setItems(prev => {
+      let changed = false;
+      const next = prev.map(it => {
+        const bs = Number(it.costoUnitBs) || 0;
+        if (bs <= 0) return it;
+        const usd = (bs / tasa).toFixed(4);
+        if (it.costoUnitUsd === usd) return it;
+        changed = true;
+        return { ...it, costoUnitUsd: usd };
+      });
+      return changed ? next : prev;
+    });
+  }, [tasa]);
+
   function applyProveedor(p: ProveedorSug) {
     setProveedorQ(p.nombre);
     setProveedorId(p.id);
@@ -294,12 +315,13 @@ export default function FacturaCompraForm({
               const nombre = clean(it.nombre);
               if (!nombre) return null;
               const costo = it.costoUnitBs ?? it.costo_unitario_bs ?? it.costo ?? 0;
+              const tRef = tasaRef.current;
               return {
                 key: nextKey(), productoId: null,
                 nombreProducto: nombre,
                 cantidad: String(Number(it.cantidad) || 1),
                 costoUnitBs: costo > 0 ? String(costo) : "",
-                costoUnitUsd: "",
+                costoUnitUsd: (costo > 0 && tRef > 0) ? (costo / tRef).toFixed(4) : "",
                 paraVenta: true,
               };
             })
