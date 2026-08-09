@@ -120,7 +120,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
       <div>
         <div className="flex items-center gap-3 mb-4">
           <button type="button" onClick={() => setView("list")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--erp-text-2)", fontSize: 13 }}>← Volver</button>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--erp-text)" }}>Registrar Compra</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--erp-text)" }}>Nueva Factura de Compra</h2>
         </div>
         <FacturaCompraForm tasaBcv={tasaBcv} puedeCrearProducto={puedeCrearProducto} onCancel={() => setView("list")} onCreated={() => { setView("list"); loadFacturas(); }} />
       </div>
@@ -145,7 +145,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--erp-text)" }}>Facturas de Compra</h2>
         <button type="button" onClick={() => setView("new")} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-          Registrar compra
+          + Nueva Factura
         </button>
       </div>
 

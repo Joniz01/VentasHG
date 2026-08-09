@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const body = await request.json();
-  const { fecha, proveedorNombre, proveedorRif, proveedorId, numeroFactura, observaciones, tasaDia, items, imagenFactura, fechaVencimientoPago, tipoUso } = body;
+  const { fecha, proveedorNombre, proveedorRif, proveedorId, numeroFactura, observaciones, tasaDia, items, imagenFactura } = body;
 
   if (!proveedorNombre?.trim()) return NextResponse.json({ error: "Proveedor requerido" }, { status: 400 });
   if (!items?.length) return NextResponse.json({ error: "Debe agregar al menos un ítem" }, { status: 400 });
@@ -69,20 +69,14 @@ export async function POST(request: NextRequest) {
     await client.query("BEGIN");
 
     const cResult = await client.query(
-      `INSERT INTO compras (fecha, proveedor_id, proveedor_nombre, proveedor_rif, numero_factura, observaciones, tasa_dia, imagen_factura, fecha_vencimiento_pago, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      `INSERT INTO compras (fecha, proveedor_id, proveedor_nombre, proveedor_rif, numero_factura, observaciones, tasa_dia, imagen_factura, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
       [fecha || new Date().toISOString().slice(0,10), proveedorId || null,
        proveedorNombre.trim(), proveedorRif?.trim() || null,
        numeroFactura?.trim() || null, observaciones?.trim() || null,
-       Number(tasaDia) || 0, imagenFactura || null, fechaVencimientoPago?.trim() || null, sesion.id]
+       Number(tasaDia) || 0, imagenFactura || null, sesion.id]
     );
     const compraId = cResult.rows[0].id;
-
-    // tipo_uso — silently skip if column not yet migrated
-    try {
-      const tu = tipoUso === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "VENTA";
-      await client.query(`UPDATE compras SET tipo_uso = $1 WHERE id = $2`, [tu, compraId]);
-    } catch { /* columna pendiente de migración */ }
 
     for (const item of items) {
       const cantidad = Number(item.cantidad);

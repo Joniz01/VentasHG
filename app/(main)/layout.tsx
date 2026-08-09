@@ -57,7 +57,7 @@ export default async function MainLayout({
       </head>
       <body
         className="min-h-full"
-        style={{ background: "var(--erp-bg)", color: "var(--erp-text)", overflowX: "hidden" }}
+        style={{ background: "var(--erp-bg)", color: "var(--erp-text)" }}
       >
         <script
           dangerouslySetInnerHTML={{
@@ -77,7 +77,7 @@ export default async function MainLayout({
           {/* Content — padded to clear shell (pt-12) and sidebar (ml-[220px]) */}
           <main
             className="min-h-screen pt-12 md:ml-[220px] px-5 py-6"
-            style={{ background: "var(--erp-bg)", minWidth: 0, maxWidth: "100%" }}
+            style={{ background: "var(--erp-bg)" }}
           >
             <Breadcrumb />
             <BackButton />

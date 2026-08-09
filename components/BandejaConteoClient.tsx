@@ -295,7 +295,7 @@ export default function BandejaConteoClient() {
               </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 560 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                   <thead>
                     <tr style={{ background: "var(--erp-surface)" }}>
                       <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Producto</th>
@@ -530,7 +530,7 @@ export default function BandejaConteoClient() {
       </div>
 
       {/* Filtros de estado */}
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderBottom: "1px solid var(--erp-border)", paddingBottom: "0.5rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid var(--erp-border)", paddingBottom: "0.5rem" }}>
         {(["PENDIENTES", "TODOS", "REALIZADOS"] as FiltroEstado[]).map((f) => {
           const labels: Record<FiltroEstado, string> = {
             PENDIENTES: `⏳ Pendientes${cntPendientes > 0 ? ` (${cntPendientes})` : ""}`,
@@ -572,7 +572,7 @@ export default function BandejaConteoClient() {
                 type="date"
                 value={desdeDate}
                 onChange={(e) => { setDesdeDate(e.target.value); setSeleccionados(new Set()); }}
-                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box" }}
+                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
               />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
@@ -581,7 +581,7 @@ export default function BandejaConteoClient() {
                 type="date"
                 value={hastaDate}
                 onChange={(e) => { setHastaDate(e.target.value); setSeleccionados(new Set()); }}
-                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box" }}
+                style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
               />
             </div>
             <button
@@ -624,12 +624,12 @@ export default function BandejaConteoClient() {
                     <input type="checkbox" checked={todosSeleccionados} onChange={toggleTodos} style={{ cursor: "pointer" }} />
                   </th>
                 )}
-                <th className="bc-col-id" style={{ ...cell, fontWeight: 600, textAlign: "left" }}>#</th>
-                <th className="bc-col-contador" style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Contador</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>#</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Contador</th>
                 <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Estado</th>
                 <th style={{ ...cell, fontWeight: 600, textAlign: "center" }}>Items</th>
                 <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Fecha</th>
-                <th className="bc-col-aprobado" style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Aprobado por</th>
+                <th style={{ ...cell, fontWeight: 600, textAlign: "left" }}>Aprobado por</th>
                 <th style={{ ...cell }}></th>
               </tr>
             </thead>
@@ -648,8 +648,8 @@ export default function BandejaConteoClient() {
                       <input type="checkbox" checked={seleccionados.has(c.id)} onChange={() => toggleSeleccion(c.id)} style={{ cursor: "pointer" }} />
                     </td>
                   )}
-                  <td className="bc-col-id" style={cell}>#{c.id}</td>
-                  <td className="bc-col-contador" style={cell}>{c.conteoUsuarioNombre ?? "—"}</td>
+                  <td style={cell}>#{c.id}</td>
+                  <td style={cell}>{c.conteoUsuarioNombre ?? "—"}</td>
                   <td style={cell}>
                     <span style={{ padding: "0.2rem 0.55rem", borderRadius: "99px", fontSize: "0.75rem", fontWeight: 600, ...ESTADO_STYLE[c.estado] }}>
                       {ESTADO_CONTEO_LABELS[c.estado]}
@@ -657,7 +657,7 @@ export default function BandejaConteoClient() {
                   </td>
                   <td style={{ ...cell, textAlign: "center" }}>{c.totalItems}</td>
                   <td style={{ ...cell, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{formatDate(c.createdAt)}</td>
-                  <td className="bc-col-aprobado" style={{ ...cell, color: "var(--erp-text-2)" }}>{c.aprobadoPor ?? "—"}</td>
+                  <td style={{ ...cell, color: "var(--erp-text-2)" }}>{c.aprobadoPor ?? "—"}</td>
                   <td style={cell}>
                     {!modoSeleccion && (
                       <span style={{ fontSize: "0.775rem", color: c.estado === "BORRADOR" ? "var(--erp-text-3)" : "var(--erp-primary)" }}>

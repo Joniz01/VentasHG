@@ -189,7 +189,7 @@ export default function CuentasPorCobrarPanel() {
     setClienteQ("");
   }
 
-  async function handleToggle(item: UnifiedItem, fechaPago?: string, metodoPago?: string) {
+  async function handleToggle(item: UnifiedItem, fechaPago?: string) {
     setUpdatingId(item.ventaId);
     setError(null);
     try {
@@ -210,7 +210,7 @@ export default function CuentasPorCobrarPanel() {
         res = await fetch(`/api/reportes/cuentas-por-cobrar/${item.ventaId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cuentaCobrada: item.pendiente, fechaPago, metodoPago }),
+          body: JSON.stringify({ cuentaCobrada: item.pendiente, fechaPago }),
         });
       }
       const data = await res.json();
@@ -412,9 +412,8 @@ export default function CuentasPorCobrarPanel() {
                       {confirmando?.ventaId === item.ventaId && confirmando.tipoCxC === item.tipoCxC ? (
                         <FechaPagoConfirm
                           confirming={isUpdating}
-                          onConfirm={(fechaPago, metodoPago) => handleToggle(item, fechaPago, metodoPago)}
+                          onConfirm={(fechaPago) => handleToggle(item, fechaPago)}
                           onCancel={() => setConfirmando(null)}
-                          showMetodoPago={item.tipoCxC === "CxC Directa"}
                         />
                       ) : (
                         <button

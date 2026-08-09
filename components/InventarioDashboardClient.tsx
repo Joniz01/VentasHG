@@ -86,7 +86,7 @@ function OutstockToggle({ producto, onToggled }: { producto: ProductoLista; onTo
           disabled={loading}
           onClick={() => toggle(false)}
           title="Reactivar alerta de stock"
-          style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 99, border: "1.5px solid #d1d5db", background: "#f3f4f6", cursor: loading ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: "#6b7280", transition: "all .1s", opacity: loading ? 0.5 : 1 }}
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, border: "1.5px solid #d1d5db", background: "#f3f4f6", cursor: loading ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: "#6b7280", transition: "all .1s", opacity: loading ? 0.5 : 1 }}
         >
           <span style={{ fontSize: 12 }}>🔕</span> Outstock
         </button>
@@ -102,13 +102,13 @@ function OutstockToggle({ producto, onToggled }: { producto: ProductoLista; onTo
           value={motivo}
           onChange={e => setMotivo(e.target.value)}
           placeholder="Motivo (opcional)"
-          style={{ fontSize: 11, padding: "7px 8px", border: "1px solid #fcd34d", borderRadius: 6, background: "#fffbeb", width: "100%", minWidth: 0, outline: "none" }}
+          style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fcd34d", borderRadius: 6, background: "#fffbeb", width: 140, outline: "none" }}
           onKeyDown={e => { if (e.key === "Enter") toggle(true); if (e.key === "Escape") setShowMotivo(false); }}
         />
-        <button disabled={loading} onClick={() => toggle(true)} style={{ fontSize: 11, fontWeight: 800, padding: "7px 10px", borderRadius: 6, border: "none", background: "#f59e0b", color: "#fff", cursor: "pointer" }}>
+        <button disabled={loading} onClick={() => toggle(true)} style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, border: "none", background: "#f59e0b", color: "#fff", cursor: "pointer" }}>
           ✓
         </button>
-        <button onClick={() => setShowMotivo(false)} style={{ fontSize: 11, padding: "7px 10px", borderRadius: 6, border: "1px solid #e4e7ec", background: "transparent", cursor: "pointer", color: "#6b7280" }}>
+        <button onClick={() => setShowMotivo(false)} style={{ fontSize: 11, padding: "3px 6px", borderRadius: 6, border: "1px solid #e4e7ec", background: "transparent", cursor: "pointer", color: "#6b7280" }}>
           ✕
         </button>
       </div>
@@ -119,7 +119,7 @@ function OutstockToggle({ producto, onToggled }: { producto: ProductoLista; onTo
     <button
       onClick={() => setShowMotivo(true)}
       title="Apagar alerta OutStock para este producto"
-      style={{ padding: "7px 12px", borderRadius: 99, border: "1.5px dashed #d1d5db", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#9ca3af", transition: "all .1s" }}
+      style={{ padding: "3px 10px", borderRadius: 99, border: "1.5px dashed #d1d5db", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#9ca3af", transition: "all .1s" }}
     >
       🔔 Alerta activa
     </button>
@@ -352,7 +352,7 @@ export default function InventarioDashboardClient() {
             key={f}
             onClick={() => setFiltro(f)}
             style={{
-              padding: "9px 14px",
+              padding: "6px 14px",
               borderRadius: 8,
               border: `1.5px solid ${filtroParam === f ? "var(--erp-primary)" : "var(--erp-border)"}`,
               background: filtroParam === f ? "var(--erp-primary-lt)" : "transparent",

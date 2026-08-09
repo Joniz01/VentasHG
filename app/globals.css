@@ -142,26 +142,7 @@ textarea {
 @media (min-width: 641px) {
   .inv-sc-cat       { display: table-cell !important; }
   .inv-sc-min       { display: table-cell !important; }
-  .inv-sc-estado    { display: table-cell !important; }
   .inv-sc-cat-mobile { display: none !important; }
-}
-
-@media (max-width: 640px) {
-  .inv-sc-estado { display: none !important; }
-  .inv-btn-full  { display: none; }
-  .inv-btn-short { display: inline; }
-}
-
-@media (min-width: 641px) {
-  .inv-btn-full  { display: inline; }
-  .inv-btn-short { display: none; }
-}
-
-/* ── Bandeja Conteo — columnas responsive ───────────────────────────────────── */
-@media (max-width: 640px) {
-  .bc-col-id,
-  .bc-col-contador,
-  .bc-col-aprobado { display: none !important; }
 }
 
 /* ── Inventario Dashboard — responsive ─────────────────────────────────────── */
@@ -181,12 +162,6 @@ textarea {
   gap: 8px;
   align-items: center;
   padding: 9px 14px;
-  min-width: 0;
-}
-
-.inv-table-row > *,
-.inv-table-header > * {
-  min-width: 0;
 }
 
 /* Columnas que se ocultan en móvil */
@@ -194,11 +169,6 @@ textarea {
 .inv-col-minimo,
 .inv-col-estado {
   display: block;
-}
-
-/* Stock inline en nombre: visible solo en móvil */
-.inv-col-nombre-stock {
-  display: none;
 }
 
 /* Buscador: se pone en línea propia en móvil */
@@ -227,26 +197,6 @@ textarea {
   gap: 8px;
   margin-left: auto;
   flex-wrap: wrap;
-}
-
-/* ── Empaque row — responsive ───────────────────────────────────────────────── */
-.prod-empaque-row {
-  display: grid;
-  grid-template-columns: 1fr 100px 80px auto;
-  gap: 8px;
-  margin-bottom: 8px;
-  align-items: end;
-  min-width: 0;
-}
-
-.prod-empaque-row > * {
-  min-width: 0;
-}
-
-@media (max-width: 640px) {
-  .prod-empaque-row {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 /* ── Productos — responsive ─────────────────────────────────────────────────── */
@@ -282,11 +232,6 @@ textarea {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 10px;
-  min-width: 0;
-}
-
-.prod-form-grid > * {
-  min-width: 0;
 }
 
 .prod-form-col2 {

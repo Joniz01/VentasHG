@@ -344,7 +344,7 @@ export default function InventariosClient() {
                 <th style={{ ...thStyle, display: "none" }} className="inv-sc-cat">Categoría</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Stock</th>
                 <th style={{ ...thStyle, textAlign: "right" }} className="inv-sc-min">Mínimo</th>
-                <th className="inv-sc-estado" style={thStyle}>Estado</th>
+                <th style={thStyle}>Estado</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Acciones</th>
               </tr>
             </thead>
@@ -377,10 +377,10 @@ export default function InventariosClient() {
                         {producto.stockActual}
                         <span style={{ fontSize: 10, color: "var(--erp-text-3)", marginLeft: 3 }}>{producto.unidadMedida}</span>
                       </td>
-                      <td style={{ padding: "9px 14px", textAlign: "right", color: "var(--erp-text-3)", fontSize: 12, fontVariantNumeric: "tabular-nums" }} className="inv-sc-min">
+                      <td style={{ padding: "9px 14px", textAlign: "right", color: "var(--erp-text-3)", fontSize: 12, fontVariantNumeric: "tabular-nums", display: "none" }} className="inv-sc-min">
                         {producto.stockMinimo > 0 ? producto.stockMinimo : "—"}
                       </td>
-                      <td className="inv-sc-estado" style={{ padding: "9px 14px" }}>
+                      <td style={{ padding: "9px 14px" }}>
                         <span style={{ ...ESTADO_STOCK_STYLE[estado], fontSize: 11, padding: "2px 8px", borderRadius: 99, display: "inline-block", whiteSpace: "nowrap" }}>
                           {ESTADO_STOCK_LABEL[estado]}
                         </span>
@@ -410,10 +410,9 @@ export default function InventariosClient() {
                           <button
                             type="button"
                             onClick={() => setExpandedId(isExpanded ? null : producto.id)}
-                            style={{ padding: "7px 12px", border: `1.5px solid ${isExpanded ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: isExpanded ? "var(--erp-primary)" : "var(--erp-surface)", color: isExpanded ? "#fff" : "var(--erp-text-2)", whiteSpace: "nowrap" }}
+                            style={{ padding: "4px 12px", border: `1.5px solid ${isExpanded ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", background: isExpanded ? "var(--erp-primary)" : "var(--erp-surface)", color: isExpanded ? "#fff" : "var(--erp-text-2)", whiteSpace: "nowrap" }}
                           >
-                            <span className="inv-btn-full">{isExpanded ? "Ocultar ▲" : "Movimientos ▼"}</span>
-                            <span className="inv-btn-short">{isExpanded ? "▲" : "▼"}</span>
+                            {isExpanded ? "Ocultar ▲" : "Movimientos ▼"}
                           </button>
                         </div>
                       </td>

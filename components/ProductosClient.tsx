@@ -355,8 +355,6 @@ export default function ProductosClient() {
               display: "flex",
               flexDirection: "column",
               gap: 3,
-              overflow: "hidden",
-              minWidth: 0,
             }}
           >
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{card.label}</span>
@@ -578,7 +576,7 @@ export default function ProductosClient() {
                   {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
                     const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
                     return (
-                      <div key={i} className="prod-empaque-row">
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
                           <select
@@ -817,7 +815,7 @@ export default function ProductosClient() {
                               setExpandedId(expandedId === producto.id && expandedPanel === "extras" ? null : producto.id);
                               setExpandedPanel("extras");
                             }}
-                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "6px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
                           >
                             Extras
                           </button>
@@ -827,14 +825,14 @@ export default function ProductosClient() {
                                 setExpandedId(expandedId === producto.id && expandedPanel === "componentes" ? null : producto.id);
                                 setExpandedPanel("componentes");
                               }}
-                              style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "6px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                              style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
                             >
                               Componentes
                             </button>
                           )}
                           <button
                             onClick={() => startEdit(producto)}
-                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "6px 10px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
                           >
                             Editar
                           </button>

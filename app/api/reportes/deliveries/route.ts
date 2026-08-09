@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const cliente = searchParams.get("cliente");
   const motorizadoId = searchParams.get("motorizadoId");
 
-  const conditions: string[] = ["v.despacho_pendiente = TRUE", "v.modo_entrega = 'DELIVERY'"];
+  const conditions: string[] = ["v.despacho_pendiente = TRUE"];
   const params: unknown[] = [];
 
   if (desde) {

@@ -9,7 +9,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { cuentaCobrada, alarmaSilenciadaHasta } = body;
 
   if (typeof cuentaCobrada === "boolean") {
-    const { fechaPago, metodoPago } = body as { fechaPago?: string; metodoPago?: string };
+    const { fechaPago } = body as { fechaPago?: string };
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -36,17 +36,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       const row = result.rows[0];
 
       // Sincronizar pagos_venta: borrar entrada previa y reinsertar si cobrada
-      const metodo = metodoPago || "CXC_DIRECTA";
       await client.query(
-        `DELETE FROM pagos_venta WHERE venta_id = $1 AND metodo = ANY($2::text[])`,
-        [id, ["CXC_DIRECTA","EFECTIVO_USD","EFECTIVO_BS","TRANSFERENCIA","PUNTO_VENTA","PAGO_MOVIL","ZELLE"]]
+        `DELETE FROM pagos_venta WHERE venta_id = $1 AND metodo = 'CXC_DIRECTA'`,
+        [id]
       );
       if (cuentaCobrada) {
         const fp = fechaPago || new Date().toISOString().slice(0, 10);
         await client.query(
           `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
-           VALUES ($1, $2, $3, $4)`,
-          [id, metodo, row.total_usd, fp]
+           VALUES ($1, 'CXC_DIRECTA', $2, $3)`,
+          [id, row.total_usd, fp]
         );
       }
 
