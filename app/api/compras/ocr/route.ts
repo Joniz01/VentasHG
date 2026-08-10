@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
             if (parsed) {
               await incrementQuotaUsed(geminiKey.id, 0);
               await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", model: modelName, tokens: { prompt: 0, completion: 0, total: 0 }, latency: 0, status: "ok", context: "ocr" });
-              return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500) });
+              return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500), _extraContext: extraContext.slice(0, 300) });
             }
           }
         }
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       await incrementQuotaUsed(groqKey.id, result.tokens.total);
       await logUsage({ apiKeyId: groqKey.id, provider: "groq", model: result.model, tokens: result.tokens, latency, status: "ok", context: "ocr" });
 
-      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500) });
+      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500), _extraContext: extraContext.slice(0, 300) });
     } catch (err) {
       const code = (err as { statusCode?: number }).statusCode;
       if (code === 413 && maxTokens !== 800) continue; // reintentar con presupuesto menor
