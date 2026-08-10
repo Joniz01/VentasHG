@@ -287,7 +287,7 @@ export default function FacturaCompraForm({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const d = data.data ?? {};
-        setOcrDebug(`provider: ${data.provider ?? "?"} | extraContext(BD): "${data._extraContext ?? ""}" | keys: ${Object.keys(d).join(", ")} | items: ${JSON.stringify(d.items ?? null).slice(0, 200)}`);
+        setOcrDebug(`provider: ${data.provider ?? "?"}${data._geminiSkipReason ? ` | gemini se saltó por: ${data._geminiSkipReason}` : ""} | keys: ${Object.keys(d).join(", ")} | items: ${JSON.stringify(d.items ?? null).slice(0, 200)}`);
 
         // Filtra strings vacías, "null" o "undefined" que Gemini puede retornar literalmente
         const clean = (v: unknown): string => {

@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
   const instrucciones = instruccionesBD.trim() || INSTRUCCIONES_DEFAULT;
   const promptFull = construirPrompt(instrucciones);
 
+  let geminiSkipReason = "sin API key configurada";
+
   // ── 1. Intentar con Gemini (visión nativa + responseSchema) ─────────────────
   const geminiKey = await getActiveKey("gemini");
   if (geminiKey) {
@@ -129,8 +131,13 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500), _extraContext: instrucciones.slice(0, 300) });
             }
             // Respuesta incompleta (sin ítems) — se descarta y se intenta con Groq
+            geminiSkipReason = `respuesta 200 sin items (finishReason=${finishReason ?? "STOP"}, rawText[0:150]="${rawText.slice(0, 150)}")`;
             await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: "respuesta_sin_items", context: "ocr" });
+          } else {
+            geminiSkipReason = `rawText vacío (finishReason=${finishReason ?? "?"})`;
           }
+        } else {
+          geminiSkipReason = `candidate ausente o bloqueado (finishReason=${finishReason ?? "sin candidatos"})`;
         }
       } else if (res.status !== 429 && res.status !== 503) {
         // Error no recuperable (400, 401, etc.) → no hacer fallback
@@ -138,10 +145,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Gemini error ${res.status}: ${err}` }, { status: 502 });
       } else {
         // 429 / 503 → continúa al fallback con Groq
+        geminiSkipReason = `HTTP ${res.status}`;
         await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: String(res.status), context: "ocr" });
       }
-    } catch {
+    } catch (err) {
       // timeout u otro error → continúa al fallback
+      geminiSkipReason = `excepción: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
@@ -170,7 +179,7 @@ export async function POST(request: NextRequest) {
       await incrementQuotaUsed(groqKey.id, result.tokens.total);
       await logUsage({ apiKeyId: groqKey.id, provider: "groq", model: result.model, tokens: result.tokens, latency, status: "ok", context: "ocr" });
 
-      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500), _extraContext: instrucciones.slice(0, 300) });
+      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500), _extraContext: instrucciones.slice(0, 300), _geminiSkipReason: geminiSkipReason });
     } catch (err) {
       const code = (err as { statusCode?: number }).statusCode;
       if (code === 413 && maxTokens !== 800) continue; // reintentar con presupuesto menor
