@@ -306,7 +306,7 @@ export default function GastosClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       const d = data.data ?? {};
-      setOcrDebug(`provider: ${data.provider ?? "?"} | keys: ${Object.keys(d).join(", ")} | items: ${JSON.stringify(d.items).slice(0, 300)}`);
+      setOcrDebug(`provider: ${data.provider ?? "?"} | keys: ${Object.keys(d).join(", ")} | items: ${JSON.stringify(d.items ?? null).slice(0, 300)}`);
 
       const clean = (v: unknown): string => {
         if (!v || v === "null" || v === "undefined") return "";
