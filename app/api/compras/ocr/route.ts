@@ -121,20 +121,25 @@ export async function POST(request: NextRequest) {
           const rawText: string = candidate?.content?.parts?.[0]?.text ?? "";
           if (rawText.trim()) {
             const parsed = parseOcrResponse(rawText);
-            if (parsed) {
+            const items = parsed?.items;
+            const tieneItems = Array.isArray(items) && items.length > 0;
+            if (parsed && tieneItems) {
               await incrementQuotaUsed(geminiKey.id, 0);
               await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", model: modelName, tokens: { prompt: 0, completion: 0, total: 0 }, latency: 0, status: "ok", context: "ocr" });
               return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500), _extraContext: instrucciones.slice(0, 300) });
             }
+            // Respuesta incompleta (sin ítems) — se descarta y se intenta con Groq
+            await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: "respuesta_sin_items", context: "ocr" });
           }
         }
       } else if (res.status !== 429 && res.status !== 503) {
         // Error no recuperable (400, 401, etc.) → no hacer fallback
         const err = await res.text();
         return NextResponse.json({ error: `Gemini error ${res.status}: ${err}` }, { status: 502 });
+      } else {
+        // 429 / 503 → continúa al fallback con Groq
+        await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: String(res.status), context: "ocr" });
       }
-      // 429 / 503 → continúa al fallback con Groq
-      await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: String(res.status), context: "ocr" });
     } catch {
       // timeout u otro error → continúa al fallback
     }
