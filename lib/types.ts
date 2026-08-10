@@ -585,6 +585,7 @@ export type Gasto = {
   estado: EstadoGasto;
   pagadoAt: string | null;
   comprobanteUrl: string | null;
+  numeroFactura: string | null;
   recurrente: boolean;
   frecuencia: FrecuenciaRecurrencia | null;
   proximoRecordatorio: string | null;
@@ -603,6 +604,7 @@ export type GastoInput = {
   tasaDia: number;
   estado: EstadoGasto;
   comprobanteUrl: string;
+  numeroFactura: string;
   recurrente: boolean;
   frecuencia: FrecuenciaRecurrencia | null;
 };

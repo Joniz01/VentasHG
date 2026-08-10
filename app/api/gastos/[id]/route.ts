@@ -35,6 +35,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     tasaDia?: number;
     estado?: EstadoGasto;
     comprobanteUrl?: string;
+    numeroFactura?: string;
     recurrente?: boolean;
     frecuencia?: FrecuenciaRecurrencia | null;
     recordatorioVisto?: boolean;
@@ -47,6 +48,24 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const proximoRecordatorio =
     body.recurrente && body.frecuencia ? calcularProximoRecordatorio(body.fecha, body.frecuencia) : null;
 
+  const valoresBase = [
+    body.tipoGastoId,
+    body.tipo,
+    body.proveedor.trim(),
+    body.descripcion?.trim() || null,
+    body.locacionId || null,
+    body.fecha,
+    Number(body.montoBs) || 0,
+    Number(body.tasaDia) || 0,
+    body.estado || "PENDIENTE",
+    body.comprobanteUrl?.trim() || null,
+    Boolean(body.recurrente),
+    body.recurrente ? body.frecuencia : null,
+    proximoRecordatorio,
+    body.recordatorioVisto ?? false,
+    id,
+  ];
+
   try {
     const result = await pool.query(
       `UPDATE gastos
@@ -55,26 +74,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
            pagado_at = CASE WHEN $9 = 'PAGADO' AND pagado_at IS NULL THEN now()
                             WHEN $9 != 'PAGADO' THEN NULL ELSE pagado_at END,
            comprobante_url = $10, recurrente = $11, frecuencia = $12, proximo_recordatorio = $13,
-           recordatorio_visto = $14
+           recordatorio_visto = $14, numero_factura = $16
        WHERE id = $15
        RETURNING id`,
-      [
-        body.tipoGastoId,
-        body.tipo,
-        body.proveedor.trim(),
-        body.descripcion?.trim() || null,
-        body.locacionId || null,
-        body.fecha,
-        Number(body.montoBs) || 0,
-        Number(body.tasaDia) || 0,
-        body.estado || "PENDIENTE",
-        body.comprobanteUrl?.trim() || null,
-        Boolean(body.recurrente),
-        body.recurrente ? body.frecuencia : null,
-        proximoRecordatorio,
-        body.recordatorioVisto ?? false,
-        id,
-      ]
+      [...valoresBase, body.numeroFactura?.trim() || null]
     );
 
     if (result.rowCount === 0) {
@@ -82,8 +85,30 @@ export async function PUT(request: NextRequest, { params }: Params) {
     }
 
     return NextResponse.json({ id: Number(id) });
-  } catch (err) {
-    return NextResponse.json({ error: "Error al actualizar el gasto" }, { status: 400 });
+  } catch {
+    // columna numero_factura pendiente de migración 057 — actualizar sin ella
+    try {
+      const result = await pool.query(
+        `UPDATE gastos
+         SET tipo_gasto_id = $1, tipo = $2, proveedor = $3, descripcion = $4, locacion_id = $5,
+             fecha = $6, monto_bs = $7, tasa_dia = $8, estado = $9,
+             pagado_at = CASE WHEN $9 = 'PAGADO' AND pagado_at IS NULL THEN now()
+                              WHEN $9 != 'PAGADO' THEN NULL ELSE pagado_at END,
+             comprobante_url = $10, recurrente = $11, frecuencia = $12, proximo_recordatorio = $13,
+             recordatorio_visto = $14
+         WHERE id = $15
+         RETURNING id`,
+        valoresBase
+      );
+
+      if (result.rowCount === 0) {
+        return NextResponse.json({ error: "Gasto no encontrado" }, { status: 404 });
+      }
+
+      return NextResponse.json({ id: Number(id) });
+    } catch {
+      return NextResponse.json({ error: "Error al actualizar el gasto" }, { status: 400 });
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ESTADOS_GASTO,
   ESTADO_GASTO_LABELS,
@@ -32,6 +32,8 @@ type FormState = {
   estado: EstadoGasto;
   recurrente: boolean;
   frecuencia: FrecuenciaRecurrencia;
+  numeroFactura: string;
+  comprobanteUrl: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -46,6 +48,8 @@ const EMPTY_FORM: FormState = {
   estado: "PENDIENTE",
   recurrente: false,
   frecuencia: "MENSUAL",
+  numeroFactura: "",
+  comprobanteUrl: "",
 };
 
 function formatFechaCorta(fecha: string): string {
@@ -90,6 +94,12 @@ export default function GastosClient() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [nuevaLocacion, setNuevaLocacion] = useState("");
+
+  const [showCargaFactura, setShowCargaFactura] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const [recordatorios, setRecordatorios] = useState<
     { id: number; proveedor: string; tipoGastoNombre: string; montoBs: number; proximoRecordatorio: string }[]
@@ -161,6 +171,8 @@ export default function GastosClient() {
     setEditingId(null);
     setForm({ ...EMPTY_FORM });
     setShowForm(false);
+    setShowCargaFactura(false);
+    setOcrError(null);
   }
 
   function startEdit(g: Gasto) {
@@ -177,8 +189,76 @@ export default function GastosClient() {
       estado: g.estado,
       recurrente: g.recurrente,
       frecuencia: g.frecuencia ?? "MENSUAL",
+      numeroFactura: g.numeroFactura ?? "",
+      comprobanteUrl: g.comprobanteUrl ?? "",
     });
     setShowForm(true);
+  }
+
+  const compressImage = (file: File): Promise<{ dataUrl: string; base64: string }> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const MAX = 1200;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+            else { width = Math.round((width * MAX) / height); height = MAX; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          resolve({ dataUrl, base64: dataUrl.split(",")[1] });
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
+  async function handleCargaFacturaFile(file: File) {
+    setOcrError(null);
+    setOcrLoading(true);
+    try {
+      const { dataUrl, base64 } = await compressImage(file);
+      setForm((p) => ({ ...p, comprobanteUrl: dataUrl }));
+
+      const res = await fetch("/api/compras/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagenBase64: base64, mimeType: "image/jpeg" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const d = data.data ?? {};
+
+      const clean = (v: unknown): string => {
+        if (!v || v === "null" || v === "undefined") return "";
+        return String(v).trim();
+      };
+
+      const proveedor = clean(d.proveedorNombre);
+      const numeroFactura = clean(d.numeroFactura);
+      const fecha = clean(d.fecha);
+      const items: { cantidad?: number; costoUnitBs?: number }[] = Array.isArray(d.items) ? d.items : [];
+      const total = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+
+      setForm((p) => ({
+        ...p,
+        proveedor: proveedor || p.proveedor,
+        numeroFactura: numeroFactura || p.numeroFactura,
+        fecha: fecha && fecha !== "null" ? fecha.slice(0, 10) : p.fecha,
+        montoBs: total > 0 ? String(total) : p.montoBs,
+      }));
+    } catch (err) {
+      setOcrError(err instanceof Error ? err.message : "Error al procesar la factura");
+    } finally {
+      setOcrLoading(false);
+    }
   }
 
   async function handleAgregarLocacion() {
@@ -228,6 +308,8 @@ export default function GastosClient() {
         estado: form.estado,
         recurrente: form.recurrente,
         frecuencia: form.recurrente ? form.frecuencia : null,
+        numeroFactura: form.numeroFactura.trim(),
+        comprobanteUrl: form.comprobanteUrl,
       };
 
       const res = await fetch(editingId ? `/api/gastos/${editingId}` : "/api/gastos", {
@@ -275,6 +357,8 @@ export default function GastosClient() {
         estado,
         recurrente: g.recurrente,
         frecuencia: g.frecuencia,
+        numeroFactura: g.numeroFactura,
+        comprobanteUrl: g.comprobanteUrl,
       }),
     });
     await loadGastos();
@@ -302,6 +386,8 @@ export default function GastosClient() {
         estado: g.estado,
         recurrente: g.recurrente,
         frecuencia: g.frecuencia,
+        numeroFactura: g.numeroFactura,
+        comprobanteUrl: g.comprobanteUrl,
         recordatorioVisto: true,
       }),
     });
@@ -369,6 +455,57 @@ export default function GastosClient() {
           className="rounded-xl border p-4 flex flex-col gap-3"
           style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
         >
+          {showCargaFactura && (
+            <div
+              className="rounded-lg p-3 flex flex-col gap-2"
+              style={{ background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)" }}
+            >
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>
+                  📷 Escanear / Cargar factura
+                </span>
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.click()}
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                  style={{ background: "var(--erp-primary)" }}
+                >
+                  📸 Cámara
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="rounded-md border px-3 py-1.5 text-xs font-semibold"
+                  style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)", background: "var(--erp-surface)" }}
+                >
+                  ⬆ Subir
+                </button>
+                {ocrLoading && <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>Analizando factura…</span>}
+                {!ocrLoading && form.comprobanteUrl && !ocrError && (
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: "var(--erp-surface)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)" }}
+                  >
+                    ✓ Procesada — revisa y completa los faltantes
+                  </span>
+                )}
+              </div>
+              {ocrError && <span className="text-xs" style={{ color: "#B91C1C" }}>⚠ {ocrError}</span>}
+              <input
+                ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) handleCargaFacturaFile(e.target.files[0]); }}
+              />
+              <input
+                ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) handleCargaFacturaFile(e.target.files[0]); }}
+              />
+              {form.comprobanteUrl && !ocrLoading && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.comprobanteUrl} alt="Factura" className="rounded-md border max-h-40 object-contain" style={{ borderColor: "var(--erp-border)" }} />
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tipo de gasto</label>
@@ -437,7 +574,7 @@ export default function GastosClient() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Locación</label>
               <select
@@ -501,6 +638,16 @@ export default function GastosClient() {
                 required
               />
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>N° Factura</label>
+              <input
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--erp-border)" }}
+                value={form.numeroFactura}
+                onChange={(e) => setForm((p) => ({ ...p, numeroFactura: e.target.value }))}
+                placeholder="Opcional"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -534,6 +681,14 @@ export default function GastosClient() {
               style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}
             >
               Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCargaFactura((v) => !v)}
+              className="rounded-lg px-4 py-2 text-sm font-semibold"
+              style={{ border: "1px solid var(--erp-border)", color: "var(--erp-primary)" }}
+            >
+              📷 {showCargaFactura ? "Ocultar factura" : "Cargar Factura"}
             </button>
             <button
               type="submit"

@@ -34,6 +34,7 @@ function mapGasto(r: Record<string, unknown>) {
     estado: r.estado,
     pagadoAt: r.pagado_at,
     comprobanteUrl: r.comprobante_url,
+    numeroFactura: r.numero_factura ?? null,
     recurrente: r.recurrente,
     frecuencia: r.frecuencia,
     proximoRecordatorio: r.proximo_recordatorio,
@@ -111,6 +112,7 @@ export async function POST(request: NextRequest) {
     tasaDia?: number;
     estado?: EstadoGasto;
     comprobanteUrl?: string;
+    numeroFactura?: string;
     recurrente?: boolean;
     frecuencia?: FrecuenciaRecurrencia | null;
   };
@@ -126,34 +128,51 @@ export async function POST(request: NextRequest) {
   const proximoRecordatorio =
     body.recurrente && body.frecuencia ? calcularProximoRecordatorio(body.fecha, body.frecuencia) : null;
 
+  const valoresBase = [
+    body.tipoGastoId,
+    body.tipo,
+    body.proveedor.trim(),
+    body.descripcion?.trim() || null,
+    body.locacionId || null,
+    body.fecha,
+    Number(body.montoBs) || 0,
+    Number(body.tasaDia) || 0,
+    body.estado || "PENDIENTE",
+    body.comprobanteUrl?.trim() || null,
+    Boolean(body.recurrente),
+    body.recurrente ? body.frecuencia : null,
+    proximoRecordatorio,
+    sesion.id,
+  ];
+
   try {
     const result = await pool.query(
       `INSERT INTO gastos
         (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
-         pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by)
+         pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
-               $10,$11,$12,$13,$14)
+               $10,$11,$12,$13,$14,$15)
        RETURNING id`,
-      [
-        body.tipoGastoId,
-        body.tipo,
-        body.proveedor.trim(),
-        body.descripcion?.trim() || null,
-        body.locacionId || null,
-        body.fecha,
-        Number(body.montoBs) || 0,
-        Number(body.tasaDia) || 0,
-        body.estado || "PENDIENTE",
-        body.comprobanteUrl?.trim() || null,
-        Boolean(body.recurrente),
-        body.recurrente ? body.frecuencia : null,
-        proximoRecordatorio,
-        sesion.id,
-      ]
+      [...valoresBase, body.numeroFactura?.trim() || null]
     );
     return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ error: "Error al registrar el gasto" }, { status: 400 });
+  } catch {
+    // columna numero_factura pendiente de migración 057 — insertar sin ella
+    try {
+      const result = await pool.query(
+        `INSERT INTO gastos
+          (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
+           pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+                 CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
+                 $10,$11,$12,$13,$14)
+         RETURNING id`,
+        valoresBase
+      );
+      return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
+    } catch {
+      return NextResponse.json({ error: "Error al registrar el gasto" }, { status: 400 });
+    }
   }
 }
