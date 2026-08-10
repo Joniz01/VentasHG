@@ -34,6 +34,6 @@ export const PROVIDER_TIMEOUTS: Record<string, number> = {
 export const FAILBACK_HTTP_CODES = new Set([429, 500, 502, 503, 504]);
 
 export const DEFAULT_MODELS: Record<string, string> = {
-  gemini: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+  gemini: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
   groq:   process.env.GROQ_MODEL   ?? "llama-3.1-8b-instant",
 };

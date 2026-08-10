@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   const geminiKey = await getActiveKey("gemini");
   if (geminiKey) {
     try {
-      const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+      const modelName = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey.decryptedKey}`;
 
       const geminiBody = {
