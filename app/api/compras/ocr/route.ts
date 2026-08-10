@@ -5,19 +5,29 @@ import { getActiveKey, incrementQuotaUsed } from "@/lib/llm/key-manager";
 import { callGroqVision } from "@/lib/llm/providers/groq";
 import { logUsage } from "@/lib/llm/usage-logger";
 
-// Prompt base compartido (Gemini y Groq)
-const BASE_PROMPT = `Analiza esta imagen de factura venezolana y extrae los datos del encabezado y los productos.
-
-Instrucciones:
-- El RIF del emisor aparece cerca de "SENIAT" e inicia con J-, V-, E- o G-
+// Instrucciones de extracción por defecto — se usan si no hay nada guardado en
+// Configuración → IA/LLM → "Prompt OCR". El texto guardado en la BD REEMPLAZA
+// por completo este bloque (no se concatena), para que el usuario tenga control
+// total desde la interfaz sin depender de un despliegue de código.
+const INSTRUCCIONES_DEFAULT = `- El RIF del emisor aparece cerca de "SENIAT" e inicia con J-, V-, E- o G-
 - El teléfono puede venir precedido de: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil
 - La dirección del emisor suele aparecer debajo del nombre/RIF, antes de la fecha o el detalle de la factura (puede ocupar varias líneas: avenida, centro comercial, local, sector, ciudad, zona postal). Únela en un solo texto
 - Si un ítem no tiene cantidad explícita, usa 1
 - Reemplaza comas decimales por punto en los montos (ej: 2.189,58 → 2189.58)
-- Si un campo no es legible usa null
+- Si un campo no es legible usa null`;
+
+// Formato de salida — fijo en el código porque el parser depende de estos nombres exactos de campo
+const FORMATO_JSON = `{"proveedorNombre":"nombre del emisor","proveedorRif":"RIF con prefijo J-, V-, E- o G-","proveedorTelefono":"teléfono o null","proveedorDireccion":"dirección completa del emisor o null","numeroFactura":"número de factura o null","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
+
+function construirPrompt(instrucciones: string): string {
+  return `Analiza esta imagen de factura venezolana y extrae los datos del encabezado y los productos.
+
+Instrucciones:
+${instrucciones}
 
 Responde ÚNICAMENTE con este objeto JSON (sin texto, sin markdown, sin bloques de código):
-{"proveedorNombre":"nombre del emisor","proveedorRif":"RIF con prefijo J-, V-, E- o G-","proveedorTelefono":"teléfono o null","proveedorDireccion":"dirección completa del emisor o null","numeroFactura":"número de factura o null","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
+${FORMATO_JSON}`;
+}
 
 function parseOcrResponse(rawText: string): Record<string, unknown> | null {
   const noThink = rawText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, "");
@@ -39,18 +49,18 @@ export async function POST(request: NextRequest) {
   const { imagenBase64, mimeType = "image/jpeg" } = body;
   if (!imagenBase64) return NextResponse.json({ error: "Imagen requerida" }, { status: 400 });
 
-  // Contexto adicional configurable desde la BD
-  let extraContext = "";
+  // Instrucciones configurables desde Configuración → IA/LLM. Si hay algo guardado,
+  // reemplaza por completo las instrucciones por defecto (no se concatena).
+  let instruccionesBD = "";
   try {
     const cfgResult = await pool.query(
       `SELECT valor FROM configuracion WHERE clave = 'compras_ocr_prompt'`
     );
-    extraContext = cfgResult.rows[0]?.valor ?? "";
+    instruccionesBD = cfgResult.rows[0]?.valor ?? "";
   } catch { /* tabla o clave no existe */ }
 
-  const promptFull = extraContext
-    ? `${BASE_PROMPT}\n\nContexto adicional: ${extraContext}`
-    : BASE_PROMPT;
+  const instrucciones = instruccionesBD.trim() || INSTRUCCIONES_DEFAULT;
+  const promptFull = construirPrompt(instrucciones);
 
   // ── 1. Intentar con Gemini (visión nativa + responseSchema) ─────────────────
   const geminiKey = await getActiveKey("gemini");
@@ -114,7 +124,7 @@ export async function POST(request: NextRequest) {
             if (parsed) {
               await incrementQuotaUsed(geminiKey.id, 0);
               await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", model: modelName, tokens: { prompt: 0, completion: 0, total: 0 }, latency: 0, status: "ok", context: "ocr" });
-              return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500), _extraContext: extraContext.slice(0, 300) });
+              return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500), _extraContext: instrucciones.slice(0, 300) });
             }
           }
         }
@@ -155,7 +165,7 @@ export async function POST(request: NextRequest) {
       await incrementQuotaUsed(groqKey.id, result.tokens.total);
       await logUsage({ apiKeyId: groqKey.id, provider: "groq", model: result.model, tokens: result.tokens, latency, status: "ok", context: "ocr" });
 
-      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500), _extraContext: extraContext.slice(0, 300) });
+      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500), _extraContext: instrucciones.slice(0, 300) });
     } catch (err) {
       const code = (err as { statusCode?: number }).statusCode;
       if (code === 413 && maxTokens !== 800) continue; // reintentar con presupuesto menor

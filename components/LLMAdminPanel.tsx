@@ -69,8 +69,20 @@ export default function LLMAdminPanel() {
   const [promptSaving, setPromptSaving] = useState<string | null>(null);
   const [promptMsg, setPromptMsg] = useState<Record<string, string>>({});
 
+  const OCR_INSTRUCCIONES_DEFAULT = `- El RIF del emisor aparece cerca de "SENIAT" e inicia con J-, V-, E- o G-
+- El teléfono puede venir precedido de: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil
+- La dirección del emisor suele aparecer debajo del nombre/RIF, antes de la fecha o el detalle de la factura (puede ocupar varias líneas: avenida, centro comercial, local, sector, ciudad, zona postal). Únela en un solo texto
+- Si un ítem no tiene cantidad explícita, usa 1
+- Reemplaza comas decimales por punto en los montos (ej: 2.189,58 → 2189.58)
+- Si un campo no es legible usa null`;
+
   const PROMPT_DEFS = [
-    { key: "compras_ocr_prompt", label: "Prompt OCR — Facturas de Compra", desc: "Instrucción enviada a Gemini al analizar una imagen de factura de compra." },
+    {
+      key: "compras_ocr_prompt",
+      label: "Prompt OCR — Facturas de Compra",
+      desc: "Estas instrucciones REEMPLAZAN por completo las de extracción al analizar una factura (no se agregan a otras). El formato de salida (nombres de campo JSON) es fijo y no se controla aquí — solo edita el texto de instrucciones.",
+      defaultValue: OCR_INSTRUCCIONES_DEFAULT,
+    },
   ];
 
   const fetchPrompts = useCallback(async () => {
@@ -79,7 +91,7 @@ export default function LLMAdminPanel() {
       const data = await r.json();
       const filtered: Record<string, string> = {};
       for (const def of PROMPT_DEFS) {
-        filtered[def.key] = data[def.key] ?? "";
+        filtered[def.key] = data[def.key] || def.defaultValue;
       }
       setPrompts(filtered);
     }
@@ -527,7 +539,7 @@ export default function LLMAdminPanel() {
               <textarea
                 value={prompts[def.key] ?? ""}
                 onChange={(e) => setPrompts((p) => ({ ...p, [def.key]: e.target.value }))}
-                rows={5}
+                rows={8}
                 style={{ width: "100%", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "8px 12px", fontSize: 13, background: "var(--erp-bg)", color: "var(--erp-text)", resize: "vertical", fontFamily: "inherit" }}
               />
               <div className="mt-2 flex items-center gap-3">
@@ -538,6 +550,13 @@ export default function LLMAdminPanel() {
                   style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: promptSaving === def.key ? 0.7 : 1 }}
                 >
                   {promptSaving === def.key ? "Guardando..." : "Guardar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrompts((p) => ({ ...p, [def.key]: def.defaultValue }))}
+                  style={{ background: "transparent", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Restaurar por defecto
                 </button>
                 {promptMsg[def.key] && (
                   <span style={{ fontSize: 12, color: promptMsg[def.key] === "Guardado" ? "#166534" : "#B91C1C" }}>{promptMsg[def.key]}</span>
