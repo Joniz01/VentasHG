@@ -52,6 +52,10 @@ const EMPTY_FORM: FormState = {
   comprobanteUrl: "",
 };
 
+type FacturaItem = { key: number; nombre: string; cantidad: string; costoUnitBs: string };
+let itemKeySeq = 0;
+const nextItemKey = () => ++itemKeySeq;
+
 function formatFechaCorta(fecha: string): string {
   return fecha.slice(8, 10) + "/" + fecha.slice(5, 7) + "/" + fecha.slice(0, 4);
 }
@@ -98,12 +102,35 @@ export default function GastosClient() {
   const [showCargaFactura, setShowCargaFactura] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
+  const [facturaItems, setFacturaItems] = useState<FacturaItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
   const [recordatorios, setRecordatorios] = useState<
     { id: number; proveedor: string; tipoGastoNombre: string; montoBs: number; proximoRecordatorio: string }[]
   >([]);
+
+  const totalFacturaBs = facturaItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+  const totalFacturaUsd = Number(form.tasaDia) > 0 ? totalFacturaBs / Number(form.tasaDia) : 0;
+
+  // Mantiene Monto Bs sincronizado con la suma de ítems mientras haya al menos uno cargado
+  useEffect(() => {
+    if (facturaItems.length === 0) return;
+    setForm((p) => ({ ...p, montoBs: totalFacturaBs > 0 ? String(totalFacturaBs) : p.montoBs }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalFacturaBs, facturaItems.length]);
+
+  function updateFacturaItem(key: number, cambios: Partial<FacturaItem>) {
+    setFacturaItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...cambios } : it)));
+  }
+
+  function removeFacturaItem(key: number) {
+    setFacturaItems((prev) => prev.filter((it) => it.key !== key));
+  }
+
+  function addFacturaItem() {
+    setFacturaItems((prev) => [...prev, { key: nextItemKey(), nombre: "", cantidad: "1", costoUnitBs: "" }]);
+  }
 
   async function loadGastos() {
     setLoading(true);
@@ -173,6 +200,7 @@ export default function GastosClient() {
     setShowForm(false);
     setShowCargaFactura(false);
     setOcrError(null);
+    setFacturaItems([]);
   }
 
   function startEdit(g: Gasto) {
@@ -192,6 +220,8 @@ export default function GastosClient() {
       numeroFactura: g.numeroFactura ?? "",
       comprobanteUrl: g.comprobanteUrl ?? "",
     });
+    setFacturaItems([]);
+    setShowCargaFactura(false);
     setShowForm(true);
   }
 
@@ -244,8 +274,22 @@ export default function GastosClient() {
       const proveedor = clean(d.proveedorNombre);
       const numeroFactura = clean(d.numeroFactura);
       const fecha = clean(d.fecha);
-      const items: { cantidad?: number; costoUnitBs?: number }[] = Array.isArray(d.items) ? d.items : [];
-      const total = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+      const ocrItems: { nombre?: string; cantidad?: number; costoUnitBs?: number }[] = Array.isArray(d.items) ? d.items : [];
+      const mappedItems = ocrItems
+        .map((it) => {
+          const nombre = clean(it.nombre);
+          if (!nombre) return null;
+          return {
+            key: nextItemKey(),
+            nombre,
+            cantidad: String(Number(it.cantidad) || 1),
+            costoUnitBs: Number(it.costoUnitBs) > 0 ? String(it.costoUnitBs) : "",
+          };
+        })
+        .filter((it): it is FacturaItem => it !== null);
+      const total = mappedItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+
+      if (mappedItems.length > 0) setFacturaItems(mappedItems);
 
       setForm((p) => ({
         ...p,
@@ -430,19 +474,45 @@ export default function GastosClient() {
         <StatTile label="Pendiente por Pagar" value={resumen.pendientePorPagar} color="#a16207" />
       </div>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            setForm({ ...EMPTY_FORM });
-            setEditingId(null);
-            setShowForm((v) => !v);
-          }}
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
-          style={{ background: "var(--erp-accent)" }}
-        >
-          {showForm ? "Cancelar" : "+ Registrar Gasto"}
-        </button>
+      <div className="flex justify-end gap-2 flex-wrap">
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => {
+              setForm({ ...EMPTY_FORM });
+              setEditingId(null);
+              setFacturaItems([]);
+              setShowCargaFactura(false);
+              setShowForm(true);
+            }}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+            style={{ background: "var(--erp-accent)" }}
+          >
+            + Registrar Gasto
+          </button>
+        )}
+        {showForm && (
+          <>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+              style={{ background: "var(--erp-accent)" }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCargaFactura((v) => !v)}
+              className="rounded-lg px-4 py-2 text-sm font-semibold"
+              style={showCargaFactura
+                ? { background: "var(--erp-primary)", color: "#fff", border: "1px solid var(--erp-primary)" }
+                : { border: "1px solid var(--erp-primary)", color: "var(--erp-primary)", background: "var(--erp-surface)" }}
+            >
+              📷 {showCargaFactura ? "Ocultar factura" : "Cargar Factura"}
+            </button>
+          </>
+        )}
       </div>
 
       {error && (
@@ -502,6 +572,100 @@ export default function GastosClient() {
               {form.comprobanteUrl && !ocrLoading && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={form.comprobanteUrl} alt="Factura" className="rounded-md border max-h-40 object-contain" style={{ borderColor: "var(--erp-border)" }} />
+              )}
+
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>N° Factura</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                  value={form.numeroFactura}
+                  onChange={(e) => setForm((p) => ({ ...p, numeroFactura: e.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>Ítems de la factura</span>
+                <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>{facturaItems.length} línea{facturaItems.length !== 1 ? "s" : ""}</span>
+              </div>
+
+              {facturaItems.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th className="text-left px-1 py-1" style={{ color: "var(--erp-text-3)" }}>Producto</th>
+                        <th className="text-left px-1 py-1 w-16" style={{ color: "var(--erp-text-3)" }}>Cant.</th>
+                        <th className="text-left px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Bs</th>
+                        <th className="text-right px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Subtotal</th>
+                        <th className="w-6"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {facturaItems.map((it) => (
+                        <tr key={it.key} style={{ borderTop: "1px solid var(--erp-border)" }}>
+                          <td className="px-1 py-1">
+                            <input
+                              className="rounded border px-1.5 py-1 text-xs w-full"
+                              style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                              value={it.nombre}
+                              onChange={(e) => updateFacturaItem(it.key, { nombre: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-1 py-1">
+                            <input
+                              type="number" min="0" step="0.01"
+                              className="rounded border px-1.5 py-1 text-xs w-full"
+                              style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                              value={it.cantidad}
+                              onChange={(e) => updateFacturaItem(it.key, { cantidad: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-1 py-1">
+                            <input
+                              type="number" min="0" step="0.01"
+                              className="rounded border px-1.5 py-1 text-xs w-full"
+                              style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                              value={it.costoUnitBs}
+                              onChange={(e) => updateFacturaItem(it.key, { costoUnitBs: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-1 py-1 text-right font-semibold" style={{ color: "var(--erp-text)" }}>
+                            {((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0)).toFixed(2)}
+                          </td>
+                          <td className="px-1 py-1 text-center">
+                            <button type="button" onClick={() => removeFacturaItem(it.key)} className="text-xs" style={{ color: "#B91C1C" }}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={addFacturaItem}
+                className="text-xs font-semibold rounded-md border-dashed border py-1.5 text-center"
+                style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}
+              >
+                ＋ Agregar ítem manualmente
+              </button>
+
+              {facturaItems.length > 0 && (
+                <div className="flex justify-end gap-5 pt-2" style={{ borderTop: "1px solid var(--erp-border)" }}>
+                  {Number(form.tasaDia) > 0 && (
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total USD</div>
+                      <div className="text-base font-extrabold" style={{ color: "var(--erp-primary)" }}>${totalFacturaUsd.toFixed(2)}</div>
+                    </div>
+                  )}
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total Bs</div>
+                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{totalFacturaBs.toFixed(2)}</div>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -574,7 +738,7 @@ export default function GastosClient() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Locación</label>
               <select
@@ -638,16 +802,6 @@ export default function GastosClient() {
                 required
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>N° Factura</label>
-              <input
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.numeroFactura}
-                onChange={(e) => setForm((p) => ({ ...p, numeroFactura: e.target.value }))}
-                placeholder="Opcional"
-              />
-            </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -681,14 +835,6 @@ export default function GastosClient() {
               style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}
             >
               Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCargaFactura((v) => !v)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold"
-              style={{ border: "1px solid var(--erp-border)", color: "var(--erp-primary)" }}
-            >
-              📷 {showCargaFactura ? "Ocultar factura" : "Cargar Factura"}
             </button>
             <button
               type="submit"
