@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500), _extraContext: instrucciones.slice(0, 300) });
             }
             // Respuesta incompleta (sin ítems) — se descarta y se intenta con Groq
-            geminiSkipReason = `respuesta 200 sin items (finishReason=${finishReason ?? "STOP"}, rawText[0:150]="${rawText.slice(0, 150)}")`;
+            geminiSkipReason = `respuesta 200 sin items (finishReason=${finishReason ?? "STOP"}, len=${rawText.length}, rawText="${rawText.slice(0, 1200)}")`;
             await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: "respuesta_sin_items", context: "ocr" });
           } else {
             geminiSkipReason = `rawText vacío (finishReason=${finishReason ?? "?"})`;
