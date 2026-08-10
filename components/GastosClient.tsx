@@ -503,7 +503,15 @@ export default function GastosClient() {
             </button>
             <button
               type="button"
-              onClick={() => setShowCargaFactura((v) => !v)}
+              onClick={() => {
+                setShowCargaFactura((v) => {
+                  const next = !v;
+                  if (next && facturaItems.length === 0) {
+                    setFacturaItems([{ key: nextItemKey(), nombre: "", cantidad: "1", costoUnitBs: "" }]);
+                  }
+                  return next;
+                });
+              }}
               className="rounded-lg px-4 py-2 text-sm font-semibold"
               style={showCargaFactura
                 ? { background: "var(--erp-primary)", color: "#fff", border: "1px solid var(--erp-primary)" }
@@ -530,14 +538,14 @@ export default function GastosClient() {
               className="rounded-lg p-3 flex flex-col gap-2"
               style={{ background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)" }}
             >
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>
-                  📷 Escanear / Cargar factura
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs sm:text-sm font-medium flex-1 min-w-0 truncate" style={{ color: "var(--erp-text)" }}>
+                  📷 Escanear / Cargar
                 </span>
                 <button
                   type="button"
                   onClick={() => cameraRef.current?.click()}
-                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                  className="shrink-0 rounded-md px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-white whitespace-nowrap"
                   style={{ background: "var(--erp-primary)" }}
                 >
                   📸 Cámara
@@ -545,11 +553,13 @@ export default function GastosClient() {
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="rounded-md border px-3 py-1.5 text-xs font-semibold"
+                  className="shrink-0 rounded-md border px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold whitespace-nowrap"
                   style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)", background: "var(--erp-surface)" }}
                 >
                   ⬆ Subir
                 </button>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
                 {ocrLoading && <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>Analizando factura…</span>}
                 {!ocrLoading && form.comprobanteUrl && !ocrError && (
                   <span
@@ -590,59 +600,66 @@ export default function GastosClient() {
                 <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>{facturaItems.length} línea{facturaItems.length !== 1 ? "s" : ""}</span>
               </div>
 
-              {facturaItems.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr>
-                        <th className="text-left px-1 py-1" style={{ color: "var(--erp-text-3)" }}>Producto</th>
-                        <th className="text-left px-1 py-1 w-16" style={{ color: "var(--erp-text-3)" }}>Cant.</th>
-                        <th className="text-left px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Bs</th>
-                        <th className="text-right px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Subtotal</th>
-                        <th className="w-6"></th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th className="text-left px-1 py-1" style={{ color: "var(--erp-text-3)" }}>Producto</th>
+                      <th className="text-left px-1 py-1 w-16" style={{ color: "var(--erp-text-3)" }}>Cant.</th>
+                      <th className="text-left px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Bs</th>
+                      <th className="text-right px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Subtotal</th>
+                      <th className="w-6"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {facturaItems.map((it) => (
+                      <tr key={it.key} style={{ borderTop: "1px solid var(--erp-border)" }}>
+                        <td className="px-1 py-1">
+                          <input
+                            className="rounded border px-1.5 py-1 text-xs w-full"
+                            style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                            value={it.nombre}
+                            onChange={(e) => updateFacturaItem(it.key, { nombre: e.target.value })}
+                            placeholder="Nombre del producto"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <input
+                            type="number" min="0" step="0.01"
+                            className="rounded border px-1.5 py-1 text-xs w-full"
+                            style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                            value={it.cantidad}
+                            onChange={(e) => updateFacturaItem(it.key, { cantidad: e.target.value })}
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <input
+                            type="number" min="0" step="0.01"
+                            className="rounded border px-1.5 py-1 text-xs w-full"
+                            style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                            value={it.costoUnitBs}
+                            onChange={(e) => updateFacturaItem(it.key, { costoUnitBs: e.target.value })}
+                          />
+                        </td>
+                        <td className="px-1 py-1 text-right font-semibold" style={{ color: "var(--erp-text)" }}>
+                          {((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0)).toFixed(2)}
+                        </td>
+                        <td className="px-1 py-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeFacturaItem(it.key)}
+                            disabled={facturaItems.length === 1}
+                            className="text-xs disabled:opacity-30"
+                            style={{ color: "#B91C1C" }}
+                          >
+                            ✕
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {facturaItems.map((it) => (
-                        <tr key={it.key} style={{ borderTop: "1px solid var(--erp-border)" }}>
-                          <td className="px-1 py-1">
-                            <input
-                              className="rounded border px-1.5 py-1 text-xs w-full"
-                              style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
-                              value={it.nombre}
-                              onChange={(e) => updateFacturaItem(it.key, { nombre: e.target.value })}
-                            />
-                          </td>
-                          <td className="px-1 py-1">
-                            <input
-                              type="number" min="0" step="0.01"
-                              className="rounded border px-1.5 py-1 text-xs w-full"
-                              style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
-                              value={it.cantidad}
-                              onChange={(e) => updateFacturaItem(it.key, { cantidad: e.target.value })}
-                            />
-                          </td>
-                          <td className="px-1 py-1">
-                            <input
-                              type="number" min="0" step="0.01"
-                              className="rounded border px-1.5 py-1 text-xs w-full"
-                              style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
-                              value={it.costoUnitBs}
-                              onChange={(e) => updateFacturaItem(it.key, { costoUnitBs: e.target.value })}
-                            />
-                          </td>
-                          <td className="px-1 py-1 text-right font-semibold" style={{ color: "var(--erp-text)" }}>
-                            {((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0)).toFixed(2)}
-                          </td>
-                          <td className="px-1 py-1 text-center">
-                            <button type="button" onClick={() => removeFacturaItem(it.key)} className="text-xs" style={{ color: "#B91C1C" }}>✕</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               <button
                 type="button"
@@ -650,7 +667,7 @@ export default function GastosClient() {
                 className="text-xs font-semibold rounded-md border-dashed border py-1.5 text-center"
                 style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}
               >
-                ＋ Agregar ítem manualmente
+                ＋ Agregar ítem
               </button>
 
               {facturaItems.length > 0 && (
