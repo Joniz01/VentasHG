@@ -14,9 +14,10 @@ Instrucciones:
 - La dirección del emisor suele aparecer debajo del nombre/RIF, antes de la fecha o el detalle de la factura (puede ocupar varias líneas: avenida, centro comercial, local, sector, ciudad, zona postal). Únela en un solo texto
 - Si un ítem no tiene cantidad explícita, usa 1
 - Reemplaza comas decimales por punto en los montos (ej: 2.189,58 → 2189.58)
-- Si un campo no es legible usa null
+- Si un campo no es legible usa null, pero NUNCA lo omitas del JSON
+- OBLIGATORIO: "items" debe incluir TODAS las líneas de producto visibles en la factura, cada una con su nombre, cantidad y costo. No omitas el arreglo "items" ni lo dejes vacío si hay productos visibles en la imagen. Igualmente, intenta siempre extraer "numeroFactura" y "fecha" si aparecen en el encabezado o pie de la factura
 
-Responde ÚNICAMENTE con este objeto JSON (sin texto, sin markdown, sin bloques de código):
+Responde ÚNICAMENTE con este objeto JSON completo, con todas sus claves presentes (sin texto, sin markdown, sin bloques de código):
 {"proveedorNombre":"nombre del emisor","proveedorRif":"RIF con prefijo J-, V-, E- o G-","proveedorTelefono":"teléfono o null","proveedorDireccion":"dirección completa del emisor o null","numeroFactura":"número de factura o null","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
 
 function parseOcrResponse(rawText: string): Record<string, unknown> | null {
