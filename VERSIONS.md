@@ -5,6 +5,80 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v3.5 — 2026-08-10
+
+### Resumen
+OCR de facturas con doble proveedor (Gemini + fallback automático a Groq) aplicado tanto en Compras como en Gastos Operativos. Tasa BCV con auto-carga y caché local por fecha. Rediseño de Compras (selector Venta/Materia Prima, unificación clientes/proveedores). Gastos Operativos: nueva función "Cargar Factura" con OCR + tabla de ítems editable, y administración de "Tipos de gasto" movida a Configuración con control de permisos.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/053_compras_tipo_uso.sql` | Columna `tipo_uso` (VENTA/MATERIA_PRIMA) en `compras` |
+| `db/migrations/054_clientes_es_proveedor.sql` | Columna `es_proveedor` en `clientes` + índice |
+| `db/migrations/055_tasas_bcv_historico.sql` | Tabla `tasas_bcv_historico` (caché de tasa BCV por fecha) |
+| `db/migrations/056_desactivar_gasto_materia_prima.sql` | Desactiva el tipo de gasto sembrado "Gasto Materia Prima" |
+| `db/migrations/057_gastos_numero_factura.sql` | Columna `numero_factura` en `gastos` |
+| `app/api/tipos-gasto/[id]/route.ts` | PATCH para activar/desactivar (y renombrar) un tipo de gasto |
+| `components/TiposGastoConfigClient.tsx` | Panel en Configuración para administrar Tipos de gasto (alta + activar/desactivar) |
+
+### Archivos modificados (principales)
+| Archivo | Cambio |
+|---------|--------|
+| `app/api/compras/ocr/route.ts` | OCR con Gemini (responseSchema + `temperature:0` + `maxOutputTokens:8192`) y fallback automático a Groq (`qwen/qwen3.6-27b`, `reasoning_effort:"none"`) ante 429/503 **o** ante una respuesta 200 sin ítems. Prompt de instrucciones ahora 100% controlable desde Configuración → IA/LLM (reemplaza, no concatena); el formato JSON de salida queda fijo en código. |
+| `lib/llm/providers/groq.ts` | `callGroqVision()`: soporte de imágenes vía `image_url`, `reasoning_effort:"none"`, diagnóstico de modelos disponibles en la cuenta ante 404 |
+| `lib/bcv.ts` | `obtenerTasaBcv()` (vigente, con fallback bcv.org.ve → pyDolarVenezuela → DolarApi; se retiró `bcv-api.rafnixg.dev`, dominio dado de baja) |
+| `app/api/tasa-bcv/route.ts` | Acepta `?fecha=YYYY-MM-DD`; responde desde caché local (`tasas_bcv_historico`) o 404 si no hay dato — sin llamar APIs externas de histórico (no se encontró ninguna confiable) |
+| `components/FacturaCompraForm.tsx` | Selector Venta/Materia Prima por factura; mapeo OCR camelCase con limpieza de `"null"`; botón/auto-consulta de tasa BCV por fecha; recálculo de USD por ítem al cambiar tasa |
+| `app/api/compras/route.ts` | POST guarda `tipo_uso` y `fecha_vencimiento_pago` |
+| `app/api/proveedores/route.ts` | POST incluye `dias_credito`; GET incluye clientes con `es_proveedor = TRUE` |
+| `app/api/clientes/route.ts`, `app/api/clientes/[id]/route.ts` | Campo `esProveedor`; nuevo PATCH para toggle rápido |
+| `components/ClientesPageClient.tsx` | Columna/checkbox "Proveedor" en la lista y el formulario |
+| `components/GastosClient.tsx` | Botón "Cargar Factura" (junto a Cancelar, arriba) que despliega panel OCR + tabla de ítems editable + N° Factura + totales Bs/USD; tasa BCV automática/manual; `numero_factura` y `comprobante_url` (imagen) persistidos |
+| `app/api/gastos/route.ts`, `app/api/gastos/[id]/route.ts` | Aceptan `numeroFactura` (tolerante a migración 057 pendiente) |
+| `app/api/tipos-gasto/route.ts` | `GET ?all=1` incluye inactivos; POST sigue creando/reactivando |
+| `components/AdminTabsClient.tsx`, `app/(main)/admin/page.tsx` | Nuevo tab "Gastos" en Configuración, accesible a ADMIN y a usuarios con permiso `gastos` (acceso restringido solo a esa sección) |
+| `components/LLMAdminPanel.tsx` | Campo de prompt OCR precargado con el texto real por defecto; botón "Restaurar por defecto" |
+
+### Migraciones SQL (ejecutar en Neon SQL Editor, en orden)
+
+```sql
+-- 053
+ALTER TABLE compras
+  ADD COLUMN IF NOT EXISTS tipo_uso TEXT NOT NULL DEFAULT 'VENTA'
+    CHECK (tipo_uso IN ('VENTA', 'MATERIA_PRIMA'));
+
+-- 054
+ALTER TABLE clientes
+  ADD COLUMN IF NOT EXISTS es_proveedor BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_clientes_es_proveedor ON clientes (es_proveedor) WHERE es_proveedor = TRUE;
+
+-- 055
+CREATE TABLE IF NOT EXISTS tasas_bcv_historico (
+  fecha DATE PRIMARY KEY,
+  tasa NUMERIC(12,4) NOT NULL,
+  fuente TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 056
+UPDATE tipos_gasto SET activo = FALSE WHERE nombre = 'Gasto Materia Prima';
+
+-- 057
+ALTER TABLE gastos ADD COLUMN IF NOT EXISTS numero_factura TEXT;
+```
+
+### Notas técnicas
+- **OCR — proveedor doble:** Gemini es el proveedor principal; si falla con 429/503 **o responde 200 sin ítems**, se reintenta automáticamente con Groq (`qwen/qwen3.6-27b`, con visión). Este último caso fue clave: Gemini puede "tener éxito" devolviendo solo un subconjunto de campos, y sin este chequeo de calidad el sistema nunca intentaba el fallback.
+- **Prompt OCR editable:** Configuración → IA/LLM → "Prompt OCR — Facturas de Compra". El texto ahí **reemplaza completamente** las instrucciones de extracción (ya no se concatena, evitando prompts contradictorios). El formato de salida (nombres de campos JSON) permanece fijo en el código.
+- **Tasa BCV:** sin fecha, se consulta la tasa vigente (bcv.org.ve → pyDolarVenezuela → DolarApi) y se cachea por su fecha de publicación. Con fecha, solo se sirve desde el caché local (no existe API externa gratuita de histórico confiable) — el caché se llena orgánicamente con el uso diario del sistema.
+- **Modelo Groq:** `qwen/qwen3.6-27b` fue confirmado como el único modelo con soporte de visión disponible en la cuenta (Llama 4 Scout/Maverick fueron descontinuados en el plan actual). Límite TPM de 8000 tok/min obliga a mantener `max_tokens` bajo (2000, con reintento a 800 si hay 413).
+- Todas las nuevas columnas siguen el patrón de tolerancia a migración pendiente (try/catch con fallback) usado en el resto del proyecto.
+
+### Variables de entorno
+Sin nuevas variables. (Recordatorio: `GEMINI_MODEL`, `GROQ_MODEL`, `GROQ_VISION_MODEL` son opcionales y ya soportadas por `lib/llm/llm-config.ts` / `lib/llm/providers/groq.ts`.)
+
+---
+
 ## v3.4 — 2026-08-03
 
 ### Resumen
