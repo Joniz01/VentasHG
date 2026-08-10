@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSesionFromRequest } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { getActiveKey, incrementQuotaUsed } from "@/lib/llm/key-manager";
+import { getActiveKey, getActiveKeys, incrementQuotaUsed } from "@/lib/llm/key-manager";
 import { callGroqVision } from "@/lib/llm/providers/groq";
 import { logUsage } from "@/lib/llm/usage-logger";
 
@@ -62,11 +62,13 @@ export async function POST(request: NextRequest) {
   const instrucciones = instruccionesBD.trim() || INSTRUCCIONES_DEFAULT;
   const promptFull = construirPrompt(instrucciones);
 
-  let geminiSkipReason = "sin API key configurada";
+  let geminiSkipReason = "sin API key con cuota disponible";
 
   // ── 1. Intentar con Gemini (visión nativa + responseSchema) ─────────────────
-  const geminiKey = await getActiveKey("gemini");
-  if (geminiKey) {
+  // Se prueban TODAS las keys activas de Gemini en orden antes de caer a Groq,
+  // así una segunda key sirve de verdad como respaldo ante un 429 de la primera.
+  const geminiKeys = await getActiveKeys("gemini");
+  for (const geminiKey of geminiKeys) {
     try {
       const modelName = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey.decryptedKey}`;
