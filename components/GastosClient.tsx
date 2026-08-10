@@ -102,9 +102,45 @@ export default function GastosClient() {
   const [showCargaFactura, setShowCargaFactura] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrDebug, setOcrDebug] = useState<string | null>(null);
   const [facturaItems, setFacturaItems] = useState<FacturaItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+
+  const [consultandoTasa, setConsultandoTasa] = useState(false);
+  const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
+  const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
+
+  async function handleConsultarTasaBcv() {
+    setTasaBcvError(null);
+    setConsultandoTasa(true);
+    try {
+      const res = await fetch("/api/tasa-bcv");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detalle ? `${data.error}: ${data.detalle}` : (data.error ?? "No se pudo consultar la tasa BCV"));
+      setForm((p) => ({ ...p, tasaDia: String(data.tasa) }));
+      setTasaBcvFecha(data.fecha);
+    } catch (err) {
+      setTasaBcvError(err instanceof Error ? err.message : "No se pudo consultar la tasa BCV");
+    } finally {
+      setConsultandoTasa(false);
+    }
+  }
+
+  const fechaFetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!showForm) return;
+    if (fechaFetchedRef.current === form.fecha) return;
+    fechaFetchedRef.current = form.fecha;
+    (async () => {
+      try {
+        const res = await fetch(`/api/tasa-bcv?fecha=${form.fecha}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.tasa) { setForm((p) => ({ ...p, tasaDia: String(data.tasa) })); setTasaBcvFecha(data.fecha); }
+      } catch { /* ignore */ }
+    })();
+  }, [showForm, form.fecha]);
 
   const [recordatorios, setRecordatorios] = useState<
     { id: number; proveedor: string; tipoGastoNombre: string; montoBs: number; proximoRecordatorio: string }[]
@@ -200,7 +236,11 @@ export default function GastosClient() {
     setShowForm(false);
     setShowCargaFactura(false);
     setOcrError(null);
+    setOcrDebug(null);
     setFacturaItems([]);
+    setTasaBcvFecha(null);
+    setTasaBcvError(null);
+    fechaFetchedRef.current = null;
   }
 
   function startEdit(g: Gasto) {
@@ -222,6 +262,7 @@ export default function GastosClient() {
     });
     setFacturaItems([]);
     setShowCargaFactura(false);
+    fechaFetchedRef.current = g.fecha; // no sobrescribir la tasa ya guardada al editar
     setShowForm(true);
   }
 
@@ -265,6 +306,7 @@ export default function GastosClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       const d = data.data ?? {};
+      setOcrDebug(`provider: ${data.provider ?? "?"} | keys: ${Object.keys(d).join(", ")} | items: ${JSON.stringify(d.items).slice(0, 300)}`);
 
       const clean = (v: unknown): string => {
         if (!v || v === "null" || v === "undefined") return "";
@@ -483,6 +525,7 @@ export default function GastosClient() {
               setEditingId(null);
               setFacturaItems([]);
               setShowCargaFactura(false);
+              fechaFetchedRef.current = null;
               setShowForm(true);
             }}
             className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
@@ -571,6 +614,12 @@ export default function GastosClient() {
                 )}
               </div>
               {ocrError && <span className="text-xs" style={{ color: "#B91C1C" }}>⚠ {ocrError}</span>}
+              {ocrDebug && (
+                <details className="text-xs">
+                  <summary style={{ color: "var(--erp-text-3)", cursor: "pointer" }}>🔍 Diagnóstico OCR</summary>
+                  <pre className="mt-1 rounded p-2 whitespace-pre-wrap break-all" style={{ background: "var(--erp-bg)", border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>{ocrDebug}</pre>
+                </details>
+              )}
               <input
                 ref={fileRef} type="file" accept="image/*" className="hidden"
                 onChange={(e) => { if (e.target.files?.[0]) handleCargaFacturaFile(e.target.files[0]); }}
@@ -808,16 +857,29 @@ export default function GastosClient() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tasa del día</label>
-              <input
-                type="number"
-                step="0.0001"
-                min="0"
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.tasaDia}
-                onChange={(e) => setForm((p) => ({ ...p, tasaDia: e.target.value }))}
-                required
-              />
+              <div className="flex gap-1">
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  className="rounded-md border px-3 py-2 text-sm flex-1 min-w-0"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.tasaDia}
+                  onChange={(e) => setForm((p) => ({ ...p, tasaDia: e.target.value }))}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={handleConsultarTasaBcv}
+                  disabled={consultandoTasa}
+                  className="shrink-0 rounded-md border px-2 text-xs font-semibold disabled:opacity-50"
+                  style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)", background: "var(--erp-primary-lt)" }}
+                >
+                  {consultandoTasa ? "..." : "BCV"}
+                </button>
+              </div>
+              {tasaBcvFecha && <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>BCV: {tasaBcvFecha}</span>}
+              {tasaBcvError && <span className="text-xs" style={{ color: "#B91C1C" }}>{tasaBcvError}</span>}
             </div>
           </div>
 
