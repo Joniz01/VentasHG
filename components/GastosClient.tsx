@@ -656,18 +656,6 @@ export default function GastosClient() {
                     ✓ Procesada — revisa y completa los faltantes
                   </span>
                 )}
-                {ocrProvider && (
-                  <span className="text-xs font-semibold" style={{ color: "var(--erp-text-3)" }}>
-                    vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
-                    {ocrVerif?.reintentado && (ocrVerif.coincide ? " (reintento ✓)" : " (reintento falló)")}
-                  </span>
-                )}
-                {ocrVerif && (
-                  <span className="text-xs" style={{ color: ocrVerif.coincide ? "var(--erp-text-3)" : "#B45309" }}>
-                    {ocrVerif.coincide ? "✓" : "⚠"} factura: Bs {ocrVerif.totalFactura.toFixed(2)} · ítems: Bs {ocrVerif.sumaItems.toFixed(2)}
-                    {ocrVerif.reintentoFallo && ` (${ocrVerif.reintentoFallo.slice(0, 300)})`}
-                  </span>
-                )}
               </div>
               {ocrError && <span className="text-xs" style={{ color: "#B91C1C" }}>⚠ {ocrError}</span>}
               <input
