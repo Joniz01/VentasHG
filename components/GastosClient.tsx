@@ -113,6 +113,8 @@ export default function GastosClient() {
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
+  const [montoBsFocus, setMontoBsFocus] = useState(false);
+  const [montoUsdFocus, setMontoUsdFocus] = useState(false);
   const [consultandoTasa, setConsultandoTasa] = useState(false);
   const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
@@ -876,26 +878,28 @@ export default function GastosClient() {
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Monto Bs</label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 className="rounded-md border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--erp-border)" }}
-                value={form.montoBs}
-                onChange={(e) => updateMontoBs(e.target.value)}
+                value={montoBsFocus ? form.montoBs : (form.montoBs ? formatMonto(Number(form.montoBs) || 0) : "")}
+                onFocus={() => setMontoBsFocus(true)}
+                onBlur={() => setMontoBsFocus(false)}
+                onChange={(e) => updateMontoBs(e.target.value.replace(/,/g, ""))}
                 required
               />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Monto $</label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
                 style={{ borderColor: "var(--erp-border)" }}
-                value={form.montoUsd}
-                onChange={(e) => updateMontoUsd(e.target.value)}
+                value={montoUsdFocus ? form.montoUsd : (form.montoUsd ? formatMonto(Number(form.montoUsd) || 0) : "")}
+                onFocus={() => setMontoUsdFocus(true)}
+                onBlur={() => setMontoUsdFocus(false)}
+                onChange={(e) => updateMontoUsd(e.target.value.replace(/,/g, ""))}
                 disabled={!(Number(form.tasaDia) > 0)}
                 placeholder={Number(form.tasaDia) > 0 ? "0.00" : "Carga la tasa primero"}
               />
