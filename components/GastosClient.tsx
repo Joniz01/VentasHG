@@ -62,6 +62,10 @@ function formatFechaCorta(fecha: string): string {
   return fecha.slice(8, 10) + "/" + fecha.slice(5, 7) + "/" + fecha.slice(0, 4);
 }
 
+function formatMonto(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 const ESTADO_COLORES: Record<EstadoGasto, string> = {
   PENDIENTE: "#a16207",
   APROBADO: "#1d4ed8",
@@ -72,7 +76,7 @@ function StatTile({ label, value, color }: { label: string; value: number; color
   return (
     <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
       <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
-      <div className="text-xl font-extrabold" style={{ color }}>${value.toFixed(2)}</div>
+      <div className="text-xl font-extrabold" style={{ color }}>${formatMonto(value)}</div>
     </div>
   );
 }
@@ -158,13 +162,15 @@ export default function GastosClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalFacturaBs, facturaItems.length]);
 
-  // Recalcula Monto $ cuando cambia la tasa (ej. tasa cargada después de escribir el monto)
+  // Recalcula Monto $ cuando cambia la tasa o el Monto Bs (ej. tasa cargada después de
+  // escribir el monto, o Monto Bs completado por el OCR / la tabla de ítems)
   useEffect(() => {
     const tasa = Number(form.tasaDia) || 0;
     const bs = Number(form.montoBs) || 0;
-    setForm((p) => ({ ...p, montoUsd: tasa > 0 && bs > 0 ? (bs / tasa).toFixed(4) : "" }));
+    const usd = tasa > 0 && bs > 0 ? (bs / tasa).toFixed(4) : "";
+    setForm((p) => (p.montoUsd === usd ? p : { ...p, montoUsd: usd }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.tasaDia]);
+  }, [form.tasaDia, form.montoBs]);
 
   function updateFacturaItem(key: number, cambios: Partial<FacturaItem>) {
     setFacturaItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...cambios } : it)));
@@ -716,7 +722,7 @@ export default function GastosClient() {
                           />
                         </td>
                         <td className="px-1 py-1 text-right font-semibold" style={{ color: "var(--erp-text)" }}>
-                          {((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0)).toFixed(2)}
+                          {formatMonto((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0))}
                         </td>
                         <td className="px-1 py-1 text-center">
                           <button
@@ -749,12 +755,12 @@ export default function GastosClient() {
                   {Number(form.tasaDia) > 0 && (
                     <div className="text-right">
                       <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total USD</div>
-                      <div className="text-base font-extrabold" style={{ color: "var(--erp-primary)" }}>${totalFacturaUsd.toFixed(2)}</div>
+                      <div className="text-base font-extrabold" style={{ color: "var(--erp-primary)" }}>${formatMonto(totalFacturaUsd)}</div>
                     </div>
                   )}
                   <div className="text-right">
                     <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total Bs</div>
-                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{totalFacturaBs.toFixed(2)}</div>
+                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{formatMonto(totalFacturaBs)}</div>
                   </div>
                 </div>
               )}
@@ -1061,8 +1067,8 @@ export default function GastosClient() {
                     <td className="px-3 py-2">{g.tipo === "FIJO" ? "Fijo" : "Ocasional"}</td>
                     <td className="px-3 py-2">{g.descripcion}</td>
                     <td className="px-3 py-2">{g.locacionNombre ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">Bs{g.montoBs.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">${g.montoUsd.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">Bs{formatMonto(g.montoBs)}</td>
+                    <td className="px-3 py-2 text-right">${formatMonto(g.montoUsd)}</td>
                     <td className="px-3 py-2">
                       <select
                         value={g.estado}
