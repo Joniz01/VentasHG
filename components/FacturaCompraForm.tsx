@@ -689,9 +689,9 @@ export default function FacturaCompraForm({
                   vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}{ocrVerif?.reintentado ? " (reintento)" : ""}
                 </span>
               )}
-              {ocrVerif && !ocrVerif.coincide && (
-                <span style={{ color: "#B45309", fontSize: 11 }}>
-                  ⚠ factura: Bs {ocrVerif.totalFactura.toFixed(2)} · ítems: Bs {ocrVerif.sumaItems.toFixed(2)}
+              {ocrVerif && (
+                <span style={{ color: ocrVerif.coincide ? "var(--erp-text-3)" : "#B45309", fontSize: 11 }}>
+                  {ocrVerif.coincide ? "✓" : "⚠"} factura: Bs {ocrVerif.totalFactura.toFixed(2)} · ítems: Bs {ocrVerif.sumaItems.toFixed(2)}
                 </span>
               )}
               <span style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>
