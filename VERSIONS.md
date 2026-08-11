@@ -5,6 +5,33 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v4.0 — 2026-08-11
+
+### Resumen
+Endurecimiento del pipeline de OCR (modelo Gemini vigente, múltiples API keys de Gemini con reintento real, diagnóstico de causa exacta de fallback) y mejoras de UX en Gastos Operativos: campo "Monto $" con conversión bidireccional a Monto Bs, montos mostrados con separador de miles (formato `9,916.20`).
+
+### Archivos modificados
+| Archivo | Cambio |
+|---------|--------|
+| `app/api/compras/ocr/route.ts` | Modelo Gemini por defecto actualizado a `gemini-3.6-flash` (`gemini-2.0-flash` fue descontinuado por Google el 1 de junio de 2026); se prueban **todas** las API keys de Gemini activas (no solo la primera) antes de caer a Groq; diagnóstico `_geminiSkipReason` con la causa exacta (HTTP, respuesta sin ítems, excepción) de cada fallback |
+| `lib/llm/llm-config.ts` | Modelo Gemini por defecto actualizado a `gemini-3.6-flash` |
+| `lib/llm/key-manager.ts` | Nueva función `getActiveKeys()` — retorna todas las keys activas con cuota disponible de un proveedor (antes solo existía `getActiveKey()`, que devolvía únicamente la primera) |
+| `components/FacturaCompraForm.tsx` | Panel de diagnóstico OCR muestra la razón de fallback de Gemini cuando aplica |
+| `components/GastosClient.tsx` | Nuevo campo "Monto $" junto a "Monto Bs" con conversión bidireccional según la tasa del día (mismo patrón que el costo de ítems en Compras); se recalcula automáticamente al cambiar Monto Bs (incluye lo cargado por OCR) o la tasa; ambos montos se muestran con separador de miles y 2 decimales cuando el campo no tiene el foco (se edita en crudo al enfocar) |
+
+### Migraciones SQL
+Ninguna nueva en esta versión.
+
+### Notas técnicas
+- **Modelo Gemini obsoleto:** `gemini-2.0-flash` fue el causante más probable del patrón de respuestas 200 OK pero incompletas visto en v3.5 — el modelo ya no está soportado por Google desde junio 2026. Cualquier despliegue que dependa de `GEMINI_MODEL` sin configurar explícitamente debe usar `gemini-3.6-flash` (GA) o una versión GA posterior.
+- **Múltiples keys de Gemini:** antes, `quota_used` nunca se incrementaba realmente para Gemini (la llamada a `incrementQuotaUsed` siempre pasaba `0`), así que aunque hubiera una segunda key activa, el sistema nunca rotaba a ella tras un 429 real de Google dentro de la misma solicitud — siempre reintentaba con la primera. `getActiveKeys()` + el loop en `route.ts` corrigen esto: se agota cada key de Gemini en orden antes de recurrir a Groq.
+- **Formato de montos en Gastos:** los inputs nativos `type="number"` no soportan comas mientras se escribe: se optó por mostrar el valor formateado (`toLocaleString`) solo cuando el campo no tiene foco, y el valor crudo editable mientras el usuario escribe.
+
+### Variables de entorno
+Sin cambios. (`GEMINI_MODEL` sigue siendo opcional — si se define explícitamente en Vercel, tiene prioridad sobre el default `gemini-3.6-flash`.)
+
+---
+
 ## v3.5 — 2026-08-10
 
 ### Resumen
