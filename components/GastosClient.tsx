@@ -28,6 +28,7 @@ type FormState = {
   locacionId: string;
   fecha: string;
   montoBs: string;
+  montoUsd: string;
   tasaDia: string;
   estado: EstadoGasto;
   recurrente: boolean;
@@ -44,6 +45,7 @@ const EMPTY_FORM: FormState = {
   locacionId: "",
   fecha: today(),
   montoBs: "",
+  montoUsd: "",
   tasaDia: "",
   estado: "PENDIENTE",
   recurrente: false,
@@ -155,6 +157,14 @@ export default function GastosClient() {
     setForm((p) => ({ ...p, montoBs: totalFacturaBs > 0 ? String(totalFacturaBs) : p.montoBs }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalFacturaBs, facturaItems.length]);
+
+  // Recalcula Monto $ cuando cambia la tasa (ej. tasa cargada después de escribir el monto)
+  useEffect(() => {
+    const tasa = Number(form.tasaDia) || 0;
+    const bs = Number(form.montoBs) || 0;
+    setForm((p) => ({ ...p, montoUsd: tasa > 0 && bs > 0 ? (bs / tasa).toFixed(4) : "" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.tasaDia]);
 
   function updateFacturaItem(key: number, cambios: Partial<FacturaItem>) {
     setFacturaItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...cambios } : it)));
@@ -345,6 +355,20 @@ export default function GastosClient() {
     } finally {
       setOcrLoading(false);
     }
+  }
+
+  function updateMontoBs(bsVal: string) {
+    const bs = Number(bsVal) || 0;
+    const tasa = Number(form.tasaDia) || 0;
+    const usd = tasa > 0 ? (bs / tasa).toFixed(4) : "";
+    setForm((p) => ({ ...p, montoBs: bsVal, montoUsd: usd }));
+  }
+
+  function updateMontoUsd(usdVal: string) {
+    const usd = Number(usdVal) || 0;
+    const tasa = Number(form.tasaDia) || 0;
+    const bs = tasa > 0 ? (usd * tasa).toFixed(2) : "";
+    setForm((p) => ({ ...p, montoUsd: usdVal, montoBs: bs }));
   }
 
   async function handleAgregarLocacion() {
@@ -804,7 +828,7 @@ export default function GastosClient() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Locación</label>
               <select
@@ -851,8 +875,22 @@ export default function GastosClient() {
                 className="rounded-md border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--erp-border)" }}
                 value={form.montoBs}
-                onChange={(e) => setForm((p) => ({ ...p, montoBs: e.target.value }))}
+                onChange={(e) => updateMontoBs(e.target.value)}
                 required
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Monto $</label>
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+                style={{ borderColor: "var(--erp-border)" }}
+                value={form.montoUsd}
+                onChange={(e) => updateMontoUsd(e.target.value)}
+                disabled={!(Number(form.tasaDia) > 0)}
+                placeholder={Number(form.tasaDia) > 0 ? "0.00" : "Carga la tasa primero"}
               />
             </div>
             <div className="flex flex-col gap-1">
