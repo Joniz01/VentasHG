@@ -100,9 +100,14 @@ export async function POST(request: NextRequest) {
                     cantidad:    { type: "NUMBER" },
                     costoUnitBs: { type: "NUMBER" },
                   },
+                  required: ["nombre", "cantidad", "costoUnitBs"],
                 },
               },
             },
+            // Fuerza a Gemini a incluir TODAS las claves (aunque sea con valor vacío/null)
+            // en vez de omitirlas cuando no está seguro — antes devolvía solo 2-3 campos
+            // de 7 y se descartaba la respuesta por falta de "items".
+            required: ["proveedorNombre", "proveedorRif", "proveedorTelefono", "proveedorDireccion", "numeroFactura", "fecha", "items"],
           },
         },
       };
