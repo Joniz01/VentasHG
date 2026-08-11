@@ -694,7 +694,7 @@ export default function FacturaCompraForm({
               {ocrVerif && (
                 <span style={{ color: ocrVerif.coincide ? "var(--erp-text-3)" : "#B45309", fontSize: 11 }}>
                   {ocrVerif.coincide ? "✓" : "⚠"} factura: Bs {ocrVerif.totalFactura.toFixed(2)} · ítems: Bs {ocrVerif.sumaItems.toFixed(2)}
-                  {ocrVerif.reintentoFallo && ` (${ocrVerif.reintentoFallo.slice(0, 60)})`}
+                  {ocrVerif.reintentoFallo && ` (${ocrVerif.reintentoFallo.slice(0, 300)})`}
                 </span>
               )}
               <span style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>

@@ -97,8 +97,8 @@ async function intentarGemini(promptFull: string, imagenBase64: string, mimeType
           temperature: 0,
           responseMimeType: "application/json",
           // Modo normal: sin thinking (rápido/barato). El reintento por discrepancia de
-          // total activa thinkingLevel "high" para maximizar precisión en esa sola pasada.
-          ...(opts?.thinking ? { thinkingConfig: { thinkingLevel: "high" } } : {}),
+          // total activa un thinkingBudget alto para maximizar precisión en esa sola pasada.
+          ...(opts?.thinking ? { thinkingConfig: { thinkingBudget: 2048 } } : {}),
           responseSchema: {
             type: "OBJECT",
             properties: {
