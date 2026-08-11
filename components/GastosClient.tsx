@@ -109,6 +109,7 @@ export default function GastosClient() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrProvider, setOcrProvider] = useState<string | null>(null);
+  const [ocrVerif, setOcrVerif] = useState<{ reintentado: boolean; totalFactura: number; sumaItems: number; coincide: boolean } | null>(null);
   const [facturaItems, setFacturaItems] = useState<FacturaItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -255,6 +256,7 @@ export default function GastosClient() {
     setShowCargaFactura(false);
     setOcrError(null);
     setOcrProvider(null);
+    setOcrVerif(null);
     setFacturaItems([]);
     setTasaBcvFecha(null);
     setTasaBcvError(null);
@@ -313,6 +315,7 @@ export default function GastosClient() {
   async function handleCargaFacturaFile(file: File) {
     setOcrError(null);
     setOcrProvider(null);
+    setOcrVerif(null);
     setOcrLoading(true);
     try {
       const { dataUrl, base64 } = await compressImage(file);
@@ -327,6 +330,12 @@ export default function GastosClient() {
       if (!res.ok) throw new Error(data.error);
       const d = data.data ?? {};
       setOcrProvider(data.provider ?? null);
+      setOcrVerif({
+        reintentado: !!data._reintentado,
+        totalFactura: Number(data._totalFactura) || 0,
+        sumaItems: Number(data._sumaItems) || 0,
+        coincide: data._coincide !== false,
+      });
 
       const clean = (v: unknown): string => {
         if (!v || v === "null" || v === "undefined") return "";
@@ -648,7 +657,12 @@ export default function GastosClient() {
                 )}
                 {ocrProvider && (
                   <span className="text-xs font-semibold" style={{ color: "var(--erp-text-3)" }}>
-                    vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
+                    vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}{ocrVerif?.reintentado ? " (reintento)" : ""}
+                  </span>
+                )}
+                {ocrVerif && !ocrVerif.coincide && (
+                  <span className="text-xs" style={{ color: "#B45309" }}>
+                    ⚠ factura: Bs {ocrVerif.totalFactura.toFixed(2)} · ítems: Bs {ocrVerif.sumaItems.toFixed(2)}
                   </span>
                 )}
               </div>

@@ -257,11 +257,18 @@ export async function POST(request: NextRequest) {
         const promptReintento = construirPromptReintento(instrucciones, suma, total);
         const reintento = await PROVEEDORES[nombre](promptReintento, imagenBase64, mimeType, { thinking: true });
         if (reintento.ok) {
-          return NextResponse.json({ ok: true, data: reintento.data, provider: reintento.provider, _raw: reintento.raw, _reintentado: true });
+          const verif = hayDiscrepancia(reintento.data);
+          return NextResponse.json({
+            ok: true, data: reintento.data, provider: reintento.provider, _raw: reintento.raw,
+            _reintentado: true, _totalFactura: verif.total, _sumaItems: verif.suma, _coincide: !verif.discrepa,
+          });
         }
         // Si el reintento falla, se usa el resultado original (no se sigue reintentando)
       }
-      return NextResponse.json({ ok: true, data: resultado.data, provider: resultado.provider, _raw: resultado.raw });
+      return NextResponse.json({
+        ok: true, data: resultado.data, provider: resultado.provider, _raw: resultado.raw,
+        _reintentado: false, _totalFactura: total, _sumaItems: suma, _coincide: !discrepa,
+      });
     }
     if (resultado.hardError) {
       return NextResponse.json({ error: resultado.hardError.message }, { status: resultado.hardError.status });
