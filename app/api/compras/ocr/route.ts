@@ -63,12 +63,14 @@ function sumaItems(data: Record<string, unknown>): number {
   }, 0);
 }
 
-// Discrepancia relevante: diferencia > max(Bs 1, 0.5% del total impreso)
+// Discrepancia relevante: diferencia > Bs 0.05 (solo tolera redondeo real de
+// centavos; un error de un solo dígito en un costo ya suele diferir varios
+// bolívares o al menos algunos centavos, y debe detectarse)
 function hayDiscrepancia(data: Record<string, unknown>): { discrepa: boolean; suma: number; total: number } {
   const suma = sumaItems(data);
   const total = Number(data.totalFacturaBs) || 0;
   if (total <= 0) return { discrepa: false, suma, total };
-  const tolerancia = Math.max(1, total * 0.005);
+  const tolerancia = 0.05;
   return { discrepa: Math.abs(suma - total) > tolerancia, suma, total };
 }
 
