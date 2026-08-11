@@ -109,7 +109,7 @@ export default function GastosClient() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrProvider, setOcrProvider] = useState<string | null>(null);
-  const [ocrVerif, setOcrVerif] = useState<{ reintentado: boolean; totalFactura: number; sumaItems: number; coincide: boolean } | null>(null);
+  const [ocrVerif, setOcrVerif] = useState<{ reintentado: boolean; reintentoFallo: string | null; totalFactura: number; sumaItems: number; coincide: boolean } | null>(null);
   const [facturaItems, setFacturaItems] = useState<FacturaItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -332,6 +332,7 @@ export default function GastosClient() {
       setOcrProvider(data.provider ?? null);
       setOcrVerif({
         reintentado: !!data._reintentado,
+        reintentoFallo: data._reintentoFallo ?? null,
         totalFactura: Number(data._totalFactura) || 0,
         sumaItems: Number(data._sumaItems) || 0,
         coincide: data._coincide !== false,
@@ -657,12 +658,14 @@ export default function GastosClient() {
                 )}
                 {ocrProvider && (
                   <span className="text-xs font-semibold" style={{ color: "var(--erp-text-3)" }}>
-                    vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}{ocrVerif?.reintentado ? " (reintento)" : ""}
+                    vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
+                    {ocrVerif?.reintentado && (ocrVerif.coincide ? " (reintento ✓)" : " (reintento falló)")}
                   </span>
                 )}
                 {ocrVerif && (
                   <span className="text-xs" style={{ color: ocrVerif.coincide ? "var(--erp-text-3)" : "#B45309" }}>
                     {ocrVerif.coincide ? "✓" : "⚠"} factura: Bs {ocrVerif.totalFactura.toFixed(2)} · ítems: Bs {ocrVerif.sumaItems.toFixed(2)}
+                    {ocrVerif.reintentoFallo && ` (${ocrVerif.reintentoFallo.slice(0, 60)})`}
                   </span>
                 )}
               </div>

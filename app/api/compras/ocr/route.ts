@@ -265,7 +265,13 @@ export async function POST(request: NextRequest) {
             _reintentado: true, _totalFactura: verif.total, _sumaItems: verif.suma, _coincide: !verif.discrepa,
           });
         }
-        // Si el reintento falla, se usa el resultado original (no se sigue reintentando)
+        // El reintento falló (error/sin cuota) — se usa el resultado original, pero se
+        // informa que se intentó, para que quede visible en el indicador del frontend.
+        return NextResponse.json({
+          ok: true, data: resultado.data, provider: resultado.provider, _raw: resultado.raw,
+          _reintentado: true, _reintentoFallo: reintento.hardError?.message ?? reintento.skipReason,
+          _totalFactura: total, _sumaItems: suma, _coincide: !discrepa,
+        });
       }
       return NextResponse.json({
         ok: true, data: resultado.data, provider: resultado.provider, _raw: resultado.raw,

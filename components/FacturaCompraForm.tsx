@@ -114,7 +114,7 @@ export default function FacturaCompraForm({
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrProvider, setOcrProvider] = useState<string | null>(null);
-  const [ocrVerif, setOcrVerif] = useState<{ reintentado: boolean; totalFactura: number; sumaItems: number; coincide: boolean } | null>(null);
+  const [ocrVerif, setOcrVerif] = useState<{ reintentado: boolean; reintentoFallo: string | null; totalFactura: number; sumaItems: number; coincide: boolean } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -291,6 +291,7 @@ export default function FacturaCompraForm({
         setOcrProvider(data.provider ?? null);
         setOcrVerif({
           reintentado: !!data._reintentado,
+          reintentoFallo: data._reintentoFallo ?? null,
           totalFactura: Number(data._totalFactura) || 0,
           sumaItems: Number(data._sumaItems) || 0,
           coincide: data._coincide !== false,
@@ -686,12 +687,14 @@ export default function FacturaCompraForm({
               <span style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 99, padding: "2px 10px", fontSize: 12, fontWeight: 500 }}>✓ Procesada</span>
               {ocrProvider && (
                 <span style={{ color: "var(--erp-text-3)", fontSize: 11, fontWeight: 600 }}>
-                  vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}{ocrVerif?.reintentado ? " (reintento)" : ""}
+                  vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
+                  {ocrVerif?.reintentado && (ocrVerif.coincide ? " (reintento ✓)" : " (reintento falló)")}
                 </span>
               )}
               {ocrVerif && (
                 <span style={{ color: ocrVerif.coincide ? "var(--erp-text-3)" : "#B45309", fontSize: 11 }}>
                   {ocrVerif.coincide ? "✓" : "⚠"} factura: Bs {ocrVerif.totalFactura.toFixed(2)} · ítems: Bs {ocrVerif.sumaItems.toFixed(2)}
+                  {ocrVerif.reintentoFallo && ` (${ocrVerif.reintentoFallo.slice(0, 60)})`}
                 </span>
               )}
               <span style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>
