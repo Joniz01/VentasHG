@@ -108,7 +108,7 @@ export default function GastosClient() {
   const [showCargaFactura, setShowCargaFactura] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
-  const [ocrDebug, setOcrDebug] = useState<string | null>(null);
+  const [ocrProvider, setOcrProvider] = useState<string | null>(null);
   const [facturaItems, setFacturaItems] = useState<FacturaItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -254,7 +254,7 @@ export default function GastosClient() {
     setShowForm(false);
     setShowCargaFactura(false);
     setOcrError(null);
-    setOcrDebug(null);
+    setOcrProvider(null);
     setFacturaItems([]);
     setTasaBcvFecha(null);
     setTasaBcvError(null);
@@ -312,6 +312,7 @@ export default function GastosClient() {
 
   async function handleCargaFacturaFile(file: File) {
     setOcrError(null);
+    setOcrProvider(null);
     setOcrLoading(true);
     try {
       const { dataUrl, base64 } = await compressImage(file);
@@ -325,7 +326,7 @@ export default function GastosClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       const d = data.data ?? {};
-      setOcrDebug(`provider: ${data.provider ?? "?"} | keys: ${Object.keys(d).join(", ")} | items: ${JSON.stringify(d.items ?? null).slice(0, 300)}`);
+      setOcrProvider(data.provider ?? null);
 
       const clean = (v: unknown): string => {
         if (!v || v === "null" || v === "undefined") return "";
@@ -645,14 +646,13 @@ export default function GastosClient() {
                     ✓ Procesada — revisa y completa los faltantes
                   </span>
                 )}
+                {ocrProvider && (
+                  <span className="text-xs font-semibold" style={{ color: "var(--erp-text-3)" }}>
+                    vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
+                  </span>
+                )}
               </div>
               {ocrError && <span className="text-xs" style={{ color: "#B91C1C" }}>⚠ {ocrError}</span>}
-              {ocrDebug && (
-                <details className="text-xs">
-                  <summary style={{ color: "var(--erp-text-3)", cursor: "pointer" }}>🔍 Diagnóstico OCR</summary>
-                  <pre className="mt-1 rounded p-2 whitespace-pre-wrap break-all" style={{ background: "var(--erp-bg)", border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>{ocrDebug}</pre>
-                </details>
-              )}
               <input
                 ref={fileRef} type="file" accept="image/*" className="hidden"
                 onChange={(e) => { if (e.target.files?.[0]) handleCargaFacturaFile(e.target.files[0]); }}
@@ -764,6 +764,11 @@ export default function GastosClient() {
                     <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total Bs</div>
                     <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{formatMonto(totalFacturaBs)}</div>
                   </div>
+                </div>
+              )}
+              {form.comprobanteUrl && (
+                <div className="text-right text-xs" style={{ color: "#B45309" }}>
+                  ⚠ Verifica los costos de cada ítem contra la factura física antes de guardar
                 </div>
               )}
             </div>

@@ -41,33 +41,14 @@ function parseOcrResponse(rawText: string): Record<string, unknown> | null {
   }
 }
 
-export async function POST(request: NextRequest) {
-  const sesion = await getSesionFromRequest(request);
-  if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+type OcrExito = { ok: true; data: Record<string, unknown>; provider: "gemini" | "groq"; raw: string };
+type OcrFallo = { ok: false; hardError?: { message: string; status: number }; skipReason: string };
+type OcrResultado = OcrExito | OcrFallo;
 
-  const body = await request.json();
-  const { imagenBase64, mimeType = "image/jpeg" } = body;
-  if (!imagenBase64) return NextResponse.json({ error: "Imagen requerida" }, { status: 400 });
-
-  // Instrucciones configurables desde Configuración → IA/LLM. Si hay algo guardado,
-  // reemplaza por completo las instrucciones por defecto (no se concatena).
-  let instruccionesBD = "";
-  try {
-    const cfgResult = await pool.query(
-      `SELECT valor FROM configuracion WHERE clave = 'compras_ocr_prompt'`
-    );
-    instruccionesBD = cfgResult.rows[0]?.valor ?? "";
-  } catch { /* tabla o clave no existe */ }
-
-  const instrucciones = instruccionesBD.trim() || INSTRUCCIONES_DEFAULT;
-  const promptFull = construirPrompt(instrucciones);
-
-  let geminiSkipReason = "sin API key con cuota disponible";
-
-  // ── 1. Intentar con Gemini (visión nativa + responseSchema) ─────────────────
-  // Se prueban TODAS las keys activas de Gemini en orden antes de caer a Groq,
-  // así una segunda key sirve de verdad como respaldo ante un 429 de la primera.
+async function intentarGemini(promptFull: string, imagenBase64: string, mimeType: string): Promise<OcrResultado> {
   const geminiKeys = await getActiveKeys("gemini");
+  let skipReason = "sin API key con cuota disponible";
+
   for (const geminiKey of geminiKeys) {
     try {
       const modelName = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
@@ -105,8 +86,7 @@ export async function POST(request: NextRequest) {
               },
             },
             // Fuerza a Gemini a incluir TODAS las claves (aunque sea con valor vacío/null)
-            // en vez de omitirlas cuando no está seguro — antes devolvía solo 2-3 campos
-            // de 7 y se descartaba la respuesta por falta de "items".
+            // en vez de omitirlas cuando no está seguro.
             required: ["proveedorNombre", "proveedorRif", "proveedorTelefono", "proveedorDireccion", "numeroFactura", "fecha", "items"],
           },
         },
@@ -125,7 +105,7 @@ export async function POST(request: NextRequest) {
 
         if (candidate && finishReason !== "SAFETY" && finishReason !== "RECITATION") {
           if (finishReason === "MAX_TOKENS") {
-            return NextResponse.json({ error: "La factura tiene demasiados ítems. Intenta con menos productos visibles." }, { status: 422 });
+            return { ok: false, hardError: { message: "La factura tiene demasiados ítems. Intenta con menos productos visibles.", status: 422 }, skipReason: "MAX_TOKENS" };
           }
           const rawText: string = candidate?.content?.parts?.[0]?.text ?? "";
           if (rawText.trim()) {
@@ -135,36 +115,35 @@ export async function POST(request: NextRequest) {
             if (parsed && tieneItems) {
               await incrementQuotaUsed(geminiKey.id, 0);
               await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", model: modelName, tokens: { prompt: 0, completion: 0, total: 0 }, latency: 0, status: "ok", context: "ocr" });
-              return NextResponse.json({ ok: true, data: parsed, provider: "gemini", _raw: rawText.slice(0, 500), _extraContext: instrucciones.slice(0, 300) });
+              return { ok: true, data: parsed, provider: "gemini", raw: rawText.slice(0, 500) };
             }
-            // Respuesta incompleta (sin ítems) — se descarta y se intenta con Groq
-            geminiSkipReason = `respuesta 200 sin items (finishReason=${finishReason ?? "STOP"}, len=${rawText.length}, rawText="${rawText.slice(0, 1200)}")`;
+            skipReason = `respuesta 200 sin items (finishReason=${finishReason ?? "STOP"}, len=${rawText.length})`;
             await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: "respuesta_sin_items", context: "ocr" });
           } else {
-            geminiSkipReason = `rawText vacío (finishReason=${finishReason ?? "?"})`;
+            skipReason = `rawText vacío (finishReason=${finishReason ?? "?"})`;
           }
         } else {
-          geminiSkipReason = `candidate ausente o bloqueado (finishReason=${finishReason ?? "sin candidatos"})`;
+          skipReason = `candidate ausente o bloqueado (finishReason=${finishReason ?? "sin candidatos"})`;
         }
       } else if (res.status !== 429 && res.status !== 503) {
-        // Error no recuperable (400, 401, etc.) → no hacer fallback
         const err = await res.text();
-        return NextResponse.json({ error: `Gemini error ${res.status}: ${err}` }, { status: 502 });
+        return { ok: false, hardError: { message: `Gemini error ${res.status}: ${err}`, status: 502 }, skipReason: `HTTP ${res.status}` };
       } else {
-        // 429 / 503 → continúa al fallback con Groq
-        geminiSkipReason = `HTTP ${res.status}`;
+        skipReason = `HTTP ${res.status}`;
         await logUsage({ apiKeyId: geminiKey.id, provider: "gemini", status: "failback", errorCode: String(res.status), context: "ocr" });
       }
     } catch (err) {
-      // timeout u otro error → continúa al fallback
-      geminiSkipReason = `excepción: ${err instanceof Error ? err.message : String(err)}`;
+      skipReason = `excepción: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
-  // ── 2. Fallback: Groq visión ─────────────────────────────────────────────────
+  return { ok: false, skipReason };
+}
+
+async function intentarGroq(promptFull: string, imagenBase64: string, mimeType: string): Promise<OcrResultado> {
   const groqKey = await getActiveKey("groq");
   if (!groqKey) {
-    return NextResponse.json({ error: "Sin API keys disponibles para OCR (Gemini y Groq agotados o no configurados)." }, { status: 503 });
+    return { ok: false, skipReason: "sin API key configurada" };
   }
 
   // Límite TPM de Groq (8000 tok/min en tier on-demand) incluye max_tokens en el cálculo de la solicitud;
@@ -180,18 +159,65 @@ export async function POST(request: NextRequest) {
 
       const parsed = parseOcrResponse(result.text);
       if (!parsed) {
-        return NextResponse.json({ error: `OCR (Groq) sin JSON válido: "${result.text.slice(0, 200)}"` }, { status: 422 });
+        return { ok: false, hardError: { message: `OCR (Groq) sin JSON válido: "${result.text.slice(0, 200)}"`, status: 422 }, skipReason: "sin JSON válido" };
       }
 
       await incrementQuotaUsed(groqKey.id, result.tokens.total);
       await logUsage({ apiKeyId: groqKey.id, provider: "groq", model: result.model, tokens: result.tokens, latency, status: "ok", context: "ocr" });
 
-      return NextResponse.json({ ok: true, data: parsed, provider: "groq", _raw: result.text.slice(0, 500), _extraContext: instrucciones.slice(0, 300), _geminiSkipReason: geminiSkipReason });
+      return { ok: true, data: parsed, provider: "groq", raw: result.text.slice(0, 500) };
     } catch (err) {
       const code = (err as { statusCode?: number }).statusCode;
       if (code === 413 && maxTokens !== 800) continue; // reintentar con presupuesto menor
-      return NextResponse.json({ error: `OCR Groq error: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 });
+      return { ok: false, hardError: { message: `OCR Groq error: ${err instanceof Error ? err.message : String(err)}`, status: 502 }, skipReason: "error Groq" };
     }
   }
-  return NextResponse.json({ error: "OCR Groq: no se pudo procesar la imagen dentro del límite de tokens." }, { status: 502 });
+  return { ok: false, skipReason: "excede límite de tokens" };
+}
+
+export async function POST(request: NextRequest) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  const body = await request.json();
+  const { imagenBase64, mimeType = "image/jpeg" } = body;
+  if (!imagenBase64) return NextResponse.json({ error: "Imagen requerida" }, { status: 400 });
+
+  // Instrucciones + orden de proveedores, configurables desde Configuración → IA/LLM.
+  let instruccionesBD = "";
+  let ordenBD = "";
+  try {
+    const cfgResult = await pool.query(
+      `SELECT clave, valor FROM configuracion WHERE clave IN ('compras_ocr_prompt', 'ocr_provider_orden')`
+    );
+    for (const row of cfgResult.rows) {
+      if (row.clave === "compras_ocr_prompt") instruccionesBD = row.valor ?? "";
+      if (row.clave === "ocr_provider_orden") ordenBD = row.valor ?? "";
+    }
+  } catch { /* tabla o clave no existe */ }
+
+  const instrucciones = instruccionesBD.trim() || INSTRUCCIONES_DEFAULT;
+  const promptFull = construirPrompt(instrucciones);
+
+  const groqPrimero = ordenBD.trim() === "groq";
+  const secuencia = groqPrimero
+    ? [{ nombre: "groq" as const, fn: intentarGroq }, { nombre: "gemini" as const, fn: intentarGemini }]
+    : [{ nombre: "gemini" as const, fn: intentarGemini }, { nombre: "groq" as const, fn: intentarGroq }];
+
+  let ultimoMotivo = "";
+  for (const { fn } of secuencia) {
+    const resultado = await fn(promptFull, imagenBase64, mimeType);
+    if (resultado.ok) {
+      return NextResponse.json({ ok: true, data: resultado.data, provider: resultado.provider, _raw: resultado.raw });
+    }
+    if (resultado.hardError) {
+      return NextResponse.json({ error: resultado.hardError.message }, { status: resultado.hardError.status });
+    }
+    ultimoMotivo = resultado.skipReason;
+  }
+
+  return NextResponse.json(
+    { error: `Sin API keys disponibles para OCR (Gemini y Groq agotados, sin configurar, o fallaron). Último motivo: ${ultimoMotivo}` },
+    { status: 503 }
+  );
 }

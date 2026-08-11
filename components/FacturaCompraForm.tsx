@@ -113,7 +113,7 @@ export default function FacturaCompraForm({
   const [imagenBase64, setImagenBase64] = useState<string | null>(initialData?.imagenFactura ?? null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
-  const [ocrDebug, setOcrDebug] = useState<string | null>(null);
+  const [ocrProvider, setOcrProvider] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -278,7 +278,7 @@ export default function FacturaCompraForm({
   const handleImageFile = useCallback(async (file: File) => {
     try {
       const { dataUrl, base64 } = await compressImage(file);
-      setImagenBase64(dataUrl); setOcrError(null); setOcrLoading(true);
+      setImagenBase64(dataUrl); setOcrError(null); setOcrProvider(null); setOcrLoading(true);
       try {
         const res = await fetch("/api/compras/ocr", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -287,7 +287,7 @@ export default function FacturaCompraForm({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const d = data.data ?? {};
-        setOcrDebug(`provider: ${data.provider ?? "?"}${data._geminiSkipReason ? ` | gemini se saltó por: ${data._geminiSkipReason}` : ""} | keys: ${Object.keys(d).join(", ")} | items: ${JSON.stringify(d.items ?? null).slice(0, 200)}`);
+        setOcrProvider(data.provider ?? null);
 
         // Filtra strings vacías, "null" o "undefined" que Gemini puede retornar literalmente
         const clean = (v: unknown): string => {
@@ -677,17 +677,16 @@ export default function FacturaCompraForm({
           {!ocrLoading && imagenBase64 && !ocrError && (
             <>
               <span style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 99, padding: "2px 10px", fontSize: 12, fontWeight: 500 }}>✓ Procesada</span>
+              {ocrProvider && (
+                <span style={{ color: "var(--erp-text-3)", fontSize: 11, fontWeight: 600 }}>
+                  vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
+                </span>
+              )}
               <span style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>
               <img src={imagenBase64} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginLeft: "auto" }} />
             </>
           )}
           {ocrError && <span style={{ color: "#FCA5A5", fontSize: 12 }}>⚠ {ocrError}</span>}
-          {ocrDebug && (
-            <details style={{ width: "100%" }}>
-              <summary style={{ fontSize: 11, color: "var(--erp-text-3)", cursor: "pointer" }}>🔍 Diagnóstico OCR</summary>
-              <pre style={{ fontSize: 10, color: "var(--erp-text-2)", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: 8, marginTop: 4, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{ocrDebug}</pre>
-            </details>
-          )}
         </div>
       )}
 
@@ -800,6 +799,11 @@ export default function FacturaCompraForm({
             <div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Bs</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {totalBs.toFixed(2)}</div>
           </div>
+          {imagenBase64 && (
+            <div style={{ width: "100%", textAlign: "right", fontSize: 11, color: "#B45309" }}>
+              ⚠ Verifica los costos de cada producto contra la factura física antes de guardar
+            </div>
+          )}
         </div>
 
         {/* ③ Datos de factura */}

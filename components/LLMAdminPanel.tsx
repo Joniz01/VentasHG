@@ -69,6 +69,11 @@ export default function LLMAdminPanel() {
   const [promptSaving, setPromptSaving] = useState<string | null>(null);
   const [promptMsg, setPromptMsg] = useState<Record<string, string>>({});
 
+  // Orden de fallback OCR (Gemini primero por defecto)
+  const [ocrOrden, setOcrOrden] = useState<"gemini" | "groq">("gemini");
+  const [ocrOrdenSaving, setOcrOrdenSaving] = useState(false);
+  const [ocrOrdenMsg, setOcrOrdenMsg] = useState("");
+
   const OCR_INSTRUCCIONES_DEFAULT = `- El RIF del emisor aparece cerca de "SENIAT" e inicia con J-, V-, E- o G-
 - El teléfono puede venir precedido de: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil
 - La dirección del emisor suele aparecer debajo del nombre/RIF, antes de la fecha o el detalle de la factura (puede ocupar varias líneas: avenida, centro comercial, local, sector, ciudad, zona postal). Únela en un solo texto
@@ -94,8 +99,24 @@ export default function LLMAdminPanel() {
         filtered[def.key] = data[def.key] || def.defaultValue;
       }
       setPrompts(filtered);
+      setOcrOrden(data.ocr_provider_orden === "groq" ? "groq" : "gemini");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveOcrOrden(nuevo: "gemini" | "groq") {
+    setOcrOrden(nuevo);
+    setOcrOrdenSaving(true);
+    try {
+      const r = await fetch("/api/configuracion", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ocr_provider_orden: nuevo }) });
+      if (!r.ok) throw new Error();
+      setOcrOrdenMsg("Guardado");
+      setTimeout(() => setOcrOrdenMsg(""), 2000);
+    } catch {
+      setOcrOrdenMsg("Error al guardar");
+    } finally {
+      setOcrOrdenSaving(false);
+    }
+  }
 
   async function savePrompt(key: string) {
     setPromptSaving(key);
@@ -525,6 +546,34 @@ export default function LLMAdminPanel() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Orden de fallback OCR */}
+      <div className="mt-6 rounded-xl border border-zinc-200 p-4">
+        <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-zinc-400">Orden de proveedores — OCR de Facturas</h3>
+        <p className="mb-3 text-xs text-zinc-500">Elige qué proveedor se intenta primero al escanear una factura. El otro se usa automáticamente como respaldo si el primero falla o no tiene cuota.</p>
+        <div className="flex items-center gap-2">
+          <div style={{ display: "flex", borderRadius: 8, border: "1px solid var(--erp-border)", overflow: "hidden" }}>
+            {(["gemini", "groq"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => saveOcrOrden(p)}
+                disabled={ocrOrdenSaving}
+                style={{
+                  padding: "8px 16px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+                  background: ocrOrden === p ? "var(--erp-primary)" : "var(--erp-surface)",
+                  color: ocrOrden === p ? "#fff" : "var(--erp-text-2)",
+                }}
+              >
+                {p === "gemini" ? "Gemini primero" : "Groq primero"}
+              </button>
+            ))}
+          </div>
+          {ocrOrdenMsg && (
+            <span style={{ fontSize: 12, color: ocrOrdenMsg === "Guardado" ? "#166534" : "#B91C1C" }}>{ocrOrdenMsg}</span>
+          )}
+        </div>
       </div>
 
       {/* Prompts editables */}
