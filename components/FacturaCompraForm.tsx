@@ -685,6 +685,11 @@ export default function FacturaCompraForm({
           {!ocrLoading && imagenBase64 && !ocrError && (
             <>
               <span style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 99, padding: "2px 10px", fontSize: 12, fontWeight: 500 }}>✓ Procesada</span>
+              {ocrProvider && (
+                <span style={{ color: "var(--erp-text-3)", fontSize: 11, fontWeight: 600 }}>
+                  vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
+                </span>
+              )}
               <span style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>
               <img src={imagenBase64} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginLeft: "auto" }} />
             </>
