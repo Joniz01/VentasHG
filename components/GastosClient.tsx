@@ -263,6 +263,7 @@ export default function GastosClient() {
       locacionId: g.locacionId ? String(g.locacionId) : "",
       fecha: g.fecha,
       montoBs: String(g.montoBs),
+      montoUsd: Number(g.tasaDia) > 0 ? (Number(g.montoBs) / Number(g.tasaDia)).toFixed(4) : "",
       tasaDia: String(g.tasaDia),
       estado: g.estado,
       recurrente: g.recurrente,
