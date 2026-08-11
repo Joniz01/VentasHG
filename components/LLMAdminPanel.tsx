@@ -6,6 +6,7 @@ type LLMKey = {
   id: number;
   provider: "gemini" | "groq";
   key_label: string;
+  key_hint?: string;
   is_active: boolean;
   quota_limit: number | null;
   quota_used: number;
@@ -63,6 +64,27 @@ export default function LLMAdminPanel() {
   const [editState, setEditState] = useState<EditState>({ key_label: "", api_key: "", quota_limit: "", showKey: false });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  // Revelar key completa bajo demanda (nunca viaja en el listado general)
+  const [revealed, setRevealed] = useState<Record<number, string>>({});
+  const [revealing, setRevealing] = useState<Record<number, boolean>>({});
+
+  async function toggleReveal(id: number) {
+    if (revealed[id] !== undefined) {
+      setRevealed((r) => { const next = { ...r }; delete next[id]; return next; });
+      return;
+    }
+    setRevealing((r) => ({ ...r, [id]: true }));
+    try {
+      const res = await fetch(`/api/admin/llm/keys/${id}/reveal`);
+      const data = await res.json();
+      setRevealed((r) => ({ ...r, [id]: res.ok ? data.api_key : `Error: ${data.error ?? "?"}` }));
+    } catch {
+      setRevealed((r) => ({ ...r, [id]: "Error al revelar" }));
+    } finally {
+      setRevealing((r) => ({ ...r, [id]: false }));
+    }
+  }
 
   // Prompts editables
   const [prompts, setPrompts] = useState<Record<string, string>>({});
@@ -336,6 +358,7 @@ export default function LLMAdminPanel() {
                 <thead className="bg-zinc-50 text-xs text-zinc-500">
                   <tr>
                     <th className="p-2 text-left">Etiqueta</th>
+                    <th className="p-2 text-left">Key</th>
                     <th className="p-2 text-right">Tokens usados</th>
                     <th className="p-2 text-right">Límite</th>
                     <th className="p-2 text-center">Estado</th>
@@ -352,6 +375,22 @@ export default function LLMAdminPanel() {
                       <>
                         <tr key={k.id} className="border-t border-zinc-100 hover:bg-zinc-50">
                           <td className="p-2 font-medium">{k.key_label}</td>
+                          <td className="p-2 font-mono text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: revealed[k.id] ? "normal" : "nowrap", wordBreak: "break-all" }}>
+                                {revealed[k.id] ?? `••••••••${k.key_hint ?? "????"}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleReveal(k.id)}
+                                disabled={revealing[k.id]}
+                                title={revealed[k.id] ? "Ocultar" : "Mostrar key completa"}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--erp-text-3)", flexShrink: 0 }}
+                              >
+                                <EyeIcon open={!!revealed[k.id]} />
+                              </button>
+                            </div>
+                          </td>
                           <td className="p-2 text-right font-mono">
                             {k.quota_used.toLocaleString()}
                             {pct !== null && (
@@ -408,7 +447,7 @@ export default function LLMAdminPanel() {
                         </tr>
                         {kr !== null && kr !== undefined && (
                           <tr key={`test-${k.id}`} className="border-t border-zinc-100 bg-zinc-50">
-                            <td colSpan={6} className="px-3 py-1.5 text-xs">
+                            <td colSpan={7} className="px-3 py-1.5 text-xs">
                               {kr.ok
                                 ? <span className="text-green-600">✓ OK — "{kr.text}" · {kr.latency}ms</span>
                                 : <span className="text-red-600">✗ Error: {kr.error}</span>}
@@ -417,7 +456,7 @@ export default function LLMAdminPanel() {
                         )}
                         {isEditing && (
                           <tr key={`edit-${k.id}`} className="border-t border-blue-100 bg-blue-50">
-                            <td colSpan={6} className="p-3">
+                            <td colSpan={7} className="p-3">
                               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
                                   <label className="mb-1 block text-xs text-zinc-500">Etiqueta</label>

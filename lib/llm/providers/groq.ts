@@ -8,7 +8,7 @@ export async function callGroqVision(
   prompt: string,
   imageBase64: string,
   mimeType: string,
-  opts: { maxTokens?: number; apiKey: string }
+  opts: { maxTokens?: number; apiKey: string; thinking?: boolean }
 ): Promise<LLMResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUTS.groq);
@@ -24,7 +24,9 @@ export async function callGroqVision(
       body: JSON.stringify({
         model: GROQ_VISION_MODEL,
         max_tokens: opts.maxTokens ?? 4096,
-        reasoning_effort: "none",
+        // Modo normal sin razonamiento (rápido/barato); el reintento por discrepancia
+        // de total activa el modo de razonamiento para maximizar precisión.
+        reasoning_effort: opts.thinking ? "default" : "none",
         messages: [{
           role: "user",
           content: [

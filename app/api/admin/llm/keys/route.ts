@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSesionFromRequest } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { encryptKey } from "@/lib/llm/llm-config";
+import { encryptKey, decryptKey } from "@/lib/llm/llm-config";
 
 async function requireAdmin(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
@@ -16,12 +16,21 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await pool.query(
-      `SELECT id, provider, key_label, is_active,
+      `SELECT id, provider, key_label, api_key, is_active,
               quota_limit, quota_used, quota_reset_at, created_at, updated_at
        FROM llm_api_keys
        ORDER BY provider, id`
     );
-    return NextResponse.json(result.rows);
+    // Solo se expone un hint (últimos 4 caracteres); la key completa nunca viaja
+    // en el listado — se pide bajo demanda vía /keys/[id]/reveal.
+    const rows = result.rows.map((r) => {
+      let key_hint = "????";
+      try { key_hint = decryptKey(r.api_key).slice(-4); } catch { /* key ilegible con la clave de cifrado actual */ }
+      const { api_key, ...rest } = r;
+      void api_key;
+      return { ...rest, key_hint };
+    });
+    return NextResponse.json(rows);
   } catch {
     return NextResponse.json({ error: "Tabla llm_api_keys no existe — ejecutar migración 024" }, { status: 503 });
   }

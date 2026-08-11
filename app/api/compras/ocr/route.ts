@@ -17,13 +17,27 @@ const INSTRUCCIONES_DEFAULT = `- El RIF del emisor aparece cerca de "SENIAT" e i
 - Si un campo no es legible usa null`;
 
 // Formato de salida — fijo en el código porque el parser depende de estos nombres exactos de campo
-const FORMATO_JSON = `{"proveedorNombre":"nombre del emisor","proveedorRif":"RIF con prefijo J-, V-, E- o G-","proveedorTelefono":"teléfono o null","proveedorDireccion":"dirección completa del emisor o null","numeroFactura":"número de factura o null","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}]}`;
+const FORMATO_JSON = `{"proveedorNombre":"nombre del emisor","proveedorRif":"RIF con prefijo J-, V-, E- o G-","proveedorTelefono":"teléfono o null","proveedorDireccion":"dirección completa del emisor o null","numeroFactura":"número de factura o null","fecha":"YYYY-MM-DD o null","items":[{"nombre":"producto","cantidad":1,"costoUnitBs":0.00}],"totalFacturaBs":0.00}`;
 
 function construirPrompt(instrucciones: string): string {
   return `Analiza esta imagen de factura venezolana y extrae los datos del encabezado y los productos.
 
 Instrucciones:
 ${instrucciones}
+- Extrae también "totalFacturaBs": el total o subtotal impreso en la factura (ej. renglón "SUBTTL Bs" o "TOTAL Bs"). Usa 0 si no es legible.
+
+Responde ÚNICAMENTE con este objeto JSON (sin texto, sin markdown, sin bloques de código):
+${FORMATO_JSON}`;
+}
+
+function construirPromptReintento(instrucciones: string, sumaAnterior: number, totalFactura: number): string {
+  return `Analiza esta imagen de factura venezolana y extrae los datos del encabezado y los productos.
+
+IMPORTANTE: en un intento anterior, la suma de los costos de los ítems dio Bs ${sumaAnterior.toFixed(2)}, pero el total impreso en la factura es Bs ${totalFactura.toFixed(2)} — hay una discrepancia. Revisa con mucho cuidado el costo unitario de CADA ítem, especialmente dígitos fáciles de confundir (6/8, 3/8, 1/7, 0/8, 5/6), y corrige lo necesario para que la suma coincida con el total real de la factura.
+
+Instrucciones:
+${instrucciones}
+- Extrae también "totalFacturaBs": el total o subtotal impreso en la factura (ej. renglón "SUBTTL Bs" o "TOTAL Bs"). Usa 0 si no es legible.
 
 Responde ÚNICAMENTE con este objeto JSON (sin texto, sin markdown, sin bloques de código):
 ${FORMATO_JSON}`;
@@ -41,11 +55,28 @@ function parseOcrResponse(rawText: string): Record<string, unknown> | null {
   }
 }
 
+function sumaItems(data: Record<string, unknown>): number {
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items.reduce((s: number, it) => {
+    const o = it as { cantidad?: number; costoUnitBs?: number };
+    return s + (Number(o.cantidad) || 0) * (Number(o.costoUnitBs) || 0);
+  }, 0);
+}
+
+// Discrepancia relevante: diferencia > max(Bs 1, 0.5% del total impreso)
+function hayDiscrepancia(data: Record<string, unknown>): { discrepa: boolean; suma: number; total: number } {
+  const suma = sumaItems(data);
+  const total = Number(data.totalFacturaBs) || 0;
+  if (total <= 0) return { discrepa: false, suma, total };
+  const tolerancia = Math.max(1, total * 0.005);
+  return { discrepa: Math.abs(suma - total) > tolerancia, suma, total };
+}
+
 type OcrExito = { ok: true; data: Record<string, unknown>; provider: "gemini" | "groq"; raw: string };
 type OcrFallo = { ok: false; hardError?: { message: string; status: number }; skipReason: string };
 type OcrResultado = OcrExito | OcrFallo;
 
-async function intentarGemini(promptFull: string, imagenBase64: string, mimeType: string): Promise<OcrResultado> {
+async function intentarGemini(promptFull: string, imagenBase64: string, mimeType: string, opts?: { thinking?: boolean }): Promise<OcrResultado> {
   const geminiKeys = await getActiveKeys("gemini");
   let skipReason = "sin API key con cuota disponible";
 
@@ -63,6 +94,9 @@ async function intentarGemini(promptFull: string, imagenBase64: string, mimeType
           maxOutputTokens: 8192,
           temperature: 0,
           responseMimeType: "application/json",
+          // Modo normal: sin thinking (rápido/barato). El reintento por discrepancia de
+          // total activa thinkingLevel "high" para maximizar precisión en esa sola pasada.
+          ...(opts?.thinking ? { thinkingConfig: { thinkingLevel: "high" } } : {}),
           responseSchema: {
             type: "OBJECT",
             properties: {
@@ -84,10 +118,11 @@ async function intentarGemini(promptFull: string, imagenBase64: string, mimeType
                   required: ["nombre", "cantidad", "costoUnitBs"],
                 },
               },
+              totalFacturaBs: { type: "NUMBER" },
             },
             // Fuerza a Gemini a incluir TODAS las claves (aunque sea con valor vacío/null)
             // en vez de omitirlas cuando no está seguro.
-            required: ["proveedorNombre", "proveedorRif", "proveedorTelefono", "proveedorDireccion", "numeroFactura", "fecha", "items"],
+            required: ["proveedorNombre", "proveedorRif", "proveedorTelefono", "proveedorDireccion", "numeroFactura", "fecha", "items", "totalFacturaBs"],
           },
         },
       };
@@ -140,7 +175,7 @@ async function intentarGemini(promptFull: string, imagenBase64: string, mimeType
   return { ok: false, skipReason };
 }
 
-async function intentarGroq(promptFull: string, imagenBase64: string, mimeType: string): Promise<OcrResultado> {
+async function intentarGroq(promptFull: string, imagenBase64: string, mimeType: string, opts?: { thinking?: boolean }): Promise<OcrResultado> {
   const groqKey = await getActiveKey("groq");
   if (!groqKey) {
     return { ok: false, skipReason: "sin API key configurada" };
@@ -148,12 +183,14 @@ async function intentarGroq(promptFull: string, imagenBase64: string, mimeType: 
 
   // Límite TPM de Groq (8000 tok/min en tier on-demand) incluye max_tokens en el cálculo de la solicitud;
   // se intenta con un presupuesto bajo y, si aun así excede el límite (413), se reintenta más bajo.
+  // El reintento por discrepancia de total activa reasoning_effort "default" (thinking) para más precisión.
   for (const maxTokens of [2000, 800]) {
     try {
       const start = Date.now();
       const result = await callGroqVision(promptFull, imagenBase64, mimeType, {
-        maxTokens,
+        maxTokens: opts?.thinking ? maxTokens * 2 : maxTokens,
         apiKey: groqKey.decryptedKey,
+        thinking: opts?.thinking,
       });
       const latency = Date.now() - start;
 
@@ -174,6 +211,11 @@ async function intentarGroq(promptFull: string, imagenBase64: string, mimeType: 
   }
   return { ok: false, skipReason: "excede límite de tokens" };
 }
+
+const PROVEEDORES = {
+  gemini: intentarGemini,
+  groq: intentarGroq,
+} as const;
 
 export async function POST(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
@@ -201,13 +243,24 @@ export async function POST(request: NextRequest) {
 
   const groqPrimero = ordenBD.trim() === "groq";
   const secuencia = groqPrimero
-    ? [{ nombre: "groq" as const, fn: intentarGroq }, { nombre: "gemini" as const, fn: intentarGemini }]
-    : [{ nombre: "gemini" as const, fn: intentarGemini }, { nombre: "groq" as const, fn: intentarGroq }];
+    ? [{ nombre: "groq" as const }, { nombre: "gemini" as const }]
+    : [{ nombre: "gemini" as const }, { nombre: "groq" as const }];
 
   let ultimoMotivo = "";
-  for (const { fn } of secuencia) {
-    const resultado = await fn(promptFull, imagenBase64, mimeType);
+  for (const { nombre } of secuencia) {
+    const resultado = await PROVEEDORES[nombre](promptFull, imagenBase64, mimeType);
     if (resultado.ok) {
+      // Verifica si la suma de ítems coincide con el total impreso; si no, UN solo
+      // reintento (mismo proveedor) con thinking activado para maximizar precisión.
+      const { discrepa, suma, total } = hayDiscrepancia(resultado.data);
+      if (discrepa) {
+        const promptReintento = construirPromptReintento(instrucciones, suma, total);
+        const reintento = await PROVEEDORES[nombre](promptReintento, imagenBase64, mimeType, { thinking: true });
+        if (reintento.ok) {
+          return NextResponse.json({ ok: true, data: reintento.data, provider: reintento.provider, _raw: reintento.raw, _reintentado: true });
+        }
+        // Si el reintento falla, se usa el resultado original (no se sigue reintentando)
+      }
       return NextResponse.json({ ok: true, data: resultado.data, provider: resultado.provider, _raw: resultado.raw });
     }
     if (resultado.hardError) {
