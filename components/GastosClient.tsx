@@ -167,7 +167,7 @@ export default function GastosClient() {
   useEffect(() => {
     const tasa = Number(form.tasaDia) || 0;
     const bs = Number(form.montoBs) || 0;
-    const usd = tasa > 0 && bs > 0 ? (bs / tasa).toFixed(4) : "";
+    const usd = tasa > 0 && bs > 0 ? (bs / tasa).toFixed(2) : "";
     setForm((p) => (p.montoUsd === usd ? p : { ...p, montoUsd: usd }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tasaDia, form.montoBs]);
@@ -269,7 +269,7 @@ export default function GastosClient() {
       locacionId: g.locacionId ? String(g.locacionId) : "",
       fecha: g.fecha,
       montoBs: String(g.montoBs),
-      montoUsd: Number(g.tasaDia) > 0 ? (Number(g.montoBs) / Number(g.tasaDia)).toFixed(4) : "",
+      montoUsd: Number(g.tasaDia) > 0 ? (Number(g.montoBs) / Number(g.tasaDia)).toFixed(2) : "",
       tasaDia: String(g.tasaDia),
       estado: g.estado,
       recurrente: g.recurrente,
@@ -367,7 +367,7 @@ export default function GastosClient() {
   function updateMontoBs(bsVal: string) {
     const bs = Number(bsVal) || 0;
     const tasa = Number(form.tasaDia) || 0;
-    const usd = tasa > 0 ? (bs / tasa).toFixed(4) : "";
+    const usd = tasa > 0 ? (bs / tasa).toFixed(2) : "";
     setForm((p) => ({ ...p, montoBs: bsVal, montoUsd: usd }));
   }
 
@@ -890,7 +890,7 @@ export default function GastosClient() {
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Monto $</label>
               <input
                 type="number"
-                step="0.0001"
+                step="0.01"
                 min="0"
                 className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
                 style={{ borderColor: "var(--erp-border)" }}
