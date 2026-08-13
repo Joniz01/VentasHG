@@ -13,8 +13,12 @@ type ItemLine = {
   costoUnitUsd: string;
   showCreate?: boolean;
   categoriaId?: number | null;
+  categoriaNueva?: boolean;
+  categoriaNuevaNombre?: string;
   paraVenta?: boolean;
 };
+
+const NUEVA_CATEGORIA = "__nueva__";
 
 type ProductoSug = { id: number; nombre: string; stockActual: number };
 type ProveedorSug = { id: number; nombre: string; rif: string | null; telefono: string | null; direccion: string | null; diasCredito: number };
@@ -401,10 +405,21 @@ export default function FacturaCompraForm({
       const resolvedItems = await Promise.all(validItems.map(async it => {
         if (it.productoId) return it;
         if (!puedeCrearProducto || !it.showCreate) return it;
+        let categoriaId = it.categoriaId ?? null;
+        if (it.categoriaNueva && it.categoriaNuevaNombre?.trim()) {
+          try {
+            const rc = await fetch("/api/categorias", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ nombre: it.categoriaNuevaNombre.trim() }),
+            });
+            const rd = await rc.json();
+            if (rc.ok && rd.id) categoriaId = rd.id;
+          } catch { /* ignore */ }
+        }
         try {
           const rp = await fetch("/api/productos", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ nombre: it.nombreProducto.trim(), costo: Number(it.costoUnitBs) || 0, precioVenta: it.paraVenta ? Number(it.costoUnitBs) || 0 : 0, categoriaId: it.categoriaId || null, tipoProducto: "NORMAL", stockActual: 0, stockMinimo: 0 }),
+            body: JSON.stringify({ nombre: it.nombreProducto.trim(), costo: Number(it.costoUnitBs) || 0, precioVenta: it.paraVenta ? Number(it.costoUnitBs) || 0 : 0, categoriaId, tipoProducto: "NORMAL", stockActual: 0, stockMinimo: 0 }),
           });
           const rd = await rp.json();
           if (rp.ok && rd.id) return { ...it, productoId: rd.id };
@@ -510,10 +525,30 @@ export default function FacturaCompraForm({
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <div>
                     <label style={{ fontSize: 10, color: "var(--erp-text-3)", display: "block", marginBottom: 2 }}>Categoría</label>
-                    <select value={it.categoriaId ?? ""} onChange={e => setItems(prev => prev.map(x => x.key === it.key ? { ...x, categoriaId: e.target.value ? Number(e.target.value) : null } : x))} style={{ ...S, fontSize: 12 }}>
+                    <select
+                      value={it.categoriaNueva ? NUEVA_CATEGORIA : (it.categoriaId ?? "")}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setItems(prev => prev.map(x => x.key === it.key
+                          ? val === NUEVA_CATEGORIA
+                            ? { ...x, categoriaId: null, categoriaNueva: true }
+                            : { ...x, categoriaId: val ? Number(val) : null, categoriaNueva: false }
+                          : x));
+                      }}
+                      style={{ ...S, fontSize: 12 }}
+                    >
                       <option value="">Sin categoría</option>
                       {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      <option value={NUEVA_CATEGORIA}>+ Nueva categoría...</option>
                     </select>
+                    {it.categoriaNueva && (
+                      <input
+                        value={it.categoriaNuevaNombre ?? ""}
+                        onChange={e => setItems(prev => prev.map(x => x.key === it.key ? { ...x, categoriaNuevaNombre: e.target.value } : x))}
+                        placeholder="Nombre de la nueva categoría"
+                        style={{ ...S, fontSize: 12, marginTop: 4 }}
+                      />
+                    )}
                   </div>
                   <div>
                     <label style={{ fontSize: 10, color: "var(--erp-text-3)", display: "block", marginBottom: 2 }}>Uso</label>

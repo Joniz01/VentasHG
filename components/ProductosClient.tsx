@@ -58,6 +58,11 @@ export default function ProductosClient() {
   const [searchNombre, setSearchNombre] = useState("");
   const [filterCategoriaId, setFilterCategoriaId] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
+  const [showCategoriaForm, setShowCategoriaForm] = useState(false);
+  const [catStandaloneNombre, setCatStandaloneNombre] = useState("");
+  const [catStandaloneOrden, setCatStandaloneOrden] = useState("99");
+  const [catStandaloneSaving, setCatStandaloneSaving] = useState(false);
+  const [catStandaloneError, setCatStandaloneError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(15);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
@@ -102,6 +107,29 @@ export default function ProductosClient() {
       setCategorias(data);
     } catch {
       setError("No se pudieron cargar las categorías");
+    }
+  }
+
+  async function handleCrearCategoriaStandalone() {
+    if (!catStandaloneNombre.trim()) return;
+    setCatStandaloneSaving(true);
+    setCatStandaloneError(null);
+    try {
+      const res = await fetch("/api/categorias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: catStandaloneNombre.trim(), orden: Number(catStandaloneOrden) || 99 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al crear la categoría");
+      await loadCategorias();
+      setCatStandaloneNombre("");
+      setCatStandaloneOrden("99");
+      setShowCategoriaForm(false);
+    } catch (err) {
+      setCatStandaloneError(err instanceof Error ? err.message : "Error al crear la categoría");
+    } finally {
+      setCatStandaloneSaving(false);
     }
   }
 
@@ -339,8 +367,57 @@ export default function ProductosClient() {
           >
             {editingId ? `✏️ Editando #${editingId}` : showForm ? "✕ Cerrar" : "+ Crear Producto"}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowCategoriaForm((v) => !v)}
+            style={{
+              background: showCategoriaForm ? "var(--erp-primary)" : "var(--erp-surface)",
+              color: showCategoriaForm ? "#fff" : "var(--erp-text)",
+              border: "1px solid var(--erp-border)",
+              borderRadius: 6,
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {showCategoriaForm ? "✕ Cerrar" : "+ Crear Categoría"}
+          </button>
         </div>
       </div>
+
+      {showCategoriaForm && (
+        <div style={{ background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-primary)" }}>Nueva categoría</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              style={{ flex: 1, minWidth: 180, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+              value={catStandaloneNombre}
+              onChange={(e) => setCatStandaloneNombre(e.target.value)}
+              placeholder="Nombre de la categoría"
+              autoFocus
+            />
+            <input
+              type="number"
+              min={1}
+              style={{ width: 90, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+              value={catStandaloneOrden}
+              onChange={(e) => setCatStandaloneOrden(e.target.value)}
+              title="Orden (1=primero, 99=al final)"
+              placeholder="Orden"
+            />
+            <button
+              type="button"
+              onClick={handleCrearCategoriaStandalone}
+              disabled={catStandaloneSaving || !catStandaloneNombre.trim()}
+              style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: catStandaloneSaving || !catStandaloneNombre.trim() ? 0.6 : 1 }}
+            >
+              {catStandaloneSaving ? "Guardando..." : "Guardar"}
+            </button>
+          </div>
+          {catStandaloneError && <div style={{ fontSize: 12, color: "#B91C1C" }}>{catStandaloneError}</div>}
+        </div>
+      )}
 
       {/* KPI Cards — se ocultan cuando el formulario está abierto o hay un panel de producto expandido */}
       {!showForm && !expandedId && <div className="prod-kpi-grid">
