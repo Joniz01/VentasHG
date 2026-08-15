@@ -481,7 +481,7 @@ export default function GastosClient() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al guardar el gasto");
+      if (!res.ok) throw new Error(data.detalle ? `${data.error}: ${data.detalle}` : (data.error ?? "Error al guardar el gasto"));
 
       resetForm();
       await loadGastos();

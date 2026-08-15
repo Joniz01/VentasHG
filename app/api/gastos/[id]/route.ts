@@ -137,8 +137,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
         }
 
         return NextResponse.json({ id: Number(id) });
-      } catch {
-        return NextResponse.json({ error: "Error al actualizar el gasto" }, { status: 400 });
+      } catch (err3) {
+        const detalle = err3 instanceof Error ? err3.message : String(err3);
+        return NextResponse.json({ error: "Error al actualizar el gasto", detalle }, { status: 400 });
       }
     }
   }

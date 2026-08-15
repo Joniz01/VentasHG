@@ -198,8 +198,9 @@ export async function POST(request: NextRequest) {
           valoresBase
         );
         return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
-      } catch {
-        return NextResponse.json({ error: "Error al registrar el gasto" }, { status: 400 });
+      } catch (err3) {
+        const detalle = err3 instanceof Error ? err3.message : String(err3);
+        return NextResponse.json({ error: "Error al registrar el gasto", detalle }, { status: 400 });
       }
     }
   }
