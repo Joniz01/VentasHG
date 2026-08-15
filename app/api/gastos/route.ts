@@ -24,6 +24,9 @@ function mapGasto(r: Record<string, unknown>) {
     tipoGastoNombre: r.tipo_gasto_nombre,
     tipo: r.tipo,
     proveedor: r.proveedor,
+    proveedorRif: r.proveedor_rif ?? null,
+    proveedorTelefono: r.proveedor_telefono ?? null,
+    proveedorDireccion: r.proveedor_direccion ?? null,
     descripcion: r.descripcion,
     locacionId: r.locacion_id,
     locacionNombre: r.locacion_nombre,
@@ -105,6 +108,9 @@ export async function POST(request: NextRequest) {
     tipoGastoId?: number;
     tipo?: TipoGasto;
     proveedor?: string;
+    proveedorRif?: string;
+    proveedorTelefono?: string;
+    proveedorDireccion?: string;
     descripcion?: string;
     locacionId?: number | null;
     fecha?: string;
@@ -145,34 +151,56 @@ export async function POST(request: NextRequest) {
     sesion.id,
   ];
 
+  const datosProveedor = [
+    body.proveedorRif?.trim() || null,
+    body.proveedorTelefono?.trim() || null,
+    body.proveedorDireccion?.trim() || null,
+  ];
+
   try {
     const result = await pool.query(
       `INSERT INTO gastos
         (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
-         pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura)
+         pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura,
+         proveedor_rif, proveedor_telefono, proveedor_direccion)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
-               $10,$11,$12,$13,$14,$15)
+               $10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING id`,
-      [...valoresBase, body.numeroFactura?.trim() || null]
+      [...valoresBase, body.numeroFactura?.trim() || null, ...datosProveedor]
     );
     return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
   } catch {
-    // columna numero_factura pendiente de migración 057 — insertar sin ella
+    // columnas proveedor_rif/telefono/direccion pendientes de migración 058 — insertar sin ellas
     try {
       const result = await pool.query(
         `INSERT INTO gastos
           (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
-           pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by)
+           pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                  CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
-                 $10,$11,$12,$13,$14)
+                 $10,$11,$12,$13,$14,$15)
          RETURNING id`,
-        valoresBase
+        [...valoresBase, body.numeroFactura?.trim() || null]
       );
       return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
     } catch {
-      return NextResponse.json({ error: "Error al registrar el gasto" }, { status: 400 });
+      // columna numero_factura pendiente de migración 057 — insertar sin ella
+      try {
+        const result = await pool.query(
+          `INSERT INTO gastos
+            (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
+             pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+                   CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
+                   $10,$11,$12,$13,$14)
+           RETURNING id`,
+          valoresBase
+        );
+        return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
+      } catch {
+        return NextResponse.json({ error: "Error al registrar el gasto" }, { status: 400 });
+      }
     }
   }
 }

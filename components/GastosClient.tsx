@@ -18,12 +18,23 @@ import {
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 
+type RifTipo = "J" | "V" | "E" | "G";
+
+function parseRif(fullRif: string | null | undefined): { tipo: RifTipo; numero: string } {
+  if (!fullRif) return { tipo: "J", numero: "" };
+  const m = fullRif.match(/^([JVEGjveg])-(.+)$/);
+  if (m) return { tipo: m[1].toUpperCase() as RifTipo, numero: m[2] };
+  return { tipo: "J", numero: fullRif };
+}
+
 const PAGE_SIZES = [5, 10, 20, 25];
 
 type FormState = {
   tipoGastoId: string;
   tipo: TipoGasto;
   proveedor: string;
+  proveedorTelefono: string;
+  proveedorDireccion: string;
   descripcion: string;
   locacionId: string;
   fecha: string;
@@ -41,6 +52,8 @@ const EMPTY_FORM: FormState = {
   tipoGastoId: "",
   tipo: "OCASIONAL",
   proveedor: "",
+  proveedorTelefono: "",
+  proveedorDireccion: "",
   descripcion: "",
   locacionId: "",
   fecha: today(),
@@ -104,6 +117,8 @@ export default function GastosClient() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [nuevaLocacion, setNuevaLocacion] = useState("");
+  const [rifTipo, setRifTipo] = useState<RifTipo>("J");
+  const [rifNumero, setRifNumero] = useState("");
 
   const [showCargaFactura, setShowCargaFactura] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -252,6 +267,8 @@ export default function GastosClient() {
   function resetForm() {
     setEditingId(null);
     setForm({ ...EMPTY_FORM });
+    setRifTipo("J");
+    setRifNumero("");
     setShowForm(false);
     setShowCargaFactura(false);
     setOcrError(null);
@@ -269,6 +286,8 @@ export default function GastosClient() {
       tipoGastoId: String(g.tipoGastoId),
       tipo: g.tipo,
       proveedor: g.proveedor,
+      proveedorTelefono: g.proveedorTelefono ?? "",
+      proveedorDireccion: g.proveedorDireccion ?? "",
       descripcion: g.descripcion ?? "",
       locacionId: g.locacionId ? String(g.locacionId) : "",
       fecha: g.fecha,
@@ -281,6 +300,9 @@ export default function GastosClient() {
       numeroFactura: g.numeroFactura ?? "",
       comprobanteUrl: g.comprobanteUrl ?? "",
     });
+    const parsed = parseRif(g.proveedorRif);
+    setRifTipo(parsed.tipo);
+    setRifNumero(parsed.numero);
     setFacturaItems([]);
     setShowCargaFactura(false);
     fechaFetchedRef.current = g.fecha; // no sobrescribir la tasa ya guardada al editar
@@ -344,6 +366,9 @@ export default function GastosClient() {
       };
 
       const proveedor = clean(d.proveedorNombre);
+      const proveedorRif = clean(d.proveedorRif);
+      const proveedorTelefono = clean(d.proveedorTelefono);
+      const proveedorDireccion = clean(d.proveedorDireccion);
       const numeroFactura = clean(d.numeroFactura);
       const fecha = clean(d.fecha);
       const ocrItems: { nombre?: string; cantidad?: number; costoUnitBs?: number }[] = Array.isArray(d.items) ? d.items : [];
@@ -362,10 +387,13 @@ export default function GastosClient() {
       const total = mappedItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
 
       if (mappedItems.length > 0) setFacturaItems(mappedItems);
+      if (proveedorRif) { const p = parseRif(proveedorRif); setRifTipo(p.tipo); setRifNumero(p.numero); }
 
       setForm((p) => ({
         ...p,
         proveedor: proveedor || p.proveedor,
+        proveedorTelefono: proveedorTelefono || p.proveedorTelefono,
+        proveedorDireccion: proveedorDireccion || p.proveedorDireccion,
         numeroFactura: numeroFactura || p.numeroFactura,
         fecha: fecha && fecha !== "null" ? fecha.slice(0, 10) : p.fecha,
         montoBs: total > 0 ? String(total) : p.montoBs,
@@ -426,10 +454,14 @@ export default function GastosClient() {
 
     setSaving(true);
     try {
+      const fullRif = rifNumero.trim() ? `${rifTipo}-${rifNumero.trim()}` : "";
       const payload = {
         tipoGastoId: Number(form.tipoGastoId),
         tipo: form.tipo,
         proveedor: form.proveedor.trim(),
+        proveedorRif: fullRif,
+        proveedorTelefono: form.proveedorTelefono.trim(),
+        proveedorDireccion: form.proveedorDireccion.trim(),
         descripcion: form.descripcion.trim(),
         locacionId: form.locacionId ? Number(form.locacionId) : null,
         fecha: form.fecha,
@@ -676,17 +708,6 @@ export default function GastosClient() {
                 <img src={form.comprobanteUrl} alt="Factura" className="rounded-md border max-h-40 object-contain" style={{ borderColor: "var(--erp-border)" }} />
               )}
 
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>N° Factura</label>
-                <input
-                  className="rounded-md border px-3 py-2 text-sm"
-                  style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
-                  value={form.numeroFactura}
-                  onChange={(e) => setForm((p) => ({ ...p, numeroFactura: e.target.value }))}
-                  placeholder="Opcional"
-                />
-              </div>
-
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>Ítems de la factura</span>
                 <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>{facturaItems.length} línea{facturaItems.length !== 1 ? "s" : ""}</span>
@@ -784,6 +805,82 @@ export default function GastosClient() {
             </div>
           )}
 
+          <div className="rounded-lg p-3 flex flex-col gap-3" style={{ background: "var(--erp-bg)", border: "1px solid var(--erp-border)" }}>
+            <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>Datos del proveedor</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Gasto / Proveedor</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.proveedor}
+                  onChange={(e) => setForm((p) => ({ ...p, proveedor: e.target.value }))}
+                  placeholder="Ej: Simple Fibra"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>RIF / C.I.</label>
+                <div className="flex">
+                  <div className="flex rounded-l-md border overflow-hidden" style={{ borderColor: "var(--erp-border)" }}>
+                    {(["J", "V", "E", "G"] as RifTipo[]).map((t, i, arr) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setRifTipo(t)}
+                        className="text-sm font-bold px-2.5 py-2"
+                        style={{
+                          background: rifTipo === t ? "var(--erp-primary)" : "var(--erp-surface)",
+                          color: rifTipo === t ? "#fff" : "var(--erp-text-2)",
+                          borderRight: i < arr.length - 1 ? "1px solid var(--erp-border)" : "none",
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    className="rounded-r-md border px-3 py-2 text-sm flex-1 min-w-0"
+                    style={{ borderColor: "var(--erp-border)", borderLeft: "none" }}
+                    value={rifNumero}
+                    onChange={(e) => setRifNumero(e.target.value.replace(/[^0-9\-]/g, ""))}
+                    placeholder="12345678-9"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Teléfono</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.proveedorTelefono}
+                  onChange={(e) => setForm((p) => ({ ...p, proveedorTelefono: e.target.value }))}
+                  placeholder="0412-0000000"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>N° Factura</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.numeroFactura}
+                  onChange={(e) => setForm((p) => ({ ...p, numeroFactura: e.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+              <div className="flex flex-col gap-1 sm:col-span-2">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Dirección</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.proveedorDireccion}
+                  onChange={(e) => setForm((p) => ({ ...p, proveedorDireccion: e.target.value }))}
+                  placeholder="Dirección del proveedor"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tipo de gasto</label>
@@ -828,28 +925,15 @@ export default function GastosClient() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Gasto / Proveedor</label>
-              <input
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.proveedor}
-                onChange={(e) => setForm((p) => ({ ...p, proveedor: e.target.value }))}
-                placeholder="Ej: Simple Fibra"
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Descripción</label>
-              <input
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.descripcion}
-                onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))}
-                placeholder="Ej: Servicio de Internet"
-              />
-            </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Descripción</label>
+            <input
+              className="rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--erp-border)" }}
+              value={form.descripcion}
+              onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))}
+              placeholder="Ej: Servicio de Internet"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">

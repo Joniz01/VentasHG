@@ -575,6 +575,9 @@ export type Gasto = {
   tipoGastoNombre: string;
   tipo: TipoGasto;
   proveedor: string;
+  proveedorRif: string | null;
+  proveedorTelefono: string | null;
+  proveedorDireccion: string | null;
   descripcion: string | null;
   locacionId: number | null;
   locacionNombre: string | null;
@@ -597,6 +600,9 @@ export type GastoInput = {
   tipoGastoId: number;
   tipo: TipoGasto;
   proveedor: string;
+  proveedorRif: string;
+  proveedorTelefono: string;
+  proveedorDireccion: string;
   descripcion: string;
   locacionId: number | null;
   fecha: string;
