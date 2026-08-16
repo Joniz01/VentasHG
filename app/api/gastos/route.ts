@@ -134,13 +134,10 @@ export async function POST(request: NextRequest) {
   const proximoRecordatorio =
     body.recurrente && body.frecuencia ? calcularProximoRecordatorio(body.fecha, body.frecuencia) : null;
 
-  // La columna legada "categoria" (NOT NULL) sigue existiendo en la tabla real;
-  // se rellena con el nombre del tipo de gasto para no romper esa restricción.
-  let categoriaLegado = body.tipo || "GASTO";
-  try {
-    const tg = await pool.query(`SELECT nombre FROM tipos_gasto WHERE id = $1`, [body.tipoGastoId]);
-    if (tg.rows[0]?.nombre) categoriaLegado = tg.rows[0].nombre;
-  } catch { /* columna/tabla no disponible — usar fallback */ }
+  // La columna legada "categoria" (NOT NULL, CHECK IN ('MATERIA_PRIMA','OPERACION'))
+  // sigue existiendo en la tabla real. "Gasto Materia Prima" fue desactivado del
+  // catálogo de tipos de gasto, así que todo gasto nuevo es operativo.
+  const categoriaLegado = "OPERACION";
 
   const valoresBase = [
     body.tipoGastoId,
