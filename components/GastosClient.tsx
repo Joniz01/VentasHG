@@ -159,9 +159,16 @@ export default function GastosClient() {
     (async () => {
       try {
         const res = await fetch(`/api/tasa-bcv?fecha=${form.fecha}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data?.tasa) { setForm((p) => ({ ...p, tasaDia: String(data.tasa) })); setTasaBcvFecha(data.fecha); }
+        const data = res.ok ? await res.json() : null;
+        if (data?.tasa) {
+          setForm((p) => ({ ...p, tasaDia: String(data.tasa) }));
+          setTasaBcvFecha(data.fecha);
+        } else if (form.fecha !== today()) {
+          // No hay tasa guardada para esa fecha pasada: dejar vacío en vez de
+          // arrastrar la tasa de otra fecha (ej. la del día actual).
+          setForm((p) => ({ ...p, tasaDia: "" }));
+          setTasaBcvFecha(null);
+        }
       } catch { /* ignore */ }
     })();
   }, [showForm, form.fecha]);
@@ -973,6 +980,9 @@ export default function GastosClient() {
                 onChange={(e) => setForm((p) => ({ ...p, fecha: e.target.value }))}
                 required
               />
+              {form.fecha && (
+                <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>{formatFechaCorta(form.fecha)}</span>
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Monto Bs</label>
