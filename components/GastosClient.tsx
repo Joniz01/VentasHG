@@ -119,6 +119,7 @@ export default function GastosClient() {
   const [nuevaLocacion, setNuevaLocacion] = useState("");
   const [rifTipo, setRifTipo] = useState<RifTipo>("J");
   const [rifNumero, setRifNumero] = useState("");
+  const [imagenAmpliada, setImagenAmpliada] = useState<string | null>(null);
 
   const [showCargaFactura, setShowCargaFactura] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -712,7 +713,13 @@ export default function GastosClient() {
               />
               {form.comprobanteUrl && !ocrLoading && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.comprobanteUrl} alt="Factura" className="rounded-md border max-h-40 object-contain" style={{ borderColor: "var(--erp-border)" }} />
+                <img
+                  src={form.comprobanteUrl}
+                  alt="Factura"
+                  onClick={() => setImagenAmpliada(form.comprobanteUrl)}
+                  className="rounded-md border max-h-40 object-contain cursor-zoom-in"
+                  style={{ borderColor: "var(--erp-border)" }}
+                />
               )}
 
               <div className="flex items-center justify-between">
@@ -1235,6 +1242,32 @@ export default function GastosClient() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {imagenAmpliada && (
+        <div
+          onClick={() => setImagenAmpliada(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.85)", touchAction: "pinch-zoom" }}
+        >
+          <button
+            type="button"
+            onClick={() => setImagenAmpliada(null)}
+            className="fixed top-3 right-4 text-3xl font-bold leading-none"
+            style={{ color: "#fff" }}
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imagenAmpliada}
+            alt="Factura ampliada"
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-full object-contain"
+            style={{ touchAction: "pinch-zoom" }}
+          />
         </div>
       )}
     </div>

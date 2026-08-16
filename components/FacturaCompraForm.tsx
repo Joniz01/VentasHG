@@ -81,6 +81,8 @@ export default function FacturaCompraForm({
     fetch("/api/categorias").then(r => r.json()).then(d => setCategorias(d ?? [])).catch(() => {});
   }, []);
 
+  const [imagenAmpliada, setImagenAmpliada] = useState<string | null>(null);
+
   // RIF
   const [rifTipo, setRifTipo] = useState<RifTipo>(() => parseRif(initialData?.proveedorRif).tipo);
   const [rifNumero, setRifNumero] = useState(() => parseRif(initialData?.proveedorRif).numero);
@@ -684,7 +686,14 @@ export default function FacturaCompraForm({
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
-          {imagenBase64 && !ocrLoading && <img src={imagenBase64} alt="Factura" style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8, border: "1px solid var(--erp-border)", objectFit: "contain", marginTop: 10 }} />}
+          {imagenBase64 && !ocrLoading && (
+            <img
+              src={imagenBase64}
+              alt="Factura"
+              onClick={() => setImagenAmpliada(imagenBase64)}
+              style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8, border: "1px solid var(--erp-border)", objectFit: "contain", marginTop: 10, cursor: "zoom-in" }}
+            />
+          )}
         </div>
 
         {saveError && <div style={{ background: "#FEF2F2", color: "#B91C1C", borderRadius: 8, padding: "10px 14px", fontSize: 13 }}>{saveError}</div>}
@@ -894,6 +903,28 @@ export default function FacturaCompraForm({
           </button>
         </div>
       </div>
+
+      {imagenAmpliada && (
+        <div
+          onClick={() => setImagenAmpliada(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.85)", touchAction: "pinch-zoom" }}
+        >
+          <button
+            type="button"
+            onClick={() => setImagenAmpliada(null)}
+            style={{ position: "fixed", top: 12, right: 16, fontSize: 30, fontWeight: 700, lineHeight: 1, color: "#fff", background: "none", border: "none", cursor: "pointer" }}
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+          <img
+            src={imagenAmpliada}
+            alt="Factura ampliada"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", touchAction: "pinch-zoom" }}
+          />
+        </div>
+      )}
     </div>
   );
 }
