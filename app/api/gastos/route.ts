@@ -134,6 +134,14 @@ export async function POST(request: NextRequest) {
   const proximoRecordatorio =
     body.recurrente && body.frecuencia ? calcularProximoRecordatorio(body.fecha, body.frecuencia) : null;
 
+  // La columna legada "categoria" (NOT NULL) sigue existiendo en la tabla real;
+  // se rellena con el nombre del tipo de gasto para no romper esa restricción.
+  let categoriaLegado = body.tipo || "GASTO";
+  try {
+    const tg = await pool.query(`SELECT nombre FROM tipos_gasto WHERE id = $1`, [body.tipoGastoId]);
+    if (tg.rows[0]?.nombre) categoriaLegado = tg.rows[0].nombre;
+  } catch { /* columna/tabla no disponible — usar fallback */ }
+
   const valoresBase = [
     body.tipoGastoId,
     body.tipo,
@@ -162,12 +170,12 @@ export async function POST(request: NextRequest) {
       `INSERT INTO gastos
         (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
          pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura,
-         proveedor_rif, proveedor_telefono, proveedor_direccion)
+         proveedor_rif, proveedor_telefono, proveedor_direccion, categoria)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
-               $10,$11,$12,$13,$14,$15,$16,$17,$18)
+               $10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING id`,
-      [...valoresBase, body.numeroFactura?.trim() || null, ...datosProveedor]
+      [...valoresBase, body.numeroFactura?.trim() || null, ...datosProveedor, categoriaLegado]
     );
     return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
   } catch {
@@ -176,12 +184,12 @@ export async function POST(request: NextRequest) {
       const result = await pool.query(
         `INSERT INTO gastos
           (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
-           pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura)
+           pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura, categoria)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                  CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
-                 $10,$11,$12,$13,$14,$15)
+                 $10,$11,$12,$13,$14,$15,$16)
          RETURNING id`,
-        [...valoresBase, body.numeroFactura?.trim() || null]
+        [...valoresBase, body.numeroFactura?.trim() || null, categoriaLegado]
       );
       return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
     } catch {
@@ -190,12 +198,12 @@ export async function POST(request: NextRequest) {
         const result = await pool.query(
           `INSERT INTO gastos
             (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
-             pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by)
+             pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, categoria)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                    CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
-                   $10,$11,$12,$13,$14)
+                   $10,$11,$12,$13,$14,$15)
            RETURNING id`,
-          valoresBase
+          [...valoresBase, categoriaLegado]
         );
         return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
       } catch (err3) {
