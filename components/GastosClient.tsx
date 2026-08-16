@@ -60,7 +60,7 @@ const EMPTY_FORM: FormState = {
   montoBs: "",
   montoUsd: "",
   tasaDia: "",
-  estado: "PENDIENTE",
+  estado: "PAGADO",
   recurrente: false,
   frecuencia: "MENSUAL",
   numeroFactura: "",
@@ -85,11 +85,12 @@ const ESTADO_COLORES: Record<EstadoGasto, string> = {
   PAGADO: "#15803d",
 };
 
-function StatTile({ label, value, color }: { label: string; value: number; color: string }) {
+function StatTile({ label, value, valueBs, color }: { label: string; value: number; valueBs: number; color: string }) {
   return (
     <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
       <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
       <div className="text-xl font-extrabold" style={{ color }}>${formatMonto(value)}</div>
+      <div className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs{formatMonto(valueBs)}</div>
     </div>
   );
 }
@@ -107,7 +108,7 @@ export default function GastosClient() {
 
   const [tiposGasto, setTiposGasto] = useState<TipoGastoCatalogo[]>([]);
   const [locaciones, setLocaciones] = useState<Locacion[]>([]);
-  const [resumen, setResumen] = useState<GastoResumen>({ gastoHoy: 0, gastoMes: 0, pendientePorPagar: 0 });
+  const [resumen, setResumen] = useState<GastoResumen>({ gastoHoy: 0, gastoHoyBs: 0, gastoMes: 0, gastoMesBs: 0, pendientePorPagar: 0, pendientePorPagarBs: 0 });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -272,9 +273,14 @@ export default function GastosClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, filtroDesde, filtroHasta, filtroProveedor, filtroTipoGastoId]);
 
+  function tipoGastoIdPorDefecto(): string {
+    const operativo = tiposGasto.find((t) => t.nombre === "Gasto Operativo");
+    return operativo ? String(operativo.id) : "";
+  }
+
   function resetForm() {
     setEditingId(null);
-    setForm({ ...EMPTY_FORM });
+    setForm({ ...EMPTY_FORM, tipoGastoId: tipoGastoIdPorDefecto() });
     setRifTipo("J");
     setRifNumero("");
     setShowForm(false);
@@ -595,9 +601,9 @@ export default function GastosClient() {
       )}
 
       <div className="flex gap-3 flex-wrap">
-        <StatTile label="Gasto Hoy" value={resumen.gastoHoy} color="var(--erp-text)" />
-        <StatTile label="Gasto del Mes" value={resumen.gastoMes} color="var(--erp-text)" />
-        <StatTile label="Pendiente por Pagar" value={resumen.pendientePorPagar} color="#a16207" />
+        <StatTile label="Gasto Hoy" value={resumen.gastoHoy} valueBs={resumen.gastoHoyBs} color="var(--erp-text)" />
+        <StatTile label="Gasto del Mes" value={resumen.gastoMes} valueBs={resumen.gastoMesBs} color="var(--erp-text)" />
+        <StatTile label="Pendiente por Pagar" value={resumen.pendientePorPagar} valueBs={resumen.pendientePorPagarBs} color="#a16207" />
       </div>
 
       <div className="flex justify-end gap-2 flex-wrap">
@@ -605,7 +611,7 @@ export default function GastosClient() {
           <button
             type="button"
             onClick={() => {
-              setForm({ ...EMPTY_FORM });
+              setForm({ ...EMPTY_FORM, tipoGastoId: tipoGastoIdPorDefecto() });
               setEditingId(null);
               setFacturaItems([]);
               setShowCargaFactura(false);

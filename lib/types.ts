@@ -617,8 +617,11 @@ export type GastoInput = {
 
 export type GastoResumen = {
   gastoHoy: number;
+  gastoHoyBs: number;
   gastoMes: number;
+  gastoMesBs: number;
   pendientePorPagar: number;
+  pendientePorPagarBs: number;
 };
 
 export const SEXOS = ["MASCULINO", "FEMENINO"] as const;
