@@ -18,6 +18,7 @@ import {
   type ClientesConfig,
   type Motorizado,
   type Producto,
+  type Promocion,
   type Rol,
   type Venta,
 } from "@/lib/types";
@@ -101,6 +102,31 @@ function usdToBs(montoUsd: number, tasa: number) {
   return montoUsd * tasa;
 }
 
+// Busca la promoción activa y vigente (para la fecha de la venta) de un
+// producto. El servidor vuelve a resolver esto al guardar — esto es solo
+// para que el vendedor vea el precio/regalo antes de confirmar.
+function promoVigente(promos: Promocion[], productoId: number, fecha: string): Promocion | null {
+  return (
+    promos.find(
+      (p) =>
+        p.productoId === productoId &&
+        p.activa &&
+        p.fechaInicio <= fecha &&
+        (!p.fechaFin || p.fechaFin >= fecha)
+    ) ?? null
+  );
+}
+
+function precioConPromo(precioBase: number, promo: Promocion | null, extraPrecio: number): number {
+  if (promo?.descuentoTipo === "PORCENTAJE" && promo.valorPorcentaje != null) {
+    return precioBase * (1 - promo.valorPorcentaje / 100) + extraPrecio;
+  }
+  if (promo?.descuentoTipo === "PRECIO_FIJO" && promo.precioFijoUsd != null) {
+    return promo.precioFijoUsd + extraPrecio;
+  }
+  return precioBase + extraPrecio;
+}
+
 const pad = (n: number) => String(n).padStart(2, "0");
 
 function combinarFechaHora(fecha: string, hora: string): Date | null {
@@ -121,6 +147,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [promociones, setPromociones] = useState<Promocion[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
   const [modalEmpaque, setModalEmpaque] = useState<{
@@ -292,14 +319,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
 
   async function loadData() {
     try {
-      const [productosRes, ventasRes, motorizadosRes] = await Promise.all([
+      const [productosRes, ventasRes, motorizadosRes, promocionesRes] = await Promise.all([
         fetch("/api/productos"),
         fetch("/api/ventas"),
         fetch("/api/motorizados"),
+        fetch("/api/promociones"),
       ]);
       setProductos(await productosRes.json());
       setVentas(await ventasRes.json());
       setMotorizados(await motorizadosRes.json());
+      if (promocionesRes.ok) setPromociones(await promocionesRes.json());
     } catch {
       setError("No se pudieron cargar los datos");
     } finally {
@@ -454,7 +483,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
       const cantidad = Number(item.cantidad) || 0;
       if (!producto) continue;
       const extra = producto.extras.find((ex) => String(ex.id) === item.extraId);
-      const precioUnit = producto.precioVenta + (extra?.precioAdicional ?? 0);
+      const promo = promoVigente(promociones, producto.id, fecha);
+      const precioUnit = precioConPromo(producto.precioVenta, promo, extra?.precioAdicional ?? 0);
       ventaTotalUsd += precioUnit * cantidad;
     }
 
@@ -522,7 +552,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
       totalAPagarBs: usdToBs(totalAPagarUsd, tasa),
       montoSugerido,
     };
-  }, [items, pagos, productosById, tasa, costoDelivery, descuentoPorcentaje]);
+  }, [items, pagos, productosById, tasa, costoDelivery, descuentoPorcentaje, promociones, fecha]);
 
   const minutosPreparacionNum =
     minutosPrep === "otro" ? Number(minutosPrepCustom) || 0 : Number(minutosPrep);
@@ -1190,7 +1220,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                         const producto = productosById.get(Number(item.productoId));
                         const cantidad = Number(item.cantidad) || 0;
                         const extra = producto?.extras.find((ex) => String(ex.id) === item.extraId);
-                        const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
+                        const promo = producto ? promoVigente(promociones, producto.id, fecha) : null;
+                        const precioUnit = producto ? precioConPromo(producto.precioVenta, promo, extra?.precioAdicional ?? 0) : 0;
                         return (
                           <div key={index} className="flex flex-col gap-2 rounded-md border border-zinc-100 bg-zinc-50 p-3">
                             <div className="flex items-center justify-between">
@@ -1209,6 +1240,21 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                   </span>
                                 )}
                               </div>
+                              {promo && (
+                                <div
+                                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold"
+                                  style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)" }}
+                                >
+                                  <span>🏷️ Promo: {promo.nombre}</span>
+                                  {promo.descuentoTipo && (
+                                    <span className="line-through opacity-60">${(producto?.precioVenta ?? 0).toFixed(2)}</span>
+                                  )}
+                                  {promo.descuentoTipo && <span>${precioUnit.toFixed(2)}</span>}
+                                  {promo.tieneProductoGratis && (
+                                    <span>· 🎁 +{promo.cantidadGratis} {promo.productoGratisNombre} gratis</span>
+                                  )}
+                                </div>
+                              )}
                               <input
                                 list="productos-list-pasos"
                                 className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
@@ -2028,16 +2074,27 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
               const producto = productosById.get(Number(item.productoId));
               const cantidad = Number(item.cantidad) || 0;
               const extra = producto?.extras.find((ex) => String(ex.id) === item.extraId);
-              const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
+              const promo = producto ? promoVigente(promociones, producto.id, fecha) : null;
+              const precioUnit = producto ? precioConPromo(producto.precioVenta, promo, extra?.precioAdicional ?? 0) : 0;
               return (
                 <div key={index} className="grid grid-cols-12 items-center gap-2">
                   {producto && (
-                    <div className="col-span-12 -mb-1 flex items-center gap-2">
+                    <div className="col-span-12 -mb-1 flex items-center gap-2 flex-wrap">
                       <span className={`text-xs font-medium ${producto.stockActual <= 0 ? "text-red-600" : "text-zinc-500"}`}>
                         Stock disponible: {producto.stockActual} {producto.unidadMedida}
                       </span>
                       {producto.stockActual <= 0 && producto.empaques && producto.empaques.length > 0 && (
                         <span className="text-xs text-amber-600">· 📦 empaque disponible</span>
+                      )}
+                      {promo && (
+                        <span
+                          className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
+                          style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)" }}
+                        >
+                          🏷️ {promo.nombre}
+                          {promo.descuentoTipo && <span>→ ${precioUnit.toFixed(2)}</span>}
+                          {promo.tieneProductoGratis && <span>· 🎁 +{promo.cantidadGratis} {promo.productoGratisNombre}</span>}
+                        </span>
                       )}
                     </div>
                   )}
