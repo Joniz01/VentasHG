@@ -190,6 +190,37 @@ export async function revertirInventarioVenta(client: PoolClient, ventaId: numbe
   );
 }
 
+// Busca la promoción activa (si hay alguna) para un producto en la fecha de
+// la venta. Tolerante a que la tabla no exista aún (migración pendiente).
+type PromocionActiva = {
+  tipo: "DESCUENTO_PORCENTAJE" | "PRECIO_FIJO" | "PRODUCTO_GRATIS";
+  valor_porcentaje: number | null;
+  precio_fijo_usd: number | null;
+  producto_gratis_id: number | null;
+  cantidad_gratis: number | null;
+};
+
+async function promocionActivaPorProducto(
+  client: PoolClient,
+  productoId: number,
+  fecha: string
+): Promise<PromocionActiva | null> {
+  try {
+    const r = await client.query(
+      `SELECT tipo, valor_porcentaje, precio_fijo_usd, producto_gratis_id, cantidad_gratis
+       FROM promociones
+       WHERE producto_id = $1 AND activa = TRUE
+         AND (fecha_inicio IS NULL OR fecha_inicio <= $2)
+         AND (fecha_fin IS NULL OR fecha_fin >= $2)
+       ORDER BY id DESC LIMIT 1`,
+      [productoId, fecha]
+    );
+    return (r.rows[0] as PromocionActiva) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function insertarItemsYPagos(
   client: PoolClient,
   ventaId: number,
@@ -234,7 +265,14 @@ export async function insertarItemsYPagos(
       extraPrecio = Number(extraResult.rows[0].precio_adicional);
     }
 
-    const precioUnit = Number(precio_venta) + extraPrecio;
+    const promo = await promocionActivaPorProducto(client, item.productoId, body.fecha);
+
+    let precioUnit = Number(precio_venta) + extraPrecio;
+    if (promo?.tipo === "DESCUENTO_PORCENTAJE" && promo.valor_porcentaje != null) {
+      precioUnit = Number(precio_venta) * (1 - Number(promo.valor_porcentaje) / 100) + extraPrecio;
+    } else if (promo?.tipo === "PRECIO_FIJO" && promo.precio_fijo_usd != null) {
+      precioUnit = Number(promo.precio_fijo_usd) + extraPrecio;
+    }
 
     const itemResult = await client.query(
       `INSERT INTO venta_items (venta_id, producto_id, cantidad, costo_unit, precio_unit, extra_id, extra_nombre, extra_precio)
@@ -278,6 +316,27 @@ export async function insertarItemsYPagos(
            VALUES ($1, $2, $3)`,
           [ventaItemId, Number(seleccionId), cantidadNum]
         );
+      }
+    }
+
+    // Promoción "producto gratis": agrega automáticamente el producto de
+    // regalo, sin costo, al vender el producto en promoción.
+    if (promo?.tipo === "PRODUCTO_GRATIS" && promo.producto_gratis_id) {
+      const cantidadGratis = Number(promo.cantidad_gratis) || 1;
+      const gratisResult = await client.query(
+        `SELECT costo, tipo_producto FROM productos WHERE id = $1`,
+        [promo.producto_gratis_id]
+      );
+      if ((gratisResult.rowCount ?? 0) > 0) {
+        const { costo: costoGratis, tipo_producto: tipoGratis } = gratisResult.rows[0];
+        await client.query(
+          `INSERT INTO venta_items (venta_id, producto_id, cantidad, costo_unit, precio_unit)
+           VALUES ($1, $2, $3, $4, 0)`,
+          [ventaId, promo.producto_gratis_id, cantidadGratis, costoGratis]
+        );
+        if (tipoGratis === "NORMAL") {
+          await descontarInventario(client, promo.producto_gratis_id, cantidadGratis, ventaId);
+        }
       }
     }
   }

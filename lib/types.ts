@@ -17,6 +17,7 @@ export const PERMISO_TABS = [
   { key: "eliminarCompras", label: "Eliminar Facturas Anuladas" },
   { key: "gastos", label: "Nómina & Gastos" },
   { key: "autorizarConteo", label: "Autorizar Conteo de Inventario" },
+  { key: "promociones", label: "Crear Promociones" },
 ] as const;
 
 export type PermisoTab = (typeof PERMISO_TABS)[number]["key"];
@@ -34,6 +35,7 @@ export const PERMISOS_VACIOS: PermisosUsuario = {
   eliminarCompras: false,
   gastos: false,
   autorizarConteo: false,
+  promociones: false,
 };
 
 export type Usuario = {
@@ -622,6 +624,45 @@ export type GastoResumen = {
   gastoMesBs: number;
   pendientePorPagar: number;
   pendientePorPagarBs: number;
+};
+
+export const TIPOS_PROMOCION = ["DESCUENTO_PORCENTAJE", "PRECIO_FIJO", "PRODUCTO_GRATIS"] as const;
+export type TipoPromocion = (typeof TIPOS_PROMOCION)[number];
+
+export const TIPO_PROMOCION_LABELS: Record<TipoPromocion, string> = {
+  DESCUENTO_PORCENTAJE: "Descuento %",
+  PRECIO_FIJO: "Precio fijo",
+  PRODUCTO_GRATIS: "Producto gratis",
+};
+
+export type Promocion = {
+  id: number;
+  nombre: string;
+  tipo: TipoPromocion;
+  productoId: number;
+  productoNombre: string;
+  valorPorcentaje: number | null;
+  precioFijoUsd: number | null;
+  productoGratisId: number | null;
+  productoGratisNombre: string | null;
+  cantidadGratis: number | null;
+  fechaInicio: string | null;
+  fechaFin: string | null;
+  activa: boolean;
+  createdAt: string;
+};
+
+export type PromocionInput = {
+  nombre: string;
+  tipo: TipoPromocion;
+  productoId: number;
+  valorPorcentaje?: number | null;
+  precioFijoUsd?: number | null;
+  productoGratisId?: number | null;
+  cantidadGratis?: number | null;
+  fechaInicio?: string | null;
+  fechaFin?: string | null;
+  activa?: boolean;
 };
 
 export const SEXOS = ["MASCULINO", "FEMENINO"] as const;

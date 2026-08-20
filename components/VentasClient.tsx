@@ -27,6 +27,7 @@ import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
 import SalidaCortesiasPanel from "@/components/SalidaCortesiasPanel";
+import PromocionesPanel from "@/components/PromocionesPanel";
 import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
 import FechaPagoConfirm from "@/components/FechaPagoConfirm";
 
@@ -111,10 +112,11 @@ function combinarFechaHora(fecha: string, hora: string): Date | null {
 type Props = {
   rol?: Rol | null;
   puedeDescuento?: boolean;
+  puedePromociones?: boolean;
 };
 
-export default function VentasClient({ rol = null, puedeDescuento = false }: Props) {
-  const [vista, setVista] = useState<"ventas" | "cortesias" | "historial" | "notas">("ventas");
+export default function VentasClient({ rol = null, puedeDescuento = false, puedePromociones = false }: Props) {
+  const [vista, setVista] = useState<"ventas" | "cortesias" | "promociones" | "historial" | "notas">("ventas");
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
@@ -986,8 +988,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
         className="flex gap-0 print:hidden border-b"
         style={{ borderColor: "var(--erp-border)" }}
       >
-        {(["ventas", "cortesias", "historial", "notas"] as const).map((v) => {
-          const labels: Record<string, string> = { ventas: "Registro de Ventas", cortesias: "Salida Cortesías", historial: "Historial", notas: "Notas de Entrega" };
+        {(["ventas", "cortesias", "promociones", "historial", "notas"] as const)
+          .filter((v) => v !== "promociones" || puedePromociones)
+          .map((v) => {
+          const labels: Record<string, string> = { ventas: "Registro de Ventas", cortesias: "Salida Cortesías", promociones: "Promociones", historial: "Historial", notas: "Notas de Entrega" };
           const active = vista === v;
           return (
             <button
@@ -1011,6 +1015,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
 
       {vista === "cortesias" && <SalidaCortesiasPanel productos={productos} />}
+
+      {vista === "promociones" && puedePromociones && <PromocionesPanel productos={productos} />}
 
       {vista === "ventas" && modoVista === "pasos" && (
         <>
