@@ -336,6 +336,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
     }
   }
 
+  // Recarga las promociones al volver a "Registro de Ventas": si se creó o
+  // editó una en la pestaña Promociones dentro de la misma sesión, la lista
+  // cargada al montar el componente ya quedó desactualizada.
+  useEffect(() => {
+    if (vista !== "ventas") return;
+    fetch("/api/promociones")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setPromociones(data); })
+      .catch(() => {});
+  }, [vista]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
