@@ -1253,7 +1253,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                               </div>
                               {producto && (
                                 <div className="text-[10px]" style={{ color: "#9CA3AF" }}>
-                                  🔧 diag: producto id {producto.id} · promociones cargadas {promociones.length} · promo aquí {promo ? `sí (${promo.nombre}, producto ${promo.productoId})` : "no"}
+                                  🔧 diag: producto id {producto.id} · promos: {promociones.map((p) => `[${p.id}] ${p.nombre} → prod ${p.productoId}, activa ${p.activa ? "sí" : "no"}, desde ${p.fechaInicio}, hasta ${p.fechaFin ?? "—"}`).join(" | ") || "ninguna"}
                                 </div>
                               )}
                               {promo && (
