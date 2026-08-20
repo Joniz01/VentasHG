@@ -5,6 +5,52 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
+## v5.0 — 2026-08-20
+
+### Resumen
+Restauración de "Salida Cortesías" (eliminada por error en una sincronización previa), nueva sección **Promociones** en Ventas (descuento %, precio fijo y/o producto gratis combinables, auto-aplicadas al vender), datos de proveedor (RIF/teléfono/dirección) en Gastos, forma de pago real al cobrar una CxC Directa, creación de categorías al vuelo, zoom de la foto de factura, y varios fixes de esquema de BD descubiertos en producción (columnas/constraints inconsistentes con migraciones nunca aplicadas realmente).
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `app/api/salidas-gratuitas/route.ts`, `[id]/route.ts`, `[id]/anular/route.ts` | Restaurados tal cual (habían sido borrados por error) |
+| `components/SalidaCortesiasPanel.tsx` | Pestaña "Salida Cortesías" reconstruida como componente propio (antes vivía inline en `VentasClient.tsx`); adaptado al tipo `Cliente` actual (sin split nombre/apellido) |
+| `components/PromocionesPanel.tsx` | Pestaña "Promociones": lista + detalle (crear/editar/pausar/reactivar/eliminar), descuento (%/precio fijo) y producto gratis combinables, con validación de campos resaltados |
+| `lib/promociones.ts` | `mapPromocion()` + `validarPromocion()` compartidos entre los endpoints de promociones |
+| `db/migrations/059_gastos_tipo_gasto_id.sql` | Agrega `tipo_gasto_id` (FK a `tipos_gasto`) a `gastos` — la tabla real nunca la tuvo, quedó con una columna legada `categoria` |
+| `db/migrations/060_salidas_gratuitas.sql` | Recrea `salidas_gratuitas`/`salidas_gratuitas_items` (idempotente) + amplía el CHECK de `inventario_movimientos.origen` |
+| `db/migrations/061_promociones.sql` | Tabla `promociones` (versión inicial) + `usuarios.ve_promociones` |
+| `db/migrations/062_promociones_combinables.sql` | Separa `descuento_tipo` de `tiene_producto_gratis` (antes una única columna `tipo` mutuamente excluyente); `fecha_inicio` pasa a `NOT NULL` |
+
+### Archivos modificados (principales)
+| Archivo | Cambio |
+|---------|--------|
+| `components/VentasClient.tsx` | Nueva pestaña "Promociones" (gateada por permiso); badge "🏷️ [promo]" con precio tachado/nuevo y aviso de producto gratis al seleccionar un producto con promo activa; recarga las promociones al volver a "Registro de Ventas"; pestaña "Salida Cortesías" restaurada |
+| `lib/ventas.ts` | `insertarItemsYPagos` resuelve la promoción activa y vigente de cada producto (precio % / precio fijo, y/o inserta automáticamente la línea del producto gratis) — único punto donde se calcula el precio real de la venta |
+| `lib/auth.ts`, `app/api/usuarios/route.ts`, `app/api/usuarios/[id]/route.ts` | Nuevo permiso `promociones` (mismo patrón tolerante a migración que el resto) |
+| `lib/types.ts` | Tipos `Promocion`/`PromocionInput`/`DescuentoTipo`; permiso `promociones` en `PERMISO_TABS`/`PERMISOS_VACIOS` |
+| `app/api/gastos/route.ts`, `[id]/route.ts` | Agregan `proveedor_rif`/`proveedor_telefono`/`proveedor_direccion`; rellenan la columna legada `categoria` (NOT NULL, CHECK `MATERIA_PRIMA`/`OPERACION`) con `'OPERACION'` fijo; mensajes de error propagan el detalle real de Postgres |
+| `components/GastosClient.tsx` | Sección "Datos del proveedor" (Nombre, RIF/CI con selector J/V/E/G, Teléfono, N° Factura, Dirección) debajo del card de OCR/ítems; OCR precarga RIF/Tlf/Dirección; tasa BCV: si la fecha detectada no tiene tasa guardada, se deja vacío en vez de arrastrar la de hoy; zoom de la foto de factura al tocarla; defaults "Gasto Operativo" y "Pagado"; indicadores Gasto Hoy/Mes/Pendiente muestran también el monto en Bs |
+| `components/CuentasPorCobrarPanel.tsx`, `components/FechaPagoConfirm.tsx` | Al marcar una CxC Directa como pagada, se pide también la forma de pago real (antes quedaba fija como `CXC_DIRECTA`) |
+| `app/api/reportes/cuentas-por-cobrar/[id]/route.ts` | Guarda en `pagos_venta` la forma de pago elegida en vez de `CXC_DIRECTA` fijo |
+| `components/ProductosClient.tsx`, `components/FacturaCompraForm.tsx` | "+ Crear Categoría" (Productos) y "+ Nueva categoría..." (Registrar Factura) para crear categorías sin salir del flujo |
+| `components/FacturaCompraForm.tsx` | Zoom de la foto de factura al tocarla (mismo componente que Gastos) |
+
+### Migraciones SQL
+`059`, `060`, `061`, `062` (ver arriba). Todas usan `IF NOT EXISTS`/`DROP CONSTRAINT IF EXISTS` — seguras de re-ejecutar.
+
+### Notas técnicas
+- **Esquema real desincronizado del código**: la tabla `gastos` en producción nunca tuvo `tipo_gasto_id` (se creó antes de que existiera el catálogo `tipos_gasto`, con una columna `categoria` de texto libre) y esa columna además tiene un `CHECK` que solo acepta `'MATERIA_PRIMA'`/`'OPERACION'`. La migración 034 usa `CREATE TABLE IF NOT EXISTS`, así que nunca corrigió esto por sí sola. Cualquier despliegue nuevo de VentasFactory debe verificar con `information_schema.columns` si su tabla `gastos` real coincide con lo que el código espera antes de asumir que las migraciones numeradas son suficientes.
+- **`salidas_gratuitas` nunca tuvo migración propia**: la tabla se creaba manualmente en Neon; ahora existe `060_salidas_gratuitas.sql` (idempotente) para dejar constancia en código.
+- **Bug de fechas Date vs string**: `node-postgres` devuelve columnas `DATE` como objetos `Date`, no strings — `String(date).slice(0,10)` da `"Thu Aug 20"` en vez de `"2026-08-20"`, rompiendo cualquier comparación de vigencia hecha en JS. Patrón correcto: `date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10)` (ya usado en `gastos`, replicado ahora en `promociones`).
+- **Promociones — descuento y producto gratis son combinables**: no es un `tipo` único mutuamente excluyente; una promoción puede tener descuento (%/precio fijo), producto gratis, o ambos. La aplicación es 100% server-side en `insertarItemsYPagos` (consultando `promociones` por `producto_id` + vigencia + `activa`) — el cliente solo hace un preview con la misma regla, para que el vendedor vea el precio antes de confirmar.
+- **"Salida Cortesías" — causa raíz de la pérdida**: commit `11b251d` ("Sincronizar todos los cambios de la sesión...") borró por accidente los 3 endpoints y la pestaña completa, junto con el split nombre/apellido de clientes (ese último no se restauró — quedó fuera de alcance). Restaurado como componente propio en vez de reinsertarlo inline en `VentasClient.tsx`.
+
+### Variables de entorno
+Sin cambios.
+
+---
+
 ## v4.0 — 2026-08-11
 
 ### Resumen
