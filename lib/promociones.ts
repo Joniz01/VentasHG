@@ -1,5 +1,14 @@
 import { DESCUENTO_TIPOS, type PromocionInput } from "@/lib/types";
 
+// node-postgres devuelve columnas DATE como objetos Date (no strings) —
+// String(date) da "Thu Aug 20 2026 ..." en vez de "2026-08-20", rompiendo
+// cualquier comparación de vigencia hecha como string.
+function toFechaISO(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+}
+
 export function mapPromocion(r: Record<string, unknown>) {
   return {
     id: r.id,
@@ -13,8 +22,8 @@ export function mapPromocion(r: Record<string, unknown>) {
     productoGratisId: r.producto_gratis_id,
     productoGratisNombre: r.producto_gratis_nombre,
     cantidadGratis: r.cantidad_gratis != null ? Number(r.cantidad_gratis) : null,
-    fechaInicio: r.fecha_inicio ? String(r.fecha_inicio).slice(0, 10) : null,
-    fechaFin: r.fecha_fin ? String(r.fecha_fin).slice(0, 10) : null,
+    fechaInicio: toFechaISO(r.fecha_inicio),
+    fechaFin: toFechaISO(r.fecha_fin),
     activa: r.activa,
     createdAt: r.created_at,
   };

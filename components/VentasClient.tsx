@@ -1251,11 +1251,6 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                   </span>
                                 )}
                               </div>
-                              {producto && (
-                                <div className="text-[10px]" style={{ color: "#9CA3AF" }}>
-                                  🔧 diag: producto id {producto.id} · promos: {promociones.map((p) => `[${p.id}] ${p.nombre} → prod ${p.productoId}, activa ${p.activa ? "sí" : "no"}, desde ${p.fechaInicio}, hasta ${p.fechaFin ?? "—"}`).join(" | ") || "ninguna"}
-                                </div>
-                              )}
                               {promo && (
                                 <div
                                   className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold"
