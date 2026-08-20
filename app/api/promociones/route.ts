@@ -1,26 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
-import { TIPOS_PROMOCION, type PromocionInput } from "@/lib/types";
-
-function mapPromocion(r: Record<string, unknown>) {
-  return {
-    id: r.id,
-    nombre: r.nombre,
-    tipo: r.tipo,
-    productoId: r.producto_id,
-    productoNombre: r.producto_nombre,
-    valorPorcentaje: r.valor_porcentaje != null ? Number(r.valor_porcentaje) : null,
-    precioFijoUsd: r.precio_fijo_usd != null ? Number(r.precio_fijo_usd) : null,
-    productoGratisId: r.producto_gratis_id,
-    productoGratisNombre: r.producto_gratis_nombre,
-    cantidadGratis: r.cantidad_gratis != null ? Number(r.cantidad_gratis) : null,
-    fechaInicio: r.fecha_inicio ? String(r.fecha_inicio).slice(0, 10) : null,
-    fechaFin: r.fecha_fin ? String(r.fecha_fin).slice(0, 10) : null,
-    activa: r.activa,
-    createdAt: r.created_at,
-  };
-}
+import type { PromocionInput } from "@/lib/types";
+import { mapPromocion, validarPromocion } from "@/lib/promociones";
 
 export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
@@ -36,7 +18,7 @@ export async function GET(request: NextRequest) {
     );
     return NextResponse.json(result.rows.map(mapPromocion));
   } catch {
-    // Migración 061 pendiente de aplicar
+    // Migración 061/062 pendiente de aplicar
     return NextResponse.json([]);
   }
 }
@@ -49,40 +31,26 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json()) as PromocionInput;
 
-  if (!body.nombre?.trim()) {
-    return NextResponse.json({ error: "El nombre de la promoción es obligatorio" }, { status: 400 });
-  }
-  if (!TIPOS_PROMOCION.includes(body.tipo)) {
-    return NextResponse.json({ error: "Tipo de promoción inválido" }, { status: 400 });
-  }
-  if (!body.productoId) {
-    return NextResponse.json({ error: "Selecciona el producto en promoción" }, { status: 400 });
-  }
-  if (body.tipo === "DESCUENTO_PORCENTAJE" && !(Number(body.valorPorcentaje) > 0)) {
-    return NextResponse.json({ error: "Indica el porcentaje de descuento" }, { status: 400 });
-  }
-  if (body.tipo === "PRECIO_FIJO" && !(Number(body.precioFijoUsd) > 0)) {
-    return NextResponse.json({ error: "Indica el precio de venta fijo" }, { status: 400 });
-  }
-  if (body.tipo === "PRODUCTO_GRATIS" && !body.productoGratisId) {
-    return NextResponse.json({ error: "Selecciona el producto adicional sin costo" }, { status: 400 });
-  }
+  const invalido = validarPromocion(body);
+  if (invalido) return NextResponse.json(invalido, { status: 400 });
 
   try {
     const result = await pool.query(
       `INSERT INTO promociones
-        (nombre, tipo, producto_id, valor_porcentaje, precio_fijo_usd, producto_gratis_id, cantidad_gratis, fecha_inicio, fecha_fin, activa, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        (nombre, producto_id, descuento_tipo, valor_porcentaje, precio_fijo_usd,
+         tiene_producto_gratis, producto_gratis_id, cantidad_gratis, fecha_inicio, fecha_fin, activa, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING id`,
       [
         body.nombre.trim(),
-        body.tipo,
         body.productoId,
-        body.tipo === "DESCUENTO_PORCENTAJE" ? Number(body.valorPorcentaje) : null,
-        body.tipo === "PRECIO_FIJO" ? Number(body.precioFijoUsd) : null,
-        body.tipo === "PRODUCTO_GRATIS" ? body.productoGratisId : null,
-        body.tipo === "PRODUCTO_GRATIS" ? Number(body.cantidadGratis) || 1 : null,
-        body.fechaInicio || null,
+        body.descuentoTipo || null,
+        body.descuentoTipo === "PORCENTAJE" ? Number(body.valorPorcentaje) : null,
+        body.descuentoTipo === "PRECIO_FIJO" ? Number(body.precioFijoUsd) : null,
+        Boolean(body.tieneProductoGratis),
+        body.tieneProductoGratis ? body.productoGratisId : null,
+        body.tieneProductoGratis ? Number(body.cantidadGratis) || 1 : null,
+        body.fechaInicio,
         body.fechaFin || null,
         body.activa ?? true,
         sesion.id,

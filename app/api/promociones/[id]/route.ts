@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
-import { TIPOS_PROMOCION, type PromocionInput } from "@/lib/types";
+import type { PromocionInput } from "@/lib/types";
+import { validarPromocion } from "@/lib/promociones";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,42 +15,27 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = (await request.json()) as PromocionInput;
 
-  if (!body.nombre?.trim()) {
-    return NextResponse.json({ error: "El nombre de la promoción es obligatorio" }, { status: 400 });
-  }
-  if (!TIPOS_PROMOCION.includes(body.tipo)) {
-    return NextResponse.json({ error: "Tipo de promoción inválido" }, { status: 400 });
-  }
-  if (!body.productoId) {
-    return NextResponse.json({ error: "Selecciona el producto en promoción" }, { status: 400 });
-  }
-  if (body.tipo === "DESCUENTO_PORCENTAJE" && !(Number(body.valorPorcentaje) > 0)) {
-    return NextResponse.json({ error: "Indica el porcentaje de descuento" }, { status: 400 });
-  }
-  if (body.tipo === "PRECIO_FIJO" && !(Number(body.precioFijoUsd) > 0)) {
-    return NextResponse.json({ error: "Indica el precio de venta fijo" }, { status: 400 });
-  }
-  if (body.tipo === "PRODUCTO_GRATIS" && !body.productoGratisId) {
-    return NextResponse.json({ error: "Selecciona el producto adicional sin costo" }, { status: 400 });
-  }
+  const invalido = validarPromocion(body);
+  if (invalido) return NextResponse.json(invalido, { status: 400 });
 
   try {
     const result = await pool.query(
       `UPDATE promociones
-       SET nombre = $1, tipo = $2, producto_id = $3, valor_porcentaje = $4, precio_fijo_usd = $5,
-           producto_gratis_id = $6, cantidad_gratis = $7, fecha_inicio = $8, fecha_fin = $9,
-           activa = $10, updated_at = now()
-       WHERE id = $11
+       SET nombre = $1, producto_id = $2, descuento_tipo = $3, valor_porcentaje = $4, precio_fijo_usd = $5,
+           tiene_producto_gratis = $6, producto_gratis_id = $7, cantidad_gratis = $8,
+           fecha_inicio = $9, fecha_fin = $10, activa = $11, updated_at = now()
+       WHERE id = $12
        RETURNING id`,
       [
         body.nombre.trim(),
-        body.tipo,
         body.productoId,
-        body.tipo === "DESCUENTO_PORCENTAJE" ? Number(body.valorPorcentaje) : null,
-        body.tipo === "PRECIO_FIJO" ? Number(body.precioFijoUsd) : null,
-        body.tipo === "PRODUCTO_GRATIS" ? body.productoGratisId : null,
-        body.tipo === "PRODUCTO_GRATIS" ? Number(body.cantidadGratis) || 1 : null,
-        body.fechaInicio || null,
+        body.descuentoTipo || null,
+        body.descuentoTipo === "PORCENTAJE" ? Number(body.valorPorcentaje) : null,
+        body.descuentoTipo === "PRECIO_FIJO" ? Number(body.precioFijoUsd) : null,
+        Boolean(body.tieneProductoGratis),
+        body.tieneProductoGratis ? body.productoGratisId : null,
+        body.tieneProductoGratis ? Number(body.cantidadGratis) || 1 : null,
+        body.fechaInicio,
         body.fechaFin || null,
         body.activa ?? true,
         id,

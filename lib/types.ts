@@ -626,27 +626,29 @@ export type GastoResumen = {
   pendientePorPagarBs: number;
 };
 
-export const TIPOS_PROMOCION = ["DESCUENTO_PORCENTAJE", "PRECIO_FIJO", "PRODUCTO_GRATIS"] as const;
-export type TipoPromocion = (typeof TIPOS_PROMOCION)[number];
+// El descuento (% o precio fijo) y el producto gratis son independientes y
+// combinables: una promoción puede tener uno, el otro, o ambos a la vez.
+export const DESCUENTO_TIPOS = ["PORCENTAJE", "PRECIO_FIJO"] as const;
+export type DescuentoTipo = (typeof DESCUENTO_TIPOS)[number];
 
-export const TIPO_PROMOCION_LABELS: Record<TipoPromocion, string> = {
-  DESCUENTO_PORCENTAJE: "Descuento %",
+export const DESCUENTO_TIPO_LABELS: Record<DescuentoTipo, string> = {
+  PORCENTAJE: "Descuento %",
   PRECIO_FIJO: "Precio fijo",
-  PRODUCTO_GRATIS: "Producto gratis",
 };
 
 export type Promocion = {
   id: number;
   nombre: string;
-  tipo: TipoPromocion;
   productoId: number;
   productoNombre: string;
+  descuentoTipo: DescuentoTipo | null;
   valorPorcentaje: number | null;
   precioFijoUsd: number | null;
+  tieneProductoGratis: boolean;
   productoGratisId: number | null;
   productoGratisNombre: string | null;
   cantidadGratis: number | null;
-  fechaInicio: string | null;
+  fechaInicio: string;
   fechaFin: string | null;
   activa: boolean;
   createdAt: string;
@@ -654,13 +656,14 @@ export type Promocion = {
 
 export type PromocionInput = {
   nombre: string;
-  tipo: TipoPromocion;
   productoId: number;
+  descuentoTipo?: DescuentoTipo | null;
   valorPorcentaje?: number | null;
   precioFijoUsd?: number | null;
+  tieneProductoGratis?: boolean;
   productoGratisId?: number | null;
   cantidadGratis?: number | null;
-  fechaInicio?: string | null;
+  fechaInicio: string;
   fechaFin?: string | null;
   activa?: boolean;
 };

@@ -192,10 +192,13 @@ export async function revertirInventarioVenta(client: PoolClient, ventaId: numbe
 
 // Busca la promoción activa (si hay alguna) para un producto en la fecha de
 // la venta. Tolerante a que la tabla no exista aún (migración pendiente).
+// El descuento (% o precio fijo) y el producto gratis son independientes:
+// una misma promoción puede traer uno, el otro, o ambos a la vez.
 type PromocionActiva = {
-  tipo: "DESCUENTO_PORCENTAJE" | "PRECIO_FIJO" | "PRODUCTO_GRATIS";
+  descuento_tipo: "PORCENTAJE" | "PRECIO_FIJO" | null;
   valor_porcentaje: number | null;
   precio_fijo_usd: number | null;
+  tiene_producto_gratis: boolean;
   producto_gratis_id: number | null;
   cantidad_gratis: number | null;
 };
@@ -207,10 +210,11 @@ async function promocionActivaPorProducto(
 ): Promise<PromocionActiva | null> {
   try {
     const r = await client.query(
-      `SELECT tipo, valor_porcentaje, precio_fijo_usd, producto_gratis_id, cantidad_gratis
+      `SELECT descuento_tipo, valor_porcentaje, precio_fijo_usd,
+              tiene_producto_gratis, producto_gratis_id, cantidad_gratis
        FROM promociones
        WHERE producto_id = $1 AND activa = TRUE
-         AND (fecha_inicio IS NULL OR fecha_inicio <= $2)
+         AND fecha_inicio <= $2
          AND (fecha_fin IS NULL OR fecha_fin >= $2)
        ORDER BY id DESC LIMIT 1`,
       [productoId, fecha]
@@ -268,9 +272,9 @@ export async function insertarItemsYPagos(
     const promo = await promocionActivaPorProducto(client, item.productoId, body.fecha);
 
     let precioUnit = Number(precio_venta) + extraPrecio;
-    if (promo?.tipo === "DESCUENTO_PORCENTAJE" && promo.valor_porcentaje != null) {
+    if (promo?.descuento_tipo === "PORCENTAJE" && promo.valor_porcentaje != null) {
       precioUnit = Number(precio_venta) * (1 - Number(promo.valor_porcentaje) / 100) + extraPrecio;
-    } else if (promo?.tipo === "PRECIO_FIJO" && promo.precio_fijo_usd != null) {
+    } else if (promo?.descuento_tipo === "PRECIO_FIJO" && promo.precio_fijo_usd != null) {
       precioUnit = Number(promo.precio_fijo_usd) + extraPrecio;
     }
 
@@ -321,7 +325,7 @@ export async function insertarItemsYPagos(
 
     // Promoción "producto gratis": agrega automáticamente el producto de
     // regalo, sin costo, al vender el producto en promoción.
-    if (promo?.tipo === "PRODUCTO_GRATIS" && promo.producto_gratis_id) {
+    if (promo?.tiene_producto_gratis && promo.producto_gratis_id) {
       const cantidadGratis = Number(promo.cantidad_gratis) || 1;
       const gratisResult = await client.query(
         `SELECT costo, tipo_producto FROM productos WHERE id = $1`,
