@@ -12,7 +12,7 @@ import { logUsage } from "@/lib/llm/usage-logger";
 const INSTRUCCIONES_DEFAULT = `- El RIF del emisor aparece cerca de "SENIAT" e inicia con J-, V-, E- o G-
 - El teléfono puede venir precedido de: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil
 - La dirección del emisor suele aparecer debajo del nombre/RIF, antes de la fecha o el detalle de la factura (puede ocupar varias líneas: avenida, centro comercial, local, sector, ciudad, zona postal). Únela en un solo texto
-- En facturas venezolanas formato vertical (rollos fiscales), la cantidad y el precio unitario aparecen en la línea INMEDIATAMENTE SIGUIENTE al nombre del producto, no en la misma línea. Ejemplo real: "AJO X KG (E)" seguido de "0,1xBs 3.030,16" — el "0,1" es la cantidad del AJO y "3.030,16" es su precio unitario en Bs. NO asignes ese valor al producto de la línea anterior ni al siguiente; pertenece siempre al producto que está ENCIMA de esa línea de detalle
+- En facturas venezolanas formato vertical (rollos fiscales), la línea de detalle "cantidadxBs precioUnit" aparece ANTES del nombre del producto al que pertenece (no después). Ejemplo real: "0,32xBs 6.533,79" aparece encima de "AJO X KG (E)" — el 0,32 es la cantidad de AJO y 6.533,79 su precio unitario (0,32×6.533,79 = 2.090,81, que coincide con el total de AJO). Asigna siempre la línea de detalle al producto que aparece INMEDIATAMENTE DEBAJO de ella, nunca al de arriba
 - Si un ítem no tiene cantidad explícita, usa 1
 - Reemplaza comas decimales por punto en los montos (ej: 2.189,58 → 2189.58)
 - Si un campo no es legible usa null`;
