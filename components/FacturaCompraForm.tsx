@@ -711,11 +711,11 @@ export default function FacturaCompraForm({
 
   // ── NEW FORM ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div style={{ maxWidth: 760, width: "100%", boxSizing: "border-box" }}>
       {/* OCR Strip */}
-      <div style={{ background: "var(--erp-primary-lt)", borderRadius: "12px 12px 0 0", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, border: "1px solid var(--erp-border)", borderBottom: "none" }}>
+      <div style={{ background: "var(--erp-primary-lt)", borderRadius: "12px 12px 0 0", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", border: "1px solid var(--erp-border)", borderBottom: "none" }}>
         <div style={{ width: 40, height: 40, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📷</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 120 }}>
           <div style={{ color: "var(--erp-text)", fontSize: 13, fontWeight: 600 }}>Escanear / Cargar factura</div>
           <div style={{ color: "var(--erp-text-3)", fontSize: 11, marginTop: 2 }}>Auto-extrae datos de la factura</div>
         </div>
