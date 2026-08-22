@@ -570,11 +570,11 @@ export default function FacturaCompraForm({
               onChange={e => setItems(prev => prev.map(x => x.key === it.key ? { ...x, cantidad: e.target.value } : x))}
               style={{ ...S, textAlign: "right" }} />
           </td>
-          <td style={{ padding: "5px 6px", width: 120 }}>
+          <td style={{ padding: "5px 6px", width: 160, minWidth: 140 }}>
             <div style={{ position: "relative" }}>
               <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", pointerEvents: "none" }}>Bs</span>
               <input type="number" value={it.costoUnitBs} min="0" step="0.01" onChange={e => updateItemBs(it.key, e.target.value)}
-                placeholder="0.00" style={{ ...S, paddingLeft: 28, textAlign: "right" }} />
+                placeholder="0.00" style={{ ...S, paddingLeft: 28, textAlign: "right", minWidth: 0 }} />
             </div>
           </td>
           <td style={{ padding: "5px 6px", width: 110 }}>
