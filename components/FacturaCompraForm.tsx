@@ -16,6 +16,7 @@ type ItemLine = {
   categoriaNueva?: boolean;
   categoriaNuevaNombre?: string;
   paraVenta?: boolean;
+  tipoUso: "VENTA" | "MATERIA_PRIMA";
 };
 
 const NUEVA_CATEGORIA = "__nueva__";
@@ -35,7 +36,7 @@ type FacturaDetalle = {
   tasaDia: number;
   fechaVencimientoPago?: string | null;
   tipoUso?: "VENTA" | "MATERIA_PRIMA";
-  items: { id?: number; productoId: number | null; nombreProducto: string; cantidad: number; costoUnitBs: number }[];
+  items: { id?: number; productoId: number | null; nombreProducto: string; cantidad: number; costoUnitBs: number; tipoUso?: "VENTA" | "MATERIA_PRIMA" }[];
   imagenFactura?: string | null;
 };
 
@@ -103,8 +104,8 @@ export default function FacturaCompraForm({
   // Items
   const [items, setItems] = useState<ItemLine[]>(
     initialData?.items?.length
-      ? initialData.items.map(it => ({ key: nextKey(), productoId: it.productoId, nombreProducto: it.nombreProducto, cantidad: String(it.cantidad), costoUnitBs: String(it.costoUnitBs), costoUnitUsd: "", paraVenta: true }))
-      : [{ key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "", costoUnitUsd: "", paraVenta: true }]
+      ? initialData.items.map(it => ({ key: nextKey(), productoId: it.productoId, nombreProducto: it.nombreProducto, cantidad: String(it.cantidad), costoUnitBs: String(it.costoUnitBs), costoUnitUsd: "", paraVenta: true, tipoUso: it.tipoUso ?? initialData?.tipoUso ?? "VENTA" }))
+      : [{ key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "", costoUnitUsd: "", paraVenta: true, tipoUso: initialData?.tipoUso ?? "VENTA" }]
   );
   const [prodSugs, setProdSugs] = useState<Record<number, ProductoSug[]>>({});
   const [showProdSugs, setShowProdSugs] = useState<Record<number, boolean>>({});
@@ -172,6 +173,8 @@ export default function FacturaCompraForm({
   // Ref con la tasa más reciente, para usar en callbacks con closures obsoletas (ej. OCR)
   const tasaRef = useRef(tasa);
   tasaRef.current = tasa;
+  const tipoUsoRef = useRef(tipoUsoFactura);
+  tipoUsoRef.current = tipoUsoFactura;
 
   // Recalcula el costo USD de cada ítem cuando cambia la tasa (ej. tasa cargada/editada después de escanear)
   useEffect(() => {
@@ -256,6 +259,17 @@ export default function FacturaCompraForm({
     const usd = Number(usdVal) || 0;
     const bs = tasa > 0 ? String((usd * tasa).toFixed(2)) : "";
     setItems(prev => prev.map(it => it.key === key ? { ...it, costoUnitUsd: usdVal, costoUnitBs: bs } : it));
+  }
+
+  // Cambiar el tipo de la factura aplica ese tipo a TODOS los ítems (bulk),
+  // pero cada ítem conserva su propio toggle para poder diferir individualmente después
+  function handleTipoUsoFacturaChange(val: "VENTA" | "MATERIA_PRIMA") {
+    setTipoUsoFactura(val);
+    setItems(prev => prev.map(it => ({ ...it, tipoUso: val })));
+  }
+
+  function updateItemTipoUso(key: number, val: "VENTA" | "MATERIA_PRIMA") {
+    setItems(prev => prev.map(it => it.key === key ? { ...it, tipoUso: val } : it));
   }
 
   const compressImage = (file: File): Promise<{ dataUrl: string; base64: string }> =>
@@ -378,6 +392,7 @@ export default function FacturaCompraForm({
                 costoUnitBs: costo > 0 ? String(costo) : "",
                 costoUnitUsd: (costo > 0 && tRef > 0) ? (costo / tRef).toFixed(4) : "",
                 paraVenta: true,
+                tipoUso: tipoUsoRef.current,
               };
             })
             .filter(Boolean) as ItemLine[];
@@ -444,7 +459,7 @@ export default function FacturaCompraForm({
           fechaVencimientoPago: fechaVencimientoPago || null,
           imagenFactura: imagenBase64,
           tipoUso: tipoUsoFactura,
-          items: resolvedItems.map(it => ({ productoId: it.productoId, nombreProducto: it.nombreProducto.trim(), cantidad: Number(it.cantidad), costoUnitBs: Number(it.costoUnitBs) })),
+          items: resolvedItems.map(it => ({ productoId: it.productoId, nombreProducto: it.nombreProducto.trim(), cantidad: Number(it.cantidad), costoUnitBs: Number(it.costoUnitBs), tipoUso: it.tipoUso })),
         }),
       });
       const data = await res.json();
@@ -585,6 +600,21 @@ export default function FacturaCompraForm({
                 placeholder="0.00" style={{ ...S, paddingLeft: 22, textAlign: "right", color: "var(--erp-text-2)" }} />
             </div>
           </td>
+          <td style={{ padding: "5px 6px", width: 128 }}>
+            <div style={{ display: "flex", borderRadius: 6, border: "1px solid var(--erp-border)", overflow: "hidden", fontSize: 10 }}>
+              {(["VENTA", "MATERIA_PRIMA"] as const).map(val => (
+                <button key={val} type="button" onClick={() => updateItemTipoUso(it.key, val)}
+                  title={val === "VENTA" ? "Para venta" : "Materia prima"}
+                  style={{
+                    flex: 1, padding: "5px 4px", border: "none", cursor: "pointer", fontWeight: 700,
+                    background: it.tipoUso === val ? "var(--erp-primary)" : "var(--erp-surface)",
+                    color: it.tipoUso === val ? "#fff" : "var(--erp-text-3)",
+                  }}>
+                  {val === "VENTA" ? "Venta" : "M.P."}
+                </button>
+              ))}
+            </div>
+          </td>
           <td style={{ padding: "5px 12px", textAlign: "right", fontWeight: 700, fontSize: 13, fontVariantNumeric: "tabular-nums", color: "var(--erp-text)", whiteSpace: "nowrap" }}>
             {((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0)).toFixed(2)}
           </td>
@@ -638,7 +668,7 @@ export default function FacturaCompraForm({
               <span style={{ fontSize: 11, color: "var(--erp-text-3)", fontWeight: 500, textTransform: "none" }}>Tipo:</span>
               <div style={{ display: "flex", borderRadius: 6, border: "1px solid var(--erp-border)", overflow: "hidden", fontSize: 12 }}>
                 {([["VENTA", "Para venta"], ["MATERIA_PRIMA", "Materia prima"]] as const).map(([val, label]) => (
-                  <button key={val} type="button" onClick={() => setTipoUsoFactura(val)}
+                  <button key={val} type="button" onClick={() => handleTipoUsoFacturaChange(val)}
                     style={{ padding: "4px 10px", border: "none", cursor: "pointer", fontWeight: tipoUsoFactura === val ? 600 : 400,
                       background: tipoUsoFactura === val ? "var(--erp-primary)" : "var(--erp-surface)",
                       color: tipoUsoFactura === val ? "#fff" : "var(--erp-text-2)", textTransform: "none" }}>
@@ -652,7 +682,7 @@ export default function FacturaCompraForm({
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "var(--erp-bg)" }}>
-                  {[["Producto", "left"], ["Cantidad", "left"], ["Costo Bs", "left"], ["Costo USD", "left"], ["Subtotal Bs", "right"], ["", "center"]].map(([h, a]) => (
+                  {[["Producto", "left"], ["Cantidad", "left"], ["Costo Bs", "left"], ["Costo USD", "left"], ["Tipo", "center"], ["Subtotal Bs", "right"], ["", "center"]].map(([h, a]) => (
                     <th key={h} style={{ padding: "8px 6px", textAlign: a as "left" | "right" | "center", color: "var(--erp-text-3)", fontWeight: 600, fontSize: 11, borderBottom: "1px solid var(--erp-border)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
                   ))}
                 </tr>
@@ -660,7 +690,7 @@ export default function FacturaCompraForm({
               <tbody>{renderProductRows()}</tbody>
             </table>
           </div>
-          <button type="button" onClick={() => setItems(prev => [...prev, { key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "", costoUnitUsd: "", paraVenta: true }])}
+          <button type="button" onClick={() => setItems(prev => [...prev, { key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "", costoUnitUsd: "", paraVenta: true, tipoUso: tipoUsoFactura }])}
             style={{ marginTop: 10, background: "none", border: "1px dashed var(--erp-border)", borderRadius: 8, padding: "6px 0", fontSize: 13, color: "var(--erp-primary)", cursor: "pointer", fontWeight: 600, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             + Agregar ítem
           </button>
@@ -827,7 +857,7 @@ export default function FacturaCompraForm({
               <span style={{ fontSize: 11, color: "var(--erp-text-3)", fontWeight: 500 }}>Tipo:</span>
               <div style={{ display: "flex", borderRadius: 6, border: "1px solid var(--erp-border)", overflow: "hidden", fontSize: 12 }}>
                 {([["VENTA", "Para venta"], ["MATERIA_PRIMA", "Materia prima"]] as const).map(([val, label]) => (
-                  <button key={val} type="button" onClick={() => setTipoUsoFactura(val)}
+                  <button key={val} type="button" onClick={() => handleTipoUsoFacturaChange(val)}
                     style={{ padding: "4px 10px", border: "none", cursor: "pointer", fontWeight: tipoUsoFactura === val ? 600 : 400,
                       background: tipoUsoFactura === val ? "var(--erp-primary)" : "var(--erp-surface)",
                       color: tipoUsoFactura === val ? "#fff" : "var(--erp-text-2)" }}>
@@ -842,7 +872,7 @@ export default function FacturaCompraForm({
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "var(--erp-bg)" }}>
-                  {[["Producto", "left"], ["Cantidad", "left"], ["Costo (Bs)", "left"], ["Costo (USD)", "left"], ["Subtotal Bs", "right"], ["", "center"]].map(([h, a]) => (
+                  {[["Producto", "left"], ["Cantidad", "left"], ["Costo (Bs)", "left"], ["Costo (USD)", "left"], ["Tipo", "center"], ["Subtotal Bs", "right"], ["", "center"]].map(([h, a]) => (
                     <th key={h} style={{ padding: "8px 6px", textAlign: a as "left" | "right" | "center", color: "var(--erp-text-3)", fontWeight: 600, fontSize: 11, borderBottom: "1px solid var(--erp-border)", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -850,7 +880,7 @@ export default function FacturaCompraForm({
               <tbody>{renderProductRows()}</tbody>
             </table>
           </div>
-          <button type="button" onClick={() => setItems(prev => [...prev, { key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "", costoUnitUsd: "", paraVenta: true }])}
+          <button type="button" onClick={() => setItems(prev => [...prev, { key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "", costoUnitUsd: "", paraVenta: true, tipoUso: tipoUsoFactura }])}
             style={{ marginTop: 10, background: "none", border: "1px dashed var(--erp-border)", borderRadius: 8, padding: "7px 0", fontSize: 13, color: "var(--erp-primary)", cursor: "pointer", fontWeight: 600, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             ＋ Agregar producto
           </button>

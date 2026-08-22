@@ -12,6 +12,7 @@ type Factura = {
 
 type DetalleItem = {
   id: number; productoId: number | null; nombreProducto: string; cantidad: number; costoUnitBs: number; subtotalBs: number;
+  tipoUso: "VENTA" | "MATERIA_PRIMA";
 };
 
 type Detalle = {
@@ -282,8 +283,8 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
               {detalle.numeroFactura && <div style={{ fontSize: 13, color: "var(--erp-text-2)", marginBottom: 12 }}>N° Factura: <strong>{detalle.numeroFactura}</strong></div>}
               <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
                 <thead><tr style={{ background: "var(--erp-bg)" }}>
-                  {["Producto", "Cant.", "Costo Bs", "Subtotal"].map((h) => (
-                    <th key={h} style={{ padding: "8px 10px", textAlign: h === "Cant." ? "center" : h !== "Producto" ? "right" : "left", color: "var(--erp-text-2)", fontWeight: 600, fontSize: 11 }}>{h}</th>
+                  {["Producto", "Cant.", "Costo Bs", "Tipo", "Subtotal"].map((h) => (
+                    <th key={h} style={{ padding: "8px 10px", textAlign: h === "Cant." || h === "Tipo" ? "center" : h !== "Producto" ? "right" : "left", color: "var(--erp-text-2)", fontWeight: 600, fontSize: 11 }}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
@@ -292,6 +293,15 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                       <td style={{ padding: "8px 10px", color: "var(--erp-text)" }}>{it.nombreProducto}</td>
                       <td style={{ padding: "8px 10px", textAlign: "center", color: "var(--erp-text-2)" }}>{it.cantidad}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", color: "var(--erp-text-2)" }}>{it.costoUnitBs.toFixed(2)}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                        <span style={{
+                          background: it.tipoUso === "MATERIA_PRIMA" ? "#FEF3C7" : "#DCFCE7",
+                          color: it.tipoUso === "MATERIA_PRIMA" ? "#92400E" : "#166534",
+                          borderRadius: 999, padding: "1px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+                        }}>
+                          {it.tipoUso === "MATERIA_PRIMA" ? "M.P." : "Venta"}
+                        </span>
+                      </td>
                       <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "var(--erp-text)" }}>{it.subtotalBs.toFixed(2)}</td>
                     </tr>
                   ))}

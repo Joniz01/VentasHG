@@ -112,16 +112,40 @@ export async function POST(request: NextRequest) {
     }
     const compraId = cResult.rows[0].id;
 
+    await client.query("SAVEPOINT antes_items_tipo_uso");
+    let itemsTipoUsoDisponible = true;
+
     for (const item of items) {
       const cantidad = Number(item.cantidad);
       const costoUnit = Number(item.costoUnitBs);
       const subtotal = cantidad * costoUnit;
+      const itemTipoUso = item.tipoUso === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : tipoUsoValido;
 
-      await client.query(
-        `INSERT INTO compra_items (compra_id, producto_id, nombre_producto, cantidad, costo_unit_bs, subtotal_bs)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [compraId, item.productoId || null, item.nombreProducto, cantidad, costoUnit, subtotal]
-      );
+      if (itemsTipoUsoDisponible) {
+        try {
+          await client.query(
+            `INSERT INTO compra_items (compra_id, producto_id, nombre_producto, cantidad, costo_unit_bs, subtotal_bs, tipo_uso)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [compraId, item.productoId || null, item.nombreProducto, cantidad, costoUnit, subtotal, itemTipoUso]
+          );
+        } catch {
+          // columna tipo_uso pendiente de migración 063 — reintentar sin ella
+          // desde este punto (savepoint) y sin volver a intentarla en el resto del loop
+          await client.query("ROLLBACK TO SAVEPOINT antes_items_tipo_uso");
+          itemsTipoUsoDisponible = false;
+          await client.query(
+            `INSERT INTO compra_items (compra_id, producto_id, nombre_producto, cantidad, costo_unit_bs, subtotal_bs)
+             VALUES ($1,$2,$3,$4,$5,$6)`,
+            [compraId, item.productoId || null, item.nombreProducto, cantidad, costoUnit, subtotal]
+          );
+        }
+      } else {
+        await client.query(
+          `INSERT INTO compra_items (compra_id, producto_id, nombre_producto, cantidad, costo_unit_bs, subtotal_bs)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [compraId, item.productoId || null, item.nombreProducto, cantidad, costoUnit, subtotal]
+        );
+      }
 
       // Impactar inventario si hay producto_id
       if (item.productoId) {
