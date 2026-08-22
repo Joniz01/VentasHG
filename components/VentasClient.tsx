@@ -259,6 +259,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   const [soloPendientesPago, setSoloPendientesPago] = useState(false);
   const [casheaConfirm, setCasheaConfirm] = useState<{ ventaId: number; tasa: string; fechaPago: string } | null>(null);
   const [yummyConfirmId, setYummyConfirmId] = useState<number | null>(null);
+  const [cxcConfirmId, setCxcConfirmId] = useState<number | null>(null);
   const [casheaUpdating, setCasheaUpdating] = useState<number | null>(null);
   const [filtroFechaDesde, setFiltroFechaDesde] = useState(() => today());
   const [filtroFechaHasta, setFiltroFechaHasta] = useState(() => today());
@@ -1005,17 +1006,18 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
     }
   }
 
-  async function handleToggleCuentaCobrada(venta: Venta) {
+  async function handleToggleCuentaCobrada(venta: Venta, fechaPago?: string, metodoPago?: string) {
     try {
       const res = await fetch(`/api/reportes/cuentas-por-cobrar/${venta.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuentaCobrada: !venta.cuentaCobrada }),
+        body: JSON.stringify({ cuentaCobrada: !venta.cuentaCobrada, fechaPago, metodoPago }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? "Error al actualizar el cobro");
       }
+      setCxcConfirmId(null);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar el cobro");
@@ -2838,12 +2840,27 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           ) : (
                             <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">Pendiente</span>
                           )}
-                          <button
-                            onClick={() => handleToggleCuentaCobrada(venta)}
-                            className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                          >
-                            {venta.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
-                          </button>
+                          {cxcConfirmId === venta.id && !venta.cuentaCobrada ? (
+                            <FechaPagoConfirm
+                              confirming={false}
+                              pedirMetodoPago
+                              onConfirm={(fechaPago, metodoPago) => handleToggleCuentaCobrada(venta, fechaPago, metodoPago)}
+                              onCancel={() => setCxcConfirmId(null)}
+                            />
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (!venta.cuentaCobrada) {
+                                  setCxcConfirmId(venta.id);
+                                } else {
+                                  handleToggleCuentaCobrada(venta);
+                                }
+                              }}
+                              className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                            >
+                              {venta.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
+                            </button>
+                          )}
                         </>
                       )}
                       {!cd && !venta.yummyDatos && !venta.cuentaPorCobrar && "-"}

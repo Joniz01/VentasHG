@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { hoyCaracas } from "@/lib/date";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -44,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
         [id]
       );
       if (cuentaCobrada) {
-        const fp = fechaPago || new Date().toISOString().slice(0, 10);
+        const fp = fechaPago || hoyCaracas();
         await client.query(
           `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
            VALUES ($1, $2, $3, $4)`,
