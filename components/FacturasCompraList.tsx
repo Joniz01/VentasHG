@@ -29,6 +29,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [proveedorQ, setProveedorQ] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState<"TODAS" | "ACTIVA" | "ANULADA">("TODAS");
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [anulando, setAnulando] = useState(false);
 
@@ -39,6 +40,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
       if (desde) params.set("desde", desde);
       if (hasta) params.set("hasta", hasta);
       if (proveedorQ) params.set("proveedor", proveedorQ);
+      if (estadoFiltro !== "TODAS") params.set("estado", estadoFiltro);
       const res = await fetch(`/api/compras?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -177,6 +179,22 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
         <div className="flex flex-col gap-1">
           <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Proveedor</label>
           <input value={proveedorQ} onChange={(e) => setProveedorQ(e.target.value)} placeholder="Buscar..." style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 13 }} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Estado</label>
+          <div style={{ display: "flex", border: "1px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
+            {(["TODAS", "ACTIVA", "ANULADA"] as const).map((op, i, arr) => (
+              <button key={op} type="button" onClick={() => setEstadoFiltro(op)}
+                style={{
+                  background: estadoFiltro === op ? "var(--erp-primary)" : "var(--erp-bg)",
+                  color: estadoFiltro === op ? "#fff" : "var(--erp-text-2)",
+                  border: "none", borderRight: i < arr.length - 1 ? "1px solid var(--erp-border)" : "none",
+                  padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+                }}>
+                {op === "TODAS" ? "Todas" : op === "ACTIVA" ? "Activa" : "Anulada"}
+              </button>
+            ))}
+          </div>
         </div>
         <button type="button" onClick={loadFacturas} disabled={loading} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
           {loading ? "..." : "Buscar"}
