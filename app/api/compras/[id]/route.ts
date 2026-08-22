@@ -7,12 +7,23 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
-    const cResult = await pool.query(
-      `SELECT c.id, c.fecha, c.proveedor_id, c.proveedor_nombre, c.proveedor_rif,
-              c.numero_factura, c.observaciones, c.tasa_dia, c.estado, c.anulada_at,
-              c.imagen_factura, c.created_at
-       FROM compras c WHERE c.id = $1`, [id]
-    );
+    let cResult;
+    try {
+      cResult = await pool.query(
+        `SELECT c.id, c.fecha, c.proveedor_id, c.proveedor_nombre, c.proveedor_rif,
+                c.numero_factura, c.observaciones, c.tasa_dia, c.estado, c.anulada_at,
+                c.imagen_factura, c.created_at, c.tipo_uso
+         FROM compras c WHERE c.id = $1`, [id]
+      );
+    } catch {
+      // columna tipo_uso pendiente de migración 053
+      cResult = await pool.query(
+        `SELECT c.id, c.fecha, c.proveedor_id, c.proveedor_nombre, c.proveedor_rif,
+                c.numero_factura, c.observaciones, c.tasa_dia, c.estado, c.anulada_at,
+                c.imagen_factura, c.created_at
+         FROM compras c WHERE c.id = $1`, [id]
+      );
+    }
     if (!cResult.rowCount) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
     const iResult = await pool.query(
@@ -26,6 +37,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       proveedorId: c.proveedor_id, proveedorNombre: c.proveedor_nombre, proveedorRif: c.proveedor_rif,
       numeroFactura: c.numero_factura, observaciones: c.observaciones,
       tasaDia: Number(c.tasa_dia), estado: c.estado, anuladaAt: c.anulada_at,
+      tipoUso: c.tipo_uso ?? "VENTA",
       imagenFactura: c.imagen_factura, createdAt: c.created_at,
       items: iResult.rows.map((r) => ({
         id: r.id, productoId: r.producto_id, nombreProducto: r.nombre_producto,
@@ -125,7 +137,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
     items,
     imagenFactura,
     fechaVencimientoPago,
+    tipoUso,
   } = body;
+  const tipoUsoValido = tipoUso === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "VENTA";
 
   if (!fecha || !proveedorNombre || !Array.isArray(items)) {
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
@@ -141,22 +155,45 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (!cResult.rowCount) throw new Error("Compra no encontrada");
     if (cResult.rows[0].estado === "ANULADA") throw new Error("No se puede editar una compra anulada");
 
-    await client.query(
-      `UPDATE compras
-       SET fecha = $1,
-           proveedor_nombre = $2,
-           proveedor_rif = $3,
-           proveedor_id = $4,
-           numero_factura = $5,
-           observaciones = $6,
-           tasa_dia = $7,
-           imagen_factura = $8,
-           fecha_vencimiento_pago = $9
-       WHERE id = $10`,
-      [fecha, proveedorNombre, proveedorRif ?? null, proveedorId ?? null,
-       numeroFactura ?? null, observaciones ?? null, tasaDia ?? null,
-       imagenFactura ?? null, fechaVencimientoPago ?? null, id]
-    );
+    await client.query("SAVEPOINT antes_tipo_uso");
+    try {
+      await client.query(
+        `UPDATE compras
+         SET fecha = $1,
+             proveedor_nombre = $2,
+             proveedor_rif = $3,
+             proveedor_id = $4,
+             numero_factura = $5,
+             observaciones = $6,
+             tasa_dia = $7,
+             imagen_factura = $8,
+             fecha_vencimiento_pago = $9,
+             tipo_uso = $10
+         WHERE id = $11`,
+        [fecha, proveedorNombre, proveedorRif ?? null, proveedorId ?? null,
+         numeroFactura ?? null, observaciones ?? null, tasaDia ?? null,
+         imagenFactura ?? null, fechaVencimientoPago ?? null, tipoUsoValido, id]
+      );
+    } catch {
+      // columna tipo_uso pendiente de migración 053 — actualizar sin ella
+      await client.query("ROLLBACK TO SAVEPOINT antes_tipo_uso");
+      await client.query(
+        `UPDATE compras
+         SET fecha = $1,
+             proveedor_nombre = $2,
+             proveedor_rif = $3,
+             proveedor_id = $4,
+             numero_factura = $5,
+             observaciones = $6,
+             tasa_dia = $7,
+             imagen_factura = $8,
+             fecha_vencimiento_pago = $9
+         WHERE id = $10`,
+        [fecha, proveedorNombre, proveedorRif ?? null, proveedorId ?? null,
+         numeroFactura ?? null, observaciones ?? null, tasaDia ?? null,
+         imagenFactura ?? null, fechaVencimientoPago ?? null, id]
+      );
+    }
 
     await client.query(`DELETE FROM compra_items WHERE compra_id = $1`, [id]);
 

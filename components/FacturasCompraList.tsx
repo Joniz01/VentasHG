@@ -6,7 +6,7 @@ import FacturaCompraForm from "./FacturaCompraForm";
 
 type Factura = {
   id: number; fecha: string; proveedorNombre: string; proveedorRif: string | null;
-  numeroFactura: string | null; tasaDia: number; estado: string;
+  numeroFactura: string | null; tasaDia: number; estado: string; tipoUso: "VENTA" | "MATERIA_PRIMA";
   totalBs: number; totalUsd: number;
 };
 
@@ -17,7 +17,7 @@ type DetalleItem = {
 type Detalle = {
   id: number; fecha: string; proveedorNombre: string; proveedorRif: string | null;
   numeroFactura: string | null; observaciones: string | null; tasaDia: number;
-  estado: string; imagenFactura: string | null; items: DetalleItem[];
+  estado: string; tipoUso: "VENTA" | "MATERIA_PRIMA"; imagenFactura: string | null; items: DetalleItem[];
 };
 
 export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv = 0, isAdmin = false, puedeEliminarCompras = false }: { puedeCrearProducto?: boolean; tasaBcv?: number; isAdmin?: boolean; puedeEliminarCompras?: boolean }) {
@@ -252,7 +252,16 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
           <div style={{ background: "var(--erp-surface)", borderRadius: 16, width: "100%", maxWidth: 540, marginTop: 40 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--erp-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontWeight: 700, color: "var(--erp-text)", fontSize: 15 }}>Factura #{detalle.id}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 700, color: "var(--erp-text)", fontSize: 15 }}>Factura #{detalle.id}</span>
+                  <span style={{
+                    background: detalle.tipoUso === "MATERIA_PRIMA" ? "#FEF3C7" : "#DCFCE7",
+                    color: detalle.tipoUso === "MATERIA_PRIMA" ? "#92400E" : "#166534",
+                    borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 700,
+                  }}>
+                    {detalle.tipoUso === "MATERIA_PRIMA" ? "Materia prima" : "Para venta"}
+                  </span>
+                </div>
                 <div style={{ fontSize: 12, color: "var(--erp-text-3)" }}>{formatFecha(detalle.fecha)} · {detalle.proveedorNombre}</div>
               </div>
               <div className="flex items-center gap-2">

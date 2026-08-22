@@ -34,6 +34,7 @@ type FacturaDetalle = {
   observaciones?: string | null;
   tasaDia: number;
   fechaVencimientoPago?: string | null;
+  tipoUso?: "VENTA" | "MATERIA_PRIMA";
   items: { id?: number; productoId: number | null; nombreProducto: string; cantidad: number; costoUnitBs: number }[];
   imagenFactura?: string | null;
 };
@@ -115,7 +116,7 @@ export default function FacturaCompraForm({
   const [observaciones, setObservaciones] = useState(initialData?.observaciones ?? "");
   const [tasaDia, setTasaDia] = useState(initialData ? String(initialData.tasaDia) : (tasaBcv > 0 ? String(tasaBcv) : ""));
   const [fechaVencimientoPago, setFechaVencimientoPago] = useState(initialData?.fechaVencimientoPago?.slice(0, 10) ?? "");
-  const [tipoUsoFactura, setTipoUsoFactura] = useState<"VENTA" | "MATERIA_PRIMA">("VENTA");
+  const [tipoUsoFactura, setTipoUsoFactura] = useState<"VENTA" | "MATERIA_PRIMA">(initialData?.tipoUso ?? "VENTA");
   const [imagenBase64, setImagenBase64] = useState<string | null>(initialData?.imagenFactura ?? null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -631,7 +632,22 @@ export default function FacturaCompraForm({
         </div>
 
         <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: 16 }}>
-          <div style={sectionTitle}>Productos</div>
+          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <span>Productos</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--erp-text-3)", fontWeight: 500, textTransform: "none" }}>Tipo:</span>
+              <div style={{ display: "flex", borderRadius: 6, border: "1px solid var(--erp-border)", overflow: "hidden", fontSize: 12 }}>
+                {([["VENTA", "Para venta"], ["MATERIA_PRIMA", "Materia prima"]] as const).map(([val, label]) => (
+                  <button key={val} type="button" onClick={() => setTipoUsoFactura(val)}
+                    style={{ padding: "4px 10px", border: "none", cursor: "pointer", fontWeight: tipoUsoFactura === val ? 600 : 400,
+                      background: tipoUsoFactura === val ? "var(--erp-primary)" : "var(--erp-surface)",
+                      color: tipoUsoFactura === val ? "#fff" : "var(--erp-text-2)", textTransform: "none" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead>

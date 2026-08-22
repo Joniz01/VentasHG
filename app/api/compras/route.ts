@@ -23,17 +23,33 @@ export async function GET(request: NextRequest) {
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
   try {
-    const result = await pool.query(
-      `SELECT c.id, c.fecha, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
-              c.tasa_dia, c.estado, c.created_at,
-              COALESCE(SUM(ci.subtotal_bs),0) AS total_bs
-       FROM compras c
-       LEFT JOIN compra_items ci ON ci.compra_id = c.id
-       ${where}
-       GROUP BY c.id
-       ORDER BY c.fecha DESC, c.id DESC`,
-      params
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT c.id, c.fecha, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
+                c.tasa_dia, c.estado, c.created_at, c.tipo_uso,
+                COALESCE(SUM(ci.subtotal_bs),0) AS total_bs
+         FROM compras c
+         LEFT JOIN compra_items ci ON ci.compra_id = c.id
+         ${where}
+         GROUP BY c.id
+         ORDER BY c.fecha DESC, c.id DESC`,
+        params
+      );
+    } catch {
+      // columna tipo_uso pendiente de migración 053
+      result = await pool.query(
+        `SELECT c.id, c.fecha, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
+                c.tasa_dia, c.estado, c.created_at,
+                COALESCE(SUM(ci.subtotal_bs),0) AS total_bs
+         FROM compras c
+         LEFT JOIN compra_items ci ON ci.compra_id = c.id
+         ${where}
+         GROUP BY c.id
+         ORDER BY c.fecha DESC, c.id DESC`,
+        params
+      );
+    }
 
     const items = result.rows.map((r) => ({
       id: r.id,
@@ -43,6 +59,7 @@ export async function GET(request: NextRequest) {
       numeroFactura: r.numero_factura,
       tasaDia: Number(r.tasa_dia),
       estado: r.estado,
+      tipoUso: r.tipo_uso ?? "VENTA",
       totalBs: Number(r.total_bs),
       totalUsd: r.tasa_dia > 0 ? Number(r.total_bs) / Number(r.tasa_dia) : 0,
       createdAt: r.created_at,
@@ -59,7 +76,8 @@ export async function POST(request: NextRequest) {
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const body = await request.json();
-  const { fecha, proveedorNombre, proveedorRif, proveedorId, numeroFactura, observaciones, tasaDia, items, imagenFactura } = body;
+  const { fecha, proveedorNombre, proveedorRif, proveedorId, numeroFactura, observaciones, tasaDia, items, imagenFactura, tipoUso } = body;
+  const tipoUsoValido = tipoUso === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "VENTA";
 
   if (!proveedorNombre?.trim()) return NextResponse.json({ error: "Proveedor requerido" }, { status: 400 });
   if (!items?.length) return NextResponse.json({ error: "Debe agregar al menos un ítem" }, { status: 400 });
@@ -68,14 +86,30 @@ export async function POST(request: NextRequest) {
   try {
     await client.query("BEGIN");
 
-    const cResult = await client.query(
-      `INSERT INTO compras (fecha, proveedor_id, proveedor_nombre, proveedor_rif, numero_factura, observaciones, tasa_dia, imagen_factura, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [fecha || new Date().toISOString().slice(0,10), proveedorId || null,
-       proveedorNombre.trim(), proveedorRif?.trim() || null,
-       numeroFactura?.trim() || null, observaciones?.trim() || null,
-       Number(tasaDia) || 0, imagenFactura || null, sesion.id]
-    );
+    let cResult;
+    try {
+      cResult = await client.query(
+        `INSERT INTO compras (fecha, proveedor_id, proveedor_nombre, proveedor_rif, numero_factura, observaciones, tasa_dia, imagen_factura, created_by, tipo_uso)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+        [fecha || new Date().toISOString().slice(0,10), proveedorId || null,
+         proveedorNombre.trim(), proveedorRif?.trim() || null,
+         numeroFactura?.trim() || null, observaciones?.trim() || null,
+         Number(tasaDia) || 0, imagenFactura || null, sesion.id, tipoUsoValido]
+      );
+    } catch {
+      // columna tipo_uso pendiente de migración 053 — reiniciar transacción
+      // (una query fallida dentro de BEGIN...COMMIT aborta el resto del bloque)
+      await client.query("ROLLBACK");
+      await client.query("BEGIN");
+      cResult = await client.query(
+        `INSERT INTO compras (fecha, proveedor_id, proveedor_nombre, proveedor_rif, numero_factura, observaciones, tasa_dia, imagen_factura, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [fecha || new Date().toISOString().slice(0,10), proveedorId || null,
+         proveedorNombre.trim(), proveedorRif?.trim() || null,
+         numeroFactura?.trim() || null, observaciones?.trim() || null,
+         Number(tasaDia) || 0, imagenFactura || null, sesion.id]
+      );
+    }
     const compraId = cResult.rows[0].id;
 
     for (const item of items) {
