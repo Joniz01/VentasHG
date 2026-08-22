@@ -313,7 +313,7 @@ export default function ProductosClient() {
     },
     {
       label: "Valor del Inventario",
-      value: kpisLoading ? "…" : `$${(kpis?.valorInventario ?? 0).toFixed(2)}`,
+      value: kpisLoading ? "…" : `$${(kpis?.valorInventario ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       sub: "stock × costo",
       color: "#059669",
     },
@@ -330,7 +330,7 @@ export default function ProductosClient() {
       color: "#2563eb",
     },
     {
-      label: "Producto Más Vendido",
+      label: "Prod. Más Vendido",
       value: kpisLoading ? "…" : (kpis?.topProductoNombre ?? "—"),
       sub: kpisLoading ? "" : kpis?.topProductoUnidades ? `${kpis.topProductoUnidades} uds hoy` : "sin ventas hoy",
       color: "#7c3aed",
@@ -434,12 +434,14 @@ export default function ProductosClient() {
               justifyContent: "center",
               gap: 3,
               minHeight: 84,
+              height: "100%",
               boxSizing: "border-box",
+              overflow: "hidden",
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{card.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.label}</span>
             <span style={{ fontSize: 18, fontWeight: 700, color: card.color, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
-            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{card.sub}</span>
+            <span style={{ fontSize: 11, color: "var(--erp-text-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.sub}</span>
           </div>
         ))}
       </div>}
