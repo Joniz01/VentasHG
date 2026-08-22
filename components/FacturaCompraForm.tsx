@@ -659,12 +659,12 @@ export default function FacturaCompraForm({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
             <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 00001234" style={S} /></div>
-            <div>
+            <div style={{ gridColumn: "1 / -1" }}>
               <label style={lbl}>Tasa del día (Bs/$)</label>
               <div style={{ display: "flex", gap: 6 }}>
-                <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} style={{ ...S, minWidth: 110 }} />
+                <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} style={{ ...S, flex: 1, minWidth: 0 }} />
                 <button type="button" onClick={() => handleConsultarTasaBcv()} disabled={consultandoTasa}
-                  style={{ flexShrink: 0, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: consultandoTasa ? "not-allowed" : "pointer" }}>
+                  style={{ flexShrink: 0, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "0 16px", fontSize: 12, fontWeight: 600, cursor: consultandoTasa ? "not-allowed" : "pointer" }}>
                   {consultandoTasa ? "..." : "BCV"}
                 </button>
               </div>
