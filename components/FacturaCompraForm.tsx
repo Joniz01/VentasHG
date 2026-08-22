@@ -656,10 +656,12 @@ export default function FacturaCompraForm({
 
         <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: 16 }}>
           <div style={sectionTitle}>Datos de la Factura</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
-            <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 00001234" style={S} /></div>
-            <div style={{ gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
+              <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 00001234" style={S} /></div>
+            </div>
+            <div>
               <label style={lbl}>Tasa del día (Bs/$)</label>
               <div style={{ display: "flex", gap: 6 }}>
                 <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} style={{ ...S, flex: 1, minWidth: 0 }} />
@@ -671,8 +673,10 @@ export default function FacturaCompraForm({
               {tasaBcvFecha && <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3 }}>BCV: {tasaBcvFecha}</div>}
               {tasaBcvError && <div style={{ fontSize: 11, color: "#B91C1C", marginTop: 3 }}>{tasaBcvError}</div>}
             </div>
-            <div><label style={lbl}>Vencimiento pago</label><input type="date" value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} /></div>
-            <div style={{ gridColumn: "1 / -1" }}><label style={lbl}>Observaciones</label><input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Opcional" style={S} /></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label style={lbl}>Vencimiento pago</label><input type="date" value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} /></div>
+              <div><label style={lbl}>Observaciones</label><input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Opcional" style={S} /></div>
+            </div>
           </div>
         </div>
 
