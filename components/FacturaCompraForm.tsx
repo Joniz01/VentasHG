@@ -865,13 +865,13 @@ export default function FacturaCompraForm({
         {/* ③ Datos de factura */}
         <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--erp-border)" }}>
           <div style={sectionTitle}>③ Datos de factura</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
             <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
             <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 0045" style={S} /></div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={lbl}>Tasa del día (Bs/$)</label>
               <div style={{ display: "flex", gap: 6 }}>
-                <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} placeholder="0.00" style={S} />
+                <input type="number" value={tasaDia} onChange={e => setTasaDia(e.target.value)} placeholder="0.00" style={{ ...S, flex: 1, minWidth: 0 }} />
                 <button type="button" onClick={() => handleConsultarTasaBcv()} disabled={consultandoTasa}
                   style={{ flexShrink: 0, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: consultandoTasa ? "not-allowed" : "pointer" }}>
                   {consultandoTasa ? "..." : "BCV"}
@@ -885,7 +885,7 @@ export default function FacturaCompraForm({
               <input type="date" value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} />
               {proveedorDiasCredito > 0 && <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3 }}>{proveedorDiasCredito} días · según crédito del proveedor</div>}
             </div>
-            <div style={{ gridColumn: "2 / -1" }}>
+            <div style={{ gridColumn: "span 2" }}>
               <label style={lbl}>Observaciones</label>
               <input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Notas internas, condiciones especiales…" style={S} />
             </div>
