@@ -97,6 +97,9 @@ export async function POST(request: NextRequest) {
     const diaPago1 = body.diaPago1 != null ? Number(body.diaPago1) : null;
     const diaPago2 = body.diaPago2 != null ? Number(body.diaPago2) : null;
 
+    // Intentar con todas las columnas nuevas; usar SAVEPOINT antes de cada intento
+    // para poder recuperar la transacción si la columna no existe aún en la BD.
+    await client.query("SAVEPOINT sp1");
     let nominaId: number;
     try {
       const result = await client.query(
@@ -105,20 +108,19 @@ export async function POST(request: NextRequest) {
       );
       nominaId = result.rows[0].id;
     } catch {
-      // Migraciones 065/066 pendientes — insertar sin columnas de día y centro de costo
-      await client.query("SAVEPOINT sp_nomina_fallback");
+      await client.query("ROLLBACK TO sp1");
+      await client.query("SAVEPOINT sp2");
       try {
         const result = await client.query(
-          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, centro_costo_id) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", centroCostoId]
+          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true, centroCostoId]
         );
         nominaId = result.rows[0].id;
       } catch {
-        // centro_costo_id también pendiente — insertar solo con columnas base
-        await client.query("ROLLBACK TO sp_nomina_fallback");
+        await client.query("ROLLBACK TO sp2");
         const result = await client.query(
-          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion) VALUES ($1,$2,$3,$4) RETURNING id`,
-          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL"]
+          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, activo) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true]
         );
         nominaId = result.rows[0].id;
       }
