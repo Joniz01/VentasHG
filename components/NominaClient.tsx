@@ -286,7 +286,16 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cedula} onChange={(e) => setForm((p) => ({ ...p, cedula: e.target.value }))} placeholder="Ej: V-12345678" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha de nacimiento</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>
+                Fecha de nacimiento
+                {form.fechaNacimiento && (() => {
+                  const hoy = new Date(today() + "T00:00:00");
+                  const nac = new Date(form.fechaNacimiento + "T00:00:00");
+                  let edad = hoy.getFullYear() - nac.getFullYear();
+                  if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) edad--;
+                  return <span className="ml-2 font-normal text-xs" style={{ color: "var(--erp-text-2)" }}>{edad} años</span>;
+                })()}
+              </label>
               <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaNacimiento} onChange={(e) => setForm((p) => ({ ...p, fechaNacimiento: e.target.value }))} />
             </div>
             <div className="flex flex-col gap-1">
