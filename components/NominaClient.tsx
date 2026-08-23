@@ -1330,7 +1330,7 @@ function StatTile({ label, value, color, prefix = "$" }: { label: string; value:
 
 export default function NominaClient() {
   const [tab, setTab] = useState<"nominas" | "periodos" | "empleados">("nominas");
-  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0 });
+  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null } });
   const [nominas, setNominas] = useState<Nomina[]>([]);
 
   async function loadResumen() {
@@ -1355,6 +1355,20 @@ export default function NominaClient() {
         <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
         <StatTile label="Nómina Pendiente por Pagar" value={resumen.nominaPendiente} color="#a16207" />
         <StatTile label="Nómina Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
+        {resumen.proximaSemana && (
+          <div className="rounded-xl border px-4 py-3 flex flex-col gap-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+            <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana</div>
+            <div className="text-xl font-extrabold" style={{ color: "#1d4ed8" }}>
+              ${resumen.proximaSemana.totalUsd.toFixed(2)}
+            </div>
+            <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+              {resumen.proximaSemana.periodos} período(s)
+              {resumen.proximaSemana.lunes && resumen.proximaSemana.domingo && (
+                <span className="block">{formatFechaCorta(resumen.proximaSemana.lunes)} – {formatFechaCorta(resumen.proximaSemana.domingo)}</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 flex-wrap">
