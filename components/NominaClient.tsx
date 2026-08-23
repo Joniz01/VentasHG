@@ -594,7 +594,7 @@ const TIPO_NOMINA_BADGE_COLOR: Record<TipoNomina, string> = {
   SOLO_SUELDO: "#15803d",
 };
 
-function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tiposIncidencia: TipoIncidencia[]; onChange: () => void }) {
+function NominaCard({ nomina, tiposIncidencia, onChange, onEdit }: { nomina: Nomina; tiposIncidencia: TipoIncidencia[]; onChange: () => void; onEdit: (n: Nomina) => void }) {
   const [expandido, setExpandido] = useState(false);
   const [row, setRow] = useState<IncidenciaConfigRow>({ ...EMPTY_INCIDENCIA_ROW });
   const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
@@ -697,7 +697,8 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
 
       {expandido && (
         <div className="p-3 flex flex-col gap-3">
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 flex-wrap">
+            <button type="button" onClick={() => onEdit(nomina)} className="text-xs font-medium" style={{ color: "var(--erp-primary)" }}>Editar Nómina</button>
             <GenerarPeriodoForm nomina={nomina} onCreated={onChange} />
             <button type="button" onClick={handleDesactivar} className="text-xs text-red-600">Desactivar Nómina</button>
           </div>
@@ -804,6 +805,7 @@ function NominasTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingNominaId, setEditingNominaId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [nuevoTipoIncidencia, setNuevoTipoIncidencia] = useState("");
   const [form, setForm] = useState<NominaForm>({ ...EMPTY_NOMINA_FORM });
@@ -855,6 +857,29 @@ function NominasTab() {
     }
   }
 
+  function startEditNomina(n: Nomina) {
+    setEditingNominaId(n.id);
+    setForm({
+      nombre: n.nombre,
+      tipo: n.tipo,
+      frecuencia: n.frecuencia,
+      modoGeneracion: n.modoGeneracion,
+      diaSemana: n.diaSemana !== null ? String(n.diaSemana) : "5",
+      diaPago1: n.diaPago1 !== null ? String(n.diaPago1) : "15",
+      diaPago2: n.diaPago2 !== null ? String(n.diaPago2) : "30",
+      centroCostoId: n.centroCostoId ? String(n.centroCostoId) : "",
+    });
+    setShowForm(true);
+    setError(null);
+  }
+
+  function resetNominaForm() {
+    setEditingNominaId(null);
+    setForm({ ...EMPTY_NOMINA_FORM });
+    setShowForm(false);
+    setError(null);
+  }
+
   async function handleSubmit(ev: FormEvent) {
     ev.preventDefault();
     setError(null);
@@ -864,29 +889,29 @@ function NominasTab() {
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/nominas", {
-        method: "POST",
+      const payload = {
+        nombre: form.nombre.trim(),
+        tipo: form.tipo,
+        frecuencia: form.frecuencia,
+        modoGeneracion: form.modoGeneracion,
+        diaSemana: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "SEMANAL" ? Number(form.diaSemana) : null,
+        diaPago1: form.modoGeneracion === "AUTOMATICO" && form.frecuencia !== "SEMANAL" ? Number(form.diaPago1) : null,
+        diaPago2: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "QUINCENAL" ? Number(form.diaPago2) : null,
+        centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
+        activo: true,
+        incidencias: [],
+      };
+      const res = await fetch(editingNominaId ? `/api/nominas/${editingNominaId}` : "/api/nominas", {
+        method: editingNominaId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: form.nombre.trim(),
-          tipo: form.tipo,
-          frecuencia: form.frecuencia,
-          modoGeneracion: form.modoGeneracion,
-          diaSemana: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "SEMANAL" ? Number(form.diaSemana) : null,
-          diaPago1: form.modoGeneracion === "AUTOMATICO" && form.frecuencia !== "SEMANAL" ? Number(form.diaPago1) : null,
-          diaPago2: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "QUINCENAL" ? Number(form.diaPago2) : null,
-          centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
-          activo: true,
-          incidencias: [],
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detalle ? `${data.error ?? "Error"}: ${data.detalle}` : (data.error ?? "Error al crear la Nómina"));
-      setShowForm(false);
-      setForm({ ...EMPTY_NOMINA_FORM });
+      if (!res.ok) throw new Error(data.detalle ? `${data.error ?? "Error"}: ${data.detalle}` : (data.error ?? (editingNominaId ? "Error al actualizar la Nómina" : "Error al crear la Nómina")));
+      resetNominaForm();
       await loadNominas();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al crear la Nómina");
+      setError(err instanceof Error ? err.message : "Error al guardar la Nómina");
     } finally {
       setSaving(false);
     }
@@ -916,7 +941,7 @@ function NominasTab() {
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => showForm ? resetNominaForm() : setShowForm(true)}
           className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
           style={{ background: "var(--erp-accent)" }}
         >
@@ -928,6 +953,7 @@ function NominasTab() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>{editingNominaId ? "Editar Nómina" : "Nueva Nómina"}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre de la Nómina</label>
@@ -1054,9 +1080,9 @@ function NominasTab() {
             Luego de crearla, asigna empleados desde su ficha y agrega las incidencias que apliquen antes de generar un período.
           </p>
           <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
+            <button type="button" onClick={resetNominaForm} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
             <button type="submit" disabled={saving} className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" style={{ background: "var(--erp-primary)" }}>
-              {saving ? "Creando..." : "Crear Nómina"}
+              {saving ? "Guardando..." : editingNominaId ? "Actualizar Nómina" : "Crear Nómina"}
             </button>
           </div>
         </form>
@@ -1071,7 +1097,7 @@ function NominasTab() {
       ) : (
         <div className="flex flex-col gap-3">
           {nominas.map((n) => (
-            <NominaCard key={n.id} nomina={n} tiposIncidencia={tiposIncidencia} onChange={() => loadNominas(true)} />
+            <NominaCard key={n.id} nomina={n} tiposIncidencia={tiposIncidencia} onChange={() => loadNominas(true)} onEdit={startEditNomina} />
           ))}
         </div>
       )}
