@@ -18,7 +18,7 @@ type ObligacionItem = {
   referencia: string | null;
 };
 
-type Semana = { lunes: string; domingo: string; totalUsd: number };
+type Semana = { lunes: string; domingo: string; totalUsd: number; tipos: string[] };
 
 type PlanificacionData = {
   kpis: { vencidoUsd: number; estaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number };
@@ -223,37 +223,81 @@ export default function TesoreriaClient() {
           padding: "16px 20px",
         }}
       >
-        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
-          Flujo de Compromisos · Próximas 4 Semanas
-        </p>
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", height: 80 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+            Flujo de Compromisos · Próximas 4 Semanas
+          </p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--erp-text-3)" }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#D97706", display: "inline-block" }} /> Esta semana
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--erp-text-3)" }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: "#2563EB", display: "inline-block" }} /> Próximas
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           {semanas.map((sem, i) => {
             const isThisWeek = sem.lunes === semLunes;
-            const heightPct = Math.max(6, (sem.totalUsd / maxSem) * 100);
             const color = isThisWeek ? "#D97706" : "#2563EB";
-            const bgColor = isThisWeek ? "rgba(217,119,6,0.12)" : "rgba(37,99,235,0.10)";
+            const barHeight = Math.max(40, (sem.totalUsd / maxSem) * 120);
+            const TIPO_LABELS: Record<string, string> = {
+              nomina: "NÓM", "gasto-fijo": "FIJO", gasto: "GASTO", proveedor: "PROV",
+            };
+            const TIPO_BG: Record<string, string> = {
+              nomina: "#7C3AED", "gasto-fijo": "#0891B2", gasto: "#B45309", proveedor: "#374151",
+            };
             return (
-              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>
-                  {sem.totalUsd > 0 ? `$${USD(sem.totalUsd)}` : "—"}
-                </span>
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                {/* Bar block */}
                 <div
                   style={{
-                    width: "100%",
-                    height: `${heightPct}%`,
-                    borderRadius: "4px 4px 0 0",
-                    background: sem.totalUsd > 0 ? color : bgColor,
-                    opacity: sem.totalUsd > 0 ? 1 : 0.4,
-                    transition: "height 0.3s ease",
+                    height: barHeight,
+                    borderRadius: 8,
+                    background: sem.totalUsd > 0
+                      ? `linear-gradient(160deg, ${color}dd, ${color}99)`
+                      : "var(--erp-border)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    padding: "8px 4px",
+                    transition: "height 0.35s ease",
+                    opacity: sem.totalUsd > 0 ? 1 : 0.35,
                   }}
-                />
-                <span style={{ fontSize: 9, color: "var(--erp-text-3)", textAlign: "center", lineHeight: 1.3 }}>
-                  {isThisWeek ? "Esta\nsem." : `Sem. ${i + 1}`}
-                  <br />
-                  <span style={{ fontSize: 9, color: "var(--erp-text-3)" }}>
-                    {fmtFecha(sem.lunes).slice(0, 5)}
-                  </span>
-                </span>
+                >
+                  {sem.totalUsd > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", fontVariantNumeric: "tabular-nums", textAlign: "center" }}>
+                      ${USD(sem.totalUsd)}
+                    </span>
+                  )}
+                </div>
+                {/* Week label */}
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: isThisWeek ? color : "var(--erp-text-2)", marginBottom: 1 }}>
+                    {isThisWeek ? "Esta sem." : `${fmtFecha(sem.lunes).slice(0, 5)}–${fmtFecha(sem.domingo).slice(0, 5)}`}
+                  </p>
+                  {/* Type chips */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 2, justifyContent: "center" }}>
+                    {sem.tipos.map((t) => (
+                      <span
+                        key={t}
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 700,
+                          padding: "1px 4px",
+                          borderRadius: 3,
+                          background: TIPO_BG[t] ?? "#6B7280",
+                          color: "#fff",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        {TIPO_LABELS[t] ?? t.toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             );
           })}
@@ -337,7 +381,6 @@ export default function TesoreriaClient() {
           filtrados.map((item, idx) => {
             const estadoC = ESTADO_COLOR[item.estado];
             const isLast = idx === filtrados.length - 1;
-            const canPay = item.id.startsWith("G") && item.estado !== "pagado";
             return (
               <div
                 key={item.id}
@@ -391,7 +434,7 @@ export default function TesoreriaClient() {
 
                 {/* Acción */}
                 <div>
-                  {canPay ? (
+                  {item.estado !== "pagado" ? (
                     <button
                       onClick={() => marcarPagado(item.id)}
                       disabled={pagando === item.id}
@@ -411,8 +454,6 @@ export default function TesoreriaClient() {
                     >
                       {pagando === item.id ? "…" : "✓ Registrar"}
                     </button>
-                  ) : item.id.startsWith("N") ? (
-                    <span style={{ fontSize: 10, color: "var(--erp-text-3)" }}>Via Nómina</span>
                   ) : null}
                 </div>
               </div>

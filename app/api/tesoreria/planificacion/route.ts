@@ -211,14 +211,16 @@ export async function GET(request: NextRequest) {
   const esteMesUsd = items.reduce((s, i) => s + i.montoUsd, 0);
   const pagadoUsd = gastosPagadoUsd + nominasPagadoUsd;
 
-  // ── Semanas timeline ───────────────────────────────────────────────────────
+  // ── Semanas timeline (4 semanas a partir del lunes actual) ────────────────
   const semanas = Array.from({ length: 4 }, (_, i) => {
     const semLunes = addDays(lunes, i * 7);
     const semDomingo = addDays(semLunes, 6);
-    const totalUsd = items
-      .filter((it) => it.fechaVencimiento >= semLunes && it.fechaVencimiento <= semDomingo)
-      .reduce((s, it) => s + it.montoUsd, 0);
-    return { lunes: semLunes, domingo: semDomingo, totalUsd };
+    const semItems = items.filter(
+      (it) => it.fechaVencimiento >= semLunes && it.fechaVencimiento <= semDomingo
+    );
+    const totalUsd = semItems.reduce((s, it) => s + it.montoUsd, 0);
+    const tipos = [...new Set(semItems.map((it) => it.tipo))];
+    return { lunes: semLunes, domingo: semDomingo, totalUsd, tipos };
   });
 
   return NextResponse.json({
@@ -231,20 +233,41 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// PATCH — marcar gasto como pagado
+// PATCH — marcar obligación como pagada (gasto o nómina completa)
 export async function PATCH(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const body = (await request.json()) as { id: string };
-  if (!body.id?.startsWith("G")) {
-    return NextResponse.json({ error: "Solo gastos pueden marcarse desde aquí" }, { status: 400 });
+  if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+
+  // Gasto operativo
+  if (body.id.startsWith("G")) {
+    const gastoId = Number(body.id.slice(1));
+    await pool.query(
+      `UPDATE gastos SET estado = 'PAGADO', pagado_at = now() WHERE id = $1`,
+      [gastoId]
+    );
+    return NextResponse.json({ ok: true });
   }
 
-  const gastoId = Number(body.id.slice(1));
-  await pool.query(
-    `UPDATE gastos SET estado = 'PAGADO', pagado_at = now() WHERE id = $1`,
-    [gastoId]
-  );
-  return NextResponse.json({ ok: true });
+  // Período de nómina — marcar todos los pagos pendientes de ese período
+  if (body.id.startsWith("N")) {
+    const periodoId = Number(body.id.slice(1));
+    const pendientesResult = await pool.query<{ id: number }>(
+      `SELECT id FROM nomina_pagos WHERE periodo_id = $1 AND estado = 'PENDIENTE'`,
+      [periodoId]
+    );
+    if (pendientesResult.rows.length === 0) {
+      return NextResponse.json({ ok: true, mensaje: "Sin pagos pendientes" });
+    }
+    const ids = pendientesResult.rows.map((r) => r.id);
+    await pool.query(
+      `UPDATE nomina_pagos SET estado = 'PAGADO', pagado_at = now() WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    return NextResponse.json({ ok: true, marcados: ids.length });
+  }
+
+  return NextResponse.json({ error: "ID no reconocido" }, { status: 400 });
 }
