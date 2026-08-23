@@ -202,8 +202,8 @@ export default function ConfiguracionClient() {
     setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
-  function expandAll() { setOpen({ general: true, cashea: true, yummy: true, ventas: true }); }
-  function collapseAll() { setOpen({ general: false, cashea: false, yummy: false, ventas: false }); }
+  function expandAll() { setOpen({ general: true, cashea: true, yummy: true, ventas: true, nomina: true }); }
+  function collapseAll() { setOpen({ general: false, cashea: false, yummy: false, ventas: false, nomina: false }); }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
