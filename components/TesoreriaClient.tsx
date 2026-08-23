@@ -205,6 +205,44 @@ export default function TesoreriaClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <style>{`
+        .tsr-table-header {
+          display: grid;
+          grid-template-columns: 1fr 90px 100px 80px 100px 130px;
+          padding: 10px 16px;
+          border-bottom: 1px solid var(--erp-border);
+          background: var(--erp-surface);
+        }
+        .tsr-table-row {
+          display: grid;
+          grid-template-columns: 1fr 90px 100px 80px 100px 130px;
+          padding: 11px 16px;
+          align-items: center;
+        }
+        .tsr-cell-bs   { display: block; }
+        .tsr-cell-tipo { display: block; }
+        .tsr-mobile-meta { display: none; }
+        @media (max-width: 640px) {
+          .tsr-table-header { display: none; }
+          .tsr-table-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 12px 14px;
+          }
+          .tsr-cell-tipo { display: none; }
+          .tsr-cell-bs   { display: none; }
+          .tsr-cell-usd  { font-size: 15px !important; font-weight: 800 !important; }
+          .tsr-cell-venc { font-size: 12px !important; }
+          .tsr-cell-btn  { align-self: stretch; }
+          .tsr-mobile-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+          }
+        }
+      `}</style>
 
       {/* ── KPI Strip ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -354,16 +392,8 @@ export default function TesoreriaClient() {
           overflow: "hidden",
         }}
       >
-        {/* Table header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 90px 90px 90px 90px 80px",
-            padding: "10px 16px",
-            borderBottom: "1px solid var(--erp-border)",
-            background: "var(--erp-bg, var(--erp-surface))",
-          }}
-        >
+        {/* Table header — hidden on mobile via CSS */}
+        <div className="tsr-table-header">
           {["Descripción", "Tipo", "Vencimiento", "USD", "Bs.", ""].map((h, i) => (
             <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               {h}
@@ -384,20 +414,21 @@ export default function TesoreriaClient() {
             return (
               <div
                 key={item.id}
+                className="tsr-table-row"
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 90px 90px 90px 90px 80px",
-                  padding: "11px 16px",
-                  alignItems: "center",
                   borderBottom: isLast ? "none" : "1px solid var(--erp-border)",
                   borderLeft: `3px solid ${estadoC.border}`,
                   background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
-                  transition: "background 0.1s",
                 }}
               >
                 {/* Descripción */}
-                <div>
-                  <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--erp-text)", lineHeight: 1.3 }}>
+                <div className="tsr-cell-desc">
+                  {/* Mobile: tipo + estado inline */}
+                  <div className="tsr-mobile-meta">
+                    <TipoPill tipo={item.tipo as ItemTipo} />
+                    <EstadoPill estado={item.estado} />
+                  </div>
+                  <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--erp-text)", lineHeight: 1.3, marginTop: 4 }}>
                     {item.descripcion}
                   </p>
                   {item.referencia && (
@@ -407,42 +438,40 @@ export default function TesoreriaClient() {
                   )}
                 </div>
 
-                {/* Tipo */}
-                <TipoPill tipo={item.tipo as ItemTipo} />
+                {/* Tipo — desktop grid column, hidden on mobile (shown in mobile-meta) */}
+                <div className="tsr-cell-tipo">
+                  <TipoPill tipo={item.tipo as ItemTipo} />
+                </div>
 
                 {/* Vencimiento */}
                 <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: estadoC.text,
-                    fontVariantNumeric: "tabular-nums",
-                  }}
+                  className="tsr-cell-venc"
+                  style={{ fontSize: 12, fontWeight: 600, color: estadoC.text, fontVariantNumeric: "tabular-nums" }}
                 >
-                  {fmtFecha(item.fechaVencimiento)}
+                  📅 {fmtFecha(item.fechaVencimiento)}
                 </span>
 
                 {/* USD */}
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>
+                <span className="tsr-cell-usd" style={{ fontSize: 13, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>
                   ${USD(item.montoUsd)}
                 </span>
 
-                {/* Bs */}
-                <span style={{ fontSize: 11, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>
+                {/* Bs — hidden on mobile */}
+                <span className="tsr-cell-bs" style={{ fontSize: 11, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>
                   Bs.{BS(item.montoBs)}
                 </span>
 
                 {/* Acción */}
-                <div>
+                <div className="tsr-cell-btn">
                   {item.estado !== "pagado" ? (
                     <button
                       onClick={() => marcarPagado(item.id)}
                       disabled={pagando === item.id}
                       style={{
-                        padding: "4px 10px",
-                        borderRadius: 6,
-                        fontSize: 11,
-                        fontWeight: 600,
+                        padding: "6px 12px",
+                        borderRadius: 7,
+                        fontSize: 12,
+                        fontWeight: 700,
                         cursor: pagando === item.id ? "wait" : "pointer",
                         border: "1.5px solid #059669",
                         background: "transparent",
@@ -450,6 +479,7 @@ export default function TesoreriaClient() {
                         opacity: pagando === item.id ? 0.6 : 1,
                         transition: "all 0.15s",
                         whiteSpace: "nowrap",
+                        width: "100%",
                       }}
                     >
                       {pagando === item.id ? "…" : "✓ Registrar Pagado"}
