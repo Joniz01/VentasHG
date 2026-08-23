@@ -145,11 +145,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: nominaId }, { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
-    const message =
-      err instanceof Error && err.message.includes("duplicate")
-        ? "Ya existe una Nómina con ese nombre"
-        : "Error al crear la Nómina";
-    return NextResponse.json({ error: message }, { status: 400 });
+    const detalle = err instanceof Error ? err.message : String(err);
+    const message = detalle.includes("duplicate")
+      ? "Ya existe una Nómina con ese nombre"
+      : "Error al crear la Nómina";
+    return NextResponse.json({ error: message, detalle }, { status: 400 });
   } finally {
     client.release();
   }

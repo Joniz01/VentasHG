@@ -783,7 +783,7 @@ function NominasTab() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al crear la Nómina");
+      if (!res.ok) throw new Error(data.detalle ? `${data.error ?? "Error"}: ${data.detalle}` : (data.error ?? "Error al crear la Nómina"));
       setShowForm(false);
       setForm({ ...EMPTY_NOMINA_FORM });
       await loadNominas();
