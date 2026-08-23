@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef, FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import Paginador from "@/components/Paginador";
 import {
   METODOS_PAGO,
@@ -142,7 +143,10 @@ type Props = {
 };
 
 export default function VentasClient({ rol = null, puedeDescuento = false, puedePromociones = false }: Props) {
-  const [vista, setVista] = useState<"ventas" | "cortesias" | "promociones" | "historial" | "notas">("ventas");
+  const searchParams = useSearchParams();
+  const vistaParam = searchParams.get("vista");
+  const vistaInicial = (["ventas", "cortesias", "promociones", "historial", "notas"].includes(vistaParam ?? "") ? vistaParam : "ventas") as "ventas" | "cortesias" | "promociones" | "historial" | "notas";
+  const [vista, setVista] = useState<"ventas" | "cortesias" | "promociones" | "historial" | "notas">(vistaInicial);
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
@@ -1031,10 +1035,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
         className="flex gap-0 print:hidden border-b"
         style={{ borderColor: "var(--erp-border)" }}
       >
-        {(["ventas", "cortesias", "promociones", "historial", "notas"] as const)
-          .filter((v) => v !== "promociones" || puedePromociones)
+        {(["ventas", "historial"] as const)
           .map((v) => {
-          const labels: Record<string, string> = { ventas: "Registro de Ventas", cortesias: "Salida Cortesías", promociones: "Promociones", historial: "Historial", notas: "Notas de Entrega" };
+          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial" };
           const active = vista === v;
           return (
             <button

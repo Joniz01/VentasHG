@@ -23,9 +23,12 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Punto de Venta",
     tiles: [
-      { href: "/ventas",             icon: "🛒", label: "Registrar Venta",    sub: "Nueva transacción",       color: "#EA6B0A", permiso: "ventas" },
-      { href: "/pedidos-pendientes", icon: "📋", label: "Pedidos Pendientes", sub: "Por preparar o entregar", color: "#1D4ED8", permiso: "pedidosPendientes" },
-      { href: "/delivery",           icon: "📬", label: "Deliveries",         sub: "Pedidos a domicilio",     color: "#15803D" },
+      { href: "/ventas",                        icon: "🛒", label: "Registrar Venta",    sub: "Nueva transacción",        color: "#EA6B0A", permiso: "ventas" },
+      { href: "/pedidos-pendientes",            icon: "📋", label: "Pedidos Pendientes", sub: "Por preparar o entregar",  color: "#1D4ED8", permiso: "pedidosPendientes" },
+      { href: "/delivery",                      icon: "📬", label: "Deliveries",         sub: "Pedidos a domicilio",      color: "#15803D" },
+      { href: "/ventas?vista=cortesias",        icon: "🎁", label: "Salida Cortesías",   sub: "Salidas sin cobro",        color: "#7C3AED", permiso: "ventas" },
+      { href: "/ventas?vista=promociones",      icon: "🏷️", label: "Promociones",        sub: "Descuentos y combos",      color: "#0891B2", permiso: "ventas" },
+      { href: "/ventas?vista=notas",            icon: "📝", label: "Notas de Entrega",   sub: "Órdenes de despacho",      color: "#15803D", permiso: "ventas" },
     ],
   },
   {
