@@ -1,0 +1,447 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+type ItemEstado = "vencido" | "pendiente" | "programado" | "pagado";
+type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor";
+
+type ObligacionItem = {
+  id: string;
+  tipo: ItemTipo;
+  descripcion: string;
+  fechaVencimiento: string;
+  montoBs: number;
+  montoUsd: number;
+  estado: ItemEstado;
+  referencia: string | null;
+};
+
+type Semana = { lunes: string; domingo: string; totalUsd: number };
+
+type PlanificacionData = {
+  kpis: { vencidoUsd: number; estaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number };
+  items: ObligacionItem[];
+  semanas: Semana[];
+  hoy: string;
+  lunes: string;
+  domingo: string;
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const USD = (n: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const BS = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function fmtFecha(iso: string): string {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+// ── Semantic colour maps ───────────────────────────────────────────────────
+
+const ESTADO_COLOR: Record<ItemEstado, { text: string; bg: string; border: string; label: string }> = {
+  vencido:    { text: "#EF4444", bg: "rgba(239,68,68,0.09)",    border: "#EF4444", label: "Vencido" },
+  pendiente:  { text: "#D97706", bg: "rgba(217,119,6,0.09)",    border: "#D97706", label: "Esta semana" },
+  programado: { text: "#2563EB", bg: "rgba(37,99,235,0.09)",    border: "#2563EB", label: "Programado" },
+  pagado:     { text: "#059669", bg: "rgba(5,150,105,0.09)",    border: "#059669", label: "Pagado" },
+};
+
+const TIPO_COLOR: Record<ItemTipo, { text: string; bg: string; label: string }> = {
+  nomina:      { text: "#7C3AED", bg: "#EDE9FE", label: "Nómina" },
+  "gasto-fijo":{ text: "#0891B2", bg: "#E0F2FE", label: "Gasto Fijo" },
+  gasto:       { text: "#B45309", bg: "#FEF3C7", label: "Gasto" },
+  proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Proveedor" },
+};
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+function KpiCard({
+  label, valueUsd, color, subLabel,
+}: {
+  label: string;
+  valueUsd: number;
+  color: string;
+  subLabel?: string;
+}) {
+  return (
+    <div
+      style={{
+        flex: "1 1 180px",
+        padding: "16px 20px",
+        borderRadius: 12,
+        background: "var(--erp-surface)",
+        border: "1px solid var(--erp-border)",
+        borderTop: `3px solid ${color}`,
+      }}
+    >
+      <p style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 22, fontWeight: 800, color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
+        ${USD(valueUsd)}
+      </p>
+      {subLabel && (
+        <p style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 4 }}>{subLabel}</p>
+      )}
+    </div>
+  );
+}
+
+function TipoPill({ tipo }: { tipo: ItemTipo }) {
+  const c = TIPO_COLOR[tipo] ?? TIPO_COLOR.gasto;
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: 99,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        background: c.bg,
+        color: c.text,
+      }}
+    >
+      {c.label.toUpperCase()}
+    </span>
+  );
+}
+
+function EstadoPill({ estado }: { estado: ItemEstado }) {
+  const c = ESTADO_COLOR[estado];
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: 99,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        background: c.bg,
+        color: c.text,
+        border: `1px solid ${c.border}22`,
+      }}
+    >
+      {c.label.toUpperCase()}
+    </span>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
+type FiltroEstado = "todos" | ItemEstado;
+
+export default function TesoreriaClient() {
+  const [data, setData] = useState<PlanificacionData | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [filtro, setFiltro] = useState<FiltroEstado>("todos");
+  const [pagando, setPagando] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    try {
+      const res = await fetch("/api/tesoreria/planificacion");
+      if (res.ok) setData(await res.json());
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const marcarPagado = async (id: string) => {
+    if (!id.startsWith("G")) return; // only gastos for now
+    setPagando(id);
+    try {
+      await fetch("/api/tesoreria/planificacion", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      await cargar();
+    } finally {
+      setPagando(null);
+    }
+  };
+
+  if (cargando && !data) {
+    return (
+      <div style={{ padding: "3rem", textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>
+        Cargando planificación…
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { kpis, items, semanas, lunes: semLunes } = data;
+
+  // Filter + counts
+  const counts: Record<FiltroEstado, number> = {
+    todos: items.length,
+    vencido: items.filter((i) => i.estado === "vencido").length,
+    pendiente: items.filter((i) => i.estado === "pendiente").length,
+    programado: items.filter((i) => i.estado === "programado").length,
+    pagado: 0,
+  };
+  const filtrados = filtro === "todos" ? items : items.filter((i) => i.estado === filtro);
+
+  // Timeline scale
+  const maxSem = Math.max(...semanas.map((s) => s.totalUsd), 1);
+
+  const FILTROS: { key: FiltroEstado; label: string; color: string }[] = [
+    { key: "todos",      label: "Todos",        color: "var(--erp-primary)" },
+    { key: "vencido",    label: "Vencidos",     color: "#EF4444" },
+    { key: "pendiente",  label: "Esta Semana",  color: "#D97706" },
+    { key: "programado", label: "Programados",  color: "#2563EB" },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+      {/* ── KPI Strip ──────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+        <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" />
+        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel="Próximos 7 días" />
+        <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" />
+        <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" />
+      </div>
+
+      {/* ── Cash Flow Timeline ─────────────────────────────────────────── */}
+      <div
+        style={{
+          background: "var(--erp-surface)",
+          border: "1px solid var(--erp-border)",
+          borderRadius: 12,
+          padding: "16px 20px",
+        }}
+      >
+        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+          Flujo de Compromisos · Próximas 4 Semanas
+        </p>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", height: 80 }}>
+          {semanas.map((sem, i) => {
+            const isThisWeek = sem.lunes === semLunes;
+            const heightPct = Math.max(6, (sem.totalUsd / maxSem) * 100);
+            const color = isThisWeek ? "#D97706" : "#2563EB";
+            const bgColor = isThisWeek ? "rgba(217,119,6,0.12)" : "rgba(37,99,235,0.10)";
+            return (
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>
+                  {sem.totalUsd > 0 ? `$${USD(sem.totalUsd)}` : "—"}
+                </span>
+                <div
+                  style={{
+                    width: "100%",
+                    height: `${heightPct}%`,
+                    borderRadius: "4px 4px 0 0",
+                    background: sem.totalUsd > 0 ? color : bgColor,
+                    opacity: sem.totalUsd > 0 ? 1 : 0.4,
+                    transition: "height 0.3s ease",
+                  }}
+                />
+                <span style={{ fontSize: 9, color: "var(--erp-text-3)", textAlign: "center", lineHeight: 1.3 }}>
+                  {isThisWeek ? "Esta\nsem." : `Sem. ${i + 1}`}
+                  <br />
+                  <span style={{ fontSize: 9, color: "var(--erp-text-3)" }}>
+                    {fmtFecha(sem.lunes).slice(0, 5)}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Filter Chips ───────────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {FILTROS.map((f) => {
+          const active = filtro === f.key;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setFiltro(f.key)}
+              style={{
+                padding: "5px 14px",
+                borderRadius: 99,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                border: `1.5px solid ${active ? f.color : "var(--erp-border)"}`,
+                background: active ? f.color : "var(--erp-surface)",
+                color: active ? "#fff" : "var(--erp-text-2)",
+                transition: "all 0.15s",
+              }}
+            >
+              {f.label}
+              {counts[f.key] > 0 && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    background: active ? "rgba(255,255,255,0.25)" : "var(--erp-border)",
+                    color: active ? "#fff" : "var(--erp-text-3)",
+                    borderRadius: 99,
+                    padding: "0 6px",
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                >
+                  {counts[f.key]}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Obligations Table ──────────────────────────────────────────── */}
+      <div
+        style={{
+          background: "var(--erp-surface)",
+          border: "1px solid var(--erp-border)",
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
+      >
+        {/* Table header */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 90px 90px 90px 90px 80px",
+            padding: "10px 16px",
+            borderBottom: "1px solid var(--erp-border)",
+            background: "var(--erp-bg, var(--erp-surface))",
+          }}
+        >
+          {["Descripción", "Tipo", "Vencimiento", "USD", "Bs.", ""].map((h, i) => (
+            <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {h}
+            </span>
+          ))}
+        </div>
+
+        {filtrados.length === 0 ? (
+          <div style={{ padding: "2.5rem", textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>
+            {filtro === "todos"
+              ? "No hay obligaciones en la ventana de planificación."
+              : `Sin obligaciones en estado "${FILTROS.find((f) => f.key === filtro)?.label}".`}
+          </div>
+        ) : (
+          filtrados.map((item, idx) => {
+            const estadoC = ESTADO_COLOR[item.estado];
+            const isLast = idx === filtrados.length - 1;
+            const canPay = item.id.startsWith("G") && item.estado !== "pagado";
+            return (
+              <div
+                key={item.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 90px 90px 90px 90px 80px",
+                  padding: "11px 16px",
+                  alignItems: "center",
+                  borderBottom: isLast ? "none" : "1px solid var(--erp-border)",
+                  borderLeft: `3px solid ${estadoC.border}`,
+                  background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
+                  transition: "background 0.1s",
+                }}
+              >
+                {/* Descripción */}
+                <div>
+                  <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--erp-text)", lineHeight: 1.3 }}>
+                    {item.descripcion}
+                  </p>
+                  {item.referencia && (
+                    <p style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 2 }}>
+                      Ref: {item.referencia}
+                    </p>
+                  )}
+                </div>
+
+                {/* Tipo */}
+                <TipoPill tipo={item.tipo as ItemTipo} />
+
+                {/* Vencimiento */}
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: estadoC.text,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {fmtFecha(item.fechaVencimiento)}
+                </span>
+
+                {/* USD */}
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>
+                  ${USD(item.montoUsd)}
+                </span>
+
+                {/* Bs */}
+                <span style={{ fontSize: 11, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>
+                  Bs.{BS(item.montoBs)}
+                </span>
+
+                {/* Acción */}
+                <div>
+                  {canPay ? (
+                    <button
+                      onClick={() => marcarPagado(item.id)}
+                      disabled={pagando === item.id}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: pagando === item.id ? "wait" : "pointer",
+                        border: "1.5px solid #059669",
+                        background: "transparent",
+                        color: "#059669",
+                        opacity: pagando === item.id ? 0.6 : 1,
+                        transition: "all 0.15s",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {pagando === item.id ? "…" : "✓ Pagado"}
+                    </button>
+                  ) : item.id.startsWith("N") ? (
+                    <span style={{ fontSize: 10, color: "var(--erp-text-3)" }}>Via Nómina</span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* Footer totals */}
+        {filtrados.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 24,
+              padding: "10px 16px",
+              borderTop: "1px solid var(--erp-border)",
+              background: "var(--erp-bg, var(--erp-surface))",
+            }}
+          >
+            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>
+              {filtrados.length} obligación{filtrados.length !== 1 ? "es" : ""}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>
+              Total: ${USD(filtrados.reduce((s, i) => s + i.montoUsd, 0))}
+            </span>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
