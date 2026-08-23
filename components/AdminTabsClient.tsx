@@ -10,6 +10,7 @@ import InventarioInicialClient from "@/components/InventarioInicialClient";
 import LLMAdminPanel from "@/components/LLMAdminPanel";
 import ConteoUsuariosConfigClient from "@/components/ConteoUsuariosConfigClient";
 import TiposGastoConfigClient from "@/components/TiposGastoConfigClient";
+import CentrosCostoConfigClient from "@/components/CentrosCostoConfigClient";
 
 type Props = {
   usuarioActualId: number;
@@ -26,7 +27,8 @@ const TABS = [
   { key: "acceso",        label: "Acceso al Sistema",   icon: "🔐", desc: "Contraseña y sesión" },
   { key: "llm",           label: "IA / LLM",            icon: "🤖", desc: "API keys de Gemini y Groq" },
   { key: "conteo",        label: "Conteo Inventario",   icon: "📋", desc: "Usuarios de conteo físico" },
-  { key: "gastos-config", label: "Gastos",              icon: "🧾", desc: "Tipos de gasto configurables" },
+  { key: "gastos-config",   label: "Gastos",              icon: "🧾", desc: "Tipos de gasto configurables" },
+  { key: "centros-costo",   label: "Centros de Costo",    icon: "🏢", desc: "Sucursales y centros de costo" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -189,6 +191,15 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario, esAd
       {tab === "gastos-config" && (
         <div>
           <TiposGastoConfigClient />
+        </div>
+      )}
+
+      {tab === "centros-costo" && (
+        <div>
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
+            Gestiona las sucursales o centros de costo para asignar a Nóminas y Gastos.
+          </p>
+          <CentrosCostoConfigClient />
         </div>
       )}
     </div>

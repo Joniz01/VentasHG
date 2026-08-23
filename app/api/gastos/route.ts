@@ -42,6 +42,8 @@ function mapGasto(r: Record<string, unknown>) {
     frecuencia: r.frecuencia,
     proximoRecordatorio: r.proximo_recordatorio,
     recordatorioVisto: r.recordatorio_visto,
+    centroCostoId: r.centro_costo_id ?? null,
+    centroCostoNombre: r.centro_costo_nombre ?? null,
     createdAt: r.created_at,
   };
 }
@@ -76,10 +78,11 @@ export async function GET(request: NextRequest) {
     const listParams = [...params, pageSize, offset];
 
     const result = await pool.query(
-      `SELECT g.*, l.nombre AS locacion_nombre, tg.nombre AS tipo_gasto_nombre
+      `SELECT g.*, l.nombre AS locacion_nombre, tg.nombre AS tipo_gasto_nombre, cc.nombre AS centro_costo_nombre
        FROM gastos g
        LEFT JOIN locaciones l ON l.id = g.locacion_id
        LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
+       LEFT JOIN centros_costo cc ON cc.id = g.centro_costo_id
        ${where}
        ORDER BY g.fecha DESC, g.id DESC
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
     numeroFactura?: string;
     recurrente?: boolean;
     frecuencia?: FrecuenciaRecurrencia | null;
+    centroCostoId?: number | null;
   };
 
   if (!body.tipoGastoId || !body.tipo || !body.proveedor?.trim() || !body.fecha) {
@@ -162,17 +166,19 @@ export async function POST(request: NextRequest) {
     body.proveedorDireccion?.trim() || null,
   ];
 
+  const centroCostoId = body.centroCostoId ? Number(body.centroCostoId) : null;
+
   try {
     const result = await pool.query(
       `INSERT INTO gastos
         (tipo_gasto_id, tipo, proveedor, descripcion, locacion_id, fecha, monto_bs, tasa_dia, estado,
          pagado_at, comprobante_url, recurrente, frecuencia, proximo_recordatorio, created_by, numero_factura,
-         proveedor_rif, proveedor_telefono, proveedor_direccion, categoria)
+         proveedor_rif, proveedor_telefono, proveedor_direccion, categoria, centro_costo_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
                CASE WHEN $9 = 'PAGADO' THEN now() ELSE NULL END,
-               $10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+               $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING id`,
-      [...valoresBase, body.numeroFactura?.trim() || null, ...datosProveedor, categoriaLegado]
+      [...valoresBase, body.numeroFactura?.trim() || null, ...datosProveedor, categoriaLegado, centroCostoId]
     );
     return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
   } catch {

@@ -676,13 +676,15 @@ type NominaForm = {
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  centroCostoId: string;
 };
 
-const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL" };
+const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL", centroCostoId: "" };
 
 function NominasTab() {
   const [nominas, setNominas] = useState<Nomina[]>([]);
   const [tiposIncidencia, setTiposIncidencia] = useState<TipoIncidencia[]>([]);
+  const [centrosCosto, setCentrosCosto] = useState<{ id: number; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -710,10 +712,16 @@ function NominasTab() {
     if (res.ok) setTiposIncidencia(await res.json());
   }
 
+  async function loadCentrosCosto() {
+    const res = await fetch("/api/centros-costo");
+    if (res.ok) setCentrosCosto(await res.json());
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNominas();
     loadTiposIncidencia();
+    loadCentrosCosto();
   }, []);
 
   async function handleAgregarTipoIncidencia() {
@@ -743,7 +751,7 @@ function NominasTab() {
       const res = await fetch("/api/nominas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, modoGeneracion: form.modoGeneracion, activo: true, incidencias: [] }),
+        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, modoGeneracion: form.modoGeneracion, centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null, activo: true, incidencias: [] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear la Nómina");
@@ -805,7 +813,7 @@ function NominasTab() {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Frecuencia</label>
               <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.frecuencia} onChange={(e) => setForm((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaRecurrencia }))}>
@@ -816,6 +824,13 @@ function NominasTab() {
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Generación de períodos</label>
               <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.modoGeneracion} onChange={(e) => setForm((p) => ({ ...p, modoGeneracion: e.target.value as ModoGeneracionNomina }))}>
                 {MODOS_GENERACION_NOMINA.map((m) => <option key={m} value={m}>{MODO_GENERACION_NOMINA_LABELS[m]}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Centro de Costo</label>
+              <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.centroCostoId} onChange={(e) => setForm((p) => ({ ...p, centroCostoId: e.target.value }))}>
+                <option value="">— Sin asignar —</option>
+                {centrosCosto.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
           </div>

@@ -42,6 +42,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     recurrente?: boolean;
     frecuencia?: FrecuenciaRecurrencia | null;
     recordatorioVisto?: boolean;
+    centroCostoId?: number | null;
   };
 
   if (!body.tipoGastoId || !body.tipo || !body.proveedor?.trim() || !body.fecha) {
@@ -75,6 +76,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
     body.proveedorDireccion?.trim() || null,
   ];
 
+  const centroCostoId = body.centroCostoId !== undefined ? (body.centroCostoId ? Number(body.centroCostoId) : null) : undefined;
+
   try {
     const result = await pool.query(
       `UPDATE gastos
@@ -84,10 +87,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
                             WHEN $9 != 'PAGADO' THEN NULL ELSE pagado_at END,
            comprobante_url = $10, recurrente = $11, frecuencia = $12, proximo_recordatorio = $13,
            recordatorio_visto = $14, numero_factura = $16,
-           proveedor_rif = $17, proveedor_telefono = $18, proveedor_direccion = $19
+           proveedor_rif = $17, proveedor_telefono = $18, proveedor_direccion = $19,
+           centro_costo_id = $20
        WHERE id = $15
        RETURNING id`,
-      [...valoresBase, body.numeroFactura?.trim() || null, ...datosProveedor]
+      [...valoresBase, body.numeroFactura?.trim() || null, ...datosProveedor, centroCostoId ?? null]
     );
 
     if (result.rowCount === 0) {

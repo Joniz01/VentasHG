@@ -595,6 +595,8 @@ export type Gasto = {
   frecuencia: FrecuenciaRecurrencia | null;
   proximoRecordatorio: string | null;
   recordatorioVisto: boolean;
+  centroCostoId: number | null;
+  centroCostoNombre: string | null;
   createdAt: string;
 };
 
@@ -801,6 +803,7 @@ export type Nomina = {
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
   activo: boolean;
+  centroCostoId: number | null;
   empleadosAsignados: number;
   incidenciasConfig: NominaIncidenciaConfig[];
   ultimoPeriodoFechaHasta: string | null;
@@ -812,6 +815,7 @@ export type NominaInput = {
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  centroCostoId?: number | null;
   activo: boolean;
   incidencias: NominaIncidenciaConfigInput[];
 };

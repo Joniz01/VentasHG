@@ -18,10 +18,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Nombre y frecuencia son obligatorios" }, { status: 400 });
   }
 
+  const centroCostoId = body.centroCostoId ? Number(body.centroCostoId) : null;
+
   try {
     const result = await pool.query(
-      `UPDATE nominas SET nombre = $1, tipo = $2, frecuencia = $3, modo_generacion = $4, activo = $5 WHERE id = $6 RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true, id]
+      `UPDATE nominas SET nombre = $1, tipo = $2, frecuencia = $3, modo_generacion = $4, activo = $5, centro_costo_id = $6 WHERE id = $7 RETURNING id`,
+      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true, centroCostoId, id]
     );
     if (result.rowCount === 0) {
       return NextResponse.json({ error: "Nómina no encontrada" }, { status: 404 });

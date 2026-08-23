@@ -37,6 +37,7 @@ type FormState = {
   proveedorDireccion: string;
   descripcion: string;
   locacionId: string;
+  centroCostoId: string;
   fecha: string;
   montoBs: string;
   montoUsd: string;
@@ -56,6 +57,7 @@ const EMPTY_FORM: FormState = {
   proveedorDireccion: "",
   descripcion: "",
   locacionId: "",
+  centroCostoId: "",
   fecha: today(),
   montoBs: "",
   montoUsd: "",
@@ -108,6 +110,7 @@ export default function GastosClient() {
 
   const [tiposGasto, setTiposGasto] = useState<TipoGastoCatalogo[]>([]);
   const [locaciones, setLocaciones] = useState<Locacion[]>([]);
+  const [centrosCosto, setCentrosCosto] = useState<{ id: number; nombre: string }[]>([]);
   const [resumen, setResumen] = useState<GastoResumen>({ gastoHoy: 0, gastoHoyBs: 0, gastoMes: 0, gastoMesBs: 0, pendientePorPagar: 0, pendientePorPagarBs: 0 });
 
   const [loading, setLoading] = useState(true);
@@ -265,6 +268,7 @@ export default function GastosClient() {
     loadLocaciones();
     loadResumen();
     loadRecordatorios();
+    fetch("/api/centros-costo").then((r) => r.ok && r.json()).then((d) => { if (d) setCentrosCosto(d); });
   }, []);
 
   useEffect(() => {
@@ -304,6 +308,7 @@ export default function GastosClient() {
       proveedorDireccion: g.proveedorDireccion ?? "",
       descripcion: g.descripcion ?? "",
       locacionId: g.locacionId ? String(g.locacionId) : "",
+      centroCostoId: g.centroCostoId ? String(g.centroCostoId) : "",
       fecha: g.fecha,
       montoBs: String(g.montoBs),
       montoUsd: Number(g.tasaDia) > 0 ? (Number(g.montoBs) / Number(g.tasaDia)).toFixed(2) : "",
@@ -478,6 +483,7 @@ export default function GastosClient() {
         proveedorDireccion: form.proveedorDireccion.trim(),
         descripcion: form.descripcion.trim(),
         locacionId: form.locacionId ? Number(form.locacionId) : null,
+        centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
         fecha: form.fecha,
         montoBs: Number(form.montoBs) || 0,
         tasaDia: Number(form.tasaDia) || 0,
@@ -983,6 +989,22 @@ export default function GastosClient() {
                 </button>
               </div>
             </div>
+            {centrosCosto.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Centro de Costo</label>
+                <select
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.centroCostoId}
+                  onChange={(e) => setForm((p) => ({ ...p, centroCostoId: e.target.value }))}
+                >
+                  <option value="">— Sin asignar —</option>
+                  {centrosCosto.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha</label>
               <input
