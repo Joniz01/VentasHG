@@ -29,8 +29,8 @@ function startOfMonth(date: Date) {
 export default function ReportesClient() {
   const searchParams = useSearchParams();
   const tabInicial = searchParams.get("tab");
-  const [tab, setTab] = useState<"ventas" | "conciliacion" | "deliveries">(
-    tabInicial === "deliveries" ? "deliveries" : tabInicial === "conciliacion" ? "conciliacion" : "ventas"
+  const [tab, setTab] = useState<"ventas" | "conciliacion" | "deliveries" | null>(
+    tabInicial === "deliveries" ? "deliveries" : tabInicial === "conciliacion" ? "conciliacion" : tabInicial === "ventas" ? "ventas" : null
   );
   const [concilMetodo, setConcilMetodo] = useState<string>("");
   const [desde, setDesde] = useState("");
@@ -239,34 +239,62 @@ export default function ReportesClient() {
     { key: "deliveries",   icon: "📬", label: "Pagos a Delivery", sub: "Liquidaciones de delivery" },
   ] as const;
 
+  const tabActual = tab ? NAV_CARDS.find((c) => c.key === tab) : null;
+
   return (
     <div className="flex flex-col gap-6">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
-        {NAV_CARDS.map((c) => (
+      {/* Cards de selección — sólo visibles cuando no hay sección activa */}
+      {!tab && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+          {NAV_CARDS.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setTab(c.key)}
+              style={{
+                background: "var(--erp-surface)",
+                border: "1px solid var(--erp-border)",
+                borderTop: "3px solid var(--erp-primary)",
+                borderRadius: 8,
+                padding: "12px 14px",
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <span style={{ fontSize: 22 }}>{c.icon}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)" }}>{c.label}</span>
+              <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{c.sub}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Cabecera compacta cuando hay sección activa */}
+      {tab && tabActual && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
-            key={c.key}
             type="button"
-            onClick={() => setTab(c.key)}
+            onClick={() => setTab(null)}
             style={{
               background: "var(--erp-surface)",
-              border: tab === c.key ? "2px solid var(--erp-primary)" : "1px solid var(--erp-border)",
-              borderTop: tab === c.key ? `3px solid var(--erp-primary)` : `3px solid var(--erp-border)`,
-              borderRadius: 8,
-              padding: "10px 12px",
+              border: "1px solid var(--erp-border)",
+              borderRadius: 6,
+              padding: "5px 10px",
+              fontSize: 12,
               cursor: "pointer",
-              textAlign: "left",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              boxShadow: tab === c.key ? "0 0 0 1px var(--erp-primary)" : "none",
+              color: "var(--erp-text-2)",
             }}
           >
-            <span style={{ fontSize: 20 }}>{c.icon}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: tab === c.key ? "var(--erp-primary)" : "var(--erp-text)" }}>{c.label}</span>
-            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{c.sub}</span>
+            ← Reportes
           </button>
-        ))}
-      </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-primary)" }}>
+            {tabActual.icon} {tabActual.label}
+          </span>
+        </div>
+      )}
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
 
