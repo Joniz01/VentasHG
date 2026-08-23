@@ -1321,7 +1321,7 @@ function PeriodosTab() {
 
 function StatTile({ label, value, color, prefix = "$" }: { label: string; value: number; color: string; prefix?: string }) {
   return (
-    <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+    <div className="rounded-xl border px-4 py-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
       <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
       <div className="text-xl font-extrabold" style={{ color }}>{prefix}{value.toFixed(prefix === "$" ? 2 : 0)}</div>
     </div>
@@ -1351,24 +1351,22 @@ export default function NominaClient() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-3 flex-wrap">
+      <div className="grid grid-cols-2 gap-3">
         <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
-        <StatTile label="Nómina Pendiente por Pagar" value={resumen.nominaPendiente} color="#a16207" />
-        <StatTile label="Nómina Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
-        {resumen.proximaSemana && (
-          <div className="rounded-xl border px-4 py-3 flex flex-col gap-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
-            <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana</div>
-            <div className="text-xl font-extrabold" style={{ color: "#1d4ed8" }}>
-              ${resumen.proximaSemana.totalUsd.toFixed(2)}
-            </div>
-            <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-              {resumen.proximaSemana.periodos} período(s)
-              {resumen.proximaSemana.lunes && resumen.proximaSemana.domingo && (
-                <span className="block">{formatFechaCorta(resumen.proximaSemana.lunes)} – {formatFechaCorta(resumen.proximaSemana.domingo)}</span>
-              )}
-            </div>
+        <StatTile label="Nómina Pendiente" value={resumen.nominaPendiente} color="#a16207" />
+        <StatTile label="Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
+        <div className="rounded-xl border px-4 py-3 flex flex-col gap-1" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+          <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana</div>
+          <div className="text-xl font-extrabold" style={{ color: "#1d4ed8" }}>
+            ${(resumen.proximaSemana?.totalUsd ?? 0).toFixed(2)}
           </div>
-        )}
+          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+            {resumen.proximaSemana?.periodos ?? 0} período(s)
+            {resumen.proximaSemana?.lunes && resumen.proximaSemana?.domingo && (
+              <span className="block">{formatFechaCorta(resumen.proximaSemana.lunes)} – {formatFechaCorta(resumen.proximaSemana.domingo)}</span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
