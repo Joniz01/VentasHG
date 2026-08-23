@@ -586,7 +586,10 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
             {TIPO_NOMINA_LABELS[nomina.tipo]}
           </span>
           <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-            {FRECUENCIA_RECURRENCIA_LABELS[nomina.frecuencia]} · {MODO_GENERACION_NOMINA_LABELS[nomina.modoGeneracion]}{nomina.modoGeneracion === "AUTOMATICO" && nomina.diaSemana !== null && ` · Pago ${DIAS_SEMANA.find((d) => d.value === nomina.diaSemana)?.label ?? ""}`}
+            {FRECUENCIA_RECURRENCIA_LABELS[nomina.frecuencia]} · {MODO_GENERACION_NOMINA_LABELS[nomina.modoGeneracion]}
+            {nomina.modoGeneracion === "AUTOMATICO" && nomina.frecuencia === "SEMANAL" && nomina.diaSemana !== null && ` · Pago ${DIAS_SEMANA.find((d) => d.value === nomina.diaSemana)?.label ?? ""}`}
+            {nomina.modoGeneracion === "AUTOMATICO" && nomina.frecuencia === "MENSUAL" && nomina.diaPago1 !== null && ` · Día ${nomina.diaPago1}`}
+            {nomina.modoGeneracion === "AUTOMATICO" && nomina.frecuencia === "QUINCENAL" && nomina.diaPago1 !== null && ` · Días ${nomina.diaPago1} y ${nomina.diaPago2 ?? "?"}`}
           </span>
         </span>
         <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>
@@ -681,16 +684,20 @@ const DIAS_SEMANA = [
   { value: 0, label: "Domingo" },
 ];
 
+const DIAS_CALENDARIO = Array.from({ length: 31 }, (_, i) => i + 1);
+
 type NominaForm = {
   nombre: string;
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
   diaSemana: string;
+  diaPago1: string;
+  diaPago2: string;
   centroCostoId: string;
 };
 
-const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL", diaSemana: "5", centroCostoId: "" };
+const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL", diaSemana: "5", diaPago1: "15", diaPago2: "30", centroCostoId: "" };
 
 function NominasTab() {
   const [nominas, setNominas] = useState<Nomina[]>([]);
@@ -762,7 +769,18 @@ function NominasTab() {
       const res = await fetch("/api/nominas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, modoGeneracion: form.modoGeneracion, diaSemana: form.modoGeneracion === "AUTOMATICO" ? Number(form.diaSemana) : null, centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null, activo: true, incidencias: [] }),
+        body: JSON.stringify({
+          nombre: form.nombre.trim(),
+          tipo: form.tipo,
+          frecuencia: form.frecuencia,
+          modoGeneracion: form.modoGeneracion,
+          diaSemana: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "SEMANAL" ? Number(form.diaSemana) : null,
+          diaPago1: form.modoGeneracion === "AUTOMATICO" && form.frecuencia !== "SEMANAL" ? Number(form.diaPago1) : null,
+          diaPago2: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "QUINCENAL" ? Number(form.diaPago2) : null,
+          centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
+          activo: true,
+          incidencias: [],
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear la Nómina");
@@ -845,16 +863,16 @@ function NominasTab() {
               </select>
             </div>
           </div>
-          {form.modoGeneracion === "AUTOMATICO" && (
+          {form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "SEMANAL" && (
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Día de pago semanal</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Día de pago</label>
               <div className="flex flex-wrap gap-2">
                 {DIAS_SEMANA.map((d) => (
                   <button
                     key={d.value}
                     type="button"
                     onClick={() => setForm((p) => ({ ...p, diaSemana: String(d.value) }))}
-                    className="rounded-lg px-3 py-1.5 text-sm font-medium border transition-colors"
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium border"
                     style={form.diaSemana === String(d.value)
                       ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
                       : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
@@ -864,7 +882,73 @@ function NominasTab() {
                 ))}
               </div>
               <p className="text-xs" style={{ color: "var(--erp-text-3)" }}>
-                El cron generará el período automáticamente cada {DIAS_SEMANA.find((d) => String(d.value) === form.diaSemana)?.label ?? "día seleccionado"}.
+                El cron generará el período cada {DIAS_SEMANA.find((d) => String(d.value) === form.diaSemana)?.label}.
+              </p>
+            </div>
+          )}
+          {form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "MENSUAL" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Día de pago mensual</label>
+              <div className="flex flex-wrap gap-1.5">
+                {DIAS_CALENDARIO.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, diaPago1: String(d) }))}
+                    className="rounded-md w-8 h-8 text-xs font-medium border"
+                    style={form.diaPago1 === String(d)
+                      ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+                      : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs" style={{ color: "var(--erp-text-3)" }}>
+                El cron generará el período el día {form.diaPago1} de cada mes.
+              </p>
+            </div>
+          )}
+          {form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "QUINCENAL" && (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Primera quincena — día de pago</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAS_CALENDARIO.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, diaPago1: String(d) }))}
+                      className="rounded-md w-8 h-8 text-xs font-medium border"
+                      style={form.diaPago1 === String(d)
+                        ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+                        : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Segunda quincena — día de pago</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAS_CALENDARIO.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, diaPago2: String(d) }))}
+                      className="rounded-md w-8 h-8 text-xs font-medium border"
+                      style={form.diaPago2 === String(d)
+                        ? { background: "var(--erp-accent)", color: "#fff", borderColor: "var(--erp-accent)" }
+                        : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs" style={{ color: "var(--erp-text-3)" }}>
+                El cron generará períodos el día {form.diaPago1} y el día {form.diaPago2} de cada mes.
               </p>
             </div>
           )}

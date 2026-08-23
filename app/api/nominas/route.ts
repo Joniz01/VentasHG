@@ -56,6 +56,8 @@ export async function GET(request: NextRequest) {
       frecuencia: r.frecuencia,
       modoGeneracion: r.modo_generacion ?? "MANUAL",
       diaSemana: r.dia_semana ?? null,
+      diaPago1: r.dia_pago_1 ?? null,
+      diaPago2: r.dia_pago_2 ?? null,
       activo: r.activo,
       centroCostoId: r.centro_costo_id ?? null,
       empleadosAsignados: Number(r.empleados_asignados),
@@ -91,10 +93,12 @@ export async function POST(request: NextRequest) {
     await client.query("BEGIN");
 
     const centroCostoId = body.centroCostoId ? Number(body.centroCostoId) : null;
-    const diaSemana = body.diaSemana !== undefined && body.diaSemana !== null ? Number(body.diaSemana) : null;
+    const diaSemana = body.diaSemana != null ? Number(body.diaSemana) : null;
+    const diaPago1 = body.diaPago1 != null ? Number(body.diaPago1) : null;
+    const diaPago2 = body.diaPago2 != null ? Number(body.diaPago2) : null;
     const result = await client.query(
-      `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, dia_semana, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", diaSemana, body.activo ?? true, centroCostoId]
+      `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, dia_semana, dia_pago_1, dia_pago_2, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", diaSemana, diaPago1, diaPago2, body.activo ?? true, centroCostoId]
     );
     const nominaId = result.rows[0].id;
 
