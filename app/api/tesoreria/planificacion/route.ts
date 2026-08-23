@@ -62,7 +62,13 @@ export async function GET(request: NextRequest) {
         'nomina'                                                                  AS tipo,
         n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
         pn.fecha_hasta                                                            AS fecha_vencimiento,
-        COALESCE(SUM(np.monto_bs), 0)                                             AS monto_bs,
+        COALESCE(SUM(np.salario_base_bs), 0)
+          + COALESCE((
+              SELECT SUM(ni.monto_bs)
+              FROM nomina_incidencias ni
+              JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PENDIENTE'
+              WHERE np2.periodo_id = pn.id
+            ), 0)                                                                 AS monto_bs,
         pn.tasa_dia                                                               AS tasa_dia,
         NULL::text                                                                AS referencia
       FROM periodos_nomina pn
@@ -70,7 +76,7 @@ export async function GET(request: NextRequest) {
       JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PENDIENTE'
       WHERE pn.fecha_hasta BETWEEN $1 AND $2
       GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
-      HAVING COALESCE(SUM(np.monto_bs), 0) > 0
+      HAVING COALESCE(SUM(np.salario_base_bs), 0) > 0
       ORDER BY pn.fecha_hasta ASC`,
       [desde, hasta]
     );
@@ -161,7 +167,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const r = await pool.query<{ total_usd: string }>(
-      `SELECT COALESCE(SUM(np.monto_bs / NULLIF(pn.tasa_dia, 0)), 0) AS total_usd
+      `SELECT COALESCE(SUM(np.salario_base_bs / NULLIF(pn.tasa_dia, 0)), 0) AS total_usd
        FROM nomina_pagos np
        JOIN periodos_nomina pn ON pn.id = np.periodo_id
        WHERE np.estado = 'PAGADO' AND np.pagado_at >= $1`,

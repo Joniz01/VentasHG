@@ -409,7 +409,7 @@ export default function TesoreriaClient() {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {pagando === item.id ? "…" : "✓ Pagado"}
+                      {pagando === item.id ? "…" : "✓ Registrar"}
                     </button>
                   ) : item.id.startsWith("N") ? (
                     <span style={{ fontSize: 10, color: "var(--erp-text-3)" }}>Via Nómina</span>
