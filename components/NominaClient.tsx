@@ -304,7 +304,18 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>C.I.</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cedula} onChange={(e) => setForm((p) => ({ ...p, cedula: e.target.value }))} placeholder="Ej: V-12345678" />
+              <input
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--erp-border)" }}
+                value={form.cedula}
+                onChange={(e) => setForm((p) => ({ ...p, cedula: e.target.value }))}
+                onBlur={() => setForm((p) => {
+                  const v = p.cedula.trim();
+                  if (v && /^\d+$/.test(v)) return { ...p, cedula: "V-" + v };
+                  return p;
+                })}
+                placeholder="Ej: V-12345678"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>
@@ -336,7 +347,26 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha ingreso</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>
+                Fecha ingreso
+                {form.fechaIngreso && (() => {
+                  const hoy = new Date(today() + "T00:00:00");
+                  const ing = new Date(form.fechaIngreso + "T00:00:00");
+                  const dias = Math.floor((hoy.getTime() - ing.getTime()) / 86400000);
+                  let antiguedad: string;
+                  if (dias < 30) antiguedad = dias === 1 ? "1 día" : `${dias} días`;
+                  else if (dias < 365) {
+                    const meses = Math.floor(dias / 30);
+                    antiguedad = meses === 1 ? "1 mes" : `${meses} meses`;
+                  } else {
+                    const anios = Math.floor(dias / 365);
+                    const mesesRest = Math.floor((dias % 365) / 30);
+                    antiguedad = anios === 1 ? "1 año" : `${anios} años`;
+                    if (mesesRest > 0) antiguedad += ` ${mesesRest}m`;
+                  }
+                  return <span className="ml-2 font-normal text-xs" style={{ color: "var(--erp-text-2)" }}>{antiguedad}</span>;
+                })()}
+              </label>
               <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaIngreso} onChange={(e) => setForm((p) => ({ ...p, fechaIngreso: e.target.value }))} />
             </div>
             <div className="flex flex-col gap-1">
