@@ -60,21 +60,30 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const nominaId = searchParams.get("nominaId");
+  const soloPendientes = searchParams.get("pendientes") === "true";
 
   try {
+    const conditions: string[] = [];
+    const vals: unknown[] = [];
+    if (nominaId) { conditions.push(`pn.nomina_id = $${vals.length + 1}`); vals.push(nominaId); }
+    if (soloPendientes) {
+      conditions.push(`EXISTS (SELECT 1 FROM nomina_pagos np2 WHERE np2.periodo_id = pn.id AND np2.estado = 'PENDIENTE')`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
     const periodosResult = await pool.query(
       `SELECT pn.*, n.nombre AS nomina_nombre
        FROM periodos_nomina pn
        LEFT JOIN nominas n ON n.id = pn.nomina_id
-       ${nominaId ? "WHERE pn.nomina_id = $1" : ""}
+       ${where}
        ORDER BY pn.fecha_desde DESC, pn.id DESC`,
-      nominaId ? [nominaId] : []
+      vals
     );
     const periodoIds = periodosResult.rows.map((r) => r.id);
 
     const pagosResult = periodoIds.length
       ? await pool.query(
-          `SELECT np.*, e.nombre AS empleado_nombre
+          `SELECT np.*, CONCAT(e.nombre, CASE WHEN e.apellido IS NOT NULL THEN ' ' || e.apellido ELSE '' END) AS empleado_nombre
            FROM nomina_pagos np
            JOIN empleados e ON e.id = np.empleado_id
            WHERE np.periodo_id = ANY($1::int[])

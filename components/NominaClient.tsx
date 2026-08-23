@@ -1328,8 +1328,227 @@ function StatTile({ label, value, color, prefix = "$" }: { label: string; value:
   );
 }
 
+/* ───────────────────────── Gestión de Pagos ───────────────────────── */
+
+function GestionPagosTab({ onRefreshResumen }: { onRefreshResumen: () => void }) {
+  const [periodos, setPeriodos] = useState<PeriodoNomina[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<number | null>(null); // periodoId en proceso
+  const [parcialId, setParcialId] = useState<number | null>(null); // periodo en modo parcial
+  const [seleccion, setSeleccion] = useState<Set<number>>(new Set()); // pagoIds seleccionados
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/nomina/periodos?pendientes=true");
+      if (res.ok) {
+        const data = await res.json();
+        setPeriodos(data.periodos ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function pagarTodo(periodo: PeriodoNomina) {
+    const ids = periodo.pagos.filter((p) => p.estado === "PENDIENTE").map((p) => p.id);
+    if (!ids.length) return;
+    setSaving(periodo.id);
+    try {
+      await fetch("/api/nomina/pagos/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pagoIds: ids }),
+      });
+      await load();
+      onRefreshResumen();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function pagarParcial(periodo: PeriodoNomina) {
+    const ids = Array.from(seleccion);
+    if (!ids.length) return;
+    setSaving(periodo.id);
+    try {
+      await fetch("/api/nomina/pagos/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pagoIds: ids }),
+      });
+      setParcialId(null);
+      setSeleccion(new Set());
+      await load();
+      onRefreshResumen();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  function toggleSeleccion(id: number) {
+    setSeleccion((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  }
+
+  if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
+
+  if (periodos.length === 0) {
+    return (
+      <div className="rounded-lg border px-4 py-6 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
+        No hay nóminas pendientes por pagar. ¡Todo al día!
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {periodos.map((periodo) => {
+        const pendientes = periodo.pagos.filter((p) => p.estado === "PENDIENTE");
+        const pagados = periodo.pagos.filter((p) => p.estado === "PAGADO");
+        const totalPendienteBs = pendientes.reduce((s, p) => s + p.totalBs, 0);
+        const totalPendienteUsd = pendientes.reduce((s, p) => s + p.totalUsd, 0);
+        const enParcial = parcialId === periodo.id;
+
+        return (
+          <div key={periodo.id} className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--erp-border)" }}>
+            {/* Cabecera */}
+            <div className="px-4 py-3 flex flex-col gap-1" style={{ background: "var(--erp-primary-lt)" }}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>{periodo.nominaNombre}</span>
+                  <span className="ml-2 text-xs" style={{ color: "var(--erp-text-2)" }}>
+                    {formatFechaCorta(periodo.fechaDesde)} – {formatFechaCorta(periodo.fechaHasta)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-bold" style={{ color: "#a16207" }}>${totalPendienteUsd.toFixed(2)}</div>
+                  <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>Bs {totalPendienteBs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+              </div>
+              {pagados.length > 0 && (
+                <div className="text-xs" style={{ color: "#15803d" }}>{pagados.length} empleado(s) ya pagado(s)</div>
+              )}
+            </div>
+
+            {/* Tabla de empleados pendientes */}
+            <div className="px-4 py-3 flex flex-col gap-2">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ color: "var(--erp-text-2)" }}>
+                    {enParcial && <th className="text-left pr-2 py-1 w-8"></th>}
+                    <th className="text-left py-1">Empleado</th>
+                    <th className="text-right py-1">Salario Bs</th>
+                    <th className="text-right py-1">Incid. Bs</th>
+                    <th className="text-right py-1">Total $</th>
+                    <th className="text-left py-1 pl-2">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendientes.map((pago) => (
+                    <tr key={pago.id} className="border-t" style={{ borderColor: "var(--erp-border)" }}>
+                      {enParcial && (
+                        <td className="pr-2 py-1.5">
+                          <input type="checkbox" checked={seleccion.has(pago.id)} onChange={() => toggleSeleccion(pago.id)} />
+                        </td>
+                      )}
+                      <td className="py-1.5" style={{ color: "var(--erp-text)" }}>{pago.empleadoNombre}</td>
+                      <td className="py-1.5 text-right text-xs" style={{ color: "var(--erp-text-2)" }}>
+                        {pago.salarioBaseBs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-1.5 text-right text-xs" style={{ color: "var(--erp-text-2)" }}>
+                        {pago.totalIncidenciasBs > 0 ? pago.totalIncidenciasBs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                      </td>
+                      <td className="py-1.5 text-right font-medium" style={{ color: "var(--erp-text)" }}>
+                        ${pago.totalUsd.toFixed(2)}
+                      </td>
+                      <td className="py-1.5 pl-2">
+                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "#fef9c3", color: "#a16207" }}>
+                          PENDIENTE
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {pendientes.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t font-semibold" style={{ borderColor: "var(--erp-border)" }}>
+                      {enParcial && <td />}
+                      <td className="py-1.5 text-sm" style={{ color: "var(--erp-text)" }}>Total pendiente</td>
+                      <td />
+                      <td />
+                      <td className="py-1.5 text-right" style={{ color: "#a16207" }}>${totalPendienteUsd.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+
+              {/* Acciones */}
+              {!enParcial ? (
+                <div className="flex gap-2 justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setParcialId(periodo.id); setSeleccion(new Set()); }}
+                    className="rounded-lg px-3 py-1.5 text-sm font-semibold border"
+                    style={{ borderColor: "var(--erp-primary)", color: "var(--erp-primary)" }}
+                  >
+                    Pago Parcial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => pagarTodo(periodo)}
+                    disabled={saving === periodo.id}
+                    className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
+                    style={{ background: "#15803d" }}
+                  >
+                    {saving === periodo.id ? "Procesando…" : "Pagar Todo"}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2 justify-end pt-1 flex-wrap">
+                  <span className="text-xs self-center" style={{ color: "var(--erp-text-2)" }}>
+                    {seleccion.size} seleccionado(s)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setParcialId(null); setSeleccion(new Set()); }}
+                    className="rounded-lg px-3 py-1.5 text-sm font-semibold border"
+                    style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => pagarParcial(periodo)}
+                    disabled={saving === periodo.id || seleccion.size === 0}
+                    className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
+                    style={{ background: "var(--erp-primary)" }}
+                  >
+                    {saving === periodo.id ? "Procesando…" : `Confirmar Pago (${seleccion.size})`}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ───────────────────────── Componente principal ───────────────────────── */
+
+type SeccionPrincipal = "config" | "pagos" | null;
+
 export default function NominaClient() {
-  const [tab, setTab] = useState<"nominas" | "periodos" | "empleados">("nominas");
+  const [seccion, setSeccion] = useState<SeccionPrincipal>(null);
+  const [subTab, setSubTab] = useState<"nominas" | "periodos" | "empleados">("nominas");
   const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null } });
   const [nominas, setNominas] = useState<Nomina[]>([]);
 
@@ -1349,56 +1568,113 @@ export default function NominaClient() {
     loadNominasParaEmpleados();
   }, []);
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
-        <StatTile label="Nómina Pendiente" value={resumen.nominaPendiente} color="#a16207" />
-        <StatTile label="Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
-        <div className="rounded-xl border px-4 py-3 flex flex-col gap-1" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
-          <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana</div>
-          <div className="text-xl font-extrabold" style={{ color: "#1d4ed8" }}>
-            ${(resumen.proximaSemana?.totalUsd ?? 0).toFixed(2)}
-          </div>
-          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-            {resumen.proximaSemana?.periodos ?? 0} período(s)
-            {resumen.proximaSemana?.lunes && resumen.proximaSemana?.domingo && (
-              <span className="block">{formatFechaCorta(resumen.proximaSemana.lunes)} – {formatFechaCorta(resumen.proximaSemana.domingo)}</span>
-            )}
-          </div>
+  // ── Indicadores KPI ──────────────────────────────────────────────────────
+  const kpi = (
+    <div className="grid grid-cols-2 gap-3">
+      <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
+      <StatTile label="Nómina Pendiente" value={resumen.nominaPendiente} color="#a16207" />
+      <StatTile label="Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
+      <div className="rounded-xl border px-4 py-3 flex flex-col gap-1" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+        <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana</div>
+        <div className="text-xl font-extrabold" style={{ color: "#1d4ed8" }}>
+          ${(resumen.proximaSemana?.totalUsd ?? 0).toFixed(2)}
+        </div>
+        <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+          {resumen.proximaSemana?.periodos ?? 0} período(s)
+          {resumen.proximaSemana?.lunes && resumen.proximaSemana?.domingo && (
+            <span className="block">{formatFechaCorta(resumen.proximaSemana.lunes)} – {formatFechaCorta(resumen.proximaSemana.domingo)}</span>
+          )}
         </div>
       </div>
+    </div>
+  );
 
-      <div className="flex gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setTab("nominas")}
-          className="rounded-lg px-4 py-2 text-sm font-semibold"
-          style={tab === "nominas" ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
-        >
-          Nóminas
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("periodos")}
-          className="rounded-lg px-4 py-2 text-sm font-semibold"
-          style={tab === "periodos" ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
-        >
-          Períodos
-        </button>
-        <button
-          type="button"
-          onClick={() => { setTab("empleados"); loadNominasParaEmpleados(); }}
-          className="rounded-lg px-4 py-2 text-sm font-semibold"
-          style={tab === "empleados" ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
-        >
-          Empleados
-        </button>
+  // ── Pantalla principal: dos cards ────────────────────────────────────────
+  if (!seccion) {
+    return (
+      <div className="flex flex-col gap-4">
+        {kpi}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Card Configuración */}
+          <button
+            type="button"
+            onClick={() => setSeccion("config")}
+            className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
+            style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
+          >
+            <span className="text-2xl">⚙️</span>
+            <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Configuración de Nóminas</span>
+            <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+              Nóminas maestro, períodos generados, empleados y asignaciones
+            </span>
+          </button>
+
+          {/* Card Gestión de Pagos */}
+          <button
+            type="button"
+            onClick={() => setSeccion("pagos")}
+            className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
+            style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
+          >
+            <span className="text-2xl">💳</span>
+            <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Gestión de Pagos</span>
+            <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+              Nóminas pendientes por pagar, pago total o parcial por empleado
+            </span>
+            {(resumen.nominaPendiente ?? 0) > 0 && (
+              <span className="mt-1 text-sm font-bold" style={{ color: "#a16207" }}>
+                ${resumen.nominaPendiente.toFixed(2)} pendiente
+              </span>
+            )}
+          </button>
+        </div>
       </div>
+    );
+  }
 
-      {tab === "nominas" && <NominasTab />}
-      {tab === "periodos" && <PeriodosTab />}
-      {tab === "empleados" && <EmpleadosTab nominas={nominas} />}
+  // ── Botón Volver ─────────────────────────────────────────────────────────
+  const volverBtn = (
+    <button
+      type="button"
+      onClick={() => { setSeccion(null); loadResumen(); }}
+      className="self-start flex items-center gap-1 text-sm rounded-lg px-3 py-1.5 border"
+      style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
+    >
+      ← Volver
+    </button>
+  );
+
+  // ── Sección Configuración ────────────────────────────────────────────────
+  if (seccion === "config") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <div className="flex gap-2 flex-wrap">
+          {(["nominas", "periodos", "empleados"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => { setSubTab(t); if (t === "empleados") loadNominasParaEmpleados(); }}
+              className="rounded-lg px-4 py-2 text-sm font-semibold"
+              style={subTab === t ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
+            >
+              {t === "nominas" ? "Nóminas" : t === "periodos" ? "Períodos" : "Empleados"}
+            </button>
+          ))}
+        </div>
+        {subTab === "nominas" && <NominasTab />}
+        {subTab === "periodos" && <PeriodosTab />}
+        {subTab === "empleados" && <EmpleadosTab nominas={nominas} />}
+      </div>
+    );
+  }
+
+  // ── Sección Gestión de Pagos ─────────────────────────────────────────────
+  return (
+    <div className="flex flex-col gap-4">
+      {volverBtn}
+      <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>💳 Gestión de Pagos</h2>
+      <GestionPagosTab onRefreshResumen={loadResumen} />
     </div>
   );
 }
