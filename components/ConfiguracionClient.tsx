@@ -20,9 +20,10 @@ type Config = {
   ventas_paso3_abierto: string;
   ventas_paso4_abierto: string;
   ventas_meta_total_hoy: string;
+  nomina_auto_generar: string;
 };
 
-const SECTION_KEYS = ["general", "cashea", "yummy", "ventas"] as const;
+const SECTION_KEYS = ["general", "cashea", "yummy", "ventas", "nomina"] as const;
 type SectionKey = typeof SECTION_KEYS[number];
 
 function SectionToggle({
@@ -172,6 +173,7 @@ export default function ConfiguracionClient() {
     ventas_paso3_abierto: "true",
     ventas_paso4_abierto: "true",
     ventas_meta_total_hoy: "1",
+    nomina_auto_generar: "false",
   });
 
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
@@ -179,6 +181,7 @@ export default function ConfiguracionClient() {
     cashea: false,
     yummy: false,
     ventas: false,
+    nomina: false,
   });
 
   const [nuevoPorcentaje, setNuevoPorcentaje] = useState("");
@@ -466,6 +469,56 @@ export default function ConfiguracionClient() {
               fontSize: "0.875rem",
             }}
           />
+        </div>
+      </SectionToggle>
+
+      {/* Nómina */}
+      <SectionToggle id="nomina" title="Nómina" icon="💳" open={open.nomina} onToggle={toggleSection}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--erp-text)" }}>Generación automática de períodos</div>
+              <div style={{ fontSize: "0.8rem", color: "var(--erp-text-2)", marginTop: "0.2rem", maxWidth: 380 }}>
+                El cron diario (10:00 UTC) revisa las nóminas en modo <strong>Automático</strong> y genera el período
+                correspondiente si ya venció. Si está desactivado, los períodos deben generarse manualmente desde
+                Configuración → Nóminas.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={config.nomina_auto_generar === "true"}
+              onClick={() => setConfig({ ...config, nomina_auto_generar: config.nomina_auto_generar === "true" ? "false" : "true" })}
+              style={{
+                flexShrink: 0,
+                width: 48,
+                height: 26,
+                borderRadius: 13,
+                border: "none",
+                cursor: "pointer",
+                background: config.nomina_auto_generar === "true" ? "#16a34a" : "#d1d5db",
+                position: "relative",
+                transition: "background 0.2s",
+              }}
+            >
+              <span style={{
+                position: "absolute",
+                top: 3,
+                left: config.nomina_auto_generar === "true" ? 25 : 3,
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                background: "#fff",
+                transition: "left 0.2s",
+                display: "block",
+              }} />
+            </button>
+          </div>
+          <div style={{ fontSize: "0.78rem", padding: "0.5rem 0.75rem", borderRadius: 7, background: config.nomina_auto_generar === "true" ? "#f0fdf4" : "#fef9c3", color: config.nomina_auto_generar === "true" ? "#15803d" : "#a16207", border: `1px solid ${config.nomina_auto_generar === "true" ? "#86efac" : "#fde68a"}` }}>
+            {config.nomina_auto_generar === "true"
+              ? "✓ Activado — el cron generará períodos automáticamente cada día."
+              : "⚠ Desactivado — los períodos deben generarse manualmente."}
+          </div>
         </div>
       </SectionToggle>
 

@@ -22,6 +22,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Verificar que la generación automática esté habilitada en configuración
+  const cfgResult = await pool.query(
+    `SELECT valor FROM configuracion WHERE clave = 'nomina_auto_generar'`
+  );
+  const autoEnabled = cfgResult.rows[0]?.valor === "true";
+  if (!autoEnabled) {
+    return NextResponse.json({ mensaje: "Generación automática desactivada en configuración", generados: [], errores: [] });
+  }
+
   const hoy = hoyCaracas();
   const generados: { nominaId: number; nombre: string; periodoId: number }[] = [];
   const errores: { nominaId: number; nombre: string; error: string }[] = [];
