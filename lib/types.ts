@@ -681,6 +681,7 @@ export const SEXO_LABELS: Record<Sexo, string> = {
 export type Empleado = {
   id: number;
   nombre: string;
+  apellido: string | null;
   cedula: string | null;
   fechaNacimiento: string | null;
   sexo: Sexo | null;
@@ -699,6 +700,7 @@ export type Empleado = {
 
 export type EmpleadoInput = {
   nombre: string;
+  apellido?: string;
   cedula: string;
   fechaNacimiento: string;
   sexo: Sexo | null;
