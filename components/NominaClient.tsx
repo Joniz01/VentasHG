@@ -53,8 +53,19 @@ const ESTADO_COLORES: Record<EstadoNominaPago, string> = {
 
 /* ───────────────────────── Empleados ───────────────────────── */
 
+function toTitleCase(s: string) {
+  return s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function formatBs(value: string): string {
+  const num = parseFloat(value.replace(/,/g, ""));
+  if (isNaN(num)) return value;
+  return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 type EmpleadoForm = {
   nombre: string;
+  apellido: string;
   cedula: string;
   fechaNacimiento: string;
   sexo: Sexo | "";
@@ -64,12 +75,14 @@ type EmpleadoForm = {
   tasaRegistro: string;
   salarioBaseUsd: string;
   salarioBaseBs: string;
+  salarioBaseBsDisplay: string;
   fechaIngreso: string;
   activo: boolean;
 };
 
 const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   nombre: "",
+  apellido: "",
   cedula: "",
   fechaNacimiento: "",
   sexo: "",
@@ -79,6 +92,7 @@ const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   tasaRegistro: "",
   salarioBaseUsd: "",
   salarioBaseBs: "",
+  salarioBaseBsDisplay: "",
   fechaIngreso: today(),
   activo: true,
 };
@@ -94,18 +108,24 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const [form, setForm] = useState<EmpleadoForm>({ ...EMPTY_EMPLEADO_FORM });
   const [consultandoTasa, setConsultandoTasa] = useState(false);
 
-  function recalcularBs(salarioBaseUsd: string, tasaRegistro: string) {
+  function recalcularBs(salarioBaseUsd: string, tasaRegistro: string): { raw: string; display: string } {
     const usd = Number(salarioBaseUsd) || 0;
     const tasa = Number(tasaRegistro) || 0;
-    return usd > 0 && tasa > 0 ? (usd * tasa).toFixed(2) : "";
+    if (usd > 0 && tasa > 0) {
+      const raw = (usd * tasa).toFixed(2);
+      return { raw, display: formatBs(raw) };
+    }
+    return { raw: "", display: "" };
   }
 
   function handleSalarioUsdChange(value: string) {
-    setForm((p) => ({ ...p, salarioBaseUsd: value, salarioBaseBs: recalcularBs(value, p.tasaRegistro) }));
+    const bs = recalcularBs(value, form.tasaRegistro);
+    setForm((p) => ({ ...p, salarioBaseUsd: value, salarioBaseBs: bs.raw, salarioBaseBsDisplay: bs.display }));
   }
 
   function handleTasaChange(value: string) {
-    setForm((p) => ({ ...p, tasaRegistro: value, salarioBaseBs: recalcularBs(p.salarioBaseUsd, value) }));
+    const bs = recalcularBs(form.salarioBaseUsd, value);
+    setForm((p) => ({ ...p, tasaRegistro: value, salarioBaseBs: bs.raw, salarioBaseBsDisplay: bs.display }));
   }
 
   async function handleConsultarTasa() {
@@ -138,6 +158,14 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     loadLocaciones();
   }, []);
 
+  // Auto-fetch tasa BCV al abrir el formulario de nuevo empleado
+  useEffect(() => {
+    if (showForm && !editingId && !form.tasaRegistro) {
+      handleConsultarTasa();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm]);
+
   function resetForm() {
     setEditingId(null);
     setForm({ ...EMPTY_EMPLEADO_FORM });
@@ -146,8 +174,10 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
 
   function startEdit(e: Empleado) {
     setEditingId(e.id);
+    const bsRaw = String(e.salarioBaseBs);
     setForm({
       nombre: e.nombre,
+      apellido: e.apellido ?? "",
       cedula: e.cedula ?? "",
       fechaNacimiento: e.fechaNacimiento ?? "",
       sexo: e.sexo ?? "",
@@ -156,7 +186,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       nominaIds: e.nominaIds,
       tasaRegistro: e.tasaRegistro ? String(e.tasaRegistro) : "",
       salarioBaseUsd: e.salarioBaseUsd ? String(e.salarioBaseUsd) : "",
-      salarioBaseBs: String(e.salarioBaseBs),
+      salarioBaseBs: bsRaw,
+      salarioBaseBsDisplay: formatBs(bsRaw),
       fechaIngreso: e.fechaIngreso ?? today(),
       activo: e.activo,
     });
@@ -181,6 +212,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     try {
       const payload: EmpleadoInput = {
         nombre: form.nombre.trim(),
+        apellido: form.apellido.trim() || undefined,
         cedula: form.cedula.trim(),
         fechaNacimiento: form.fechaNacimiento,
         sexo: form.sexo || null,
@@ -235,11 +267,17 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} required />
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, nombre: toTitleCase(p.nombre) }))} required />
             </div>
             <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Apellido</label>
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.apellido} onChange={(e) => setForm((p) => ({ ...p, apellido: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, apellido: toTitleCase(p.apellido) }))} placeholder="Ej: González" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Cargo</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} placeholder="Ej: Cocinero" />
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, cargo: toTitleCase(p.cargo) }))} placeholder="Ej: Cocinero" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -288,7 +326,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Salario Base Bs</label>
-              <input type="number" step="0.01" min="0" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.salarioBaseBs} onChange={(e) => setForm((p) => ({ ...p, salarioBaseBs: e.target.value }))} required />
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.salarioBaseBsDisplay} onChange={(e) => setForm((p) => ({ ...p, salarioBaseBs: e.target.value.replace(/,/g, ""), salarioBaseBsDisplay: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, salarioBaseBsDisplay: formatBs(p.salarioBaseBs) }))} required />
             </div>
           </div>
 
@@ -348,13 +386,13 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
             <tbody>
               {empleados.map((e) => (
                 <tr key={e.id} className="border-t" style={{ borderColor: "var(--erp-border)" }}>
-                  <td className="px-3 py-2" style={{ color: "var(--erp-text)" }}>{e.nombre}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--erp-text)" }}>{e.nombre}{e.apellido ? ` ${e.apellido}` : ""}</td>
                   <td className="px-3 py-2">{e.cedula ?? "—"}</td>
                   <td className="px-3 py-2">{e.cargo ?? "—"}</td>
                   <td className="px-3 py-2">{e.locacionNombre ?? "—"}</td>
                   <td className="px-3 py-2">{e.nominaNombres.length ? e.nominaNombres.join(", ") : "—"}</td>
                   <td className="px-3 py-2 text-right">${e.salarioBaseUsd.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-right">Bs{e.salarioBaseBs.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right">Bs{formatBs(String(e.salarioBaseBs))}</td>
                   <td className="px-3 py-2">{e.activo ? "Activo" : "Inactivo"}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-2">
