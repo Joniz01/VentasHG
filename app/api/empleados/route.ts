@@ -15,6 +15,7 @@ function mapEmpleado(r: Record<string, unknown>, nominasRows: Record<string, unk
       : null,
     sexo: r.sexo ?? null,
     cargo: r.cargo,
+    cargoId: r.cargo_id ?? null,
     locacionId: r.locacion_id,
     locacionNombre: r.locacion_nombre,
     nominaIds: asignadas.map((n) => n.nomina_id),
@@ -82,9 +83,9 @@ export async function POST(request: NextRequest) {
     try {
       result = await client.query(
         `INSERT INTO empleados
-          (nombre, apellido, cedula, fecha_nacimiento, sexo, cargo, locacion_id,
+          (nombre, apellido, cedula, fecha_nacimiento, sexo, cargo, cargo_id, locacion_id,
            salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
         [
           body.nombre.trim(),
           body.apellido?.trim() || null,
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
           body.fechaNacimiento || null,
           body.sexo || null,
           body.cargo?.trim() || null,
+          body.cargoId || null,
           body.locacionId || null,
           Number(body.salarioBaseUsd) || 0,
           Number(body.salarioBaseBs) || 0,
@@ -101,27 +103,52 @@ export async function POST(request: NextRequest) {
         ]
       );
     } catch {
-      // Migración 067 pendiente — insertar sin apellido
+      // Migración 067/068 pendiente — insertar sin apellido ni cargo_id
       await client.query("ROLLBACK TO sp_emp");
-      result = await client.query(
-        `INSERT INTO empleados
-          (nombre, cedula, fecha_nacimiento, sexo, cargo, locacion_id,
-           salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-        [
-          body.nombre.trim(),
-          body.cedula?.trim() || null,
-          body.fechaNacimiento || null,
-          body.sexo || null,
-          body.cargo?.trim() || null,
-          body.locacionId || null,
-          Number(body.salarioBaseUsd) || 0,
-          Number(body.salarioBaseBs) || 0,
-          Number(body.tasaRegistro) || 0,
-          body.fechaIngreso || null,
-          body.activo ?? true,
-        ]
-      );
+      await client.query("SAVEPOINT sp_emp2");
+      try {
+        result = await client.query(
+          `INSERT INTO empleados
+            (nombre, apellido, cedula, fecha_nacimiento, sexo, cargo, locacion_id,
+             salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+          [
+            body.nombre.trim(),
+            body.apellido?.trim() || null,
+            body.cedula?.trim() || null,
+            body.fechaNacimiento || null,
+            body.sexo || null,
+            body.cargo?.trim() || null,
+            body.locacionId || null,
+            Number(body.salarioBaseUsd) || 0,
+            Number(body.salarioBaseBs) || 0,
+            Number(body.tasaRegistro) || 0,
+            body.fechaIngreso || null,
+            body.activo ?? true,
+          ]
+        );
+      } catch {
+        await client.query("ROLLBACK TO sp_emp2");
+        result = await client.query(
+          `INSERT INTO empleados
+            (nombre, cedula, fecha_nacimiento, sexo, cargo, locacion_id,
+             salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+          [
+            body.nombre.trim(),
+            body.cedula?.trim() || null,
+            body.fechaNacimiento || null,
+            body.sexo || null,
+            body.cargo?.trim() || null,
+            body.locacionId || null,
+            Number(body.salarioBaseUsd) || 0,
+            Number(body.salarioBaseBs) || 0,
+            Number(body.tasaRegistro) || 0,
+            body.fechaIngreso || null,
+            body.activo ?? true,
+          ]
+        );
+      }
     }
     const empleadoId = result.rows[0].id;
 

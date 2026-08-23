@@ -686,6 +686,7 @@ export type Empleado = {
   fechaNacimiento: string | null;
   sexo: Sexo | null;
   cargo: string | null;
+  cargoId: number | null;
   locacionId: number | null;
   locacionNombre: string | null;
   nominaIds: number[];
@@ -705,6 +706,7 @@ export type EmpleadoInput = {
   fechaNacimiento: string;
   sexo: Sexo | null;
   cargo: string;
+  cargoId?: number | null;
   locacionId: number | null;
   nominaIds: number[];
   salarioBaseUsd: number;

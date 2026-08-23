@@ -11,6 +11,7 @@ import LLMAdminPanel from "@/components/LLMAdminPanel";
 import ConteoUsuariosConfigClient from "@/components/ConteoUsuariosConfigClient";
 import TiposGastoConfigClient from "@/components/TiposGastoConfigClient";
 import CentrosCostoConfigClient from "@/components/CentrosCostoConfigClient";
+import CargosConfigClient from "@/components/CargosConfigClient";
 
 type Props = {
   usuarioActualId: number;
@@ -29,6 +30,7 @@ const TABS = [
   { key: "conteo",        label: "Conteo Inventario",   icon: "📋", desc: "Usuarios de conteo físico" },
   { key: "gastos-config",   label: "Gastos",              icon: "🧾", desc: "Tipos de gasto configurables" },
   { key: "centros-costo",   label: "Centros de Costo",    icon: "🏢", desc: "Sucursales y centros de costo" },
+  { key: "cargos",          label: "Cargos",               icon: "💼", desc: "Cargos y posiciones de empleados" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -200,6 +202,15 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario, esAd
             Gestiona las sucursales o centros de costo para asignar a Nóminas y Gastos.
           </p>
           <CentrosCostoConfigClient />
+        </div>
+      )}
+
+      {tab === "cargos" && (
+        <div>
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
+            Gestiona los cargos y posiciones disponibles para asignar a los empleados.
+          </p>
+          <CargosConfigClient />
         </div>
       )}
     </div>

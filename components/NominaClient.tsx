@@ -63,6 +63,8 @@ function formatBs(value: string): string {
   return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+type CargoOption = { id: number; nombre: string };
+
 type EmpleadoForm = {
   nombre: string;
   apellido: string;
@@ -70,6 +72,7 @@ type EmpleadoForm = {
   fechaNacimiento: string;
   sexo: Sexo | "";
   cargo: string;
+  cargoId: string;
   locacionId: string;
   nominaIds: number[];
   tasaRegistro: string;
@@ -87,6 +90,7 @@ const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   fechaNacimiento: "",
   sexo: "",
   cargo: "",
+  cargoId: "",
   locacionId: "",
   nominaIds: [],
   tasaRegistro: "",
@@ -100,6 +104,7 @@ const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
 function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [locaciones, setLocaciones] = useState<Locacion[]>([]);
+  const [cargosOpts, setCargosOpts] = useState<CargoOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -152,10 +157,16 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     if (res.ok) setLocaciones(await res.json());
   }
 
+  async function loadCargos() {
+    const res = await fetch("/api/cargos");
+    if (res.ok) setCargosOpts(await res.json());
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadEmpleados();
     loadLocaciones();
+    loadCargos();
   }, []);
 
   // Auto-fetch tasa BCV al abrir el formulario de nuevo empleado
@@ -182,6 +193,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       fechaNacimiento: e.fechaNacimiento ?? "",
       sexo: e.sexo ?? "",
       cargo: e.cargo ?? "",
+      cargoId: e.cargoId ? String(e.cargoId) : "",
       locacionId: e.locacionId ? String(e.locacionId) : "",
       nominaIds: e.nominaIds,
       tasaRegistro: e.tasaRegistro ? String(e.tasaRegistro) : "",
@@ -210,13 +222,15 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     }
     setSaving(true);
     try {
+      const cargoSeleccionado = cargosOpts.find((c) => String(c.id) === form.cargoId);
       const payload: EmpleadoInput = {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim() || undefined,
         cedula: form.cedula.trim(),
         fechaNacimiento: form.fechaNacimiento,
         sexo: form.sexo || null,
-        cargo: form.cargo.trim(),
+        cargo: cargoSeleccionado?.nombre ?? form.cargo.trim(),
+        cargoId: form.cargoId ? Number(form.cargoId) : null,
         locacionId: form.locacionId ? Number(form.locacionId) : null,
         nominaIds: form.nominaIds,
         salarioBaseUsd: Number(form.salarioBaseUsd) || 0,
@@ -277,7 +291,14 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Cargo</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, cargo: toTitleCase(p.cargo) }))} placeholder="Ej: Cocinero" />
+              {cargosOpts.length > 0 ? (
+                <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargoId} onChange={(e) => setForm((p) => ({ ...p, cargoId: e.target.value, cargo: "" }))}>
+                  <option value="">— Seleccionar —</option>
+                  {cargosOpts.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              ) : (
+                <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, cargo: toTitleCase(p.cargo) }))} placeholder="Ej: Cocinero" />
+              )}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
