@@ -1332,17 +1332,39 @@ function StatTile({ label, value, color, prefix = "$" }: { label: string; value:
 
 type ProximaSemanaInfo = { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null; fechaPago: string | null };
 
+type FiltroGestion = "todas" | "por_pagar" | "parcial" | "pagadas";
+type PanelState = { open: boolean; modo: "total" | "parcial"; seleccion: Set<number> };
+
+const bs2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function estadoPeriodo(periodo: PeriodoNomina): "por_pagar" | "parcial" | "pagadas" {
+  const pend = periodo.pagos.filter((p) => p.estado === "PENDIENTE").length;
+  const pag = periodo.pagos.filter((p) => p.estado === "PAGADO").length;
+  if (pend === 0) return "pagadas";
+  if (pag === 0) return "por_pagar";
+  return "parcial";
+}
+
+const FILTROS_GESTION: { key: FiltroGestion; label: string }[] = [
+  { key: "todas", label: "Todas" },
+  { key: "por_pagar", label: "Por Pagar" },
+  { key: "parcial", label: "Parciales" },
+  { key: "pagadas", label: "Pagadas" },
+];
+
+const DIAS_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
 function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen: () => void; proximaSemana?: ProximaSemanaInfo }) {
   const [periodos, setPeriodos] = useState<PeriodoNomina[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<number | null>(null); // periodoId en proceso
-  const [parcialId, setParcialId] = useState<number | null>(null); // periodo en modo parcial
-  const [seleccion, setSeleccion] = useState<Set<number>>(new Set()); // pagoIds seleccionados
+  const [filtro, setFiltro] = useState<FiltroGestion>("por_pagar");
+  const [paneles, setPaneles] = useState<Record<number, PanelState>>({});
+  const [saving, setSaving] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/nomina/periodos?pendientes=true");
+      const res = await fetch("/api/nomina/periodos");
       if (res.ok) {
         const data = await res.json();
         setPeriodos(data.periodos ?? []);
@@ -1354,60 +1376,62 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen
 
   useEffect(() => { load(); }, []);
 
-  async function pagarTodo(periodo: PeriodoNomina) {
-    const ids = periodo.pagos.filter((p) => p.estado === "PENDIENTE").map((p) => p.id);
-    if (!ids.length) return;
-    setSaving(periodo.id);
-    try {
-      await fetch("/api/nomina/pagos/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pagoIds: ids }),
-      });
-      await load();
-      onRefreshResumen();
-    } finally {
-      setSaving(null);
-    }
+  function openPanel(periodoId: number, pendienteIds: number[]) {
+    setPaneles((prev) => ({
+      ...prev,
+      [periodoId]: prev[periodoId]?.open
+        ? { open: false, modo: "total", seleccion: new Set() }
+        : { open: true, modo: "total", seleccion: new Set(pendienteIds) },
+    }));
   }
 
-  async function pagarParcial(periodo: PeriodoNomina) {
-    const ids = Array.from(seleccion);
-    if (!ids.length) return;
-    setSaving(periodo.id);
-    try {
-      await fetch("/api/nomina/pagos/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pagoIds: ids }),
-      });
-      setParcialId(null);
-      setSeleccion(new Set());
-      await load();
-      onRefreshResumen();
-    } finally {
-      setSaving(null);
-    }
+  function setModo(periodoId: number, modo: "total" | "parcial") {
+    setPaneles((prev) => ({ ...prev, [periodoId]: { ...prev[periodoId], modo } }));
   }
 
-  function toggleSeleccion(id: number) {
-    setSeleccion((prev) => {
-      const s = new Set(prev);
-      s.has(id) ? s.delete(id) : s.add(id);
-      return s;
+  function toggleSel(periodoId: number, pagoId: number) {
+    setPaneles((prev) => {
+      const s = new Set(prev[periodoId].seleccion);
+      s.has(pagoId) ? s.delete(pagoId) : s.add(pagoId);
+      return { ...prev, [periodoId]: { ...prev[periodoId], seleccion: s } };
     });
+  }
+
+  function toggleTodos(periodoId: number, pendienteIds: number[]) {
+    setPaneles((prev) => {
+      const cur = prev[periodoId].seleccion;
+      const allSel = pendienteIds.every((id) => cur.has(id));
+      return { ...prev, [periodoId]: { ...prev[periodoId], seleccion: allSel ? new Set() : new Set(pendienteIds) } };
+    });
+  }
+
+  async function confirmarPago(periodo: PeriodoNomina) {
+    const panel = paneles[periodo.id];
+    if (!panel) return;
+    const pendientes = periodo.pagos.filter((p) => p.estado === "PENDIENTE");
+    const ids = panel.modo === "total" ? pendientes.map((p) => p.id) : Array.from(panel.seleccion);
+    if (!ids.length) return;
+    setSaving(periodo.id);
+    try {
+      await fetch("/api/nomina/pagos/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pagoIds: ids }),
+      });
+      setPaneles((prev) => ({ ...prev, [periodo.id]: { open: false, modo: "total", seleccion: new Set() } }));
+      await load();
+      onRefreshResumen();
+    } finally {
+      setSaving(null);
+    }
   }
 
   if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
 
-  const DIAS_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-
+  // Card próxima semana
   const proximaCard = proximaSemana && proximaSemana.periodos > 0 ? (() => {
     const fechaPagoLabel = proximaSemana.fechaPago
-      ? (() => {
-          const d = new Date(proximaSemana.fechaPago + "T00:00:00");
-          return `${DIAS_ES[d.getDay()]} ${formatFechaCorta(proximaSemana.fechaPago)}`;
-        })()
+      ? (() => { const d = new Date(proximaSemana.fechaPago + "T00:00:00"); return `${DIAS_ES[d.getDay()]} ${formatFechaCorta(proximaSemana.fechaPago!)}`; })()
       : null;
     return (
       <div className="rounded-xl border p-4 flex flex-col gap-2" style={{ background: "var(--erp-surface)", borderColor: "#1d4ed8" }}>
@@ -1425,158 +1449,217 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen
           </div>
         )}
         {proximaSemana.lunes && proximaSemana.domingo && (
-          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-            Semana: {formatFechaCorta(proximaSemana.lunes)} – {formatFechaCorta(proximaSemana.domingo)}
-          </div>
+          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>Semana: {formatFechaCorta(proximaSemana.lunes)} – {formatFechaCorta(proximaSemana.domingo)}</div>
         )}
-        <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-          Genera los períodos desde Configuración → Nóminas para procesarlos.
-        </p>
+        <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>Genera los períodos desde Configuración → Nóminas para procesarlos.</p>
       </div>
     );
   })() : null;
 
-  if (periodos.length === 0) {
-    return (
-      <div className="flex flex-col gap-4">
-        {proximaCard}
-        <div className="rounded-lg border px-4 py-6 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
-          No hay nóminas pendientes por pagar. ¡Todo al día!
-        </div>
-      </div>
-    );
-  }
+  // Filtrar
+  const periodosFiltrados = periodos.filter((p) => filtro === "todas" || estadoPeriodo(p) === filtro);
+
+  const counts = {
+    todas: periodos.length,
+    por_pagar: periodos.filter((p) => estadoPeriodo(p) === "por_pagar").length,
+    parcial: periodos.filter((p) => estadoPeriodo(p) === "parcial").length,
+    pagadas: periodos.filter((p) => estadoPeriodo(p) === "pagadas").length,
+  };
 
   return (
     <div className="flex flex-col gap-4">
       {proximaCard}
-      {periodos.map((periodo) => {
+
+      {/* Toggles filtro */}
+      <div className="flex gap-1.5 flex-wrap">
+        {FILTROS_GESTION.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setFiltro(key)}
+            className="rounded-full px-3 py-1 text-xs font-semibold border transition-colors"
+            style={filtro === key
+              ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+              : { background: "var(--erp-surface)", color: "var(--erp-text-2)", borderColor: "var(--erp-border)" }}
+          >
+            {label} {counts[key] > 0 && <span className="ml-0.5 opacity-70">({counts[key]})</span>}
+          </button>
+        ))}
+      </div>
+
+      {periodosFiltrados.length === 0 && (
+        <div className="rounded-lg border px-4 py-6 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
+          {filtro === "por_pagar" ? "No hay nóminas pendientes por pagar. ¡Todo al día!" : "Sin resultados para este filtro."}
+        </div>
+      )}
+
+      {periodosFiltrados.map((periodo) => {
         const pendientes = periodo.pagos.filter((p) => p.estado === "PENDIENTE");
         const pagados = periodo.pagos.filter((p) => p.estado === "PAGADO");
-        const totalPendienteBs = pendientes.reduce((s, p) => s + p.totalBs, 0);
-        const totalPendienteUsd = pendientes.reduce((s, p) => s + p.totalUsd, 0);
-        const enParcial = parcialId === periodo.id;
+        const pendienteIds = pendientes.map((p) => p.id);
+        const totalPendBs = pendientes.reduce((s, p) => s + p.totalBs, 0);
+        const totalPendUsd = pendientes.reduce((s, p) => s + p.totalUsd, 0);
+        const totalPagBs = pagados.reduce((s, p) => s + p.totalBs, 0);
+        const totalPagUsd = pagados.reduce((s, p) => s + p.totalUsd, 0);
+        const est = estadoPeriodo(periodo);
+        const panel = paneles[periodo.id] ?? { open: false, modo: "total" as const, seleccion: new Set<number>() };
+
+        const selArr = panel.modo === "total" ? pendientes : pendientes.filter((p) => panel.seleccion.has(p.id));
+        const selUsd = selArr.reduce((s, p) => s + p.totalUsd, 0);
+        const selBs = selArr.reduce((s, p) => s + p.totalBs, 0);
+        const allSel = pendienteIds.length > 0 && pendienteIds.every((id) => panel.seleccion.has(id));
+
+        const badgeStyle: Record<string, { bg: string; color: string; label: string }> = {
+          por_pagar: { bg: "#fff1f2", color: "#be123c", label: "Por Pagar" },
+          parcial: { bg: "#fff7ed", color: "#c2410c", label: "Pago Parcial" },
+          pagadas: { bg: "#f0fdf4", color: "#15803d", label: "Pagada" },
+        };
+        const badge = badgeStyle[est];
 
         return (
           <div key={periodo.id} className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--erp-border)" }}>
             {/* Cabecera */}
-            <div className="px-4 py-3 flex flex-col gap-1" style={{ background: "var(--erp-primary-lt)" }}>
-              <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="px-4 pt-3 pb-2 flex flex-col gap-2" style={{ background: "var(--erp-primary-lt)" }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
                   <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>{periodo.nominaNombre}</span>
                   <span className="ml-2 text-xs" style={{ color: "var(--erp-text-2)" }}>
                     {formatFechaCorta(periodo.fechaDesde)} – {formatFechaCorta(periodo.fechaHasta)}
                   </span>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-bold" style={{ color: "#a16207" }}>${totalPendienteUsd.toFixed(2)}</div>
-                  <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>Bs {totalPendienteBs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
+              </div>
+
+              {/* Totales cancelado / por cancelar */}
+              <div className="flex gap-2">
+                {pagados.length > 0 && (
+                  <div className="flex-1 rounded-lg px-3 py-2" style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
+                    <div className="text-[10px] font-semibold" style={{ color: "#15803d" }}>✓ Cancelado</div>
+                    <div className="text-sm font-bold" style={{ color: "#15803d" }}>${totalPagUsd.toFixed(2)}</div>
+                    <div className="text-[10px]" style={{ color: "#16a34a" }}>Bs {bs2(totalPagBs)}</div>
+                  </div>
+                )}
+                {pendientes.length > 0 && (
+                  <div className="flex-1 rounded-lg px-3 py-2" style={{ background: "#fff1f2", border: "1px solid #fca5a5" }}>
+                    <div className="text-[10px] font-semibold" style={{ color: "#be123c" }}>⚠ Por Cancelar</div>
+                    <div className="text-sm font-bold" style={{ color: "#be123c" }}>${totalPendUsd.toFixed(2)}</div>
+                    <div className="text-[10px]" style={{ color: "#dc2626" }}>Bs {bs2(totalPendBs)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Panel de pago */}
+            {pendientes.length > 0 && (
+              <div className="px-4 py-3 flex flex-col gap-3">
+                {/* Toggle abrir panel */}
+                <button
+                  type="button"
+                  onClick={() => openPanel(periodo.id, pendienteIds)}
+                  className="self-start rounded-lg px-4 py-2 text-sm font-semibold border transition-colors"
+                  style={panel.open
+                    ? { background: "var(--erp-surface)", color: "var(--erp-text-2)", borderColor: "var(--erp-border)" }
+                    : { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }}
+                >
+                  {panel.open ? "✕ Cancelar" : "💳 Registrar Pago"}
+                </button>
+
+                {panel.open && (
+                  <div className="flex flex-col gap-3 rounded-xl border p-3" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+                    {/* Modo pago */}
+                    <div className="flex gap-1 rounded-lg p-1" style={{ background: "var(--erp-primary-lt)" }}>
+                      {(["total", "parcial"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            setModo(periodo.id, m);
+                            if (m === "parcial") setPaneles((prev) => ({ ...prev, [periodo.id]: { ...prev[periodo.id], modo: "parcial", seleccion: new Set(pendienteIds) } }));
+                            else setPaneles((prev) => ({ ...prev, [periodo.id]: { ...prev[periodo.id], modo: "total" } }));
+                          }}
+                          className="flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors"
+                          style={panel.modo === m
+                            ? { background: "var(--erp-primary)", color: "#fff" }
+                            : { color: "var(--erp-text-2)" }}
+                        >
+                          {m === "total" ? "Pago Total" : "Pago Parcial"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Lista empleados (siempre visible) */}
+                    <div className="flex flex-col gap-1">
+                      {panel.modo === "parcial" && (
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Seleccionar empleados:</span>
+                          <button type="button" onClick={() => toggleTodos(periodo.id, pendienteIds)} className="text-xs underline" style={{ color: "var(--erp-primary)" }}>
+                            {allSel ? "Deseleccionar todos" : "Seleccionar todos"}
+                          </button>
+                        </div>
+                      )}
+                      {pendientes.map((pago) => {
+                        const selected = panel.modo === "total" || panel.seleccion.has(pago.id);
+                        return (
+                          <div
+                            key={pago.id}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2"
+                            style={{
+                              background: selected ? "#f0fdf4" : "#f9fafb",
+                              border: `1px solid ${selected ? "#86efac" : "var(--erp-border)"}`,
+                              opacity: panel.modo === "parcial" && !selected ? 0.55 : 1,
+                            }}
+                          >
+                            {panel.modo === "parcial" && (
+                              <input type="checkbox" checked={panel.seleccion.has(pago.id)} onChange={() => toggleSel(periodo.id, pago.id)} className="w-4 h-4 flex-shrink-0" />
+                            )}
+                            <span className="flex-1 text-sm" style={{ color: "var(--erp-text)" }}>{pago.empleadoNombre}</span>
+                            <div className="text-right">
+                              <div className="text-sm font-bold" style={{ color: selected ? "#15803d" : "var(--erp-text-2)" }}>${pago.totalUsd.toFixed(2)}</div>
+                              <div className="text-[10px]" style={{ color: "var(--erp-text-2)" }}>Bs {bs2(pago.totalBs)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Total seleccionado + confirmar */}
+                    <div className="flex items-center justify-between gap-3 pt-1 border-t flex-wrap" style={{ borderColor: "var(--erp-border)" }}>
+                      <div>
+                        <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+                          {panel.modo === "total" ? "Total a pagar:" : `${panel.seleccion.size} empleado(s) seleccionado(s):`}
+                        </div>
+                        <div className="text-base font-bold" style={{ color: "#15803d" }}>${selUsd.toFixed(2)}</div>
+                        <div className="text-xs" style={{ color: "#16a34a" }}>Bs {bs2(selBs)}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => confirmarPago(periodo)}
+                        disabled={saving === periodo.id || (panel.modo === "parcial" && panel.seleccion.size === 0)}
+                        className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ background: "#15803d" }}
+                      >
+                        {saving === periodo.id ? "Procesando…" : "✓ Confirmar Pago"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Empleados ya pagados (colapsado) */}
+            {pagados.length > 0 && pendientes.length === 0 && (
+              <div className="px-4 pb-3">
+                <div className="text-xs font-medium mb-1" style={{ color: "#15803d" }}>Empleados pagados ({pagados.length}):</div>
+                <div className="flex flex-col gap-1">
+                  {pagados.map((pago) => (
+                    <div key={pago.id} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-lg" style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
+                      <span style={{ color: "var(--erp-text)" }}>{pago.empleadoNombre}</span>
+                      <span className="font-semibold" style={{ color: "#15803d" }}>${pago.totalUsd.toFixed(2)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-              {pagados.length > 0 && (
-                <div className="text-xs" style={{ color: "#15803d" }}>{pagados.length} empleado(s) ya pagado(s)</div>
-              )}
-            </div>
-
-            {/* Tabla de empleados pendientes */}
-            <div className="px-4 py-3 flex flex-col gap-2">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ color: "var(--erp-text-2)" }}>
-                    {enParcial && <th className="text-left pr-2 py-1 w-8"></th>}
-                    <th className="text-left py-1">Empleado</th>
-                    <th className="text-right py-1">Salario Bs</th>
-                    <th className="text-right py-1">Incid. Bs</th>
-                    <th className="text-right py-1">Total $</th>
-                    <th className="text-left py-1 pl-2">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendientes.map((pago) => (
-                    <tr key={pago.id} className="border-t" style={{ borderColor: "var(--erp-border)" }}>
-                      {enParcial && (
-                        <td className="pr-2 py-1.5">
-                          <input type="checkbox" checked={seleccion.has(pago.id)} onChange={() => toggleSeleccion(pago.id)} />
-                        </td>
-                      )}
-                      <td className="py-1.5" style={{ color: "var(--erp-text)" }}>{pago.empleadoNombre}</td>
-                      <td className="py-1.5 text-right text-xs" style={{ color: "var(--erp-text-2)" }}>
-                        {pago.salarioBaseBs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-1.5 text-right text-xs" style={{ color: "var(--erp-text-2)" }}>
-                        {pago.totalIncidenciasBs > 0 ? pago.totalIncidenciasBs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                      </td>
-                      <td className="py-1.5 text-right font-medium" style={{ color: "var(--erp-text)" }}>
-                        ${pago.totalUsd.toFixed(2)}
-                      </td>
-                      <td className="py-1.5 pl-2">
-                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "#fef9c3", color: "#a16207" }}>
-                          PENDIENTE
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                {pendientes.length > 0 && (
-                  <tfoot>
-                    <tr className="border-t font-semibold" style={{ borderColor: "var(--erp-border)" }}>
-                      {enParcial && <td />}
-                      <td className="py-1.5 text-sm" style={{ color: "var(--erp-text)" }}>Total pendiente</td>
-                      <td />
-                      <td />
-                      <td className="py-1.5 text-right" style={{ color: "#a16207" }}>${totalPendienteUsd.toFixed(2)}</td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-
-              {/* Acciones */}
-              {!enParcial ? (
-                <div className="flex gap-2 justify-end pt-1">
-                  <button
-                    type="button"
-                    onClick={() => { setParcialId(periodo.id); setSeleccion(new Set()); }}
-                    className="rounded-lg px-3 py-1.5 text-sm font-semibold border"
-                    style={{ borderColor: "var(--erp-primary)", color: "var(--erp-primary)" }}
-                  >
-                    Pago Parcial
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => pagarTodo(periodo)}
-                    disabled={saving === periodo.id}
-                    className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
-                    style={{ background: "#15803d" }}
-                  >
-                    {saving === periodo.id ? "Procesando…" : "Pagar Todo"}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2 justify-end pt-1 flex-wrap">
-                  <span className="text-xs self-center" style={{ color: "var(--erp-text-2)" }}>
-                    {seleccion.size} seleccionado(s)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => { setParcialId(null); setSeleccion(new Set()); }}
-                    className="rounded-lg px-3 py-1.5 text-sm font-semibold border"
-                    style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => pagarParcial(periodo)}
-                    disabled={saving === periodo.id || seleccion.size === 0}
-                    className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
-                    style={{ background: "var(--erp-primary)" }}
-                  >
-                    {saving === periodo.id ? "Procesando…" : `Confirmar Pago (${seleccion.size})`}
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         );
       })}
