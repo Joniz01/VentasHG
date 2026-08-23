@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { PermisosUsuario, Rol } from "@/lib/types";
 import CuentasPorCobrarAlerta from "@/components/CuentasPorCobrarAlerta";
 import CasheaAlerta from "@/components/CasheaAlerta";
@@ -29,11 +29,14 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Punto de Venta",
+    label: "Ventas",
     items: [
-      { href: "/ventas",             icon: "🛒", label: "Registrar Venta",    permiso: "ventas" },
-      { href: "/pedidos-pendientes", icon: "📋", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
-      { href: "/delivery",           icon: "📬", label: "Deliveries" },
+      { href: "/ventas",                   icon: "🛒", label: "Punto de Venta",    permiso: "ventas" },
+      { href: "/pedidos-pendientes",       icon: "📋", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
+      { href: "/delivery",                 icon: "📬", label: "Deliveries" },
+      { href: "/ventas?vista=cortesias",   icon: "🎁", label: "Salida Cortesías",   permiso: "ventas" },
+      { href: "/ventas?vista=promociones", icon: "🏷️", label: "Promociones",        permiso: "ventas" },
+      { href: "/ventas?vista=notas",       icon: "📝", label: "Notas de Entrega",   permiso: "ventas" },
     ],
   },
   {
@@ -54,22 +57,17 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Inventario",
     items: [
-      { href: "/productos",   icon: "📦", label: "Productos",       permiso: "productos" },
-      { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",   permiso: "productos" },
-      { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos",     permiso: "productos" },
-      { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",    permiso: "autorizarConteo", badge: "conteo" },
+      { href: "/productos",          icon: "📦", label: "Productos",                permiso: "productos" },
+      { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
+      { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
+      { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
     ],
   },
   {
-    label: "Compras",
+    label: "Compras & Producción",
     items: [
-      { href: "/compras", icon: "🛍️", label: "Compras", permiso: "compras" },
-    ],
-  },
-  {
-    label: "Producción",
-    items: [
-      { href: "/mrp", icon: "⚙️", label: "MRP · Planificación" },
+      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra",   permiso: "compras" },
+      { href: "/mrp",     icon: "⚙️",  label: "MRP · Planificación" },
     ],
   },
   {
@@ -90,7 +88,7 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Admin & Configuración",
     items: [
-      { href: "/admin", icon: "⚙️", label: "Admin", rolReq: "ADMIN" },
+      { href: "/admin", icon: "🔧", label: "Configuración", rolReq: "ADMIN" },
     ],
   },
 ];
@@ -104,6 +102,7 @@ function isVisible(item: NavItem, rol: Rol | null, permisos: PermisosUsuario | n
 
 export default function SidebarNav({ rol, permisos }: Props) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const puedeVerReportes = rol === "ADMIN" || !!permisos?.reportes;
 
@@ -134,7 +133,11 @@ export default function SidebarNav({ rol, permisos }: Props) {
                 {grupo.label}
               </div>
               {visibles.map((item) => {
-                const active = pathname?.startsWith(item.href);
+                const [itemPath, itemQuery] = item.href.split("?");
+                const itemParams = itemQuery ? new URLSearchParams(itemQuery) : null;
+                const active = itemParams
+                  ? pathname === itemPath && [...itemParams.entries()].every(([k, v]) => searchParams.get(k) === v)
+                  : pathname?.startsWith(item.href) && !item.href.includes("?");
                 return (
                   <Link
                     key={item.href + item.label}
