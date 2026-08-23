@@ -1330,7 +1330,9 @@ function StatTile({ label, value, color, prefix = "$" }: { label: string; value:
 
 /* ───────────────────────── Gestión de Pagos ───────────────────────── */
 
-function GestionPagosTab({ onRefreshResumen }: { onRefreshResumen: () => void }) {
+type ProximaSemanaInfo = { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null };
+
+function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen: () => void; proximaSemana?: ProximaSemanaInfo }) {
   const [periodos, setPeriodos] = useState<PeriodoNomina[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null); // periodoId en proceso
@@ -1398,16 +1400,42 @@ function GestionPagosTab({ onRefreshResumen }: { onRefreshResumen: () => void })
 
   if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
 
+  const proximaCard = proximaSemana && proximaSemana.periodos > 0 ? (
+    <div className="rounded-xl border p-4 flex flex-col gap-1" style={{ background: "var(--erp-surface)", borderColor: "#1d4ed8" }}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>📅 Próximas nóminas a pagar</span>
+          {proximaSemana.lunes && proximaSemana.domingo && (
+            <span className="ml-2 text-xs" style={{ color: "var(--erp-text-2)" }}>
+              {formatFechaCorta(proximaSemana.lunes)} – {formatFechaCorta(proximaSemana.domingo)}
+            </span>
+          )}
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${proximaSemana.totalUsd.toFixed(2)}</div>
+          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>{proximaSemana.periodos} período(s) estimado(s)</div>
+        </div>
+      </div>
+      <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+        Genera los períodos desde Configuración → Nóminas para procesarlos.
+      </p>
+    </div>
+  ) : null;
+
   if (periodos.length === 0) {
     return (
-      <div className="rounded-lg border px-4 py-6 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
-        No hay nóminas pendientes por pagar. ¡Todo al día!
+      <div className="flex flex-col gap-4">
+        {proximaCard}
+        <div className="rounded-lg border px-4 py-6 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
+          No hay nóminas pendientes por pagar. ¡Todo al día!
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
+      {proximaCard}
       {periodos.map((periodo) => {
         const pendientes = periodo.pagos.filter((p) => p.estado === "PENDIENTE");
         const pagados = periodo.pagos.filter((p) => p.estado === "PAGADO");
@@ -1574,8 +1602,13 @@ export default function NominaClient() {
       <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
       <StatTile label="Nómina Pendiente" value={resumen.nominaPendiente} color="#a16207" />
       <StatTile label="Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
-      <div className="rounded-xl border px-4 py-3 flex flex-col gap-1" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
-        <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana</div>
+      <button
+        type="button"
+        onClick={() => setSeccion("pagos")}
+        className="rounded-xl border px-4 py-3 flex flex-col gap-1 text-left transition-opacity hover:opacity-80"
+        style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
+      >
+        <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana ↗</div>
         <div className="text-xl font-extrabold" style={{ color: "#1d4ed8" }}>
           ${(resumen.proximaSemana?.totalUsd ?? 0).toFixed(2)}
         </div>
@@ -1585,7 +1618,7 @@ export default function NominaClient() {
             <span className="block">{formatFechaCorta(resumen.proximaSemana.lunes)} – {formatFechaCorta(resumen.proximaSemana.domingo)}</span>
           )}
         </div>
-      </div>
+      </button>
     </div>
   );
 
@@ -1595,21 +1628,7 @@ export default function NominaClient() {
       <div className="flex flex-col gap-4">
         {kpi}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Card Configuración */}
-          <button
-            type="button"
-            onClick={() => setSeccion("config")}
-            className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
-            style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
-          >
-            <span className="text-2xl">⚙️</span>
-            <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Configuración de Nóminas</span>
-            <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-              Nóminas maestro, períodos generados, empleados y asignaciones
-            </span>
-          </button>
-
-          {/* Card Gestión de Pagos */}
+          {/* Card Gestión de Pagos — primero */}
           <button
             type="button"
             onClick={() => setSeccion("pagos")}
@@ -1626,6 +1645,20 @@ export default function NominaClient() {
                 ${resumen.nominaPendiente.toFixed(2)} pendiente
               </span>
             )}
+          </button>
+
+          {/* Card Configuración */}
+          <button
+            type="button"
+            onClick={() => setSeccion("config")}
+            className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
+            style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
+          >
+            <span className="text-2xl">⚙️</span>
+            <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Configuración de Nóminas</span>
+            <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+              Nóminas maestro, períodos generados, empleados y asignaciones
+            </span>
           </button>
         </div>
       </div>
@@ -1674,7 +1707,7 @@ export default function NominaClient() {
     <div className="flex flex-col gap-4">
       {volverBtn}
       <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>💳 Gestión de Pagos</h2>
-      <GestionPagosTab onRefreshResumen={loadResumen} />
+      <GestionPagosTab onRefreshResumen={loadResumen} proximaSemana={resumen.proximaSemana ?? undefined} />
     </div>
   );
 }
