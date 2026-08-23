@@ -233,42 +233,39 @@ export default function ReportesClient() {
     generar(desde, hasta);
   }
 
+  const NAV_CARDS = [
+    { key: "ventas",       icon: "📑", label: "Ventas",           sub: "Reportes y resúmenes" },
+    { key: "conciliacion", icon: "🔍", label: "Conciliación",     sub: "Cuadre por método de pago" },
+    { key: "deliveries",   icon: "📬", label: "Pagos a Delivery", sub: "Liquidaciones de delivery" },
+  ] as const;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-2 border-b border-zinc-200">
-        <button
-          type="button"
-          onClick={() => setTab("ventas")}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === "ventas"
-              ? "border-b-2 border-zinc-900 text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Ventas
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("conciliacion")}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === "conciliacion"
-              ? "border-b-2 border-zinc-900 text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Conciliación
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("deliveries")}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === "deliveries"
-              ? "border-b-2 border-zinc-900 text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Pagos a Delivery
-        </button>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+        {NAV_CARDS.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => setTab(c.key)}
+            style={{
+              background: "var(--erp-surface)",
+              border: tab === c.key ? "2px solid var(--erp-primary)" : "1px solid var(--erp-border)",
+              borderTop: tab === c.key ? `3px solid var(--erp-primary)` : `3px solid var(--erp-border)`,
+              borderRadius: 8,
+              padding: "10px 12px",
+              cursor: "pointer",
+              textAlign: "left",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              boxShadow: tab === c.key ? "0 0 0 1px var(--erp-primary)" : "none",
+            }}
+          >
+            <span style={{ fontSize: 20 }}>{c.icon}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: tab === c.key ? "var(--erp-primary)" : "var(--erp-text)" }}>{c.label}</span>
+            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{c.sub}</span>
+          </button>
+        ))}
       </div>
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
