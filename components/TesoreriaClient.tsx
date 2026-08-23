@@ -452,7 +452,7 @@ export default function TesoreriaClient() {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {pagando === item.id ? "…" : "✓ Registrar"}
+                      {pagando === item.id ? "…" : "✓ Registrar Pagado"}
                     </button>
                   ) : null}
                 </div>
