@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
        nominas_auto AS (
          SELECT
            COUNT(DISTINCT n.id)::int AS nominas,
-           COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
+           COALESCE(SUM(e.salario_base_usd), 0) AS total_usd,
+           MIN((semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date) AS fecha_pago
          FROM semana, nominas n
          JOIN empleado_nominas en ON en.nomina_id = n.id
          JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
@@ -96,12 +97,24 @@ export async function GET(request: NextRequest) {
              WHERE pn2.nomina_id = n.id
                AND pn2.fecha_hasta BETWEEN semana.lunes AND semana.domingo
            )
+       ),
+       -- Fecha de pago más próxima de períodos ya generados pendientes
+       periodos_gen_fecha AS (
+         SELECT MIN(pn.fecha_hasta)::date AS fecha_pago
+         FROM semana, periodos_nomina pn
+         JOIN nomina_pagos np ON np.periodo_id = pn.id
+         WHERE np.estado = 'PENDIENTE'
+           AND pn.fecha_hasta BETWEEN semana.lunes AND semana.domingo
        )
        SELECT
          (SELECT lunes FROM semana) AS lunes,
          (SELECT domingo FROM semana) AS domingo,
          (pg.periodos + na.nominas)::int AS periodos,
-         (pg.total_usd + na.total_usd) AS total_usd
+         (pg.total_usd + na.total_usd) AS total_usd,
+         LEAST(
+           (SELECT fecha_pago FROM periodos_gen_fecha),
+           na.fecha_pago
+         ) AS fecha_pago
        FROM periodos_gen pg, nominas_auto na`
     );
 
@@ -117,6 +130,7 @@ export async function GET(request: NextRequest) {
         totalUsd: Number(ps?.total_usd ?? 0),
         lunes: toDate(ps?.lunes),
         domingo: toDate(ps?.domingo),
+        fechaPago: toDate(ps?.fecha_pago),
       },
     });
   } catch {

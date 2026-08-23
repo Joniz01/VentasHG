@@ -1330,7 +1330,7 @@ function StatTile({ label, value, color, prefix = "$" }: { label: string; value:
 
 /* ───────────────────────── Gestión de Pagos ───────────────────────── */
 
-type ProximaSemanaInfo = { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null };
+type ProximaSemanaInfo = { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null; fechaPago: string | null };
 
 function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen: () => void; proximaSemana?: ProximaSemanaInfo }) {
   const [periodos, setPeriodos] = useState<PeriodoNomina[]>([]);
@@ -1400,27 +1400,41 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen
 
   if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
 
-  const proximaCard = proximaSemana && proximaSemana.periodos > 0 ? (
-    <div className="rounded-xl border p-4 flex flex-col gap-1" style={{ background: "var(--erp-surface)", borderColor: "#1d4ed8" }}>
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div>
+  const DIAS_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+  const proximaCard = proximaSemana && proximaSemana.periodos > 0 ? (() => {
+    const fechaPagoLabel = proximaSemana.fechaPago
+      ? (() => {
+          const d = new Date(proximaSemana.fechaPago + "T00:00:00");
+          return `${DIAS_ES[d.getDay()]} ${formatFechaCorta(proximaSemana.fechaPago)}`;
+        })()
+      : null;
+    return (
+      <div className="rounded-xl border p-4 flex flex-col gap-2" style={{ background: "var(--erp-surface)", borderColor: "#1d4ed8" }}>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>📅 Próximas nóminas a pagar</span>
-          {proximaSemana.lunes && proximaSemana.domingo && (
-            <span className="ml-2 text-xs" style={{ color: "var(--erp-text-2)" }}>
-              {formatFechaCorta(proximaSemana.lunes)} – {formatFechaCorta(proximaSemana.domingo)}
-            </span>
-          )}
+          <div className="text-right">
+            <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${proximaSemana.totalUsd.toFixed(2)}</div>
+            <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>{proximaSemana.periodos} período(s) estimado(s)</div>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${proximaSemana.totalUsd.toFixed(2)}</div>
-          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>{proximaSemana.periodos} período(s) estimado(s)</div>
-        </div>
+        {fechaPagoLabel && (
+          <div className="rounded-lg px-3 py-2 flex items-center gap-2" style={{ background: "#eff6ff" }}>
+            <span className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>Vence:</span>
+            <span className="text-sm font-bold" style={{ color: "#1d4ed8" }}>{fechaPagoLabel}</span>
+          </div>
+        )}
+        {proximaSemana.lunes && proximaSemana.domingo && (
+          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+            Semana: {formatFechaCorta(proximaSemana.lunes)} – {formatFechaCorta(proximaSemana.domingo)}
+          </div>
+        )}
+        <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+          Genera los períodos desde Configuración → Nóminas para procesarlos.
+        </p>
       </div>
-      <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-        Genera los períodos desde Configuración → Nóminas para procesarlos.
-      </p>
-    </div>
-  ) : null;
+    );
+  })() : null;
 
   if (periodos.length === 0) {
     return (
@@ -1577,7 +1591,7 @@ type SeccionPrincipal = "config" | "pagos" | null;
 export default function NominaClient() {
   const [seccion, setSeccion] = useState<SeccionPrincipal>(null);
   const [subTab, setSubTab] = useState<"nominas" | "periodos" | "empleados">("nominas");
-  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null } });
+  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null, fechaPago: null } });
   const [nominas, setNominas] = useState<Nomina[]>([]);
 
   async function loadResumen() {
