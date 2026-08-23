@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
       tipo: r.tipo,
       frecuencia: r.frecuencia,
       modoGeneracion: r.modo_generacion ?? "MANUAL",
+      diaSemana: r.dia_semana ?? null,
       activo: r.activo,
       centroCostoId: r.centro_costo_id ?? null,
       empleadosAsignados: Number(r.empleados_asignados),
@@ -90,9 +91,10 @@ export async function POST(request: NextRequest) {
     await client.query("BEGIN");
 
     const centroCostoId = body.centroCostoId ? Number(body.centroCostoId) : null;
+    const diaSemana = body.diaSemana !== undefined && body.diaSemana !== null ? Number(body.diaSemana) : null;
     const result = await client.query(
-      `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true, centroCostoId]
+      `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, dia_semana, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", diaSemana, body.activo ?? true, centroCostoId]
     );
     const nominaId = result.rows[0].id;
 

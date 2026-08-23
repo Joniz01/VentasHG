@@ -19,11 +19,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
   }
 
   const centroCostoId = body.centroCostoId ? Number(body.centroCostoId) : null;
+  const diaSemana = body.diaSemana !== undefined && body.diaSemana !== null ? Number(body.diaSemana) : null;
 
   try {
     const result = await pool.query(
-      `UPDATE nominas SET nombre = $1, tipo = $2, frecuencia = $3, modo_generacion = $4, activo = $5, centro_costo_id = $6 WHERE id = $7 RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true, centroCostoId, id]
+      `UPDATE nominas SET nombre = $1, tipo = $2, frecuencia = $3, modo_generacion = $4, dia_semana = $5, activo = $6, centro_costo_id = $7 WHERE id = $8 RETURNING id`,
+      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", diaSemana, body.activo ?? true, centroCostoId, id]
     );
     if (result.rowCount === 0) {
       return NextResponse.json({ error: "Nómina no encontrada" }, { status: 404 });

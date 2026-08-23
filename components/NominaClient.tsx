@@ -586,7 +586,7 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
             {TIPO_NOMINA_LABELS[nomina.tipo]}
           </span>
           <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-            {FRECUENCIA_RECURRENCIA_LABELS[nomina.frecuencia]} · {MODO_GENERACION_NOMINA_LABELS[nomina.modoGeneracion]}
+            {FRECUENCIA_RECURRENCIA_LABELS[nomina.frecuencia]} · {MODO_GENERACION_NOMINA_LABELS[nomina.modoGeneracion]}{nomina.modoGeneracion === "AUTOMATICO" && nomina.diaSemana !== null && ` · Pago ${DIAS_SEMANA.find((d) => d.value === nomina.diaSemana)?.label ?? ""}`}
           </span>
         </span>
         <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>
@@ -671,15 +671,26 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
   );
 }
 
+const DIAS_SEMANA = [
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miércoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sábado" },
+  { value: 0, label: "Domingo" },
+];
+
 type NominaForm = {
   nombre: string;
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  diaSemana: string;
   centroCostoId: string;
 };
 
-const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL", centroCostoId: "" };
+const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL", diaSemana: "5", centroCostoId: "" };
 
 function NominasTab() {
   const [nominas, setNominas] = useState<Nomina[]>([]);
@@ -751,7 +762,7 @@ function NominasTab() {
       const res = await fetch("/api/nominas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, modoGeneracion: form.modoGeneracion, centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null, activo: true, incidencias: [] }),
+        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, modoGeneracion: form.modoGeneracion, diaSemana: form.modoGeneracion === "AUTOMATICO" ? Number(form.diaSemana) : null, centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null, activo: true, incidencias: [] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear la Nómina");
@@ -834,6 +845,29 @@ function NominasTab() {
               </select>
             </div>
           </div>
+          {form.modoGeneracion === "AUTOMATICO" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Día de pago semanal</label>
+              <div className="flex flex-wrap gap-2">
+                {DIAS_SEMANA.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, diaSemana: String(d.value) }))}
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium border transition-colors"
+                    style={form.diaSemana === String(d.value)
+                      ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+                      : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs" style={{ color: "var(--erp-text-3)" }}>
+                El cron generará el período automáticamente cada {DIAS_SEMANA.find((d) => String(d.value) === form.diaSemana)?.label ?? "día seleccionado"}.
+              </p>
+            </div>
+          )}
           <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
             Luego de crearla, asigna empleados desde su ficha y agrega las incidencias que apliquen antes de generar un período.
           </p>

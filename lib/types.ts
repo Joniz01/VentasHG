@@ -802,6 +802,7 @@ export type Nomina = {
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  diaSemana: number | null;
   activo: boolean;
   centroCostoId: number | null;
   empleadosAsignados: number;
@@ -815,6 +816,7 @@ export type NominaInput = {
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  diaSemana?: number | null;
   centroCostoId?: number | null;
   activo: boolean;
   incidencias: NominaIncidenciaConfigInput[];
