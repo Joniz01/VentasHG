@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
   const hoy = hoyCaracas();
   const lunes = lunesDeHoy(hoy);
-  const en7dias = addDays(hoy, 7);   // KPI "Esta Semana" = próximos 7 días desde hoy
+  const domingo = addDays(lunes, 6);
   // Ventana: desde 4 semanas atrás hasta 4 semanas adelante
   const desde = addDays(hoy, -28);
   const hasta = addDays(hoy, 28);
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
     const fechaVenc = toDate(r.fecha_vencimiento);
     let estado: "vencido" | "pendiente" | "programado";
     if (fechaVenc < hoy) estado = "vencido";
-    else if (fechaVenc <= en7dias) estado = "pendiente";   // próximos 7 días
+    else if (fechaVenc <= domingo) estado = "pendiente";
     else estado = "programado";
     return {
       id: r.id,
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const vencidoUsd = items.filter((i) => i.estado === "vencido").reduce((s, i) => s + i.montoUsd, 0);
   const estaSemanaUsd = items
-    .filter((i) => i.fechaVencimiento >= hoy && i.fechaVencimiento <= en7dias)
+    .filter((i) => i.fechaVencimiento >= lunes && i.fechaVencimiento <= domingo)
     .reduce((s, i) => s + i.montoUsd, 0);
   const esteMesUsd = items.reduce((s, i) => s + i.montoUsd, 0);
   const pagadoUsd = gastosPagadoUsd + nominasPagadoUsd;
@@ -229,7 +229,7 @@ export async function GET(request: NextRequest) {
     semanas,
     hoy,
     lunes,
-    en7dias,
+    domingo,
   });
 }
 

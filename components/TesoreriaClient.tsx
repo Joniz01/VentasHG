@@ -26,7 +26,7 @@ type PlanificacionData = {
   semanas: Semana[];
   hoy: string;
   lunes: string;
-  en7dias: string;
+  domingo: string;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ export default function TesoreriaClient() {
 
   if (!data) return null;
 
-  const { kpis, items, semanas, lunes: semLunes, en7dias } = data;
+  const { kpis, items, semanas, lunes: semLunes, domingo } = data;
 
   // Filter + counts
   const counts: Record<FiltroEstado, number> = {
@@ -209,7 +209,7 @@ export default function TesoreriaClient() {
       {/* ── KPI Strip ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
         <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" />
-        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Próximos 7 días · hasta ${fmtFecha(en7dias)}`} />
+        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} />
         <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" />
         <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" />
       </div>
