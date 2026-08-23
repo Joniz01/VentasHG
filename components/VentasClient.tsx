@@ -30,6 +30,7 @@ import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
 import SalidaCortesiasPanel from "@/components/SalidaCortesiasPanel";
 import PromocionesPanel from "@/components/PromocionesPanel";
+import ConciliacionPanel from "@/components/ConciliacionPanel";
 import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
 import FechaPagoConfirm from "@/components/FechaPagoConfirm";
 
@@ -145,8 +146,8 @@ type Props = {
 export default function VentasClient({ rol = null, puedeDescuento = false, puedePromociones = false }: Props) {
   const searchParams = useSearchParams();
   const vistaParam = searchParams.get("vista");
-  const vistaInicial = (["ventas", "cortesias", "promociones", "historial", "notas"].includes(vistaParam ?? "") ? vistaParam : "ventas") as "ventas" | "cortesias" | "promociones" | "historial" | "notas";
-  const [vista, setVista] = useState<"ventas" | "cortesias" | "promociones" | "historial" | "notas">(vistaInicial);
+  const vistaInicial = (["ventas", "cortesias", "promociones", "historial", "notas", "conciliacion"].includes(vistaParam ?? "") ? vistaParam : "ventas") as "ventas" | "cortesias" | "promociones" | "historial" | "notas" | "conciliacion";
+  const [vista, setVista] = useState<"ventas" | "cortesias" | "promociones" | "historial" | "notas" | "conciliacion">(vistaInicial);
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
@@ -1035,9 +1036,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
         className="flex gap-0 print:hidden border-b"
         style={{ borderColor: "var(--erp-border)" }}
       >
-        {(["ventas", "historial"] as const)
+        {(["ventas", "historial", "conciliacion"] as const)
           .map((v) => {
-          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial" };
+          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", conciliacion: "Conciliación" };
           const active = vista === v;
           return (
             <button
@@ -1061,6 +1062,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
 
       {vista === "cortesias" && <SalidaCortesiasPanel productos={productos} />}
+
+      {vista === "conciliacion" && <ConciliacionPanel />}
 
       {vista === "promociones" && puedePromociones && <PromocionesPanel productos={productos} />}
 
