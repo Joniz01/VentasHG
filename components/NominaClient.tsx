@@ -1354,7 +1354,7 @@ const FILTROS_GESTION: { key: FiltroGestion; label: string }[] = [
 
 const DIAS_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
-function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen: () => void; proximaSemana?: ProximaSemanaInfo }) {
+function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRefreshResumen: () => void; proximaSemana?: ProximaSemanaInfo; onIrConfig?: () => void }) {
   const [periodos, setPeriodos] = useState<PeriodoNomina[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<FiltroGestion>("por_pagar");
@@ -1451,7 +1451,21 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen
         {proximaSemana.lunes && proximaSemana.domingo && (
           <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>Semana: {formatFechaCorta(proximaSemana.lunes)} – {formatFechaCorta(proximaSemana.domingo)}</div>
         )}
-        <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>Genera los períodos desde Configuración → Nóminas para procesarlos.</p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+            Genera el período desde Configuración para poder procesarlo aquí.
+          </p>
+          {onIrConfig && (
+            <button
+              type="button"
+              onClick={onIrConfig}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white flex-shrink-0"
+              style={{ background: "#1d4ed8" }}
+            >
+              + Generar Período →
+            </button>
+          )}
+        </div>
       </div>
     );
   })() : null;
@@ -1488,8 +1502,18 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana }: { onRefreshResumen
       </div>
 
       {periodosFiltrados.length === 0 && (
-        <div className="rounded-lg border px-4 py-6 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
+        <div className="rounded-lg border px-4 py-6 flex flex-col items-center gap-3 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
           {filtro === "por_pagar" ? "No hay nóminas pendientes por pagar. ¡Todo al día!" : "Sin resultados para este filtro."}
+          {filtro === "por_pagar" && onIrConfig && (
+            <button
+              type="button"
+              onClick={onIrConfig}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+              style={{ background: "var(--erp-primary)" }}
+            >
+              Ir a Configuración para generar un período →
+            </button>
+          )}
         </div>
       )}
 
@@ -1804,7 +1828,11 @@ export default function NominaClient() {
     <div className="flex flex-col gap-4">
       {volverBtn}
       <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>💳 Gestión de Pagos</h2>
-      <GestionPagosTab onRefreshResumen={loadResumen} proximaSemana={resumen.proximaSemana ?? undefined} />
+      <GestionPagosTab
+        onRefreshResumen={loadResumen}
+        proximaSemana={resumen.proximaSemana ?? undefined}
+        onIrConfig={() => { setSeccion("config"); setSubTab("nominas"); }}
+      />
     </div>
   );
 }
