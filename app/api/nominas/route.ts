@@ -96,11 +96,33 @@ export async function POST(request: NextRequest) {
     const diaSemana = body.diaSemana != null ? Number(body.diaSemana) : null;
     const diaPago1 = body.diaPago1 != null ? Number(body.diaPago1) : null;
     const diaPago2 = body.diaPago2 != null ? Number(body.diaPago2) : null;
-    const result = await client.query(
-      `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, dia_semana, dia_pago_1, dia_pago_2, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", diaSemana, diaPago1, diaPago2, body.activo ?? true, centroCostoId]
-    );
-    const nominaId = result.rows[0].id;
+
+    let nominaId: number;
+    try {
+      const result = await client.query(
+        `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, dia_semana, dia_pago_1, dia_pago_2, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", diaSemana, diaPago1, diaPago2, body.activo ?? true, centroCostoId]
+      );
+      nominaId = result.rows[0].id;
+    } catch {
+      // Migraciones 065/066 pendientes — insertar sin columnas de día y centro de costo
+      await client.query("SAVEPOINT sp_nomina_fallback");
+      try {
+        const result = await client.query(
+          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, centro_costo_id) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", centroCostoId]
+        );
+        nominaId = result.rows[0].id;
+      } catch {
+        // centro_costo_id también pendiente — insertar solo con columnas base
+        await client.query("ROLLBACK TO sp_nomina_fallback");
+        const result = await client.query(
+          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion) VALUES ($1,$2,$3,$4) RETURNING id`,
+          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL"]
+        );
+        nominaId = result.rows[0].id;
+      }
+    }
 
     for (const inc of body.incidencias ?? []) {
       await client.query(
