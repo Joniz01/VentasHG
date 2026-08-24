@@ -393,7 +393,7 @@ export default function AnalisisFinancieroClient() {
       </div>
 
       {/* ── KPI Strip ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+      <div className="af-kpi-strip">
         {kpis.map((k) => (
           <div key={k.label} style={{
             background: "var(--erp-surface)", border: "1px solid var(--erp-border)",
@@ -413,7 +413,7 @@ export default function AnalisisFinancieroClient() {
       </div>
 
       {/* ── Main Grid: Waterfall + Right ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+      <div className="af-main-grid">
 
         {/* P&L Waterfall */}
         <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: "22px 24px" }}>
@@ -423,7 +423,7 @@ export default function AnalisisFinancieroClient() {
           {wfRows.map((row, i) => (
             <div key={i}>
               {row.divider && <div style={{ height: 1, background: "var(--erp-border)", margin: "8px 0" }} />}
-              <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 90px 55px", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <div className="af-wf-row">
                 <p style={{
                   fontSize: row.bold ? 13 : 12, fontWeight: row.bold ? 700 : 400,
                   color: row.bold ? "var(--erp-text)" : "var(--erp-text-2)",
@@ -517,7 +517,7 @@ export default function AnalisisFinancieroClient() {
 
       {/* ── P&L Table ── */}
       <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px 80px", padding: "10px 18px", borderBottom: "1px solid var(--erp-border)", background: "var(--erp-surface-2)" }}>
+        <div className="af-pl-head">
           {["Concepto", ...(data.trend.slice(-3).map((t) => t.label)), "Var. MoM", "% Ing."].map((h, i) => (
             <p key={i} style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", textAlign: i === 0 ? "left" : "right", margin: 0 }}>{h}</p>
           ))}
@@ -542,9 +542,8 @@ export default function AnalisisFinancieroClient() {
           const sign = row.neg ? "−" : "";
           const color = row.color ?? (row.neg ? "#F85149" : "var(--erp-text)");
           return (
-            <div key={i} style={{
-              display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px 80px",
-              padding: "8px 18px", borderBottom: "1px solid var(--erp-border)",
+            <div key={i} className="af-pl-row" style={{
+              borderBottom: "1px solid var(--erp-border)",
               background: row.total ? "var(--erp-surface-2)" : row.section ? "rgba(255,255,255,.02)" : "none",
               alignItems: "center",
             }}>
@@ -570,7 +569,7 @@ export default function AnalisisFinancieroClient() {
         <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--erp-text-3)", marginBottom: 16 }}>
           Indicadores Clave · {data.mesLabel}
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+        <div className="af-anno-grid">
           {[
             {
               num: pct(actual.margenBruto),
@@ -617,7 +616,7 @@ export default function AnalisisFinancieroClient() {
         </div>
 
         {/* 3 Quick Buttons */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 16 }}>
+        <div className="af-ia-grid">
           {IA_BTNS.map((btn) => {
             const isActive = iaActivo === btn.tipo;
             return (
@@ -874,10 +873,48 @@ export default function AnalisisFinancieroClient() {
 
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+        /* ── Base grids ── */
+        .af-kpi-strip  { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; }
+        .af-main-grid  { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+        .af-wf-row     { display: grid; grid-template-columns: 150px 1fr 90px 55px; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .af-pl-head    { display: grid; grid-template-columns: 1fr 100px 100px 100px 80px 80px; padding: 10px 18px; border-bottom: 1px solid var(--erp-border); background: var(--erp-surface-2); }
+        .af-pl-row     { display: grid; grid-template-columns: 1fr 100px 100px 100px 80px 80px; padding: 8px 18px; align-items: center; }
+        .af-anno-grid  { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-top: 16px; }
+        .af-ia-grid    { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 16px; }
+
+        /* ── Tablet ≤ 800px ── */
         @media (max-width: 800px) {
-          .af-kpi-grid { grid-template-columns: repeat(2,1fr) !important; }
-          .af-main-grid { grid-template-columns: 1fr !important; }
-          .af-ia-grid { grid-template-columns: 1fr !important; }
+          .af-kpi-strip  { grid-template-columns: repeat(2,1fr); }
+          .af-main-grid  { grid-template-columns: 1fr; }
+          .af-ia-grid    { grid-template-columns: 1fr; }
+          .af-anno-grid  { grid-template-columns: 1fr 1fr; }
+          /* Hide Jul column + % Ing in P&L table on tablet */
+          .af-pl-head > *:nth-child(3),
+          .af-pl-row  > *:nth-child(3) { display: none; }
+        }
+
+        /* ── Mobile ≤ 540px ── */
+        @media (max-width: 540px) {
+          .af-kpi-strip  { grid-template-columns: 1fr 1fr; }
+          .af-anno-grid  { grid-template-columns: 1fr; }
+          .af-ia-grid    { grid-template-columns: 1fr; }
+
+          /* Waterfall: label + amount only, hide bar + pct */
+          .af-wf-row     { grid-template-columns: 1fr 80px; }
+          .af-wf-row > *:nth-child(2) { display: none; }  /* bar */
+          .af-wf-row > *:nth-child(4) { display: none; }  /* pct */
+
+          /* P&L table: concept + current month + MoM only */
+          .af-pl-head { grid-template-columns: 1fr 80px 70px; padding: 8px 12px; }
+          .af-pl-row  { grid-template-columns: 1fr 80px 70px; padding: 7px 12px; }
+          /* Hide Jun, Jul, % Ing columns (keep: concept[1], Ago[4], MoM[5]) */
+          .af-pl-head > *:nth-child(2),
+          .af-pl-head > *:nth-child(3),
+          .af-pl-head > *:nth-child(6),
+          .af-pl-row  > *:nth-child(2),
+          .af-pl-row  > *:nth-child(3),
+          .af-pl-row  > *:nth-child(6) { display: none; }
         }
       `}</style>
     </div>
