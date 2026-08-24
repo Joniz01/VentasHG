@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
   const mesAnterior = meses[meses.length - 2];
 
   // ── Ingresos por mes (venta_items.precio_unit ya en USD + delivery) ────
+  // ventas no tiene columna tipo; todas las filas en ventas son ventas reales
   let ingresosRows: { mes: string; total_usd: string }[] = [];
   let _errIngresos = "";
   try {
@@ -43,8 +44,7 @@ export async function GET(request: NextRequest) {
               ROUND(COALESCE(SUM(COALESCE(vi.cantidad * vi.precio_unit, 0)), 0)::numeric, 2) AS total_usd
        FROM ventas v
        LEFT JOIN venta_items vi ON vi.venta_id = v.id
-       WHERE v.tipo != 'CORTESIA'
-         AND TO_CHAR(v.fecha, 'YYYY-MM') = ANY($1::text[])
+       WHERE TO_CHAR(v.fecha, 'YYYY-MM') = ANY($1::text[])
        GROUP BY TO_CHAR(v.fecha, 'YYYY-MM')
        ORDER BY 1`,
       [meses]
@@ -103,17 +103,16 @@ export async function GET(request: NextRequest) {
     opexRows = r.rows;
   } catch { /* skip */ }
 
-  // ── Cortesías por mes ───────────────────────────────────────────
+  // ── Cortesías/salidas gratuitas por mes (tabla salidas_gratuitas) ──
   let cortesiasRows: { mes: string; total_usd: string }[] = [];
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
-      `SELECT TO_CHAR(v.fecha, 'YYYY-MM') AS mes,
-              ROUND(COALESCE(SUM(COALESCE(vi.cantidad * vi.precio_unit, 0)), 0)::numeric, 2) AS total_usd
-       FROM ventas v
-       LEFT JOIN venta_items vi ON vi.venta_id = v.id
-       WHERE v.tipo = 'CORTESIA'
-         AND TO_CHAR(v.fecha, 'YYYY-MM') = ANY($1::text[])
-       GROUP BY TO_CHAR(v.fecha, 'YYYY-MM')
+      `SELECT TO_CHAR(sg.fecha, 'YYYY-MM') AS mes,
+              ROUND(COALESCE(SUM(COALESCE(sgi.cantidad * sgi.costo, 0)), 0)::numeric, 2) AS total_usd
+       FROM salidas_gratuitas sg
+       LEFT JOIN salidas_gratuitas_items sgi ON sgi.salida_id = sg.id
+       WHERE TO_CHAR(sg.fecha, 'YYYY-MM') = ANY($1::text[])
+       GROUP BY TO_CHAR(sg.fecha, 'YYYY-MM')
        ORDER BY 1`,
       [meses]
     );
@@ -202,8 +201,7 @@ export async function GET(request: NextRequest) {
        FROM venta_items vi
        JOIN ventas v ON v.id = vi.venta_id
        JOIN productos p ON p.id = vi.producto_id
-       WHERE v.tipo != 'CORTESIA'
-         AND TO_CHAR(v.fecha, 'YYYY-MM') = $1
+       WHERE TO_CHAR(v.fecha, 'YYYY-MM') = $1
        GROUP BY p.id, p.nombre
        ORDER BY margen_usd DESC
        LIMIT 15`,
@@ -227,8 +225,7 @@ export async function GET(request: NextRequest) {
          FROM venta_items vi
          JOIN ventas v ON v.id = vi.venta_id
          JOIN productos p ON p.id = vi.producto_id
-         WHERE v.tipo != 'CORTESIA'
-           AND TO_CHAR(v.fecha, 'YYYY-MM') = $1
+         WHERE TO_CHAR(v.fecha, 'YYYY-MM') = $1
          GROUP BY p.id, p.nombre
          ORDER BY total_usd DESC
          LIMIT 15`,
@@ -250,14 +247,14 @@ export async function GET(request: NextRequest) {
   let ventasPorSemana: { semana: string; totalUsd: number; numVentas: number }[] = [];
   try {
     const r = await pool.query<SemanaRow>(
-      `SELECT 'Semana ' || CEIL(EXTRACT(DAY FROM fecha) / 7.0)::int AS semana,
-              ROUND(COALESCE(SUM(monto_bs / NULLIF(tasa_dia,0)), 0)::numeric, 2) AS total_usd,
-              COUNT(*)::text AS num_ventas
-       FROM ventas
-       WHERE tipo != 'CORTESIA'
-         AND TO_CHAR(fecha, 'YYYY-MM') = $1
-       GROUP BY semana
-       ORDER BY semana`,
+      `SELECT 'Semana ' || CEIL(EXTRACT(DAY FROM v.fecha) / 7.0)::int AS semana,
+              ROUND(COALESCE(SUM(COALESCE(vi.cantidad * vi.precio_unit, 0)), 0)::numeric, 2) AS total_usd,
+              COUNT(DISTINCT v.id)::text AS num_ventas
+       FROM ventas v
+       LEFT JOIN venta_items vi ON vi.venta_id = v.id
+       WHERE TO_CHAR(v.fecha, 'YYYY-MM') = $1
+       GROUP BY CEIL(EXTRACT(DAY FROM v.fecha) / 7.0)
+       ORDER BY 1`,
       [mesActual]
     );
     ventasPorSemana = r.rows.map((row) => ({
