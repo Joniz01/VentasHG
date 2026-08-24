@@ -122,6 +122,7 @@ export default function AnalisisFinancieroClient() {
 
   // IA panel open/close
   const [iaSeccionAbierta, setIaSeccionAbierta] = useState(false);
+  const [iaSubSeccion, setIaSubSeccion] = useState<"diagnosticos" | "asesor" | null>(null);
 
   // IA states
   const [iaActivo, setIaActivo] = useState<IATipo | null>(null);
@@ -835,258 +836,283 @@ export default function AnalisisFinancieroClient() {
             </div>
           </div>
 
-        {/* 3 Quick Buttons */}
-        <div className="af-ia-grid">
-          {IA_BTNS.map((btn) => {
-            const isActive = iaActivo === btn.tipo;
-            return (
-              <div key={btn.tipo} style={{
-                background: "var(--erp-surface)",
-                border: `1px solid ${isActive ? btn.color : "var(--erp-border)"}`,
-                borderRadius: 12, padding: "18px 18px 16px",
-                cursor: "pointer",
-                boxShadow: isActive ? `0 0 20px ${btn.glow}` : "none",
-                borderTop: `3px solid ${btn.color}`,
-                position: "relative",
-                transition: "border-color .15s, box-shadow .15s",
-              }}
-                onClick={() => { if (!iaLoading) runIA(btn.tipo); }}
-              >
-                <span style={{ fontSize: 20, display: "block", marginBottom: 8 }}>{btn.icon}</span>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", margin: "0 0 5px" }}>{btn.label}</p>
-                <p style={{ fontSize: 11, color: "var(--erp-text-2)", lineHeight: 1.5, margin: "0 0 10px" }}>{btn.desc}</p>
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
-                  {btn.tags.map((t) => (
-                    <span key={t} style={{
-                      fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em",
-                      padding: "2px 7px", borderRadius: 99,
-                      background: `${btn.color}18`, color: btn.color, border: `1px solid ${btn.color}30`,
-                    }}>{t}</span>
-                  ))}
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); if (!iaLoading) runIA(btn.tipo); }}
-                  disabled={iaLoading && iaActivo === btn.tipo}
-                  style={{
-                    width: "100%", padding: "7px 14px", borderRadius: 7, border: `1px solid ${btn.color}`,
-                    background: `${btn.color}12`, color: btn.color,
-                    fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "background .15s",
-                  }}
-                >
-                  {iaLoading && iaActivo === btn.tipo ? "Analizando…" : isActive && iaTexto ? "✓ Ver resultado" : "▶ Ejecutar análisis"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        {/* ── Dos sub-cards mutuamente exclusivos ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-        {/* IA Result Panel */}
-        {(iaLoading || iaTexto || iaError) && iaActivo && iaActivo !== "asesor" && (
+          {/* SUB-CARD: Diagnósticos IA */}
           <div style={{
-            background: "var(--erp-surface)", border: "1px solid #2F4A6B",
-            borderRadius: 12, overflow: "hidden", marginBottom: 16,
-            boxShadow: "0 0 32px rgba(88,166,255,.06)",
+            background: "var(--erp-surface)",
+            border: `1px solid ${iaSubSeccion === "diagnosticos" ? "#58A6FF" : "var(--erp-border)"}`,
+            borderRadius: 14, overflow: "hidden",
+            boxShadow: iaSubSeccion === "diagnosticos" ? "0 0 24px rgba(88,166,255,.1)" : "none",
+            transition: "border-color .2s, box-shadow .2s",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 18px", background: "var(--erp-surface-2)", borderBottom: "1px solid var(--erp-border)" }}>
+            {/* Card header — siempre visible */}
+            <div
+              onClick={() => setIaSubSeccion(iaSubSeccion === "diagnosticos" ? null : "diagnosticos")}
+              style={{
+                display: "flex", alignItems: "center", gap: 14, padding: "16px 20px",
+                cursor: "pointer",
+                borderBottom: iaSubSeccion === "diagnosticos" ? "1px solid var(--erp-border)" : "none",
+              }}
+            >
               <div style={{
-                width: 8, height: 8, borderRadius: "50%", background: "#58A6FF",
-                boxShadow: "0 0 8px #58A6FF",
-                animation: iaLoading ? "pulse 1.5s infinite" : "none",
-              }} />
-              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--erp-text)", flex: 1, margin: 0 }}>
-                {IA_BTNS.find((b) => b.tipo === iaActivo)?.label} · {data.mesLabel}
-              </p>
-              {iaTs && <span style={{ fontSize: 10, color: "var(--erp-text-3)" }}>Generado a las {iaTs}</span>}
-            </div>
-            <div style={{ padding: "18px 22px" }}>
-              {iaLoading && (
-                <p style={{ fontSize: 13, color: "var(--erp-text-2)", fontStyle: "italic" }}>Analizando datos del negocio…</p>
-              )}
-              {iaError && (
-                <p style={{ fontSize: 13, color: "#F85149" }}>⚠️ {iaError}</p>
-              )}
-              {iaTexto && !iaLoading && (
-                <div>{renderIaText(iaTexto)}</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Asesor IA ── */}
-        <div style={{
-          background: "linear-gradient(135deg, rgba(88,166,255,.04) 0%, rgba(88,166,255,.09) 100%)",
-          border: "1px solid #2F4A6B",
-          borderRadius: 14,
-          overflow: "hidden",
-          boxShadow: "0 4px 32px rgba(88,166,255,.06), inset 0 1px 0 rgba(88,166,255,.05)",
-        }}>
-          {/* Top */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "22px 24px 0", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", padding: "3px 10px", borderRadius: 5, background: "rgba(88,166,255,.12)", color: "#58A6FF", border: "1px solid rgba(88,166,255,.2)" }}>
-                  Asesor IA
-                </span>
-                <span style={{ fontSize: 10, color: "var(--erp-text-3)", padding: "3px 10px", border: "1px solid var(--erp-border)", borderRadius: 5 }}>
-                  🔒 Solo datos de tu empresa
-                </span>
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: "rgba(63,185,80,.12)", border: "1px solid rgba(63,185,80,.2)",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
+              }}>📊</div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", margin: "0 0 2px" }}>Diagnósticos Predefinidos</p>
+                <p style={{ fontSize: 11, color: "var(--erp-text-2)", margin: 0 }}>Rentabilidad · Presión de Caja · Eficiencia Operativa</p>
               </div>
-              <h4 style={{ fontSize: 17, fontWeight: 700, color: "var(--erp-text)", margin: "0 0 4px" }}>Pregúntale al negocio</h4>
-              <p style={{ fontSize: 12, color: "var(--erp-text-2)", lineHeight: 1.5, margin: 0, maxWidth: 480 }}>
-                Consulta cualquier aspecto financiero u operativo. El asesor responde solo con información real de tu empresa.
-              </p>
+              <span style={{ fontSize: 16, color: "var(--erp-text-3)", transition: "transform .2s", transform: iaSubSeccion === "diagnosticos" ? "rotate(180deg)" : "none" }}>▾</span>
             </div>
-            <div style={{ background: "var(--erp-surface-2)", border: "1px solid #2F4A6B", borderRadius: 10, padding: "10px 14px", fontSize: 11, color: "var(--erp-text-2)", maxWidth: 200, flexShrink: 0 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)", marginBottom: 5 }}>Restricción de alcance</p>
-              Solo analiza: ventas, compras, gastos, nómina, inventario y cortesías registradas en el sistema.
-            </div>
-          </div>
 
-          {/* Toggles */}
-          <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--erp-border)" }}>
-            <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--erp-text-3)", marginBottom: 9 }}>
-              Contexto activo para esta consulta
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-              {TOGGLE_OPTS.map((t) => {
-                const on = toggles.includes(t.key);
-                return (
-                  <button
-                    key={t.key}
-                    onClick={() => setToggles((prev) => on ? prev.filter((k) => k !== t.key) : [...prev, t.key])}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "5px 12px", borderRadius: 99,
-                      fontSize: 11, fontWeight: 600,
-                      border: on ? `1.5px solid ${t.color}` : "1.5px solid var(--erp-border)",
-                      color: on ? t.color : "var(--erp-text-2)",
-                      background: on ? `${t.color}12` : "var(--erp-surface-2)",
-                      cursor: "pointer",
-                      boxShadow: on ? `0 0 10px ${t.color}20` : "none",
-                    }}
-                  >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor", opacity: on ? 1 : 0.4 }} />
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Chat */}
-          <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* History */}
-            {chat.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 380, overflowY: "auto" }}>
-                {chat.map((msg, i) => (
-                  <div key={i} style={{
-                    display: "flex", gap: 9, alignItems: "flex-start",
-                    flexDirection: msg.role === "user" ? "row-reverse" : "row",
-                    maxWidth: "90%", alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-                  }}>
-                    <div style={{
-                      width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12,
-                      background: msg.role === "user" ? "rgba(88,166,255,.12)" : "var(--erp-surface-2)",
-                      border: msg.role === "user" ? "1px solid rgba(88,166,255,.2)" : "1px solid var(--erp-border)",
-                    }}>
-                      {msg.role === "user" ? "👤" : "🤖"}
-                    </div>
-                    <div>
-                      <div style={{
-                        padding: "9px 13px", borderRadius: 10, fontSize: 12, lineHeight: 1.6,
-                        background: msg.role === "user" ? "rgba(88,166,255,.1)" : "var(--erp-surface-2)",
-                        border: msg.role === "user" ? "1px solid rgba(88,166,255,.2)" : "1px solid var(--erp-border)",
-                        color: "var(--erp-text)",
-                      }}>
-                        {msg.role === "ia" ? renderIaText(msg.text) : msg.text}
+            {/* Contenido expandido */}
+            {iaSubSeccion === "diagnosticos" && (
+              <div style={{ padding: "18px 20px" }}>
+                <div className="af-ia-grid">
+                  {IA_BTNS.map((btn) => {
+                    const isActive = iaActivo === btn.tipo;
+                    return (
+                      <div key={btn.tipo} style={{
+                        background: "var(--erp-surface-2)",
+                        border: `1px solid ${isActive ? btn.color : "var(--erp-border)"}`,
+                        borderRadius: 12, padding: "16px 16px 14px",
+                        cursor: "pointer",
+                        boxShadow: isActive ? `0 0 16px ${btn.glow}` : "none",
+                        borderTop: `3px solid ${btn.color}`,
+                        transition: "border-color .15s, box-shadow .15s",
+                      }}
+                        onClick={() => { if (!iaLoading) runIA(btn.tipo); }}
+                      >
+                        <span style={{ fontSize: 20, display: "block", marginBottom: 8 }}>{btn.icon}</span>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", margin: "0 0 5px" }}>{btn.label}</p>
+                        <p style={{ fontSize: 11, color: "var(--erp-text-2)", lineHeight: 1.5, margin: "0 0 10px" }}>{btn.desc}</p>
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
+                          {btn.tags.map((t) => (
+                            <span key={t} style={{
+                              fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em",
+                              padding: "2px 7px", borderRadius: 99,
+                              background: `${btn.color}18`, color: btn.color, border: `1px solid ${btn.color}30`,
+                            }}>{t}</span>
+                          ))}
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (!iaLoading) runIA(btn.tipo); }}
+                          disabled={iaLoading && iaActivo === btn.tipo}
+                          style={{
+                            width: "100%", padding: "7px 14px", borderRadius: 7, border: `1px solid ${btn.color}`,
+                            background: `${btn.color}12`, color: btn.color,
+                            fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "background .15s",
+                          }}
+                        >
+                          {iaLoading && iaActivo === btn.tipo ? "Analizando…" : isActive && iaTexto ? "✓ Ver resultado" : "▶ Ejecutar análisis"}
+                        </button>
                       </div>
-                      <p style={{ fontSize: 10, color: "var(--erp-text-3)", margin: "3px 4px 0", textAlign: msg.role === "user" ? "right" : "left" }}>
-                        {msg.role === "ia" ? "Asesor IA · " : ""}{msg.ts}
+                    );
+                  })}
+                </div>
+
+                {/* Resultado del análisis */}
+                {(iaLoading || iaTexto || iaError) && iaActivo && iaActivo !== "asesor" && (
+                  <div style={{
+                    background: "var(--erp-surface-2)", border: "1px solid #2F4A6B",
+                    borderRadius: 12, overflow: "hidden", marginTop: 16,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", background: "var(--erp-surface)", borderBottom: "1px solid var(--erp-border)" }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#58A6FF", boxShadow: "0 0 8px #58A6FF", animation: iaLoading ? "pulse 1.5s infinite" : "none" }} />
+                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--erp-text)", flex: 1, margin: 0 }}>
+                        {IA_BTNS.find((b) => b.tipo === iaActivo)?.label} · {data.mesLabel}
                       </p>
+                      {iaTs && <span style={{ fontSize: 10, color: "var(--erp-text-3)" }}>Generado a las {iaTs}</span>}
                     </div>
-                  </div>
-                ))}
-                {asesorLoading && (
-                  <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
-                    <div style={{ width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, background: "var(--erp-surface-2)", border: "1px solid var(--erp-border)" }}>🤖</div>
-                    <div style={{ padding: "9px 13px", borderRadius: 10, fontSize: 12, background: "var(--erp-surface-2)", border: "1px solid var(--erp-border)", color: "var(--erp-text-2)", fontStyle: "italic" }}>
-                      Analizando…
+                    <div style={{ padding: "16px 20px" }}>
+                      {iaLoading && <p style={{ fontSize: 13, color: "var(--erp-text-2)", fontStyle: "italic" }}>Analizando datos del negocio…</p>}
+                      {iaError && <p style={{ fontSize: 13, color: "#F85149" }}>⚠️ {iaError}</p>}
+                      {iaTexto && !iaLoading && <div>{renderIaText(iaTexto)}</div>}
                     </div>
                   </div>
                 )}
-                <div ref={chatEndRef} />
               </div>
             )}
+          </div>
 
-            {/* Suggested questions */}
-            {chat.length === 0 && (
+          {/* SUB-CARD: Asesor IA */}
+          <div style={{
+            background: iaSubSeccion === "asesor"
+              ? "linear-gradient(135deg, rgba(88,166,255,.04) 0%, rgba(88,166,255,.09) 100%)"
+              : "var(--erp-surface)",
+            border: `1px solid ${iaSubSeccion === "asesor" ? "#58A6FF" : "var(--erp-border)"}`,
+            borderRadius: 14, overflow: "hidden",
+            boxShadow: iaSubSeccion === "asesor" ? "0 0 24px rgba(88,166,255,.1)" : "none",
+            transition: "border-color .2s, box-shadow .2s, background .2s",
+          }}>
+            {/* Card header */}
+            <div
+              onClick={() => setIaSubSeccion(iaSubSeccion === "asesor" ? null : "asesor")}
+              style={{
+                display: "flex", alignItems: "center", gap: 14, padding: "16px 20px",
+                cursor: "pointer",
+                borderBottom: iaSubSeccion === "asesor" ? "1px solid #2F4A6B" : "none",
+              }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: "rgba(88,166,255,.12)", border: "1px solid rgba(88,166,255,.2)",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
+              }}>💬</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", margin: 0 }}>Asesor IA Conversacional</p>
+                  {chat.length > 0 && (
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 99, background: "rgba(88,166,255,.15)", color: "#58A6FF", border: "1px solid rgba(88,166,255,.25)" }}>
+                      {chat.filter(m => m.role === "user").length} consulta{chat.filter(m => m.role === "user").length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: "var(--erp-text-2)", margin: 0 }}>Pregúntale cualquier cosa sobre los datos de tu negocio</p>
+              </div>
+              <span style={{ fontSize: 16, color: "var(--erp-text-3)", transition: "transform .2s", transform: iaSubSeccion === "asesor" ? "rotate(180deg)" : "none" }}>▾</span>
+            </div>
+
+            {/* Contenido expandido */}
+            {iaSubSeccion === "asesor" && (
               <div>
-                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 8 }}>
-                  Preguntas sugeridas
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                  {[
-                    "¿Cuál es el producto más rentable este mes?",
-                    "¿En qué semana del mes vendemos más?",
-                    "¿Cómo impacta la nómina en el margen por empleado?",
-                    "¿Qué pasa con la caja si las ventas bajan 20%?",
-                    "¿Cuánto representan las cortesías del total de egresos?",
-                  ].map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => { setPregunta(q); }}
-                      style={{
-                        padding: "5px 11px", borderRadius: 7, fontSize: 11,
-                        color: "var(--erp-text-2)", border: "1px solid var(--erp-border)",
-                        background: "var(--erp-surface-2)", cursor: "pointer", lineHeight: 1.3,
-                      }}
-                    >
-                      {q}
-                    </button>
-                  ))}
+                {/* Toggles de contexto */}
+                <div style={{ padding: "14px 20px", borderBottom: "1px solid #2F4A6B" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--erp-text-3)", marginBottom: 8 }}>
+                    Contexto activo para esta consulta
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                    {TOGGLE_OPTS.map((t) => {
+                      const on = toggles.includes(t.key);
+                      return (
+                        <button
+                          key={t.key}
+                          onClick={() => setToggles((prev) => on ? prev.filter((k) => k !== t.key) : [...prev, t.key])}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "5px 12px", borderRadius: 99, fontSize: 11, fontWeight: 600,
+                            border: on ? `1.5px solid ${t.color}` : "1.5px solid var(--erp-border)",
+                            color: on ? t.color : "var(--erp-text-2)",
+                            background: on ? `${t.color}12` : "var(--erp-surface-2)",
+                            cursor: "pointer",
+                            boxShadow: on ? `0 0 10px ${t.color}20` : "none",
+                          }}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor", opacity: on ? 1 : 0.4 }} />
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Chat */}
+                <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                  {chat.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 380, overflowY: "auto" }}>
+                      {chat.map((msg, i) => (
+                        <div key={i} style={{
+                          display: "flex", gap: 9, alignItems: "flex-start",
+                          flexDirection: msg.role === "user" ? "row-reverse" : "row",
+                          maxWidth: "90%", alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                        }}>
+                          <div style={{
+                            width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12,
+                            background: msg.role === "user" ? "rgba(88,166,255,.12)" : "var(--erp-surface-2)",
+                            border: msg.role === "user" ? "1px solid rgba(88,166,255,.2)" : "1px solid var(--erp-border)",
+                          }}>
+                            {msg.role === "user" ? "👤" : "🤖"}
+                          </div>
+                          <div>
+                            <div style={{
+                              padding: "9px 13px", borderRadius: 10, fontSize: 12, lineHeight: 1.6,
+                              background: msg.role === "user" ? "rgba(88,166,255,.1)" : "var(--erp-surface-2)",
+                              border: msg.role === "user" ? "1px solid rgba(88,166,255,.2)" : "1px solid var(--erp-border)",
+                              color: "var(--erp-text)",
+                            }}>
+                              {msg.role === "ia" ? renderIaText(msg.text) : msg.text}
+                            </div>
+                            <p style={{ fontSize: 10, color: "var(--erp-text-3)", margin: "3px 4px 0", textAlign: msg.role === "user" ? "right" : "left" }}>
+                              {msg.role === "ia" ? "Asesor IA · " : ""}{msg.ts}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {asesorLoading && (
+                        <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, background: "var(--erp-surface-2)", border: "1px solid var(--erp-border)" }}>🤖</div>
+                          <div style={{ padding: "9px 13px", borderRadius: 10, fontSize: 12, background: "var(--erp-surface-2)", border: "1px solid var(--erp-border)", color: "var(--erp-text-2)", fontStyle: "italic" }}>
+                            Analizando…
+                          </div>
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                  )}
+
+                  {chat.length === 0 && (
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 8 }}>
+                        Preguntas sugeridas
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                        {[
+                          "¿Cuál es el producto más rentable este mes?",
+                          "¿En qué semana del mes vendemos más?",
+                          "¿Cómo impacta la nómina en el margen por empleado?",
+                          "¿Qué pasa con la caja si las ventas bajan 20%?",
+                          "¿Cuánto representan las cortesías del total de egresos?",
+                        ].map((q) => (
+                          <button key={q} onClick={() => setPregunta(q)} style={{
+                            padding: "5px 11px", borderRadius: 7, fontSize: 11,
+                            color: "var(--erp-text-2)", border: "1px solid var(--erp-border)",
+                            background: "var(--erp-surface-2)", cursor: "pointer", lineHeight: 1.3,
+                          }}>{q}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <div style={{
+                      display: "flex", gap: 10, alignItems: "flex-end",
+                      background: "var(--erp-surface-2)", border: "1.5px solid #2F4A6B",
+                      borderRadius: 10, padding: "11px 13px",
+                    }}>
+                      <textarea
+                        value={pregunta}
+                        onChange={(e) => setPregunta(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAsesor(); } }}
+                        placeholder="Consulta sobre ventas, márgenes, gastos o flujo de caja de tu empresa…"
+                        rows={2}
+                        style={{ flex: 1, background: "none", border: "none", outline: "none", resize: "none", fontFamily: "inherit", fontSize: 13, color: "var(--erp-text)", lineHeight: 1.5 }}
+                      />
+                      <button
+                        onClick={sendAsesor}
+                        disabled={asesorLoading || !pregunta.trim()}
+                        style={{
+                          padding: "7px 16px", borderRadius: 7, border: "none",
+                          background: "#58A6FF", color: "#0D1117",
+                          fontSize: 12, fontWeight: 700, cursor: "pointer",
+                          opacity: asesorLoading || !pregunta.trim() ? 0.5 : 1, flexShrink: 0,
+                        }}
+                      >
+                        Consultar →
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 10, color: "var(--erp-text-3)", marginTop: 7, display: "flex", alignItems: "center", gap: 5 }}>
+                      🔒 El asesor solo accede a los datos de tu empresa. No responde preguntas fuera del ámbito financiero y operativo.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
-
-            {/* Input */}
-            <div>
-              <div style={{
-                display: "flex", gap: 10, alignItems: "flex-end",
-                background: "var(--erp-surface-2)",
-                border: "1.5px solid #2F4A6B",
-                borderRadius: 10, padding: "11px 13px",
-              }}>
-                <textarea
-                  value={pregunta}
-                  onChange={(e) => setPregunta(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAsesor(); } }}
-                  placeholder="Consulta sobre ventas, márgenes, gastos o flujo de caja de tu empresa…"
-                  rows={2}
-                  style={{
-                    flex: 1, background: "none", border: "none", outline: "none", resize: "none",
-                    fontFamily: "inherit", fontSize: 13, color: "var(--erp-text)", lineHeight: 1.5,
-                  }}
-                />
-                <button
-                  onClick={sendAsesor}
-                  disabled={asesorLoading || !pregunta.trim()}
-                  style={{
-                    padding: "7px 16px", borderRadius: 7, border: "none",
-                    background: "#58A6FF", color: "#0D1117",
-                    fontSize: 12, fontWeight: 700, cursor: "pointer",
-                    opacity: asesorLoading || !pregunta.trim() ? 0.5 : 1,
-                    flexShrink: 0,
-                  }}
-                >
-                  Consultar →
-                </button>
-              </div>
-              <p style={{ fontSize: 10, color: "var(--erp-text-3)", marginTop: 7, display: "flex", alignItems: "center", gap: 5 }}>
-                🔒 El asesor solo accede a los datos de tu empresa. No responde preguntas fuera del ámbito financiero y operativo.
-              </p>
-            </div>
           </div>
+
         </div>
         </div>
         )}  {/* fin iaSeccionAbierta */}
