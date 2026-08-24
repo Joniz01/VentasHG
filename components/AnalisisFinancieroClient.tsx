@@ -120,6 +120,9 @@ export default function AnalisisFinancieroClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // IA panel open/close
+  const [iaSeccionAbierta, setIaSeccionAbierta] = useState(false);
+
   // IA states
   const [iaActivo, setIaActivo] = useState<IATipo | null>(null);
   const [iaLoading, setIaLoading] = useState(false);
@@ -720,23 +723,117 @@ export default function AnalisisFinancieroClient() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          SECCIÓN IA
+          SECCIÓN IA — card colapsable
       ══════════════════════════════════════════════════════════ */}
-      <div style={{ borderTop: "1px solid var(--erp-border)", paddingTop: 28 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
-          <div>
-            <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--erp-text-3)", margin: "0 0 4px" }}>
-              Inteligencia Artificial · Asistencia Financiera
-            </p>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--erp-text)", margin: "0 0 4px" }}>Análisis IA del Negocio</h3>
-            <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: 0, maxWidth: 540 }}>
-              Diagnósticos predefinidos y asesor conversacional — solo analiza datos registrados en tu empresa.
-            </p>
+      <div style={{ borderTop: "1px solid var(--erp-border)", paddingTop: 24 }}>
+
+        {/* ── Card de entrada (visible cuando cerrado) ── */}
+        {!iaSeccionAbierta && (
+          <div
+            onClick={() => setIaSeccionAbierta(true)}
+            style={{
+              background: "linear-gradient(135deg, rgba(88,166,255,.05) 0%, rgba(88,166,255,.12) 100%)",
+              border: "1px solid #2F4A6B",
+              borderRadius: 16,
+              padding: "22px 24px",
+              cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap",
+              transition: "box-shadow .2s, border-color .2s",
+              boxShadow: "0 2px 16px rgba(88,166,255,.06)",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 28px rgba(88,166,255,.18)";
+              (e.currentTarget as HTMLDivElement).style.borderColor = "#58A6FF";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 16px rgba(88,166,255,.06)";
+              (e.currentTarget as HTMLDivElement).style.borderColor = "#2F4A6B";
+            }}
+          >
+            {/* Ícono IA */}
+            <div style={{
+              width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+              background: "rgba(88,166,255,.15)", border: "1px solid rgba(88,166,255,.25)",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26,
+            }}>
+              🤖
+            </div>
+
+            {/* Texto */}
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", padding: "2px 9px", borderRadius: 5, background: "rgba(88,166,255,.12)", color: "#58A6FF", border: "1px solid rgba(88,166,255,.2)" }}>
+                  Inteligencia Artificial
+                </span>
+                <span style={{ fontSize: 10, color: "var(--erp-text-3)" }}>🔒 Solo datos de tu empresa</span>
+              </div>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--erp-text)", margin: "0 0 4px" }}>
+                Análisis IA del Negocio
+              </h3>
+              <p style={{ fontSize: 12, color: "var(--erp-text-2)", margin: "0 0 12px", lineHeight: 1.5 }}>
+                Diagnósticos de rentabilidad, presión de caja y eficiencia · Asesor conversacional financiero
+              </p>
+              {/* Mini-chips de capacidades */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[
+                  { icon: "📈", label: "Rentabilidad", color: "#3FB950" },
+                  { icon: "💰", label: "Presión de Caja", color: "#58A6FF" },
+                  { icon: "⚙️", label: "Eficiencia", color: "#BC8CFF" },
+                  { icon: "💬", label: "Asesor IA", color: "#D29922" },
+                ].map((c) => (
+                  <span key={c.label} style={{
+                    fontSize: 10, fontWeight: 600, padding: "3px 9px", borderRadius: 99,
+                    background: `${c.color}12`, color: c.color, border: `1px solid ${c.color}30`,
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}>
+                    {c.icon} {c.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div style={{
+              padding: "9px 20px", borderRadius: 9,
+              background: "#58A6FF", color: "#0D1117",
+              fontSize: 12, fontWeight: 700, flexShrink: 0,
+              boxShadow: "0 2px 12px rgba(88,166,255,.25)",
+            }}>
+              Abrir análisis IA →
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--erp-text-3)" }}>
-            <span>🔒</span> Solo datos de tu empresa · Sin información externa
+        )}
+
+        {/* ── Sección IA expandida ── */}
+        {iaSeccionAbierta && (
+        <div>
+          {/* Header con botón cerrar */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--erp-text-3)", margin: "0 0 4px" }}>
+                Inteligencia Artificial · Asistencia Financiera
+              </p>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--erp-text)", margin: "0 0 4px" }}>Análisis IA del Negocio</h3>
+              <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: 0, maxWidth: 540 }}>
+                Diagnósticos predefinidos y asesor conversacional — solo analiza datos registrados en tu empresa.
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 11, color: "var(--erp-text-3)", display: "flex", alignItems: "center", gap: 5 }}>
+                🔒 Solo datos de tu empresa
+              </span>
+              <button
+                onClick={() => setIaSeccionAbierta(false)}
+                style={{
+                  padding: "6px 13px", borderRadius: 7, fontSize: 11, fontWeight: 600,
+                  border: "1px solid var(--erp-border)", background: "var(--erp-surface-2)",
+                  color: "var(--erp-text-2)", cursor: "pointer",
+                }}
+              >
+                ✕ Cerrar
+              </button>
+            </div>
           </div>
-        </div>
 
         {/* 3 Quick Buttons */}
         <div className="af-ia-grid">
@@ -991,6 +1088,8 @@ export default function AnalisisFinancieroClient() {
             </div>
           </div>
         </div>
+        </div>
+        )}  {/* fin iaSeccionAbierta */}
       </div>
 
       <style>{`
