@@ -36,6 +36,13 @@ type TopProducto = {
 
 type VentaSemana = { semana: string; totalUsd: number; numVentas: number };
 
+type InventarioData = {
+  valorTotalUsd: number;
+  productosConStock: number;
+  productosSinStock: number;
+  top10: { nombre: string; stock: number; costoUnit: number; valorUsd: number; categoria: string }[];
+};
+
 type RentabilidadData = {
   mes: string;
   mesLabel: string;
@@ -49,6 +56,7 @@ type RentabilidadData = {
   topProductos: TopProducto[];
   ventasPorSemana: VentaSemana[];
   numEmpleados: number;
+  inventario: InventarioData | null;
 };
 
 type IATipo = "rentabilidad" | "caja" | "eficiencia" | "asesor";
@@ -278,6 +286,16 @@ export default function AnalisisFinancieroClient() {
       }
       if (toggles.includes("caja")) {
         ctx.mesAnterior = d.anterior;
+      }
+      if (toggles.includes("inventario")) {
+        ctx.inventario = d.inventario
+          ? {
+              valorTotalUsd: d.inventario.valorTotalUsd,
+              productosConStock: d.inventario.productosConStock,
+              productosSinStock: d.inventario.productosSinStock,
+              top10ProductosPorValor: d.inventario.top10,
+            }
+          : "No hay datos de inventario disponibles";
       }
       // Siempre incluir contexto de productos (disponible o no)
       if (!ctx.topProductos) {

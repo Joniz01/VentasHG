@@ -273,6 +273,42 @@ export async function GET(request: NextRequest) {
     numEmpleados = Number(r.rows[0]?.total ?? 0);
   } catch { /* skip */ }
 
+  // ── Inventario valorizado ─────────────────────────────────────────
+  type InvRow = { nombre: string; stock: string; costo: string; valor: string; categoria: string };
+  let inventario: { valorTotalUsd: number; productosConStock: number; productosSinStock: number; top10: { nombre: string; stock: number; costoUnit: number; valorUsd: number; categoria: string }[] } | null = null;
+  try {
+    const r = await pool.query<InvRow>(
+      `SELECT p.nombre,
+              ROUND(p.stock_actual::numeric, 2) AS stock,
+              ROUND(p.costo::numeric, 2) AS costo,
+              ROUND((p.stock_actual * p.costo)::numeric, 2) AS valor,
+              COALESCE(c.nombre, 'Sin categoría') AS categoria
+       FROM productos p
+       LEFT JOIN categorias c ON c.id = p.categoria_id
+       WHERE p.activo = true AND p.tipo_producto = 'NORMAL'
+       ORDER BY (p.stock_actual * p.costo) DESC
+       LIMIT 20`
+    );
+    const kpis = await pool.query<{ total_valor: string; con_stock: string; sin_stock: string }>(
+      `SELECT ROUND(COALESCE(SUM(stock_actual * costo), 0)::numeric, 2) AS total_valor,
+              COUNT(*) FILTER (WHERE stock_actual > 0)::text AS con_stock,
+              COUNT(*) FILTER (WHERE stock_actual = 0)::text AS sin_stock
+       FROM productos WHERE activo = true AND tipo_producto = 'NORMAL'`
+    );
+    inventario = {
+      valorTotalUsd: Number(kpis.rows[0]?.total_valor ?? 0),
+      productosConStock: Number(kpis.rows[0]?.con_stock ?? 0),
+      productosSinStock: Number(kpis.rows[0]?.sin_stock ?? 0),
+      top10: r.rows.map((row) => ({
+        nombre: row.nombre,
+        stock: Number(row.stock),
+        costoUnit: Number(row.costo),
+        valorUsd: Number(row.valor),
+        categoria: row.categoria,
+      })),
+    };
+  } catch { /* skip */ }
+
   return NextResponse.json({
     mes: mesActual,
     mesLabel: mesLabel(mesActual),
@@ -297,7 +333,6 @@ export async function GET(request: NextRequest) {
     topProductos,
     ventasPorSemana,
     numEmpleados,
-    // Diagnóstico temporal (remover luego)
-    _debug: { meses, ingresosRows, _errIngresos },
+    inventario,
   });
 }
