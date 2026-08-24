@@ -34,21 +34,24 @@ export async function GET(request: NextRequest) {
   const mesActual = meses[meses.length - 1];
   const mesAnterior = meses[meses.length - 2];
 
-  // ── Ingresos por mes ────────────────────────────────────────────
+  // ── Ingresos por mes (mismo método que reportes: items USD + delivery) ──
   let ingresosRows: { mes: string; total_usd: string }[] = [];
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
-      `SELECT TO_CHAR(fecha, 'YYYY-MM') AS mes,
-              COALESCE(SUM(monto_bs / NULLIF(tasa_dia, 0)), 0) AS total_usd
-       FROM ventas
-       WHERE tipo != 'CORTESIA'
-         AND TO_CHAR(fecha, 'YYYY-MM') = ANY($1::text[])
+      `SELECT TO_CHAR(v.fecha, 'YYYY-MM') AS mes,
+              ROUND(COALESCE(SUM(
+                COALESCE((SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id), 0)
+                + COALESCE(v.costo_delivery, 0)
+              ), 0)::numeric, 2) AS total_usd
+       FROM ventas v
+       WHERE v.tipo != 'CORTESIA'
+         AND TO_CHAR(v.fecha, 'YYYY-MM') = ANY($1::text[])
        GROUP BY mes
        ORDER BY mes`,
       [meses]
     );
     ingresosRows = r.rows;
-  } catch { /* tabla ventas puede no tener tasa_dia */ }
+  } catch { /* skip */ }
 
   // ── COGS (compras) por mes ──────────────────────────────────────
   let cogsRows: { mes: string; total_usd: string }[] = [];
@@ -105,11 +108,14 @@ export async function GET(request: NextRequest) {
   let cortesiasRows: { mes: string; total_usd: string }[] = [];
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
-      `SELECT TO_CHAR(fecha, 'YYYY-MM') AS mes,
-              COALESCE(SUM(monto_bs / NULLIF(tasa_dia, 0)), 0) AS total_usd
-       FROM ventas
-       WHERE tipo = 'CORTESIA'
-         AND TO_CHAR(fecha, 'YYYY-MM') = ANY($1::text[])
+      `SELECT TO_CHAR(v.fecha, 'YYYY-MM') AS mes,
+              ROUND(COALESCE(SUM(
+                COALESCE((SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id), 0)
+                + COALESCE(v.costo_delivery, 0)
+              ), 0)::numeric, 2) AS total_usd
+       FROM ventas v
+       WHERE v.tipo = 'CORTESIA'
+         AND TO_CHAR(v.fecha, 'YYYY-MM') = ANY($1::text[])
        GROUP BY mes
        ORDER BY mes`,
       [meses]
