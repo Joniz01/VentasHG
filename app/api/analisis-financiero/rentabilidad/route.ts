@@ -182,16 +182,18 @@ export async function GET(request: NextRequest) {
     margen_usd: string;
     margen_pct: string;
   };
+  type ProductoSimpleRow = { nombre: string; cantidad: string; total_usd: string };
   let topProductos: { nombre: string; cantidad: number; totalUsd: number; costoUsd: number; margenUsd: number; margenPct: number }[] = [];
   try {
+    // Intento principal: con costo_unit para calcular margen real
     const r = await pool.query<ProductoRow>(
       `SELECT p.nombre,
-              ROUND(SUM(vi.cantidad)::numeric, 2)                                          AS cantidad,
-              ROUND(SUM(vi.cantidad * vi.precio_unit)::numeric, 2)                         AS total_usd,
-              ROUND(SUM(vi.cantidad * vi.costo_unit)::numeric, 2)                          AS costo_usd,
-              ROUND(SUM(vi.cantidad * (vi.precio_unit - vi.costo_unit))::numeric, 2)        AS margen_usd,
-              CASE WHEN SUM(vi.cantidad * vi.precio_unit) > 0
-                   THEN ROUND((SUM(vi.cantidad * (vi.precio_unit - vi.costo_unit))
+              ROUND(COALESCE(SUM(vi.cantidad), 0)::numeric, 2)                             AS cantidad,
+              ROUND(COALESCE(SUM(vi.cantidad * vi.precio_unit), 0)::numeric, 2)             AS total_usd,
+              ROUND(COALESCE(SUM(vi.cantidad * vi.costo_unit), 0)::numeric, 2)              AS costo_usd,
+              ROUND(COALESCE(SUM(vi.cantidad * (vi.precio_unit - vi.costo_unit)), 0)::numeric, 2) AS margen_usd,
+              CASE WHEN COALESCE(SUM(vi.cantidad * vi.precio_unit), 0) > 0
+                   THEN ROUND((COALESCE(SUM(vi.cantidad * (vi.precio_unit - vi.costo_unit)), 0)
                         / SUM(vi.cantidad * vi.precio_unit) * 100)::numeric, 1)
                    ELSE 0 END                                                              AS margen_pct
        FROM venta_items vi
@@ -212,7 +214,33 @@ export async function GET(request: NextRequest) {
       margenUsd: Number(row.margen_usd),
       margenPct: Number(row.margen_pct),
     }));
-  } catch { /* venta_items puede no estar disponible */ }
+  } catch {
+    // Fallback: solo ingresos por producto si costo_unit no está disponible
+    try {
+      const r2 = await pool.query<ProductoSimpleRow>(
+        `SELECT p.nombre,
+                ROUND(COALESCE(SUM(vi.cantidad), 0)::numeric, 2) AS cantidad,
+                ROUND(COALESCE(SUM(vi.cantidad * vi.precio_unit), 0)::numeric, 2) AS total_usd
+         FROM venta_items vi
+         JOIN ventas v ON v.id = vi.venta_id
+         JOIN productos p ON p.id = vi.producto_id
+         WHERE v.tipo != 'CORTESIA'
+           AND TO_CHAR(v.fecha, 'YYYY-MM') = $1
+         GROUP BY p.id, p.nombre
+         ORDER BY total_usd DESC
+         LIMIT 15`,
+        [mesActual]
+      );
+      topProductos = r2.rows.map((row) => ({
+        nombre:    row.nombre,
+        cantidad:  Number(row.cantidad),
+        totalUsd:  Number(row.total_usd),
+        costoUsd:  0,
+        margenUsd: 0,
+        margenPct: 0,
+      }));
+    } catch { /* venta_items no disponible */ }
+  }
 
   // ── Ventas por semana del mes actual ─────────────────────────────
   type SemanaRow = { semana: string; total_usd: string; num_ventas: string };

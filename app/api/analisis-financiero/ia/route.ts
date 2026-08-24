@@ -97,9 +97,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "pregunta requerida para el asesor" }, { status: 400 });
       }
       const togglesActivos = body.toggles?.join(", ") ?? "general";
+      const ctx = body.contexto;
+      const tieneProductos = Array.isArray(ctx.topProductos) && (ctx.topProductos as unknown[]).length > 0;
       prompt = `Contexto financiero del negocio (${togglesActivos}):
 
-${JSON.stringify(body.contexto, null, 2)}
+${JSON.stringify(ctx, null, 2)}
+
+${tieneProductos ? `NOTA: El campo "topProductos" contiene el desglose real de productos vendidos este mes con sus ingresos, costos y márgenes. Úsalo para responder preguntas sobre productos específicos.` : ""}
 
 Pregunta del usuario: ${body.pregunta}
 

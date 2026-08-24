@@ -275,12 +275,16 @@ export default function AnalisisFinancieroClient() {
       if (toggles.includes("caja")) {
         ctx.mesAnterior = d.anterior;
       }
-      // Siempre incluir productos si hay datos (útil para la mayoría de preguntas)
-      if (d.topProductos.length > 0 && !ctx.topProductos) {
-        ctx.topProductos = d.topProductos;
+      // Siempre incluir contexto de productos (disponible o no)
+      if (!ctx.topProductos) {
+        ctx.topProductos = d.topProductos.length > 0
+          ? d.topProductos
+          : "Sin desglose por producto disponible para este mes";
       }
-      if (d.ventasPorSemana.length > 0 && !ctx.ventasPorSemana) {
-        ctx.ventasPorSemana = d.ventasPorSemana;
+      if (!ctx.ventasPorSemana) {
+        ctx.ventasPorSemana = d.ventasPorSemana.length > 0
+          ? d.ventasPorSemana
+          : "Sin desglose semanal disponible";
       }
       return ctx;
     }
