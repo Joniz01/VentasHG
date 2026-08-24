@@ -11,7 +11,14 @@ Tu respuesta debe basarse ÚNICAMENTE en los datos financieros proporcionados en
 NO hagas referencias a datos externos, estimaciones de mercado, ni información que no esté en el contexto.
 Si no hay suficientes datos para responder, dilo claramente.
 Responde en español. Sé conciso, directo y accionable.
-Usa formato: hallazgos numerados con emoji de semáforo (✅ bueno, ⚠️ atención, 🔴 crítico).`;
+
+FORMATO OBLIGATORIO — sigue estas reglas sin excepción:
+- NO uses markdown: nada de ###, ##, **, *, _, ---, ni ningún símbolo de marcado.
+- Usa SOLO texto plano.
+- Para títulos de sección escribe la línea en MAYÚSCULAS seguida de dos puntos.
+- Para hallazgos numerados usa: "1. ✅ texto", "2. ⚠️ texto", "3. 🔴 texto"
+- Para acciones usa: "→ acción concreta"
+- Separa secciones con una línea en blanco.`;
 
 function buildPromptRentabilidad(ctx: Record<string, unknown>): string {
   return `Analiza la rentabilidad del negocio con estos datos:

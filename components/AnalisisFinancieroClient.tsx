@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ── Types ────────────────────────────────────────────────────────
 type MesTrend = {
@@ -226,13 +226,69 @@ export default function AnalisisFinancieroClient() {
   }
 
   // ── Render helpers ───────────────────────────────────────────
+  function parseMd(text: string): React.ReactNode[] {
+    // Replace **bold** and *italic* with spans
+    const parts: React.ReactNode[] = [];
+    const re = /\*\*(.+?)\*\*|\*(.+?)\*/g;
+    let last = 0, m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) parts.push(text.slice(last, m.index));
+      if (m[1]) parts.push(<strong key={m.index}>{m[1]}</strong>);
+      else if (m[2]) parts.push(<em key={m.index}>{m[2]}</em>);
+      last = re.lastIndex;
+    }
+    if (last < text.length) parts.push(text.slice(last));
+    return parts;
+  }
+
   function renderIaText(txt: string) {
-    return txt.split("\n").map((line, i) => {
+    // Strip leading markdown headers (###, ##, #)
+    const cleaned = txt.replace(/^#{1,4}\s*/gm, "");
+    return cleaned.split("\n").map((line, i) => {
       const trimmed = line.trim();
       if (!trimmed) return <div key={i} style={{ height: 8 }} />;
+
+      // Section header: line in ALL CAPS ending with colon, or ### stripped to caps
+      const isHeader = /^[A-ZÁÉÍÓÚ\s·&]+:$/.test(trimmed) || /^[A-Z][A-Z\s]{4,}$/.test(trimmed);
+      if (isHeader) {
+        return (
+          <p key={i} style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--erp-text-3)", margin: "14px 0 6px" }}>
+            {trimmed}
+          </p>
+        );
+      }
+
+      // Action line → with arrow
+      if (trimmed.startsWith("→") || trimmed.startsWith("->")) {
+        return (
+          <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 10px", background: "rgba(88,166,255,.07)", borderRadius: 6, marginBottom: 4 }}>
+            <span style={{ color: "#58A6FF", fontWeight: 700, flexShrink: 0 }}>→</span>
+            <p style={{ fontSize: 12, color: "var(--erp-text)", lineHeight: 1.6, margin: 0 }}>
+              {parseMd(trimmed.replace(/^→\s*|^->\s*/, ""))}
+            </p>
+          </div>
+        );
+      }
+
+      // Numbered finding with emoji semaphore
+      const finding = trimmed.match(/^(\d+)\.\s*(✅|⚠️|🔴|🟡|ℹ️)?\s*(.+)/);
+      if (finding) {
+        const emoji = finding[2] ?? "";
+        const hasEmoji = !!finding[2];
+        const borderColor = emoji === "✅" ? "#3FB950" : emoji === "⚠️" || emoji === "🟡" ? "#D29922" : emoji === "🔴" ? "#F85149" : "#58A6FF";
+        return (
+          <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 12px", background: "var(--erp-surface-2)", borderRadius: 8, borderLeft: `3px solid ${borderColor}`, marginBottom: 6 }}>
+            {hasEmoji && <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>{emoji}</span>}
+            <p style={{ fontSize: 12, color: "var(--erp-text)", lineHeight: 1.6, margin: 0 }}>
+              {parseMd(finding[3])}
+            </p>
+          </div>
+        );
+      }
+
       return (
         <p key={i} style={{ fontSize: 13, color: "var(--erp-text)", lineHeight: 1.65, marginBottom: 4 }}>
-          {trimmed}
+          {parseMd(trimmed)}
         </p>
       );
     });
@@ -778,9 +834,8 @@ export default function AnalisisFinancieroClient() {
                         background: msg.role === "user" ? "rgba(88,166,255,.1)" : "var(--erp-surface-2)",
                         border: msg.role === "user" ? "1px solid rgba(88,166,255,.2)" : "1px solid var(--erp-border)",
                         color: "var(--erp-text)",
-                        whiteSpace: "pre-wrap",
                       }}>
-                        {msg.text}
+                        {msg.role === "ia" ? renderIaText(msg.text) : msg.text}
                       </div>
                       <p style={{ fontSize: 10, color: "var(--erp-text-3)", margin: "3px 4px 0", textAlign: msg.role === "user" ? "right" : "left" }}>
                         {msg.role === "ia" ? "Asesor IA · " : ""}{msg.ts}
