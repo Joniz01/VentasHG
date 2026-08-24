@@ -750,7 +750,7 @@ export default function AnalisisFinancieroClient() {
 
         {/* ── Asesor IA ── */}
         <div style={{
-          background: "linear-gradient(135deg, var(--erp-surface) 0%, rgba(14,26,42,.6) 100%)",
+          background: "linear-gradient(135deg, rgba(88,166,255,.04) 0%, rgba(88,166,255,.09) 100%)",
           border: "1px solid #2F4A6B",
           borderRadius: 14,
           overflow: "hidden",
