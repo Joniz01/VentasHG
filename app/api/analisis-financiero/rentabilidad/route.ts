@@ -173,6 +173,78 @@ export async function GET(request: NextRequest) {
     diasHabiles = count;
   } catch { /* use default */ }
 
+  // ── Top productos por rentabilidad (mes actual) ─────────────────
+  type ProductoRow = {
+    nombre: string;
+    cantidad: string;
+    total_usd: string;
+    costo_usd: string;
+    margen_usd: string;
+    margen_pct: string;
+  };
+  let topProductos: { nombre: string; cantidad: number; totalUsd: number; costoUsd: number; margenUsd: number; margenPct: number }[] = [];
+  try {
+    const r = await pool.query<ProductoRow>(
+      `SELECT p.nombre,
+              ROUND(SUM(vi.cantidad)::numeric, 2)                                          AS cantidad,
+              ROUND(SUM(vi.cantidad * vi.precio_unit)::numeric, 2)                         AS total_usd,
+              ROUND(SUM(vi.cantidad * vi.costo_unit)::numeric, 2)                          AS costo_usd,
+              ROUND(SUM(vi.cantidad * (vi.precio_unit - vi.costo_unit))::numeric, 2)        AS margen_usd,
+              CASE WHEN SUM(vi.cantidad * vi.precio_unit) > 0
+                   THEN ROUND((SUM(vi.cantidad * (vi.precio_unit - vi.costo_unit))
+                        / SUM(vi.cantidad * vi.precio_unit) * 100)::numeric, 1)
+                   ELSE 0 END                                                              AS margen_pct
+       FROM venta_items vi
+       JOIN ventas v ON v.id = vi.venta_id
+       JOIN productos p ON p.id = vi.producto_id
+       WHERE v.tipo != 'CORTESIA'
+         AND TO_CHAR(v.fecha, 'YYYY-MM') = $1
+       GROUP BY p.id, p.nombre
+       ORDER BY margen_usd DESC
+       LIMIT 15`,
+      [mesActual]
+    );
+    topProductos = r.rows.map((row) => ({
+      nombre:    row.nombre,
+      cantidad:  Number(row.cantidad),
+      totalUsd:  Number(row.total_usd),
+      costoUsd:  Number(row.costo_usd),
+      margenUsd: Number(row.margen_usd),
+      margenPct: Number(row.margen_pct),
+    }));
+  } catch { /* venta_items puede no estar disponible */ }
+
+  // ── Ventas por semana del mes actual ─────────────────────────────
+  type SemanaRow = { semana: string; total_usd: string; num_ventas: string };
+  let ventasPorSemana: { semana: string; totalUsd: number; numVentas: number }[] = [];
+  try {
+    const r = await pool.query<SemanaRow>(
+      `SELECT 'Semana ' || CEIL(EXTRACT(DAY FROM fecha) / 7.0)::int AS semana,
+              ROUND(COALESCE(SUM(monto_bs / NULLIF(tasa_dia,0)), 0)::numeric, 2) AS total_usd,
+              COUNT(*)::text AS num_ventas
+       FROM ventas
+       WHERE tipo != 'CORTESIA'
+         AND TO_CHAR(fecha, 'YYYY-MM') = $1
+       GROUP BY semana
+       ORDER BY semana`,
+      [mesActual]
+    );
+    ventasPorSemana = r.rows.map((row) => ({
+      semana:    row.semana,
+      totalUsd:  Number(row.total_usd),
+      numVentas: Number(row.num_ventas),
+    }));
+  } catch { /* skip */ }
+
+  // ── Empleados activos (para ratio nómina/empleado) ────────────────
+  let numEmpleados = 0;
+  try {
+    const r = await pool.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM empleados WHERE activo = true`
+    );
+    numEmpleados = Number(r.rows[0]?.total ?? 0);
+  } catch { /* skip */ }
+
   return NextResponse.json({
     mes: mesActual,
     mesLabel: mesLabel(mesActual),
@@ -193,5 +265,9 @@ export async function GET(request: NextRequest) {
     },
     diasHabiles,
     ingresoDiario: actual && diasHabiles > 0 ? +(actual.ingresos / diasHabiles).toFixed(0) : 0,
+    // Contexto enriquecido para asesor IA
+    topProductos,
+    ventasPorSemana,
+    numEmpleados,
   });
 }

@@ -25,6 +25,17 @@ type Deltas = {
   margenNeto: number | null;
 };
 
+type TopProducto = {
+  nombre: string;
+  cantidad: number;
+  totalUsd: number;
+  costoUsd: number;
+  margenUsd: number;
+  margenPct: number;
+};
+
+type VentaSemana = { semana: string; totalUsd: number; numVentas: number };
+
 type RentabilidadData = {
   mes: string;
   mesLabel: string;
@@ -35,6 +46,9 @@ type RentabilidadData = {
   deltas: Deltas;
   diasHabiles: number;
   ingresoDiario: number;
+  topProductos: TopProducto[];
+  ventasPorSemana: VentaSemana[];
+  numEmpleados: number;
 };
 
 type IATipo = "rentabilidad" | "caja" | "eficiencia" | "asesor";
@@ -219,9 +233,58 @@ export default function AnalisisFinancieroClient() {
       diasHabiles: d.diasHabiles,
       tendencia: d.trend.map((t) => ({ mes: t.label, ingresos: t.ingresos, utilidad: t.utilidad, margen: t.margenNeto })),
     };
+
     if (tipo === "caja") {
       return { ...base, mesAnterior: d.anterior };
     }
+
+    if (tipo === "eficiencia") {
+      return {
+        ...base,
+        numEmpleados: d.numEmpleados,
+        ingresoPorEmpleado: d.numEmpleados > 0 ? +(d.actual.ingresos / d.numEmpleados).toFixed(2) : null,
+        nominaPorEmpleado: d.numEmpleados > 0 ? +(d.actual.nomina / d.numEmpleados).toFixed(2) : null,
+        topProductos: d.topProductos,
+      };
+    }
+
+    if (tipo === "asesor") {
+      // Contexto completo según toggles activos
+      const ctx: Record<string, unknown> = { ...base };
+      if (toggles.includes("ventas")) {
+        ctx.topProductos = d.topProductos.length > 0
+          ? d.topProductos
+          : "No hay datos de productos para este mes";
+        ctx.ventasPorSemana = d.ventasPorSemana.length > 0
+          ? d.ventasPorSemana
+          : "No hay datos de ventas semanales";
+      }
+      if (toggles.includes("costos") || toggles.includes("eficiencia")) {
+        ctx.numEmpleados = d.numEmpleados;
+        ctx.ingresoPorEmpleado = d.numEmpleados > 0 ? +(d.actual.ingresos / d.numEmpleados).toFixed(2) : null;
+        ctx.topProductosPorMargen = d.topProductos.slice(0, 5);
+      }
+      if (toggles.includes("nomina")) {
+        ctx.nominaMensual = d.actual.nomina;
+        ctx.numEmpleados = d.numEmpleados;
+        ctx.nominaPorEmpleado = d.numEmpleados > 0 ? +(d.actual.nomina / d.numEmpleados).toFixed(2) : null;
+        ctx.ratioNominaIngresos = d.actual.ingresos > 0
+          ? +((d.actual.nomina / d.actual.ingresos) * 100).toFixed(1) + "%"
+          : "Sin ingresos";
+      }
+      if (toggles.includes("caja")) {
+        ctx.mesAnterior = d.anterior;
+      }
+      // Siempre incluir productos si hay datos (útil para la mayoría de preguntas)
+      if (d.topProductos.length > 0 && !ctx.topProductos) {
+        ctx.topProductos = d.topProductos;
+      }
+      if (d.ventasPorSemana.length > 0 && !ctx.ventasPorSemana) {
+        ctx.ventasPorSemana = d.ventasPorSemana;
+      }
+      return ctx;
+    }
+
     return base;
   }
 
