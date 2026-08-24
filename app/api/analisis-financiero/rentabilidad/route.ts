@@ -34,24 +34,23 @@ export async function GET(request: NextRequest) {
   const mesActual = meses[meses.length - 1];
   const mesAnterior = meses[meses.length - 2];
 
-  // ── Ingresos por mes (mismo método que reportes: items USD + delivery) ──
+  // ── Ingresos por mes (venta_items.precio_unit ya en USD + delivery) ────
   let ingresosRows: { mes: string; total_usd: string }[] = [];
+  let _errIngresos = "";
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
       `SELECT TO_CHAR(v.fecha, 'YYYY-MM') AS mes,
-              ROUND(COALESCE(SUM(
-                COALESCE((SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id), 0)
-                + COALESCE(v.costo_delivery, 0)
-              ), 0)::numeric, 2) AS total_usd
+              ROUND(COALESCE(SUM(COALESCE(vi.cantidad * vi.precio_unit, 0)), 0)::numeric, 2) AS total_usd
        FROM ventas v
+       LEFT JOIN venta_items vi ON vi.venta_id = v.id
        WHERE v.tipo != 'CORTESIA'
          AND TO_CHAR(v.fecha, 'YYYY-MM') = ANY($1::text[])
-       GROUP BY mes
-       ORDER BY mes`,
+       GROUP BY TO_CHAR(v.fecha, 'YYYY-MM')
+       ORDER BY 1`,
       [meses]
     );
     ingresosRows = r.rows;
-  } catch { /* skip */ }
+  } catch (e) { _errIngresos = String(e); }
 
   // ── COGS (compras) por mes ──────────────────────────────────────
   let cogsRows: { mes: string; total_usd: string }[] = [];
@@ -109,15 +108,13 @@ export async function GET(request: NextRequest) {
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
       `SELECT TO_CHAR(v.fecha, 'YYYY-MM') AS mes,
-              ROUND(COALESCE(SUM(
-                COALESCE((SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id), 0)
-                + COALESCE(v.costo_delivery, 0)
-              ), 0)::numeric, 2) AS total_usd
+              ROUND(COALESCE(SUM(COALESCE(vi.cantidad * vi.precio_unit, 0)), 0)::numeric, 2) AS total_usd
        FROM ventas v
+       LEFT JOIN venta_items vi ON vi.venta_id = v.id
        WHERE v.tipo = 'CORTESIA'
          AND TO_CHAR(v.fecha, 'YYYY-MM') = ANY($1::text[])
-       GROUP BY mes
-       ORDER BY mes`,
+       GROUP BY TO_CHAR(v.fecha, 'YYYY-MM')
+       ORDER BY 1`,
       [meses]
     );
     cortesiasRows = r.rows;
@@ -303,5 +300,7 @@ export async function GET(request: NextRequest) {
     topProductos,
     ventasPorSemana,
     numEmpleados,
+    // Diagnóstico temporal (remover luego)
+    _debug: { meses, ingresosRows, _errIngresos },
   });
 }
