@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     fecha: string;
     beneficiario?: string;
     motivo?: string;
-    items: { productoId: string; cantidad: string }[];
+    items: { productoId: string; cantidad: string; empaqueRelId?: number | null }[];
   };
 
   const tiposBase = ["CORTESIA", "SORTEO", "CONSUMO_INTERNO", "MUESTRA", "EVENTO", "FIDELIDAD"];
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     for (const item of itemsValidos) {
       const productoId = Number(item.productoId);
       const cantidad = Number(item.cantidad);
+      const empaqueRelId = item.empaqueRelId ? Number(item.empaqueRelId) : null;
 
       // Leer costo y verificar stock
       const prodResult = await client.query(
@@ -60,9 +61,79 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Producto ID ${productoId} no encontrado` }, { status: 400 });
       }
       const prod = prodResult.rows[0];
+
+      // Si el stock es insuficiente y hay empaqueRelId, abrir el empaque primero
       if (Number(prod.stock_actual) < cantidad) {
-        await client.query("ROLLBACK");
-        return NextResponse.json({ error: `Stock insuficiente para "${prod.nombre}": disponible ${prod.stock_actual}, solicitado ${cantidad}` }, { status: 400 });
+        if (!empaqueRelId) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: `Stock insuficiente para "${prod.nombre}": disponible ${prod.stock_actual}, solicitado ${cantidad}` }, { status: 400 });
+        }
+
+        // Verificar y abrir empaque dentro de la misma transacción
+        const relResult = await client.query(
+          `SELECT pe.empaque_id, pe.rendimiento,
+                  p.stock_actual AS empaque_stock, p.nombre AS empaque_nombre
+           FROM producto_empaques pe
+           JOIN productos p ON p.id = pe.empaque_id
+           WHERE pe.id = $1 AND pe.unidad_id = $2 AND pe.activo = TRUE
+           FOR UPDATE`,
+          [empaqueRelId, productoId]
+        );
+        if ((relResult.rowCount ?? 0) === 0) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: `Relación de empaque no encontrada para "${prod.nombre}"` }, { status: 400 });
+        }
+        const rel = relResult.rows[0];
+        if (Number(rel.empaque_stock) < 1) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: `Sin stock en el empaque "${rel.empaque_nombre}"` }, { status: 400 });
+        }
+
+        const rendimiento: number = Number(rel.rendimiento);
+
+        // Descontar empaque y acreditar unidades
+        await client.query(`UPDATE productos SET stock_actual = stock_actual - 1 WHERE id = $1`, [rel.empaque_id]);
+        await client.query(`UPDATE productos SET stock_actual = stock_actual + $1 WHERE id = $2`, [rendimiento, productoId]);
+
+        // Movimientos del empaque
+        const notaEmpaque = `Apertura de empaque "${rel.empaque_nombre}" para salida gratuita #${salidaId}`;
+        const notaUnidad = `Generado desde apertura de empaque "${rel.empaque_nombre}" — salida gratuita #${salidaId}`;
+        await client.query("SAVEPOINT antes_mov_empaque");
+        try {
+          await client.query(
+            `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota, usuario_id, origen)
+             VALUES ($1, 'AJUSTE', -1, $2, $3, 'APERTURA_EMPAQUE')`,
+            [rel.empaque_id, notaEmpaque, sesion.id]
+          );
+          await client.query(
+            `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota, usuario_id, origen)
+             VALUES ($1, 'ENTRADA', $2, $3, $4, 'APERTURA_EMPAQUE')`,
+            [productoId, rendimiento, notaUnidad, sesion.id]
+          );
+        } catch {
+          await client.query("ROLLBACK TO SAVEPOINT antes_mov_empaque");
+          await client.query(
+            `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota) VALUES ($1, 'AJUSTE', -1, $2)`,
+            [rel.empaque_id, notaEmpaque]
+          );
+          await client.query(
+            `INSERT INTO inventario_movimientos (producto_id, tipo, cantidad, nota) VALUES ($1, 'ENTRADA', $2, $3)`,
+            [productoId, rendimiento, notaUnidad]
+          );
+        }
+
+        // Releer stock actualizado
+        const prodActualizado = await client.query(
+          `SELECT stock_actual, costo FROM productos WHERE id = $1`,
+          [productoId]
+        );
+        prod.stock_actual = prodActualizado.rows[0].stock_actual;
+        prod.costo = prodActualizado.rows[0].costo;
+
+        if (Number(prod.stock_actual) < cantidad) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: `Stock insuficiente para "${prod.nombre}" incluso tras abrir el empaque` }, { status: 400 });
+        }
       }
 
       // Insertar ítem de salida
