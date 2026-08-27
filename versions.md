@@ -2,9 +2,9 @@
 
 ---
 
-## v2026-08-27 — Empaque en Salidas de Cortesías + Panel Análisis Financiero IA
+## v5.0 — Empaque en Salidas de Cortesías + Panel Análisis Financiero IA
 
-### Commits incluidos: `28229d5` → `9485cd4`
+**Fecha:** 2026-08-27 | **Commits:** `28229d5` → `84e81fa`
 
 ---
 
