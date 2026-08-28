@@ -2,6 +2,56 @@
 
 ---
 
+## v6.0 — Bandeja Variada en Cortesías + Empaque en Raciones
+
+**Fecha:** 2026-08-28 | **Commits:** `3006376` → `c34d1dd`
+
+---
+
+### 1. Raciones de Bandeja Variada en Salidas de Cortesías
+
+**Archivos modificados:**
+- `components/SalidaCortesiasPanel.tsx`
+
+**Descripción:**
+Al seleccionar un producto de tipo `VARIADA` en el formulario de Salida de Cortesía,
+aparecen los N selects de raciones (igual que en Registro de Ventas).
+Cada ración muestra todos los productos `NORMAL` (con o sin stock) con indicador 📦
+si tiene empaque disponible. Si se selecciona una ración con stock 0 que tiene empaque,
+se muestra el modal de confirmación idéntico al del POS para abrir el empaque.
+Se valida que todas las raciones estén seleccionadas antes de guardar.
+
+**Cambios en base de datos:** ninguno.
+
+**Cambio en payload API `POST /api/salidas-gratuitas`:**
+```json
+{ "productoId": "12", "cantidad": "1", "empaqueRelId": null, "variadaSelecciones": ["3","7","5"] }
+```
+
+---
+
+### 2. Empaque en Raciones del POS (Registro de Ventas)
+
+**Archivos modificados:**
+- `components/VentasClient.tsx`
+
+**Descripción:**
+Los selects de raciones de Bandeja Variada en el POS ahora también detectan stock 0
+con empaque disponible. Al seleccionar una ración así, abre el modal de confirmación.
+Al confirmar, el empaque se abre inmediatamente (llamada a `/api/inventario/abrir-empaque`)
+y la ración queda asignada. Al cancelar, solo limpia esa posición de ración sin afectar
+el producto principal.
+
+**Cambios en base de datos:** ninguno.
+
+---
+
+## Migraciones SQL — v6.0
+
+> Ninguna. Todos los cambios son de lógica de frontend y payload de API.
+
+---
+
 ## v5.0 — Empaque en Salidas de Cortesías + Panel Análisis Financiero IA
 
 **Fecha:** 2026-08-27 | **Commits:** `28229d5` → `84e81fa`
