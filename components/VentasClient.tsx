@@ -157,6 +157,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
   const [modalEmpaque, setModalEmpaque] = useState<{
     itemIndex: number;
+    racionIndex?: number; // presente cuando es una ración de Bandeja Variada
     producto: Producto;
     empaques: EmpaqueProducto[];
     seleccionado: number | null;
@@ -657,6 +658,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
           if (p.id === empaqueRel.empaqueId) return { ...p, stockActual: p.stockActual - 1 };
           if (p.id === modalEmpaque.producto.id) return { ...p, stockActual: p.stockActual + data.rendimiento };
           return p;
+        }));
+      }
+      // Si era una ración de Bandeja Variada, asignar el producto en esa posición
+      if (typeof modalEmpaque.racionIndex === "number") {
+        setItems((prev) => prev.map((it, idx) => {
+          if (idx !== modalEmpaque.itemIndex) return it;
+          const nuevasSelecciones = [...it.variadaSelecciones];
+          nuevasSelecciones[modalEmpaque.racionIndex!] = String(modalEmpaque.producto.id);
+          return { ...it, variadaSelecciones: nuevasSelecciones };
         }));
       }
       setModalEmpaque(null);
@@ -1339,9 +1349,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                 <span className="text-xs font-medium text-zinc-600">Raciones:</span>
                                 {item.variadaSelecciones.map((seleccion, racionIndex) => (
                                   <select key={racionIndex} className="rounded-md border border-zinc-300 px-2 py-1 text-sm" value={seleccion}
-                                    onChange={(e) => { const s = [...item.variadaSelecciones]; s[racionIndex] = e.target.value; updateItem(index, { variadaSelecciones: s }); }}>
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const match = productos.find((p) => String(p.id) === val);
+                                      if (match && match.stockActual <= 0 && match.empaques?.length) {
+                                        const conStock = match.empaques.filter(em => em.empaqueStock > 0);
+                                        if (conStock.length > 0) {
+                                          setModalEmpaque({ itemIndex: index, racionIndex, producto: match, empaques: conStock, seleccionado: conStock[0].id, abriendo: false, error: null });
+                                          return;
+                                        }
+                                      }
+                                      const s = [...item.variadaSelecciones]; s[racionIndex] = val; updateItem(index, { variadaSelecciones: s });
+                                    }}>
                                     <option value="">Ración {racionIndex + 1}</option>
-                                    {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual})</option>)}
+                                    {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}</option>)}
                                   </select>
                                 ))}
                               </div>
@@ -2195,8 +2216,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
                           value={seleccion}
                           onChange={(e) => {
+                            const val = e.target.value;
+                            const match = productos.find((p) => String(p.id) === val);
+                            if (match && match.stockActual <= 0 && match.empaques?.length) {
+                              const conStock = match.empaques.filter(em => em.empaqueStock > 0);
+                              if (conStock.length > 0) {
+                                setModalEmpaque({ itemIndex: index, racionIndex, producto: match, empaques: conStock, seleccionado: conStock[0].id, abriendo: false, error: null });
+                                return;
+                              }
+                            }
                             const nuevasSelecciones = [...item.variadaSelecciones];
-                            nuevasSelecciones[racionIndex] = e.target.value;
+                            nuevasSelecciones[racionIndex] = val;
                             updateItem(index, { variadaSelecciones: nuevasSelecciones });
                           }}
                         >
@@ -2205,7 +2235,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                             .filter((p) => p.tipoProducto === "NORMAL")
                             .map((p) => (
                               <option key={p.id} value={p.id}>
-                                {p.nombre} (stock: {p.stockActual})
+                                {p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}
                               </option>
                             ))}
                         </select>
@@ -2966,9 +2996,18 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
               <button
                 type="button"
                 onClick={() => {
-                  // Quitar el producto del ítem para no permitir la venta sin abrir empaque
                   if (modalEmpaque) {
-                    updateItem(modalEmpaque.itemIndex, { productoId: "", extraId: "", cantidad: "1", variadaSelecciones: [] });
+                    if (typeof modalEmpaque.racionIndex === "number") {
+                      // Cancelar selección de ración: dejar vacía esa posición
+                      setItems((prev) => prev.map((it, idx) => {
+                        if (idx !== modalEmpaque.itemIndex) return it;
+                        const s = [...it.variadaSelecciones];
+                        s[modalEmpaque.racionIndex!] = "";
+                        return { ...it, variadaSelecciones: s };
+                      }));
+                    } else {
+                      updateItem(modalEmpaque.itemIndex, { productoId: "", extraId: "", cantidad: "1", variadaSelecciones: [] });
+                    }
                   }
                   setModalEmpaque(null);
                 }}

@@ -37,10 +37,12 @@ type ItemForm = {
   productoId: string;
   cantidad: string;
   empaqueRelId?: number;
+  variadaSelecciones?: string[]; // solo para productos VARIADA
 };
 
 type ModalEmpaque = {
   itemIdx: number;
+  racionIndex?: number; // presente cuando es una ración de Bandeja Variada
   productoId: string;
   productoNombre: string;
   empaques: EmpaqueProducto[];
@@ -140,15 +142,21 @@ export default function SalidaCortesiasPanel({ productos }: { productos: Product
   }
 
   function handleProductoChange(idx: number, productoId: string) {
+    const prod = productoId ? productos.find((p) => String(p.id) === productoId) : null;
     const next = [...items];
-    next[idx] = { productoId, cantidad: next[idx].cantidad, empaqueRelId: undefined };
+    next[idx] = {
+      productoId,
+      cantidad: next[idx].cantidad,
+      empaqueRelId: undefined,
+      variadaSelecciones: prod?.tipoProducto === "VARIADA"
+        ? Array.from({ length: prod.variadaRaciones }, () => "")
+        : undefined,
+    };
     setItems(next);
 
-    if (!productoId) return;
-    const prod = productos.find((p) => String(p.id) === productoId);
     if (!prod) return;
 
-    if (prod.stockActual <= 0 && prod.empaques && prod.empaques.length > 0) {
+    if (prod.tipoProducto !== "VARIADA" && prod.stockActual <= 0 && prod.empaques && prod.empaques.length > 0) {
       const empaquesConStock = prod.empaques.filter((e) => e.empaqueStock > 0);
       if (empaquesConStock.length > 0) {
         setModalEmpaque({
@@ -162,22 +170,62 @@ export default function SalidaCortesiasPanel({ productos }: { productos: Product
     }
   }
 
+  function handleRacionChange(itemIdx: number, racionIndex: number, productoId: string) {
+    const prod = productoId ? productos.find((p) => String(p.id) === productoId) : null;
+    if (prod && prod.stockActual <= 0 && prod.empaques?.length) {
+      const conStock = prod.empaques.filter((e) => e.empaqueStock > 0);
+      if (conStock.length > 0) {
+        setModalEmpaque({
+          itemIdx,
+          racionIndex,
+          productoId,
+          productoNombre: prod.nombre,
+          empaques: conStock,
+          seleccionado: conStock[0].id,
+        });
+        return;
+      }
+    }
+    const next = [...items];
+    const s = [...(next[itemIdx].variadaSelecciones ?? [])];
+    s[racionIndex] = productoId;
+    next[itemIdx] = { ...next[itemIdx], variadaSelecciones: s };
+    setItems(next);
+  }
+
   function confirmarEmpaque() {
     if (!modalEmpaque) return;
     const next = [...items];
-    next[modalEmpaque.itemIdx] = {
-      ...next[modalEmpaque.itemIdx],
-      empaqueRelId: modalEmpaque.seleccionado,
-    };
+    if (typeof modalEmpaque.racionIndex === "number") {
+      // Es una ración: marcar la selección con empaqueRelId en el item padre (no se puede por ítem de ración, se guarda en array)
+      const s = [...(next[modalEmpaque.itemIdx].variadaSelecciones ?? [])];
+      s[modalEmpaque.racionIndex] = modalEmpaque.productoId;
+      next[modalEmpaque.itemIdx] = {
+        ...next[modalEmpaque.itemIdx],
+        variadaSelecciones: s,
+        // guardar empaque de ración como campo auxiliar para el submit
+        empaqueRelId: modalEmpaque.seleccionado,
+      };
+    } else {
+      next[modalEmpaque.itemIdx] = {
+        ...next[modalEmpaque.itemIdx],
+        empaqueRelId: modalEmpaque.seleccionado,
+      };
+    }
     setItems(next);
     setModalEmpaque(null);
   }
 
   function cancelarEmpaque() {
     if (!modalEmpaque) return;
-    // Quitar la selección del producto
     const next = [...items];
-    next[modalEmpaque.itemIdx] = { productoId: "", cantidad: next[modalEmpaque.itemIdx].cantidad };
+    if (typeof modalEmpaque.racionIndex === "number") {
+      const s = [...(next[modalEmpaque.itemIdx].variadaSelecciones ?? [])];
+      s[modalEmpaque.racionIndex] = "";
+      next[modalEmpaque.itemIdx] = { ...next[modalEmpaque.itemIdx], variadaSelecciones: s };
+    } else {
+      next[modalEmpaque.itemIdx] = { productoId: "", cantidad: next[modalEmpaque.itemIdx].cantidad };
+    }
     setItems(next);
     setModalEmpaque(null);
   }
@@ -190,6 +238,16 @@ export default function SalidaCortesiasPanel({ productos }: { productos: Product
     if (!itemsValidos.length) {
       setError("Agrega al menos un producto con cantidad válida.");
       return;
+    }
+    for (const it of itemsValidos) {
+      const prod = productos.find((p) => String(p.id) === it.productoId);
+      if (prod?.tipoProducto === "VARIADA") {
+        const seleccionadas = (it.variadaSelecciones ?? []).filter(Boolean);
+        if (seleccionadas.length !== prod.variadaRaciones) {
+          setError(`Selecciona las ${prod.variadaRaciones} raciones de "${prod.nombre}"`);
+          return;
+        }
+      }
     }
     setSaving(true);
     try {
@@ -207,6 +265,7 @@ export default function SalidaCortesiasPanel({ productos }: { productos: Product
             productoId: i.productoId,
             cantidad: i.cantidad,
             empaqueRelId: i.empaqueRelId ?? null,
+            variadaSelecciones: i.variadaSelecciones?.filter(Boolean) ?? [],
           })),
         }),
       });
@@ -330,10 +389,31 @@ export default function SalidaCortesiasPanel({ productos }: { productos: Product
                         </option>
                       ))}
                     </select>
-                    {usaEmpaque && prod && (
+                    {usaEmpaque && !item.variadaSelecciones && prod && (
                       <span className="text-xs" style={{ color: "#92400E" }}>
                         📦 Se abrirá empaque al guardar
                       </span>
+                    )}
+                    {prod?.tipoProducto === "VARIADA" && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Raciones:</span>
+                        {(item.variadaSelecciones ?? []).map((sel, rIdx) => (
+                          <select
+                            key={rIdx}
+                            className="rounded-md border px-2 py-1 text-xs"
+                            style={{ borderColor: sel ? "var(--erp-border)" : "#FCA5A5" }}
+                            value={sel}
+                            onChange={(e) => handleRacionChange(idx, rIdx, e.target.value)}
+                          >
+                            <option value="">Ración {rIdx + 1}</option>
+                            {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <input
