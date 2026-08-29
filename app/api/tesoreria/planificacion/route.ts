@@ -151,6 +151,33 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Nóminas automáticas estimadas para próxima semana (sin período generado) ─
+  let nominasEstimadasProxSemanaUsd = 0;
+  try {
+    const lunesProxStr = addDays(addDays(lunes, 7), 0); // lunes de próxima semana
+    const domingoProxStr = addDays(lunesProxStr, 6);
+    const r = await pool.query<{ total_usd: string }>(
+      `WITH semana AS (SELECT $1::date AS lunes, $2::date AS domingo)
+       SELECT COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
+       FROM semana, nominas n
+       JOIN empleado_nominas en ON en.nomina_id = n.id
+       JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
+       WHERE n.activo = TRUE
+         AND n.modo_generacion = 'AUTOMATICO'
+         AND n.frecuencia = 'SEMANAL'
+         AND n.dia_semana IS NOT NULL
+         AND (semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date
+             BETWEEN semana.lunes AND semana.domingo
+         AND NOT EXISTS (
+           SELECT 1 FROM periodos_nomina pn2
+           WHERE pn2.nomina_id = n.id
+             AND pn2.fecha_hasta BETWEEN semana.lunes AND semana.domingo
+         )`,
+      [lunesProxStr, domingoProxStr]
+    );
+    nominasEstimadasProxSemanaUsd = Number(r.rows[0]?.total_usd ?? 0);
+  } catch { /* nominas table may not exist yet */ }
+
   // ── KPI: pagado este mes ───────────────────────────────────────────────────
   let gastosPagadoUsd = 0;
   let nominasPagadoUsd = 0;
@@ -212,7 +239,7 @@ export async function GET(request: NextRequest) {
   const domingoProx = addDays(lunes, 13);
   const proximaSemanaUsd = items
     .filter((i) => i.fechaVencimiento >= lunesProx && i.fechaVencimiento <= domingoProx)
-    .reduce((s, i) => s + i.montoUsd, 0);
+    .reduce((s, i) => s + i.montoUsd, 0) + nominasEstimadasProxSemanaUsd;
   const esteMesUsd = items.reduce((s, i) => s + i.montoUsd, 0);
   const pagadoUsd = gastosPagadoUsd + nominasPagadoUsd;
 

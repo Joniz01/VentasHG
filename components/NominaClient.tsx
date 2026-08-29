@@ -1449,6 +1449,7 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRe
   const [filtro, setFiltro] = useState<FiltroGestion>("por_pagar");
   const [paneles, setPaneles] = useState<Record<number, PanelState>>({});
   const [saving, setSaving] = useState<number | null>(null);
+  const [generando, setGenerando] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -1515,11 +1516,6 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRe
     }
   }
 
-  if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
-
-  // Card próxima semana
-  const [generando, setGenerando] = useState<number | null>(null);
-
   async function generarPeriodo(np: NominaPendienteInfo) {
     if (!np.lunes || !np.fechaHasta) return;
     setGenerando(np.nominaId);
@@ -1542,6 +1538,8 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRe
       setGenerando(null);
     }
   }
+
+  if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
 
   const pendientes = proximaSemana?.nominasPendientes ?? [];
   const tieneProxima = proximaSemana && (proximaSemana.periodos > 0 || pendientes.length > 0);
