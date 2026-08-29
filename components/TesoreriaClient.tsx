@@ -21,12 +21,14 @@ type ObligacionItem = {
 type Semana = { lunes: string; domingo: string; totalUsd: number; tipos: string[] };
 
 type PlanificacionData = {
-  kpis: { vencidoUsd: number; estaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number };
+  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number };
   items: ObligacionItem[];
   semanas: Semana[];
   hoy: string;
   lunes: string;
   domingo: string;
+  lunesProx: string;
+  domingoProx: string;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -181,7 +183,7 @@ export default function TesoreriaClient() {
 
   if (!data) return null;
 
-  const { kpis, items, semanas, lunes: semLunes, domingo } = data;
+  const { kpis, items, semanas, lunes: semLunes, domingo, lunesProx, domingoProx } = data;
 
   // Filter + counts
   const counts: Record<FiltroEstado, number> = {
@@ -246,6 +248,7 @@ export default function TesoreriaClient() {
 
       {/* ── KPI Strip ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+        <KpiCard label="Próxima Semana" valueUsd={kpis.proximaSemanaUsd} color="#7C3AED" subLabel={`${fmtFecha(lunesProx)} – ${fmtFecha(domingoProx)}`} />
         <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" />
         <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} />
         <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" />

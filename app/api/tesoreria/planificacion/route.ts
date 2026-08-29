@@ -208,6 +208,11 @@ export async function GET(request: NextRequest) {
   const estaSemanaUsd = items
     .filter((i) => i.fechaVencimiento >= lunes && i.fechaVencimiento <= domingo)
     .reduce((s, i) => s + i.montoUsd, 0);
+  const lunesProx = addDays(lunes, 7);
+  const domingoProx = addDays(lunes, 13);
+  const proximaSemanaUsd = items
+    .filter((i) => i.fechaVencimiento >= lunesProx && i.fechaVencimiento <= domingoProx)
+    .reduce((s, i) => s + i.montoUsd, 0);
   const esteMesUsd = items.reduce((s, i) => s + i.montoUsd, 0);
   const pagadoUsd = gastosPagadoUsd + nominasPagadoUsd;
 
@@ -224,12 +229,14 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
-    kpis: { vencidoUsd, estaSemanaUsd, esteMesUsd, pagadoUsd },
+    kpis: { vencidoUsd, estaSemanaUsd, proximaSemanaUsd, esteMesUsd, pagadoUsd },
     items,
     semanas,
     hoy,
     lunes,
     domingo,
+    lunesProx,
+    domingoProx,
   });
 }
 
