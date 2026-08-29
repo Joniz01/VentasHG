@@ -1830,7 +1830,7 @@ type SeccionPrincipal = "pagos" | "nominas" | "periodos" | "empleados" | "parame
 
 export default function NominaClient() {
   const [seccion, setSeccion] = useState<SeccionPrincipal>(null);
-  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null, fechaPago: null } });
+  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null, fechaPago: null, nominasPendientes: [] } });
   const [nominas, setNominas] = useState<Nomina[]>([]);
 
   async function loadResumen() {
