@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
 import type { PermisosUsuario, Rol } from "@/lib/types";
+import HomeScrollHandler from "@/components/HomeScrollHandler";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +55,7 @@ const GRUPOS: TileGroup[] = [
       { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",      color: "#15803D", permiso: "productos", new: true },
       { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos", color: "#1D4ED8", permiso: "productos" },
       { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",   color: "#7C3AED", permiso: "autorizarConteo" },
+      { href: "/conteo",             icon: "📱", label: "Conteo Físico",            sub: "Conteo desde dispositivo",   color: "#7C3AED", permiso: "conteo" },
     ],
   },
   {
@@ -115,6 +118,7 @@ export default async function Home() {
 
   return (
     <div className="max-w-4xl">
+      <Suspense fallback={null}><HomeScrollHandler /></Suspense>
       {/* Welcome banner */}
       <div
         className="mb-6 rounded-xl px-5 py-3 flex items-center justify-between gap-4 flex-wrap"
@@ -137,8 +141,9 @@ export default async function Home() {
         );
         if (!visibles.length) return null;
 
+        const slug = grupo.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
         return (
-          <div key={grupo.label} className="mb-6">
+          <div key={grupo.label} id={`section-${slug}`} className="mb-6 scroll-mt-16">
             <div
               className="flex items-center gap-3 mb-3 text-[10px] font-bold uppercase tracking-widest"
               style={{ color: "var(--erp-text-3)" }}

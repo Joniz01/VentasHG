@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
               COALESCE(ve_eliminar_compras, FALSE) AS ve_eliminar_compras,
               COALESCE(ve_gastos, FALSE) AS ve_gastos,
               COALESCE(ve_autorizar_conteo, FALSE) AS ve_autorizar_conteo,
+              COALESCE(ve_conteo, FALSE) AS ve_conteo,
               COALESCE(ve_promociones, FALSE) AS ve_promociones
        FROM usuarios ORDER BY nombre ASC`
     );
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
       eliminarCompras: (row.ve_eliminar_compras ?? row.rol === "ADMIN") as boolean,
       gastos: (row.ve_gastos ?? false) as boolean,
       autorizarConteo: (row.ve_autorizar_conteo ?? row.rol === "ADMIN") as boolean,
+      conteo: (row.ve_conteo ?? false) as boolean,
       promociones: (row.ve_promociones ?? false) as boolean,
     },
   }));
@@ -74,7 +76,7 @@ export async function POST(request: NextRequest) {
 
   if (isBootstrap) {
     rol = "ADMIN";
-    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, promociones: true };
+    permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, conteo: true, promociones: true };
   } else {
     const sesion = await getSesionFromRequest(request);
     if (!sesion || sesion.rol !== "ADMIN") {
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
     }
     if (rol === "ADMIN") {
-      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, promociones: true };
+      permisos = { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, conteo: true, promociones: true };
     }
   }
 
