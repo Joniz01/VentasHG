@@ -152,91 +152,39 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Nóminas automáticas estimadas (sin período generado) dentro de la ventana ─
-  // Incluye: SEMANAL (por fecha de día de semana) + MENSUAL/QUINCENAL (por dia_pago)
   type EstimadaRow = { nomina_id: number; nombre: string; fecha_pago: string; total_usd: number };
   let nominasEstimadas: EstimadaRow[] = [];
+
+  // Query 1: semanales automáticas
   try {
     const r = await pool.query<{ nomina_id: string; nombre: string; fecha_pago: unknown; total_usd: string }>(
-      `WITH
-       -- Generar las semanas dentro de la ventana para nóminas SEMANALES
-       semanas_ventana AS (
+      `WITH semanas_ventana AS (
          SELECT generate_series(0, 5) AS offset
        ),
-       fechas_semanal AS (
-         SELECT
-           n.id AS nomina_id,
-           n.nombre,
+       fechas AS (
+         SELECT n.id AS nomina_id, n.nombre,
            (date_trunc('week', $1::date + sv.offset * 7)
              + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date AS fecha_pago
          FROM semanas_ventana sv, nominas n
-         WHERE n.activo = TRUE
-           AND n.modo_generacion = 'AUTOMATICO'
-           AND n.frecuencia = 'SEMANAL'
-           AND n.dia_semana IS NOT NULL
-       ),
-       -- Generar fechas de pago para nóminas MENSUAL/QUINCENAL dentro de la ventana
-       meses_ventana AS (
-         SELECT generate_series(
-           date_trunc('month', $1::date),
-           date_trunc('month', $2::date),
-           '1 month'::interval
-         )::date AS mes_inicio
-       ),
-       fechas_mensual AS (
-         SELECT n.id AS nomina_id, n.nombre,
-                (mv.mes_inicio + (n.dia_pago_1 - 1) * INTERVAL '1 day')::date AS fecha_pago
-         FROM meses_ventana mv, nominas n
          WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
-           AND n.frecuencia IN ('MENSUAL', 'QUINCENAL') AND n.dia_pago_1 IS NOT NULL
-         UNION ALL
-         SELECT n.id, n.nombre,
-                (mv.mes_inicio + (n.dia_pago_2 - 1) * INTERVAL '1 day')::date AS fecha_pago
-         FROM meses_ventana mv, nominas n
-         WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
-           AND n.frecuencia = 'QUINCENAL' AND n.dia_pago_2 IS NOT NULL
+           AND n.frecuencia = 'SEMANAL' AND n.dia_semana IS NOT NULL
        ),
-       todas_fechas AS (
-         SELECT nomina_id, nombre, fecha_pago FROM fechas_semanal
-         UNION ALL
-         SELECT nomina_id, nombre, fecha_pago FROM fechas_mensual
-       ),
-       fechas_filtradas AS (
-         SELECT DISTINCT tf.nomina_id, tf.nombre, tf.fecha_pago
-         FROM todas_fechas tf
-         WHERE tf.fecha_pago BETWEEN $1 AND $2
+       filtradas AS (
+         SELECT DISTINCT f.nomina_id, f.nombre, f.fecha_pago
+         FROM fechas f
+         WHERE f.fecha_pago BETWEEN $1 AND $2
            AND NOT EXISTS (
              SELECT 1 FROM periodos_nomina pn
-             WHERE pn.nomina_id = tf.nomina_id
-               AND pn.fecha_hasta = tf.fecha_pago
+             WHERE pn.nomina_id = f.nomina_id AND pn.fecha_hasta = f.fecha_pago
            )
        )
-       -- Sumar salarios base por nómina
-       salarios AS (
-         SELECT en.nomina_id,
-                COALESCE(SUM(e.salario_base_usd), 0) AS total_salario,
-                COUNT(DISTINCT en.empleado_id) AS nro_empleados
-         FROM empleado_nominas en
-         JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
-         GROUP BY en.nomina_id
-       ),
-       -- Sumar incidencias configuradas (monto_usd por empleado por período)
-       incidencias_cfg AS (
-         SELECT nic.nomina_id,
-                COALESCE(SUM(nic.monto_usd), 0) AS total_inc_usd
-         FROM nomina_incidencia_config nic
-         WHERE nic.frecuencia IN ('MENSUAL', 'QUINCENAL', 'POR_PERIODO', 'SEMANAL')
-         GROUP BY nic.nomina_id
-       )
-       SELECT
-         ff.nomina_id,
-         ff.nombre,
-         ff.fecha_pago,
-         COALESCE(s.total_salario, 0)
-           + COALESCE(ic.total_inc_usd, 0) * COALESCE(s.nro_empleados, 0) AS total_usd
-       FROM fechas_filtradas ff
-       LEFT JOIN salarios s ON s.nomina_id = ff.nomina_id
-       LEFT JOIN incidencias_cfg ic ON ic.nomina_id = ff.nomina_id
-       ORDER BY ff.fecha_pago ASC`,
+       SELECT f.nomina_id, f.nombre, f.fecha_pago,
+              COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
+       FROM filtradas f
+       LEFT JOIN empleado_nominas en ON en.nomina_id = f.nomina_id
+       LEFT JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
+       GROUP BY f.nomina_id, f.nombre, f.fecha_pago
+       ORDER BY f.fecha_pago ASC`,
       [desde, hasta]
     );
     nominasEstimadas = r.rows.map((row) => ({
@@ -245,7 +193,74 @@ export async function GET(request: NextRequest) {
       fecha_pago: toDate(row.fecha_pago),
       total_usd: Number(row.total_usd ?? 0),
     }));
-  } catch { /* nominas table may not exist yet */ }
+  } catch { /* skip if table missing */ }
+
+  // Query 2: mensuales y quincenales automáticas
+  try {
+    const r = await pool.query<{ nomina_id: string; nombre: string; fecha_pago: unknown; total_salario: string; total_inc_usd: string; nro_empleados: string }>(
+      `WITH meses AS (
+         SELECT generate_series(
+           date_trunc('month', $1::date),
+           date_trunc('month', $2::date),
+           '1 month'::interval
+         )::date AS mes_inicio
+       ),
+       fechas AS (
+         SELECT n.id AS nomina_id, n.nombre,
+                (m.mes_inicio + (n.dia_pago_1 - 1) * INTERVAL '1 day')::date AS fecha_pago
+         FROM meses m, nominas n
+         WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
+           AND n.frecuencia IN ('MENSUAL','QUINCENAL') AND n.dia_pago_1 IS NOT NULL
+         UNION ALL
+         SELECT n.id, n.nombre,
+                (m.mes_inicio + (n.dia_pago_2 - 1) * INTERVAL '1 day')::date AS fecha_pago
+         FROM meses m, nominas n
+         WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
+           AND n.frecuencia = 'QUINCENAL' AND n.dia_pago_2 IS NOT NULL
+       ),
+       filtradas AS (
+         SELECT DISTINCT f.nomina_id, f.nombre, f.fecha_pago
+         FROM fechas f
+         WHERE f.fecha_pago BETWEEN $1 AND $2
+           AND NOT EXISTS (
+             SELECT 1 FROM periodos_nomina pn
+             WHERE pn.nomina_id = f.nomina_id AND pn.fecha_hasta = f.fecha_pago
+           )
+       ),
+       salarios AS (
+         SELECT en.nomina_id,
+                COALESCE(SUM(e.salario_base_usd), 0) AS total_salario,
+                COUNT(DISTINCT en.empleado_id) AS nro_empleados
+         FROM empleado_nominas en
+         JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
+         GROUP BY en.nomina_id
+       ),
+       incidencias AS (
+         SELECT nic.nomina_id, COALESCE(SUM(nic.monto_usd), 0) AS total_inc_usd
+         FROM nomina_incidencia_config nic
+         GROUP BY nic.nomina_id
+       )
+       SELECT f.nomina_id, f.nombre, f.fecha_pago,
+              COALESCE(s.total_salario, 0) AS total_salario,
+              COALESCE(ic.total_inc_usd, 0) AS total_inc_usd,
+              COALESCE(s.nro_empleados, 0) AS nro_empleados
+       FROM filtradas f
+       LEFT JOIN salarios s ON s.nomina_id = f.nomina_id
+       LEFT JOIN incidencias ic ON ic.nomina_id = f.nomina_id
+       ORDER BY f.fecha_pago ASC`,
+      [desde, hasta]
+    );
+    for (const row of r.rows) {
+      const nro = Number(row.nro_empleados);
+      const totalUsd = Number(row.total_salario) + Number(row.total_inc_usd) * nro;
+      nominasEstimadas.push({
+        nomina_id: Number(row.nomina_id),
+        nombre: String(row.nombre),
+        fecha_pago: toDate(row.fecha_pago),
+        total_usd: totalUsd,
+      });
+    }
+  } catch { /* skip if table missing */ }
 
   // ── KPI: pagado este mes ───────────────────────────────────────────────────
   let gastosPagadoUsd = 0;
