@@ -669,10 +669,68 @@ const TIPO_NOMINA_BADGE_COLOR: Record<TipoNomina, string> = {
   SOLO_SUELDO: "#15803d",
 };
 
+type EmpleadoAsignacion = { id: number; nombre: string; cedula: string | null; salarioBaseUsd: number; asignado: boolean };
+
 function NominaCard({ nomina, tiposIncidencia, onChange, onEdit }: { nomina: Nomina; tiposIncidencia: TipoIncidencia[]; onChange: () => void; onEdit: (n: Nomina) => void }) {
   const [expandido, setExpandido] = useState(false);
   const [row, setRow] = useState<IncidenciaConfigRow>({ ...EMPTY_INCIDENCIA_ROW });
   const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
+
+  // Panel empleados
+  const [panelEmpleados, setPanelEmpleados] = useState(false);
+  const [empleados, setEmpleados] = useState<EmpleadoAsignacion[]>([]);
+  const [loadingEmp, setLoadingEmp] = useState(false);
+  const [savingEmp, setSavingEmp] = useState(false);
+  const [seleccion, setSeleccion] = useState<Set<number>>(new Set());
+
+  async function abrirPanelEmpleados() {
+    setPanelEmpleados(true);
+    setLoadingEmp(true);
+    try {
+      const res = await fetch(`/api/nominas/${nomina.id}/empleados`);
+      if (res.ok) {
+        const data: EmpleadoAsignacion[] = await res.json();
+        setEmpleados(data);
+        setSeleccion(new Set(data.filter((e) => e.asignado).map((e) => e.id)));
+      }
+    } finally {
+      setLoadingEmp(false);
+    }
+  }
+
+  function toggleEmp(id: number) {
+    setSeleccion((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  }
+
+  function seleccionarTodos() {
+    setSeleccion(new Set(empleados.map((e) => e.id)));
+  }
+
+  function deseleccionarTodos() {
+    setSeleccion(new Set());
+  }
+
+  async function guardarEmpleados() {
+    setSavingEmp(true);
+    try {
+      const res = await fetch(`/api/nominas/${nomina.id}/empleados`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ empleadoIds: Array.from(seleccion) }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error ?? "Error al guardar");
+        return;
+      }
+      setPanelEmpleados(false);
+      onChange();
+    } catch {
+      alert("Error de red al guardar");
+    } finally {
+      setSavingEmp(false);
+    }
+  }
 
   function recalcularBs(montoUsd: string, tasa: string) {
     const usd = Number(montoUsd) || 0;
@@ -774,9 +832,71 @@ function NominaCard({ nomina, tiposIncidencia, onChange, onEdit }: { nomina: Nom
         <div className="p-3 flex flex-col gap-3">
           <div className="flex justify-end gap-2 flex-wrap">
             <button type="button" onClick={() => onEdit(nomina)} className="text-xs font-medium" style={{ color: "var(--erp-primary)" }}>Editar Nómina</button>
+            <button type="button" onClick={abrirPanelEmpleados} className="text-xs font-medium" style={{ color: "#7C3AED" }}>👥 Gestionar Empleados</button>
             <GenerarPeriodoForm nomina={nomina} onCreated={onChange} />
             <button type="button" onClick={handleDesactivar} className="text-xs text-red-600">Desactivar Nómina</button>
           </div>
+
+          {panelEmpleados && (
+            <div className="rounded-lg border flex flex-col gap-3 p-3" style={{ borderColor: "#7C3AED", background: "var(--erp-surface)" }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>👥 Empleados en esta nómina</span>
+                <button type="button" onClick={() => setPanelEmpleados(false)} className="text-xs" style={{ color: "var(--erp-text-2)" }}>✕ Cerrar</button>
+              </div>
+
+              {loadingEmp ? (
+                <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>Cargando empleados…</p>
+              ) : (
+                <>
+                  <div className="flex gap-2 flex-wrap">
+                    <button type="button" onClick={seleccionarTodos} className="rounded px-2 py-1 text-xs border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
+                      Seleccionar todos ({empleados.length})
+                    </button>
+                    <button type="button" onClick={deseleccionarTodos} className="rounded px-2 py-1 text-xs border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
+                      Quitar todos
+                    </button>
+                    <span className="text-xs ml-auto" style={{ color: "#7C3AED", fontWeight: 600 }}>
+                      {seleccion.size} seleccionado(s)
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+                    {empleados.length === 0 && (
+                      <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>No hay empleados activos registrados.</p>
+                    )}
+                    {empleados.map((emp) => (
+                      <label key={emp.id} className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:opacity-80" style={{ background: seleccion.has(emp.id) ? "#f3e8ff" : "var(--erp-bg)" }}>
+                        <input
+                          type="checkbox"
+                          checked={seleccion.has(emp.id)}
+                          onChange={() => toggleEmp(emp.id)}
+                          className="rounded"
+                        />
+                        <span className="text-sm flex-1" style={{ color: "var(--erp-text)" }}>{emp.nombre}</span>
+                        {emp.cedula && <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>{emp.cedula}</span>}
+                        <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>${emp.salarioBaseUsd.toFixed(2)}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setPanelEmpleados(false)} className="rounded-lg px-3 py-1.5 text-xs border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={guardarEmpleados}
+                      disabled={savingEmp}
+                      className="rounded-lg px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                      style={{ background: "#7C3AED" }}
+                    >
+                      {savingEmp ? "Guardando…" : "Guardar asignaciones"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {nomina.tipo !== "SOLO_SUELDO" && (
             <div className="rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)" }}>
