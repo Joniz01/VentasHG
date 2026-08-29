@@ -54,12 +54,12 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    // Eliminar incidencias → pagos → período en orden para instancias sin CASCADE
+    // Eliminar incidencias → pagos → período en orden (nomina_pago_id es la FK real)
     await client.query(
-      `DELETE FROM nomina_incidencias WHERE pago_id IN (SELECT id FROM nomina_pagos WHERE periodo_id = $1)`,
+      `DELETE FROM nomina_incidencias WHERE nomina_pago_id IN (SELECT id FROM nomina_pagos WHERE periodo_id = $1)`,
       [id]
-    ).catch(() => {});
-    await client.query(`DELETE FROM nomina_pagos WHERE periodo_id = $1`, [id]).catch(() => {});
+    );
+    await client.query(`DELETE FROM nomina_pagos WHERE periodo_id = $1`, [id]);
     const result = await client.query(`DELETE FROM periodos_nomina WHERE id = $1`, [id]);
     await client.query("COMMIT");
 
@@ -67,9 +67,10 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Período no encontrado" }, { status: 404 });
     }
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
     await client.query("ROLLBACK");
-    return NextResponse.json({ error: "Error al eliminar el período" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Error al eliminar: ${msg}` }, { status: 500 });
   } finally {
     client.release();
   }
