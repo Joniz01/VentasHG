@@ -292,7 +292,14 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
         cedula: d.cedula ? `${d.nacionalidad ?? "V"}-${d.cedula}` : p.cedula,
         fechaNacimiento: d.fechaNacimiento ?? p.fechaNacimiento,
         sexo: d.sexo === "M" ? "MASCULINO" : d.sexo === "F" ? "FEMENINO" : d.sexo ? (d.sexo as Sexo) : p.sexo,
-        estadoCivil: d.estadoCivil ?? p.estadoCivil,
+        estadoCivil: (() => {
+          const ec = (d.estadoCivil ?? "").toUpperCase().trim();
+          if (ec.startsWith("CAS")) return "CASADO";
+          if (ec.startsWith("DIV")) return "DIVORCIADO";
+          if (ec.startsWith("VIU")) return "VIUDO";
+          if (ec.startsWith("SOL")) return "SOLTERO";
+          return ec || p.estadoCivil;
+        })(),
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al escanear el documento");
