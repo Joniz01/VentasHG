@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import CargosConfigClient from "@/components/CargosConfigClient";
 import {
   ESTADOS_NOMINA_PAGO,
   ESTADO_NOMINA_PAGO_LABELS,
@@ -1693,11 +1694,10 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRe
 
 /* ───────────────────────── Componente principal ───────────────────────── */
 
-type SeccionPrincipal = "config" | "pagos" | null;
+type SeccionPrincipal = "pagos" | "nominas" | "periodos" | "empleados" | "parametros" | null;
 
 export default function NominaClient() {
   const [seccion, setSeccion] = useState<SeccionPrincipal>(null);
-  const [subTab, setSubTab] = useState<"nominas" | "periodos" | "empleados">("nominas");
   const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null, fechaPago: null } });
   const [nominas, setNominas] = useState<Nomina[]>([]);
 
@@ -1716,6 +1716,8 @@ export default function NominaClient() {
     loadResumen();
     loadNominasParaEmpleados();
   }, []);
+
+  function volver() { setSeccion(null); loadResumen(); }
 
   // ── Indicadores KPI ──────────────────────────────────────────────────────
   const kpi = (
@@ -1743,54 +1745,11 @@ export default function NominaClient() {
     </div>
   );
 
-  // ── Pantalla principal: dos cards ────────────────────────────────────────
-  if (!seccion) {
-    return (
-      <div className="flex flex-col gap-4">
-        {kpi}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Card Gestión de Pagos — primero */}
-          <button
-            type="button"
-            onClick={() => setSeccion("pagos")}
-            className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
-            style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
-          >
-            <span className="text-2xl">💳</span>
-            <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Gestión de Pagos</span>
-            <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-              Nóminas pendientes por pagar, pago total o parcial por empleado
-            </span>
-            {(resumen.nominaPendiente ?? 0) > 0 && (
-              <span className="mt-1 text-sm font-bold" style={{ color: "#a16207" }}>
-                ${resumen.nominaPendiente.toFixed(2)} pendiente
-              </span>
-            )}
-          </button>
-
-          {/* Card Configuración */}
-          <button
-            type="button"
-            onClick={() => setSeccion("config")}
-            className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
-            style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
-          >
-            <span className="text-2xl">⚙️</span>
-            <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>Configuración de Nóminas</span>
-            <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-              Nóminas maestro, períodos generados, empleados y asignaciones
-            </span>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // ── Botón Volver ─────────────────────────────────────────────────────────
   const volverBtn = (
     <button
       type="button"
-      onClick={() => { setSeccion(null); loadResumen(); }}
+      onClick={volver}
       className="self-start flex items-center gap-1 text-sm rounded-lg px-3 py-1.5 border"
       style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
     >
@@ -1798,27 +1757,107 @@ export default function NominaClient() {
     </button>
   );
 
-  // ── Sección Configuración ────────────────────────────────────────────────
-  if (seccion === "config") {
+  // ── Pantalla principal: 5 cards ──────────────────────────────────────────
+  if (!seccion) {
+    const cards: { key: SeccionPrincipal; icon: string; label: string; desc: string; badge?: string }[] = [
+      {
+        key: "pagos",
+        icon: "💳",
+        label: "Gestión de Pagos",
+        desc: "Nóminas pendientes por pagar, pago total o parcial por empleado",
+        badge: (resumen.nominaPendiente ?? 0) > 0 ? `$${resumen.nominaPendiente.toFixed(2)} pendiente` : undefined,
+      },
+      {
+        key: "nominas",
+        icon: "📋",
+        label: "Nóminas",
+        desc: "Nóminas maestro, tipos de incidencia y generación de períodos",
+      },
+      {
+        key: "periodos",
+        icon: "📅",
+        label: "Períodos",
+        desc: "Períodos generados, pagos por empleado e incidencias ad-hoc",
+      },
+      {
+        key: "empleados",
+        icon: "👷",
+        label: "Empleados",
+        desc: "Registro de empleados, salarios, cargos y asignación a nóminas",
+      },
+      {
+        key: "parametros",
+        icon: "⚙️",
+        label: "Configuración y Parámetros",
+        desc: "Cargos y posiciones de empleados",
+      },
+    ];
+
     return (
       <div className="flex flex-col gap-4">
-        {volverBtn}
-        <div className="flex gap-2 flex-wrap">
-          {(["nominas", "periodos", "empleados"] as const).map((t) => (
+        {kpi}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {cards.map((c) => (
             <button
-              key={t}
+              key={c.key}
               type="button"
-              onClick={() => { setSubTab(t); if (t === "empleados") loadNominasParaEmpleados(); }}
-              className="rounded-lg px-4 py-2 text-sm font-semibold"
-              style={subTab === t ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
+              onClick={() => { if (c.key === "empleados") loadNominasParaEmpleados(); setSeccion(c.key); }}
+              className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
+              style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
             >
-              {t === "nominas" ? "Nóminas" : t === "periodos" ? "Períodos" : "Empleados"}
+              <span className="text-2xl">{c.icon}</span>
+              <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>{c.label}</span>
+              <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>{c.desc}</span>
+              {c.badge && (
+                <span className="mt-1 text-sm font-bold" style={{ color: "#a16207" }}>{c.badge}</span>
+              )}
             </button>
           ))}
         </div>
-        {subTab === "nominas" && <NominasTab />}
-        {subTab === "periodos" && <PeriodosTab />}
-        {subTab === "empleados" && <EmpleadosTab nominas={nominas} />}
+      </div>
+    );
+  }
+
+  // ── Sección Nóminas ──────────────────────────────────────────────────────
+  if (seccion === "nominas") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>📋 Nóminas</h2>
+        <NominasTab />
+      </div>
+    );
+  }
+
+  // ── Sección Períodos ─────────────────────────────────────────────────────
+  if (seccion === "periodos") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>📅 Períodos</h2>
+        <PeriodosTab />
+      </div>
+    );
+  }
+
+  // ── Sección Empleados ────────────────────────────────────────────────────
+  if (seccion === "empleados") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>👷 Empleados</h2>
+        <EmpleadosTab nominas={nominas} />
+      </div>
+    );
+  }
+
+  // ── Sección Configuración y Parámetros ───────────────────────────────────
+  if (seccion === "parametros") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>⚙️ Configuración y Parámetros</h2>
+        <CargosConfigClient />
       </div>
     );
   }
@@ -1831,7 +1870,7 @@ export default function NominaClient() {
       <GestionPagosTab
         onRefreshResumen={loadResumen}
         proximaSemana={resumen.proximaSemana ?? undefined}
-        onIrConfig={() => { setSeccion("config"); setSubTab("nominas"); }}
+        onIrConfig={() => setSeccion("nominas")}
       />
     </div>
   );
