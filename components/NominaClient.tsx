@@ -1231,7 +1231,12 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
 
   async function handleEliminarPeriodo() {
     if (!confirm("¿Eliminar este período de nómina? Se perderán los pagos e incidencias asociados.")) return;
-    await fetch(`/api/nomina/periodos/${periodo.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/nomina/periodos/${periodo.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "No se pudo eliminar el período");
+      return;
+    }
     onChange();
   }
 
@@ -1260,7 +1265,15 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
             ) : (
               <button type="button" onClick={() => handleCerrarPeriodo("ABIERTO")} className="text-xs rounded-md border px-2 py-1" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>Reabrir período</button>
             )}
-            <button type="button" onClick={handleEliminarPeriodo} className="text-xs text-red-600">Eliminar período</button>
+            <button
+              type="button"
+              onClick={handleEliminarPeriodo}
+              disabled={periodo.pagos.some((p) => p.estado === "PAGADO")}
+              title={periodo.pagos.some((p) => p.estado === "PAGADO") ? "No se puede eliminar: hay pagos ya realizados" : "Eliminar período"}
+              className="text-xs text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Eliminar período
+            </button>
           </div>
 
           {periodo.pagos.length === 0 ? (

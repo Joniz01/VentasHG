@@ -37,11 +37,40 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   }
 
   const { id } = await params;
-  const result = await pool.query(`DELETE FROM periodos_nomina WHERE id = $1`, [id]);
 
-  if (result.rowCount === 0) {
-    return NextResponse.json({ error: "Período no encontrado" }, { status: 404 });
+  // Bloquear eliminación si ya hay pagos marcados como PAGADO
+  const pagadosResult = await pool.query(
+    `SELECT COUNT(*) AS total FROM nomina_pagos WHERE periodo_id = $1 AND estado = 'PAGADO'`,
+    [id]
+  ).catch(() => ({ rows: [{ total: "0" }] }));
+
+  if (Number(pagadosResult.rows[0]?.total) > 0) {
+    return NextResponse.json(
+      { error: "No se puede eliminar: el período tiene pagos ya marcados como PAGADO" },
+      { status: 400 }
+    );
   }
 
-  return NextResponse.json({ ok: true });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Eliminar incidencias → pagos → período en orden para instancias sin CASCADE
+    await client.query(
+      `DELETE FROM nomina_incidencias WHERE pago_id IN (SELECT id FROM nomina_pagos WHERE periodo_id = $1)`,
+      [id]
+    ).catch(() => {});
+    await client.query(`DELETE FROM nomina_pagos WHERE periodo_id = $1`, [id]).catch(() => {});
+    const result = await client.query(`DELETE FROM periodos_nomina WHERE id = $1`, [id]);
+    await client.query("COMMIT");
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: "Período no encontrado" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch {
+    await client.query("ROLLBACK");
+    return NextResponse.json({ error: "Error al eliminar el período" }, { status: 500 });
+  } finally {
+    client.release();
+  }
 }
