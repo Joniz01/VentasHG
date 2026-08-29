@@ -1418,7 +1418,8 @@ function StatTile({ label, value, color, prefix = "$" }: { label: string; value:
 
 /* ───────────────────────── Gestión de Pagos ───────────────────────── */
 
-type ProximaSemanaInfo = { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null; fechaPago: string | null };
+type NominaPendienteInfo = { nominaId: number; nominaNombre: string; totalUsdEstimado: number; lunes: string | null; domingo: string | null; fechaHasta: string | null };
+type ProximaSemanaInfo = { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null; fechaPago: string | null; nominasPendientes?: NominaPendienteInfo[] };
 
 type FiltroGestion = "todas" | "por_pagar" | "parcial" | "pagadas";
 type PanelState = { open: boolean; modo: "total" | "parcial"; seleccion: Set<number> };
@@ -1517,46 +1518,90 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRe
   if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
 
   // Card próxima semana
-  const proximaCard = proximaSemana && proximaSemana.periodos > 0 ? (() => {
-    const fechaPagoLabel = proximaSemana.fechaPago
-      ? (() => { const d = new Date(proximaSemana.fechaPago + "T00:00:00"); return `${DIAS_ES[d.getDay()]} ${formatFechaCorta(proximaSemana.fechaPago!)}`; })()
-      : null;
-    return (
-      <div className="rounded-xl border p-4 flex flex-col gap-2" style={{ background: "var(--erp-surface)", borderColor: "#1d4ed8" }}>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>📅 Próximas nóminas a pagar</span>
-          <div className="text-right">
-            <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${proximaSemana.totalUsd.toFixed(2)}</div>
-            <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>{proximaSemana.periodos} período(s) estimado(s)</div>
+  const [generando, setGenerando] = useState<number | null>(null);
+
+  async function generarPeriodo(np: NominaPendienteInfo) {
+    if (!np.lunes || !np.fechaHasta) return;
+    setGenerando(np.nominaId);
+    try {
+      const res = await fetch("/api/nomina/periodos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nominaId: np.nominaId, fechaDesde: np.lunes, fechaHasta: np.fechaHasta }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error ?? "Error al generar el período");
+        return;
+      }
+      await load();
+      onRefreshResumen();
+    } catch {
+      alert("Error de red al generar el período");
+    } finally {
+      setGenerando(null);
+    }
+  }
+
+  const pendientes = proximaSemana?.nominasPendientes ?? [];
+  const tieneProxima = proximaSemana && (proximaSemana.periodos > 0 || pendientes.length > 0);
+  const proximaCard = tieneProxima ? (
+    <div className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "#1d4ed8" }}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>📅 Próximas nóminas a pagar</span>
+        <div className="text-right">
+          <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${(proximaSemana!.totalUsd + pendientes.reduce((s, n) => s + n.totalUsdEstimado, 0)).toFixed(2)}</div>
+          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+            {proximaSemana!.lunes && proximaSemana!.domingo ? `Semana: ${formatFechaCorta(proximaSemana!.lunes)} – ${formatFechaCorta(proximaSemana!.domingo)}` : "Próxima semana"}
           </div>
-        </div>
-        {fechaPagoLabel && (
-          <div className="rounded-lg px-3 py-2 flex items-center gap-2" style={{ background: "#eff6ff" }}>
-            <span className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>Vence:</span>
-            <span className="text-sm font-bold" style={{ color: "#1d4ed8" }}>{fechaPagoLabel}</span>
-          </div>
-        )}
-        {proximaSemana.lunes && proximaSemana.domingo && (
-          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>Semana: {formatFechaCorta(proximaSemana.lunes)} – {formatFechaCorta(proximaSemana.domingo)}</div>
-        )}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
-            Genera el período desde Configuración para poder procesarlo aquí.
-          </p>
-          {onIrConfig && (
-            <button
-              type="button"
-              onClick={onIrConfig}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white flex-shrink-0"
-              style={{ background: "#1d4ed8" }}
-            >
-              + Generar Período →
-            </button>
-          )}
         </div>
       </div>
-    );
-  })() : null;
+
+      {/* Períodos ya generados (pendientes) */}
+      {proximaSemana!.periodos > 0 && (
+        <div className="rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap" style={{ background: "#eff6ff" }}>
+          <div>
+            <span className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>{proximaSemana!.periodos} período(s) generado(s)</span>
+            {proximaSemana!.fechaPago && (
+              <span className="ml-2 text-xs" style={{ color: "#1d4ed8" }}>
+                · Vence: {(() => { const d = new Date(proximaSemana!.fechaPago! + "T00:00:00"); return `${DIAS_ES[d.getDay()]} ${formatFechaCorta(proximaSemana!.fechaPago!)}`; })()}
+              </span>
+            )}
+          </div>
+          <span className="text-xs font-bold" style={{ color: "#1d4ed8" }}>${proximaSemana!.totalUsd.toFixed(2)}</span>
+        </div>
+      )}
+
+      {/* Nóminas pendientes de generar */}
+      {pendientes.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Por generar:</span>
+          {pendientes.map((np) => (
+            <div key={np.nominaId} className="rounded-lg border px-3 py-2 flex items-center justify-between gap-2 flex-wrap" style={{ borderColor: "var(--erp-border)", background: "var(--erp-bg)" }}>
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold" style={{ color: "var(--erp-text)" }}>{np.nominaNombre}</span>
+                {np.fechaHasta && (
+                  <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>Hasta: {formatFechaCorta(np.fechaHasta)}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold" style={{ color: "var(--erp-text)" }}>~${np.totalUsdEstimado.toFixed(2)}</span>
+                <button
+                  type="button"
+                  disabled={generando === np.nominaId}
+                  onClick={() => generarPeriodo(np)}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white flex-shrink-0 disabled:opacity-60"
+                  style={{ background: "#1d4ed8" }}
+                >
+                  {generando === np.nominaId ? "Generando…" : "+ Generar"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
 
   // Filtrar
   const periodosFiltrados = periodos.filter((p) => filtro === "todas" || estadoPeriodo(p) === filtro);

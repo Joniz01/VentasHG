@@ -838,7 +838,21 @@ export type NominaResumen = {
   empleadosActivos: number;
   nominaPendiente: number;
   nominaPagadaMes: number;
-  proximaSemana?: { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null; fechaPago: string | null };
+  proximaSemana?: {
+    periodos: number;
+    totalUsd: number;
+    lunes: string | null;
+    domingo: string | null;
+    fechaPago: string | null;
+    nominasPendientes: Array<{
+      nominaId: number;
+      nominaNombre: string;
+      totalUsdEstimado: number;
+      lunes: string | null;
+      domingo: string | null;
+      fechaHasta: string | null;
+    }>;
+  };
 };
 
 export type NominaPago = {

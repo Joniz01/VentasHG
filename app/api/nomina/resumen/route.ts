@@ -118,6 +118,37 @@ export async function GET(request: NextRequest) {
        FROM periodos_gen pg, nominas_auto na`
     );
 
+    // Nóminas individuales pendientes de generar para próxima semana
+    const nominasPendientesResult = await pool.query(
+      `WITH semana AS (
+         SELECT
+           (date_trunc('week', ${HOY} + INTERVAL '7 days'))::date AS lunes,
+           (date_trunc('week', ${HOY} + INTERVAL '7 days') + INTERVAL '6 days')::date AS domingo
+       )
+       SELECT
+         n.id,
+         n.nombre,
+         COALESCE(SUM(e.salario_base_usd), 0) AS total_usd_estimado,
+         semana.lunes,
+         semana.domingo,
+         (semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date AS fecha_hasta
+       FROM semana, nominas n
+       JOIN empleado_nominas en ON en.nomina_id = n.id
+       JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
+       WHERE n.activo = TRUE
+         AND n.modo_generacion = 'AUTOMATICO'
+         AND n.frecuencia = 'SEMANAL'
+         AND n.dia_semana IS NOT NULL
+         AND (semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date
+             BETWEEN semana.lunes AND semana.domingo
+         AND NOT EXISTS (
+           SELECT 1 FROM periodos_nomina pn2
+           WHERE pn2.nomina_id = n.id
+             AND pn2.fecha_hasta BETWEEN semana.lunes AND semana.domingo
+         )
+       GROUP BY n.id, n.nombre, n.dia_semana, semana.lunes, semana.domingo`
+    ).catch(() => ({ rows: [] }));
+
     const ps = proximaSemanaResult.rows[0];
     const toDate = (v: unknown) => v ? (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10)) : null;
 
@@ -131,6 +162,14 @@ export async function GET(request: NextRequest) {
         lunes: toDate(ps?.lunes),
         domingo: toDate(ps?.domingo),
         fechaPago: toDate(ps?.fecha_pago),
+        nominasPendientes: nominasPendientesResult.rows.map((r) => ({
+          nominaId: Number(r.id),
+          nominaNombre: String(r.nombre),
+          totalUsdEstimado: Number(r.total_usd_estimado),
+          lunes: toDate(r.lunes),
+          domingo: toDate(r.domingo),
+          fechaHasta: toDate(r.fecha_hasta),
+        })),
       },
     });
   } catch {
