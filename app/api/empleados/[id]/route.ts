@@ -29,8 +29,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
         `UPDATE empleados
          SET nombre = $1, apellido = $2, cedula = $3, fecha_nacimiento = $4, sexo = $5, cargo = $6, cargo_id = $7, locacion_id = $8,
              salario_base_usd = $9, salario_base_bs = $10, tasa_registro = $11,
-             fecha_ingreso = $12, activo = $13
-         WHERE id = $14
+             fecha_ingreso = $12, activo = $13, estado_civil = $14
+         WHERE id = $15
          RETURNING id`,
         [
           body.nombre.trim(),
@@ -46,6 +46,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
           Number(body.tasaRegistro) || 0,
           body.fechaIngreso || null,
           body.activo ?? true,
+          body.estadoCivil || null,
           id,
         ]
       );

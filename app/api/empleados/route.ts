@@ -27,6 +27,7 @@ function mapEmpleado(r: Record<string, unknown>, nominasRows: Record<string, unk
       ? (r.fecha_ingreso instanceof Date ? r.fecha_ingreso.toISOString().slice(0, 10) : String(r.fecha_ingreso).slice(0, 10))
       : null,
     activo: r.activo,
+    estadoCivil: r.estado_civil ?? null,
     createdAt: r.created_at,
   };
 }
@@ -84,8 +85,8 @@ export async function POST(request: NextRequest) {
       result = await client.query(
         `INSERT INTO empleados
           (nombre, apellido, cedula, fecha_nacimiento, sexo, cargo, cargo_id, locacion_id,
-           salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+           salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo, estado_civil)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
         [
           body.nombre.trim(),
           body.apellido?.trim() || null,
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
           Number(body.tasaRegistro) || 0,
           body.fechaIngreso || null,
           body.activo ?? true,
+          body.estadoCivil || null,
         ]
       );
     } catch {

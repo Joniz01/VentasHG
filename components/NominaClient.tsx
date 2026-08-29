@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import CargosConfigClient from "@/components/CargosConfigClient";
 import {
   ESTADOS_NOMINA_PAGO,
@@ -82,6 +82,7 @@ type EmpleadoForm = {
   salarioBaseBsDisplay: string;
   fechaIngreso: string;
   activo: boolean;
+  estadoCivil: string;
 };
 
 const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
@@ -100,6 +101,7 @@ const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   salarioBaseBsDisplay: "",
   fechaIngreso: today(),
   activo: true,
+  estadoCivil: "SOLTERO",
 };
 
 function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
@@ -113,6 +115,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<EmpleadoForm>({ ...EMPTY_EMPLEADO_FORM });
   const [consultandoTasa, setConsultandoTasa] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function recalcularBs(salarioBaseUsd: string, tasaRegistro: string): { raw: string; display: string } {
     const usd = Number(salarioBaseUsd) || 0;
@@ -203,6 +207,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       salarioBaseBsDisplay: formatBs(bsRaw),
       fechaIngreso: e.fechaIngreso ?? today(),
       activo: e.activo,
+      estadoCivil: e.estadoCivil ?? "SOLTERO",
     });
     setShowForm(true);
   }
@@ -239,6 +244,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
         tasaRegistro: Number(form.tasaRegistro) || 0,
         fechaIngreso: form.fechaIngreso,
         activo: form.activo,
+        estadoCivil: form.estadoCivil || null,
       };
       const res = await fetch(editingId ? `/api/empleados/${editingId}` : "/api/empleados", {
         method: editingId ? "PUT" : "POST",
@@ -262,6 +268,39 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     if (res.ok) await loadEmpleados();
   }
 
+  async function handleOcrCedula(file: File) {
+    setOcrLoading(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/nomina/ocr-cedula", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagenBase64: base64, mimeType: file.type || "image/jpeg" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Error en OCR");
+      const d = data.data;
+      setForm((p) => ({
+        ...p,
+        nombre: d.nombres ? toTitleCase(d.nombres) : p.nombre,
+        apellido: d.apellidos ? toTitleCase(d.apellidos) : p.apellido,
+        cedula: d.cedula ? `${d.nacionalidad ?? "V"}-${d.cedula}` : p.cedula,
+        fechaNacimiento: d.fechaNacimiento ?? p.fechaNacimiento,
+        sexo: d.sexo === "M" ? "MASCULINO" : d.sexo === "F" ? "FEMENINO" : d.sexo ? (d.sexo as Sexo) : p.sexo,
+        estadoCivil: d.estadoCivil ?? p.estadoCivil,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al escanear el documento");
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
@@ -279,6 +318,25 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+          <div className="flex justify-end">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleOcrCedula(f); e.target.value = ""; }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={ocrLoading}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium border disabled:opacity-50"
+              style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
+            >
+              {ocrLoading ? "Escaneando…" : "📷 Escanear Cédula"}
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre</label>
@@ -302,7 +360,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>C.I.</label>
               <input
@@ -336,6 +394,15 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.sexo} onChange={(e) => setForm((p) => ({ ...p, sexo: e.target.value as Sexo | "" }))}>
                 <option value="">—</option>
                 {SEXOS.map((s) => <option key={s} value={s}>{SEXO_LABELS[s]}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Estado Civil</label>
+              <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.estadoCivil} onChange={(e) => setForm((p) => ({ ...p, estadoCivil: e.target.value }))}>
+                <option value="SOLTERO">Soltero/a</option>
+                <option value="CASADO">Casado/a</option>
+                <option value="DIVORCIADO">Divorciado/a</option>
+                <option value="VIUDO">Viudo/a</option>
               </select>
             </div>
           </div>

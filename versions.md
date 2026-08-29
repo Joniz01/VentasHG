@@ -2,6 +2,64 @@
 
 ---
 
+## v7.0 — OCR Cédula + Estado Civil en Empleados
+
+**Fecha:** 2026-08-29 | **Commits:** en curso
+
+---
+
+### 1. Escanear Cédula (OCR) en formulario de Empleados
+
+**Archivos creados:**
+- `app/api/nomina/ocr-cedula/route.ts`
+
+**Archivos modificados:**
+- `lib/types.ts`
+- `app/api/empleados/route.ts`
+- `app/api/empleados/[id]/route.ts`
+- `components/NominaClient.tsx`
+
+**Descripción:**
+Botón "📷 Escanear Cédula" en el formulario de registro/edición de empleados.
+Al pulsarlo, abre el selector de archivo (cámara en móvil, galería en escritorio).
+La imagen se envía al endpoint `/api/nomina/ocr-cedula` que usa Gemini (primario)
+o Groq (fallback) para extraer: nombres, apellidos, cédula (formateada como `V-12345678`),
+fecha de nacimiento (YYYY-MM-DD), sexo y estado civil.
+Los campos del formulario se rellenan automáticamente con los datos extraídos.
+
+**Prompt OCR:**
+Específico para Cédula de Identidad venezolana (campo EDO CIVIL, prefijo V/E,
+formato DD/MM/AAAA → YYYY-MM-DD, sin markdown, solo JSON).
+
+**Cambios en base de datos:**
+```sql
+ALTER TABLE empleados ADD COLUMN IF NOT EXISTS estado_civil TEXT;
+```
+
+---
+
+### 2. Campo Estado Civil en Empleados
+
+**Descripción:**
+Se agrega el campo Estado Civil al formulario de empleados con las opciones:
+SOLTERO (default), CASADO, DIVORCIADO, VIUDO.
+El campo se persiste en `empleados.estado_civil` y se incluye en INSERT/UPDATE.
+El SAVEPOINT fallback (para instancias sin la columna) sigue funcionando;
+el valor simplemente no se guarda hasta que se aplique la migración.
+
+**Cambios en base de datos:** ver migración arriba.
+
+---
+
+## Migraciones SQL — v7.0
+
+```sql
+-- MIGRACIÓN v2026-08-29 — VentasHG
+ALTER TABLE empleados ADD COLUMN IF NOT EXISTS estado_civil TEXT;
+```
+
+---
+
 ## v6.0 — Bandeja Variada en Cortesías + Empaque en Raciones
 
 **Fecha:** 2026-08-28 | **Commits:** `3006376` → `c34d1dd`

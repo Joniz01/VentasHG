@@ -696,6 +696,7 @@ export type Empleado = {
   tasaRegistro: number;
   fechaIngreso: string | null;
   activo: boolean;
+  estadoCivil: string | null;
   createdAt: string;
 };
 
@@ -714,6 +715,7 @@ export type EmpleadoInput = {
   tasaRegistro: number;
   fechaIngreso: string;
   activo: boolean;
+  estadoCivil?: string | null;
 };
 
 export type TipoIncidencia = {
