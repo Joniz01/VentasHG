@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,10 @@ type ObligacionItem = {
   montoUsd: number;
   estado: ItemEstado;
   referencia: string | null;
+  estimado?: boolean;
 };
+
+type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes";
 
 type Semana = { lunes: string; domingo: string; totalUsd: number; tipos: string[] };
 
@@ -64,26 +68,33 @@ const TIPO_COLOR: Record<ItemTipo, { text: string; bg: string; label: string }> 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function KpiCard({
-  label, valueUsd, color, subLabel,
+  label, valueUsd, color, subLabel, onClick, active,
 }: {
   label: string;
   valueUsd: number;
   color: string;
   subLabel?: string;
+  onClick?: () => void;
+  active?: boolean;
 }) {
   return (
     <div
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
       style={{
         flex: "1 1 180px",
         padding: "16px 20px",
         borderRadius: 12,
-        background: "var(--erp-surface)",
-        border: "1px solid var(--erp-border)",
+        background: active ? `${color}12` : "var(--erp-surface)",
+        border: `${active ? 2 : 1}px solid ${active ? color : "var(--erp-border)"}`,
         borderTop: `3px solid ${color}`,
+        cursor: onClick ? "pointer" : "default",
+        transition: "all 0.15s",
+        outline: "none",
       }}
     >
-      <p style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-        {label}
+      <p style={{ fontSize: 11, fontWeight: 600, color: active ? color : "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+        {label} {active && "↓"}
       </p>
       <p style={{ fontSize: 22, fontWeight: 800, color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
         ${USD(valueUsd)}
@@ -93,6 +104,13 @@ function KpiCard({
       )}
     </div>
   );
+}
+
+function sourceUrl(item: ObligacionItem): string | null {
+  if (item.id.startsWith("G")) return "/gastos";
+  if (item.id.startsWith("NE")) return "/nomina"; // estimated → config nomina
+  if (item.id.startsWith("N")) return "/nomina";  // period → gestión pagos
+  return null;
 }
 
 function TipoPill({ tipo }: { tipo: ItemTipo }) {
@@ -141,10 +159,12 @@ function EstadoPill({ estado }: { estado: ItemEstado }) {
 type FiltroEstado = "todos" | ItemEstado;
 
 export default function TesoreriaClient() {
+  const router = useRouter();
   const [data, setData] = useState<PlanificacionData | null>(null);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState<FiltroEstado>("todos");
   const [pagando, setPagando] = useState<string | null>(null);
+  const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -185,15 +205,36 @@ export default function TesoreriaClient() {
 
   const { kpis, items, semanas, lunes: semLunes, domingo, lunesProx, domingoProx } = data;
 
-  // Filter + counts
+  // Drill-down filter
+  const drillItems: ObligacionItem[] | null = (() => {
+    if (!drillKey) return null;
+    if (drillKey === "vencido") return items.filter((i) => i.estado === "vencido");
+    if (drillKey === "esta_semana") return items.filter((i) => i.estado === "pendiente");
+    if (drillKey === "proxima_semana") return items.filter((i) => i.fechaVencimiento >= lunesProx && i.fechaVencimiento <= domingoProx);
+    if (drillKey === "prox_4sem") return items.filter((i) => i.estado !== "vencido" && i.estado !== "pagado");
+    if (drillKey === "pagado_mes") return items.filter((i) => i.estado === "pagado");
+    return null;
+  })();
+
+  const displayItems = drillItems ?? items;
+
+  // Filter + counts (over displayItems)
   const counts: Record<FiltroEstado, number> = {
-    todos: items.length,
-    vencido: items.filter((i) => i.estado === "vencido").length,
-    pendiente: items.filter((i) => i.estado === "pendiente").length,
-    programado: items.filter((i) => i.estado === "programado").length,
+    todos: displayItems.length,
+    vencido: displayItems.filter((i) => i.estado === "vencido").length,
+    pendiente: displayItems.filter((i) => i.estado === "pendiente").length,
+    programado: displayItems.filter((i) => i.estado === "programado").length,
     pagado: 0,
   };
-  const filtrados = filtro === "todos" ? items : items.filter((i) => i.estado === filtro);
+  const filtrados = filtro === "todos" ? displayItems : displayItems.filter((i) => i.estado === filtro);
+
+  const DRILL_LABELS: Record<DrillKey, string> = {
+    proxima_semana: "Próxima Semana",
+    vencido: "Vencido",
+    esta_semana: "Esta Semana",
+    prox_4sem: "Próximas 4 Semanas",
+    pagado_mes: "Pagado · Mes",
+  };
 
   // Timeline scale
   const maxSem = Math.max(...semanas.map((s) => s.totalUsd), 1);
@@ -248,12 +289,27 @@ export default function TesoreriaClient() {
 
       {/* ── KPI Strip ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-        <KpiCard label="Próxima Semana" valueUsd={kpis.proximaSemanaUsd} color="#7C3AED" subLabel={`${fmtFecha(lunesProx)} – ${fmtFecha(domingoProx)}`} />
-        <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" />
-        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} />
-        <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" />
-        <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" />
+        <KpiCard label="Próxima Semana" valueUsd={kpis.proximaSemanaUsd} color="#7C3AED" subLabel={`${fmtFecha(lunesProx)} – ${fmtFecha(domingoProx)}`} active={drillKey === "proxima_semana"} onClick={() => setDrillKey(drillKey === "proxima_semana" ? null : "proxima_semana")} />
+        <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" active={drillKey === "vencido"}       onClick={() => setDrillKey(drillKey === "vencido" ? null : "vencido")} />
+        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} active={drillKey === "esta_semana"} onClick={() => setDrillKey(drillKey === "esta_semana" ? null : "esta_semana")} />
+        <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" active={drillKey === "prox_4sem"}     onClick={() => setDrillKey(drillKey === "prox_4sem" ? null : "prox_4sem")} />
+        <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" active={drillKey === "pagado_mes"}    onClick={() => setDrillKey(drillKey === "pagado_mes" ? null : "pagado_mes")} />
       </div>
+
+      {/* ── Drill breadcrumb ───────────────────────────────────────────── */}
+      {drillKey && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => setDrillKey(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--erp-primary)", fontWeight: 600, padding: 0 }}
+          >
+            ← Ver todos
+          </button>
+          <span style={{ fontSize: 13, color: "var(--erp-text-2)" }}>
+            Mostrando: <strong>{DRILL_LABELS[drillKey]}</strong> — {displayItems.length} ítem{displayItems.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
 
       {/* ── Cash Flow Timeline ─────────────────────────────────────────── */}
       <div
@@ -414,14 +470,17 @@ export default function TesoreriaClient() {
           filtrados.map((item, idx) => {
             const estadoC = ESTADO_COLOR[item.estado];
             const isLast = idx === filtrados.length - 1;
+            const url = sourceUrl(item);
             return (
               <div
                 key={item.id}
                 className="tsr-table-row"
+                onClick={url ? () => router.push(url) : undefined}
                 style={{
                   borderBottom: isLast ? "none" : "1px solid var(--erp-border)",
                   borderLeft: `3px solid ${estadoC.border}`,
                   background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
+                  cursor: url ? "pointer" : "default",
                 }}
               >
                 {/* Descripción */}
@@ -468,7 +527,7 @@ export default function TesoreriaClient() {
                 <div className="tsr-cell-btn">
                   {item.estado !== "pagado" ? (
                     <button
-                      onClick={() => marcarPagado(item.id)}
+                      onClick={(e) => { e.stopPropagation(); marcarPagado(item.id); }}
                       disabled={pagando === item.id}
                       style={{
                         padding: "6px 12px",
