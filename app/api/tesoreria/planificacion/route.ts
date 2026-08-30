@@ -39,7 +39,9 @@ type RawItem = {
   monto_bs: string;
   tasa_dia: string;
   referencia: string | null;
-  monto_usd?: string; // optional override when Bs/tasa conversion is unreliable
+  monto_usd?: string;
+  monto_original_bs?: string;
+  estado_raw?: string;
 };
 
 export async function GET(request: NextRequest) {
@@ -106,10 +108,12 @@ export async function GET(request: NextRequest) {
         g.fecha                                                                   AS fecha_vencimiento,
         g.monto_bs                                                                AS monto_bs,
         g.tasa_dia                                                                AS tasa_dia,
-        g.numero_factura                                                          AS referencia
+        g.numero_factura                                                          AS referencia,
+        g.monto_original_bs                                                       AS monto_original_bs,
+        g.estado                                                                  AS estado_raw
       FROM gastos g
       LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
-      WHERE g.estado = 'PENDIENTE'
+      WHERE g.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
         AND g.fecha BETWEEN $1 AND $2
       ORDER BY g.fecha ASC`,
       [desde, hasta]
@@ -126,10 +130,12 @@ export async function GET(request: NextRequest) {
           g.fecha                                                                 AS fecha_vencimiento,
           g.monto_bs                                                              AS monto_bs,
           g.tasa_dia                                                              AS tasa_dia,
-          NULL::text                                                              AS referencia
+          NULL::text                                                              AS referencia,
+          g.monto_original_bs                                                     AS monto_original_bs,
+          g.estado                                                                AS estado_raw
         FROM gastos g
         LEFT JOIN tipos_gasto tg ON tg.id = g.tipo_gasto_id
-        WHERE g.estado = 'PENDIENTE'
+        WHERE g.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
           AND g.fecha BETWEEN $1 AND $2
         ORDER BY g.fecha ASC`,
         [desde, hasta]
@@ -146,9 +152,11 @@ export async function GET(request: NextRequest) {
             g.fecha                                                               AS fecha_vencimiento,
             g.monto_bs                                                            AS monto_bs,
             g.tasa_dia                                                            AS tasa_dia,
-            NULL::text                                                            AS referencia
+            NULL::text                                                            AS referencia,
+            g.monto_original_bs                                                   AS monto_original_bs,
+            g.estado                                                              AS estado_raw
           FROM gastos g
-          WHERE g.estado = 'PENDIENTE'
+          WHERE g.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
             AND g.fecha BETWEEN $1 AND $2
           ORDER BY g.fecha ASC`,
           [desde, hasta]
@@ -300,26 +308,60 @@ export async function GET(request: NextRequest) {
     nominasPagadoUsd = Number(r.rows[0]?.total_usd ?? 0);
   } catch { /* skip */ }
 
+  // ── Historial de pagos parciales para gastos en estado PENDIENTE_PARCIAL ────
+  const gastosParciales = gastoRows.filter((r) => r.estado_raw === "PENDIENTE_PARCIAL");
+  type HistorialRow = { gasto_id: number; id: number; fecha_pago: unknown; monto_bs: string; monto_usd: string; nota: string | null };
+  const historialMap: Record<string, HistorialRow[]> = {};
+  if (gastosParciales.length > 0) {
+    try {
+      const ids = gastosParciales.map((r) => Number(r.id.slice(1)));
+      const hr = await pool.query<HistorialRow>(
+        `SELECT gasto_id, id, fecha_pago, monto_bs, monto_usd, nota
+         FROM gasto_pagos_historial
+         WHERE gasto_id = ANY($1::int[])
+         ORDER BY created_at ASC`,
+        [ids]
+      );
+      for (const row of hr.rows) {
+        const key = `G${row.gasto_id}`;
+        if (!historialMap[key]) historialMap[key] = [];
+        historialMap[key].push(row);
+      }
+    } catch { /* tabla aún no existe */ }
+  }
+
   // ── Merge + enrich ─────────────────────────────────────────────────────────
   const allRaw = [...nominaRows, ...gastoRows];
 
   type Item = {
     id: string; tipo: string; descripcion: string;
-    fechaVencimiento: string; montoBs: number; montoUsd: number;
-    estado: "vencido" | "pendiente" | "programado"; referencia: string | null;
+    fechaVencimiento: string; montoBs: number; montoUsd: number; montoOriginalUsd?: number;
+    estado: "vencido" | "pendiente" | "pendiente_parcial" | "programado"; referencia: string | null;
     estimado?: boolean;
+    historialPagos?: Array<{ id: number; fechaPago: string; montoUsd: number; montoBs: number; nota: string | null }>;
   };
 
   const items: Item[] = allRaw.map((r) => {
     const montoBs = Number(r.monto_bs);
     const tasaDia = Number(r.tasa_dia);
     const montoUsd = r.monto_usd != null ? Number(r.monto_usd) : (tasaDia > 0 ? montoBs / tasaDia : 0);
+    const montoOriginalUsd = r.monto_original_bs != null && tasaDia > 0 ? Number(r.monto_original_bs) / tasaDia : undefined;
     const fechaVenc = toDate(r.fecha_vencimiento);
-    let estado: "vencido" | "pendiente" | "programado";
+    const esParcial = r.estado_raw === "PENDIENTE_PARCIAL";
+    let estado: Item["estado"];
     if (fechaVenc < hoy) estado = "vencido";
+    else if (esParcial) estado = "pendiente_parcial";
     else if (fechaVenc <= domingo) estado = "pendiente";
     else estado = "programado";
-    return { id: r.id, tipo: r.tipo, descripcion: r.descripcion, fechaVencimiento: fechaVenc, montoBs, montoUsd, estado, referencia: r.referencia ?? null };
+    const historialRaw = historialMap[r.id] ?? [];
+    const historialPagos = historialRaw.map((h) => ({
+      id: h.id,
+      fechaPago: toDate(h.fecha_pago),
+      montoUsd: Number(h.monto_usd),
+      montoBs: Number(h.monto_bs),
+      nota: h.nota,
+    }));
+    return { id: r.id, tipo: r.tipo, descripcion: r.descripcion, fechaVencimiento: fechaVenc, montoBs, montoUsd, montoOriginalUsd, estado, referencia: r.referencia ?? null, historialPagos: historialPagos.length > 0 ? historialPagos : undefined };
   });
 
   // Agregar nóminas estimadas (sin período generado) como ítems virtuales
@@ -382,17 +424,82 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// PATCH — marcar obligación como pagada (gasto o nómina completa)
+// PATCH — marcar obligación como pagada (total o parcial) o extender fecha
 export async function PATCH(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const body = (await request.json()) as { id: string };
+  const body = (await request.json()) as {
+    id: string;
+    parcial?: { montoPagadoUsd: number; nuevaFecha: string; nota?: string };
+  };
   if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
   // Gasto operativo
   if (body.id.startsWith("G")) {
     const gastoId = Number(body.id.slice(1));
+
+    if (body.parcial) {
+      // Pago parcial
+      const { montoPagadoUsd, nuevaFecha, nota } = body.parcial;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        // Leer gasto actual
+        const g = await client.query(
+          `SELECT monto_bs, tasa_dia, monto_original_bs, monto_pagado_bs FROM gastos WHERE id = $1`,
+          [gastoId]
+        );
+        if (g.rows.length === 0) throw new Error("Gasto no encontrado");
+        const row = g.rows[0];
+        const tasaDia = Number(row.tasa_dia);
+        const montoOriginalBs = row.monto_original_bs != null
+          ? Number(row.monto_original_bs)
+          : Number(row.monto_bs); // primera vez: inicializar con el monto actual
+        const montoPagadoAcumBs = Number(row.monto_pagado_bs ?? 0);
+
+        const pagadoBs = tasaDia > 0 ? montoPagadoUsd * tasaDia : montoPagadoUsd;
+        const nuevoAcumBs = montoPagadoAcumBs + pagadoBs;
+        const restanteBs = montoOriginalBs - nuevoAcumBs;
+
+        if (restanteBs <= 0.01) {
+          // Saldo cubierto — marcar pagado total
+          await client.query(
+            `UPDATE gastos SET estado = 'PAGADO', pagado_at = now(),
+             monto_original_bs = $2, monto_pagado_bs = $3, monto_bs = 0
+             WHERE id = $1`,
+            [gastoId, montoOriginalBs, nuevoAcumBs]
+          );
+        } else {
+          // Saldo parcial — actualizar monto restante y nueva fecha
+          await client.query(
+            `UPDATE gastos SET estado = 'PENDIENTE_PARCIAL', fecha = $2,
+             monto_bs = $3, monto_original_bs = $4, monto_pagado_bs = $5
+             WHERE id = $1`,
+            [gastoId, nuevaFecha, restanteBs, montoOriginalBs, nuevoAcumBs]
+          );
+        }
+
+        // Registrar en historial
+        await client.query(
+          `INSERT INTO gasto_pagos_historial (gasto_id, fecha_pago, monto_bs, monto_usd, tasa_dia, nota)
+           VALUES ($1, NOW()::date, $2, $3, $4, $5)`,
+          [gastoId, pagadoBs, montoPagadoUsd, tasaDia, nota ?? null]
+        );
+
+        await client.query("COMMIT");
+        return NextResponse.json({ ok: true, restanteBs });
+      } catch (err) {
+        await client.query("ROLLBACK");
+        const msg = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ error: "Error al registrar pago parcial", detalle: msg }, { status: 400 });
+      } finally {
+        client.release();
+      }
+    }
+
+    // Pago total
     await pool.query(
       `UPDATE gastos SET estado = 'PAGADO', pagado_at = now() WHERE id = $1`,
       [gastoId]

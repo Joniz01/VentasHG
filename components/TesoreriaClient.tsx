@@ -5,8 +5,16 @@ import { useRouter } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type ItemEstado = "vencido" | "pendiente" | "programado" | "pagado";
+type ItemEstado = "vencido" | "pendiente" | "pendiente_parcial" | "programado" | "pagado";
 type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor";
+
+type PagoHistorial = {
+  id: number;
+  fechaPago: string;
+  montoUsd: number;
+  montoBs: number;
+  nota: string | null;
+};
 
 type ObligacionItem = {
   id: string;
@@ -15,9 +23,11 @@ type ObligacionItem = {
   fechaVencimiento: string;
   montoBs: number;
   montoUsd: number;
+  montoOriginalUsd?: number;
   estado: ItemEstado;
   referencia: string | null;
   estimado?: boolean;
+  historialPagos?: PagoHistorial[];
 };
 
 type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes";
@@ -52,10 +62,11 @@ function fmtFecha(iso: string): string {
 // ── Semantic colour maps ───────────────────────────────────────────────────
 
 const ESTADO_COLOR: Record<ItemEstado, { text: string; bg: string; border: string; label: string }> = {
-  vencido:    { text: "#EF4444", bg: "rgba(239,68,68,0.09)",    border: "#EF4444", label: "Vencido" },
-  pendiente:  { text: "#D97706", bg: "rgba(217,119,6,0.09)",    border: "#D97706", label: "Esta semana" },
-  programado: { text: "#2563EB", bg: "rgba(37,99,235,0.09)",    border: "#2563EB", label: "Programado" },
-  pagado:     { text: "#059669", bg: "rgba(5,150,105,0.09)",    border: "#059669", label: "Pagado" },
+  vencido:           { text: "#EF4444", bg: "rgba(239,68,68,0.09)",    border: "#EF4444", label: "Vencido" },
+  pendiente:         { text: "#D97706", bg: "rgba(217,119,6,0.09)",    border: "#D97706", label: "Esta semana" },
+  pendiente_parcial: { text: "#B45309", bg: "rgba(180,83,9,0.09)",     border: "#B45309", label: "Pend. Parcial" },
+  programado:        { text: "#2563EB", bg: "rgba(37,99,235,0.09)",    border: "#2563EB", label: "Programado" },
+  pagado:            { text: "#059669", bg: "rgba(5,150,105,0.09)",    border: "#059669", label: "Pagado" },
 };
 
 const TIPO_COLOR: Record<ItemTipo, { text: string; bg: string; label: string }> = {
@@ -156,7 +167,15 @@ function EstadoPill({ estado }: { estado: ItemEstado }) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-type FiltroEstado = "todos" | ItemEstado;
+type FiltroEstado = "todos" | "vencido" | "pendiente" | "programado" | "pagado";
+
+type PagoModal = {
+  itemId: string;
+  montoUsd: number;
+  montoBs: number;
+  tasaDia: number;
+  descripcion: string;
+};
 
 export default function TesoreriaClient() {
   const router = useRouter();
@@ -165,6 +184,14 @@ export default function TesoreriaClient() {
   const [filtro, setFiltro] = useState<FiltroEstado>("todos");
   const [pagando, setPagando] = useState<string | null>(null);
   const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
+
+  // Pago modal state
+  const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
+  const [tipoPago, setTipoPago] = useState<"total" | "parcial">("total");
+  const [montoParcialUsd, setMontoParcialUsd] = useState("");
+  const [nuevaFecha, setNuevaFecha] = useState("");
+  const [notaPago, setNotaPago] = useState("");
+  const [expandedHistorial, setExpandedHistorial] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -178,15 +205,35 @@ export default function TesoreriaClient() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const marcarPagado = async (id: string) => {
-    if (!id.startsWith("G")) return; // only gastos for now
-    setPagando(id);
+  const abrirPagoModal = (item: ObligacionItem) => {
+    if (!item.id.startsWith("G")) return;
+    setPagoModal({ itemId: item.id, montoUsd: item.montoUsd, montoBs: item.montoBs, tasaDia: item.montoBs > 0 && item.montoUsd > 0 ? item.montoBs / item.montoUsd : 1, descripcion: item.descripcion });
+    setTipoPago("total");
+    setMontoParcialUsd("");
+    setNuevaFecha("");
+    setNotaPago("");
+  };
+
+  const cerrarPagoModal = () => setPagoModal(null);
+
+  const confirmarPago = async () => {
+    if (!pagoModal) return;
+    setPagando(pagoModal.itemId);
     try {
+      const body: Record<string, unknown> = { id: pagoModal.itemId };
+      if (tipoPago === "parcial") {
+        body.parcial = {
+          montoPagadoUsd: Number(montoParcialUsd),
+          nuevaFecha,
+          nota: notaPago || undefined,
+        };
+      }
       await fetch("/api/tesoreria/planificacion", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify(body),
       });
+      cerrarPagoModal();
       await cargar();
     } finally {
       setPagando(null);
@@ -205,11 +252,13 @@ export default function TesoreriaClient() {
 
   const { kpis, items, semanas, lunes: semLunes, domingo, lunesProx, domingoProx } = data;
 
+  const esPendiente = (i: ObligacionItem) => i.estado === "pendiente" || i.estado === "pendiente_parcial";
+
   // Drill-down filter
   const drillItems: ObligacionItem[] | null = (() => {
     if (!drillKey) return null;
     if (drillKey === "vencido") return items.filter((i) => i.estado === "vencido");
-    if (drillKey === "esta_semana") return items.filter((i) => i.estado === "pendiente");
+    if (drillKey === "esta_semana") return items.filter((i) => esPendiente(i));
     if (drillKey === "proxima_semana") return items.filter((i) => i.fechaVencimiento >= lunesProx && i.fechaVencimiento <= domingoProx);
     if (drillKey === "prox_4sem") return items.filter((i) => i.estado !== "vencido" && i.estado !== "pagado");
     if (drillKey === "pagado_mes") return items.filter((i) => i.estado === "pagado");
@@ -218,15 +267,19 @@ export default function TesoreriaClient() {
 
   const displayItems = drillItems ?? items;
 
-  // Filter + counts (over displayItems)
+  // Filter + counts — pendiente_parcial cuenta junto a pendiente
   const counts: Record<FiltroEstado, number> = {
     todos: displayItems.length,
     vencido: displayItems.filter((i) => i.estado === "vencido").length,
-    pendiente: displayItems.filter((i) => i.estado === "pendiente").length,
+    pendiente: displayItems.filter((i) => esPendiente(i)).length,
     programado: displayItems.filter((i) => i.estado === "programado").length,
     pagado: 0,
   };
-  const filtrados = filtro === "todos" ? displayItems : displayItems.filter((i) => i.estado === filtro);
+  const filtrados = filtro === "todos"
+    ? displayItems
+    : filtro === "pendiente"
+      ? displayItems.filter((i) => esPendiente(i))
+      : displayItems.filter((i) => i.estado === filtro);
 
   const DRILL_LABELS: Record<DrillKey, string> = {
     proxima_semana: "Próxima Semana",
@@ -485,7 +538,6 @@ export default function TesoreriaClient() {
               >
                 {/* Descripción */}
                 <div className="tsr-cell-desc">
-                  {/* Mobile: tipo + estado inline */}
                   <div className="tsr-mobile-meta">
                     <TipoPill tipo={item.tipo as ItemTipo} />
                     <EstadoPill estado={item.estado} />
@@ -493,23 +545,47 @@ export default function TesoreriaClient() {
                   <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--erp-text)", lineHeight: 1.3, marginTop: 4 }}>
                     {item.descripcion}
                   </p>
+                  {item.estado === "pendiente_parcial" && item.montoOriginalUsd != null && (
+                    <p style={{ fontSize: 11, color: "#B45309", marginTop: 2 }}>
+                      Original: ${USD(item.montoOriginalUsd)} · Saldo: ${USD(item.montoUsd)}
+                    </p>
+                  )}
                   {item.referencia && (
                     <p style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 2 }}>
                       Ref: {item.referencia}
                     </p>
                   )}
+                  {/* Historial de pagos parciales */}
+                  {item.estado === "pendiente_parcial" && item.historialPagos && item.historialPagos.length > 0 && (
+                    <div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedHistorial(expandedHistorial === item.id ? null : item.id); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#B45309", fontWeight: 600, padding: "2px 0", marginTop: 3 }}
+                      >
+                        {expandedHistorial === item.id ? "▲ Ocultar historial" : `▼ Ver ${item.historialPagos.length} abono(s)`}
+                      </button>
+                      {expandedHistorial === item.id && (
+                        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                          {item.historialPagos.map((h) => (
+                            <div key={h.id} style={{ fontSize: 11, color: "var(--erp-text-2)", background: "rgba(180,83,9,0.06)", borderRadius: 6, padding: "4px 8px", display: "flex", gap: 8 }}>
+                              <span>{fmtFecha(h.fechaPago)}</span>
+                              <span style={{ fontWeight: 700, color: "#059669" }}>${USD(h.montoUsd)}</span>
+                              {h.nota && <span style={{ color: "var(--erp-text-3)" }}>{h.nota}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Tipo — desktop grid column, hidden on mobile (shown in mobile-meta) */}
+                {/* Tipo */}
                 <div className="tsr-cell-tipo">
                   <TipoPill tipo={item.tipo as ItemTipo} />
                 </div>
 
                 {/* Vencimiento */}
-                <span
-                  className="tsr-cell-venc"
-                  style={{ fontSize: 12, fontWeight: 600, color: estadoC.text, fontVariantNumeric: "tabular-nums" }}
-                >
+                <span className="tsr-cell-venc" style={{ fontSize: 12, fontWeight: 600, color: estadoC.text, fontVariantNumeric: "tabular-nums" }}>
                   📅 {fmtFecha(item.fechaVencimiento)}
                 </span>
 
@@ -518,33 +594,26 @@ export default function TesoreriaClient() {
                   ${USD(item.montoUsd)}
                 </span>
 
-                {/* Bs — hidden on mobile */}
+                {/* Bs */}
                 <span className="tsr-cell-bs" style={{ fontSize: 11, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>
                   Bs.{BS(item.montoBs)}
                 </span>
 
                 {/* Acción */}
-                <div className="tsr-cell-btn">
-                  {item.estado !== "pagado" ? (
+                <div className="tsr-cell-btn" onClick={(e) => e.stopPropagation()}>
+                  {item.estado !== "pagado" && item.id.startsWith("G") ? (
                     <button
-                      onClick={(e) => { e.stopPropagation(); marcarPagado(item.id); }}
+                      onClick={() => abrirPagoModal(item)}
                       disabled={pagando === item.id}
                       style={{
-                        padding: "6px 12px",
-                        borderRadius: 7,
-                        fontSize: 12,
-                        fontWeight: 700,
+                        padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
                         cursor: pagando === item.id ? "wait" : "pointer",
-                        border: "1.5px solid #059669",
-                        background: "transparent",
-                        color: "#059669",
-                        opacity: pagando === item.id ? 0.6 : 1,
-                        transition: "all 0.15s",
-                        whiteSpace: "nowrap",
-                        width: "100%",
+                        border: "1.5px solid #059669", background: "transparent", color: "#059669",
+                        opacity: pagando === item.id ? 0.6 : 1, transition: "all 0.15s",
+                        whiteSpace: "nowrap", width: "100%",
                       }}
                     >
-                      {pagando === item.id ? "…" : "✓ Registrar Pagado"}
+                      {pagando === item.id ? "…" : "✓ Registrar Pago"}
                     </button>
                   ) : null}
                 </div>
@@ -574,6 +643,146 @@ export default function TesoreriaClient() {
           </div>
         )}
       </div>
+
+      {/* ── Modal de pago ──────────────────────────────────────────────── */}
+      {pagoModal && (
+        <div
+          onClick={cerrarPagoModal}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 9999, padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--erp-surface)", borderRadius: 14,
+              padding: "24px 20px", width: "100%", maxWidth: 400,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.22)",
+              display: "flex", flexDirection: "column", gap: 16,
+            }}
+          >
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", margin: 0 }}>
+              Registrar Pago
+            </p>
+            <p style={{ fontSize: 11, color: "var(--erp-text-3)", margin: 0, lineHeight: 1.4 }}>
+              {pagoModal.descripcion}
+            </p>
+            <p style={{ fontSize: 13, fontWeight: 800, color: "var(--erp-text)", margin: 0 }}>
+              Saldo pendiente: <span style={{ color: "#EF4444" }}>${USD(pagoModal.montoUsd)}</span>
+            </p>
+
+            {/* Toggle total / parcial */}
+            <div style={{ display: "flex", gap: 8 }}>
+              {(["total", "parcial"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTipoPago(t)}
+                  style={{
+                    flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                    cursor: "pointer", transition: "all 0.15s",
+                    border: `1.5px solid ${tipoPago === t ? "#059669" : "var(--erp-border)"}`,
+                    background: tipoPago === t ? "#059669" : "transparent",
+                    color: tipoPago === t ? "#fff" : "var(--erp-text-2)",
+                  }}
+                >
+                  {t === "total" ? "Pago Total" : "Pago Parcial"}
+                </button>
+              ))}
+            </div>
+
+            {tipoPago === "parcial" && (
+              <>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", display: "block", marginBottom: 5 }}>
+                    Monto a pagar (USD)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    max={pagoModal.montoUsd}
+                    step="0.01"
+                    value={montoParcialUsd}
+                    onChange={(e) => setMontoParcialUsd(e.target.value)}
+                    placeholder={`Máx. $${USD(pagoModal.montoUsd)}`}
+                    style={{
+                      width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+                      border: "1.5px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))",
+                      color: "var(--erp-text)", boxSizing: "border-box",
+                    }}
+                  />
+                  {montoParcialUsd && Number(montoParcialUsd) > 0 && (
+                    <p style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 4 }}>
+                      Saldo restante: ${USD(pagoModal.montoUsd - Number(montoParcialUsd))}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", display: "block", marginBottom: 5 }}>
+                    Nueva fecha de vencimiento del saldo
+                  </label>
+                  <input
+                    type="date"
+                    value={nuevaFecha}
+                    onChange={(e) => setNuevaFecha(e.target.value)}
+                    style={{
+                      width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+                      border: "1.5px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))",
+                      color: "var(--erp-text)", boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", display: "block", marginBottom: 5 }}>
+                    Nota (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={notaPago}
+                    onChange={(e) => setNotaPago(e.target.value)}
+                    placeholder="Ej: Abono 1 de 2"
+                    style={{
+                      width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+                      border: "1.5px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))",
+                      color: "var(--erp-text)", boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Botones */}
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <button
+                onClick={cerrarPagoModal}
+                style={{
+                  flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", border: "1.5px solid var(--erp-border)",
+                  background: "transparent", color: "var(--erp-text-2)",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarPago}
+                disabled={
+                  pagando !== null ||
+                  (tipoPago === "parcial" && (!montoParcialUsd || Number(montoParcialUsd) <= 0 || !nuevaFecha))
+                }
+                style={{
+                  flex: 2, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  cursor: pagando ? "wait" : "pointer",
+                  border: "none", background: "#059669", color: "#fff",
+                  opacity: pagando ? 0.7 : 1, transition: "opacity 0.15s",
+                }}
+              >
+                {pagando ? "Procesando…" : tipoPago === "total" ? "✓ Confirmar Pago Total" : "✓ Confirmar Abono"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
