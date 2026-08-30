@@ -39,6 +39,7 @@ type RawItem = {
   monto_bs: string;
   tasa_dia: string;
   referencia: string | null;
+  monto_usd?: string; // optional override when Bs/tasa conversion is unreliable
 };
 
 export async function GET(request: NextRequest) {
@@ -70,13 +71,21 @@ export async function GET(request: NextRequest) {
               WHERE np2.periodo_id = pn.id
             ), 0)                                                                 AS monto_bs,
         pn.tasa_dia                                                               AS tasa_dia,
-        NULL::text                                                                AS referencia
+        NULL::text                                                                AS referencia,
+        COALESCE(SUM(e.salario_base_usd), 0)
+          + COALESCE((
+              SELECT SUM(ni.monto_bs) / NULLIF(pn.tasa_dia, 0)
+              FROM nomina_incidencias ni
+              JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PENDIENTE'
+              WHERE np2.periodo_id = pn.id
+            ), 0)                                                                 AS monto_usd
       FROM periodos_nomina pn
       JOIN nominas n ON n.id = pn.nomina_id
       JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PENDIENTE'
+      JOIN empleados e ON e.id = np.empleado_id
       WHERE pn.fecha_hasta BETWEEN $1 AND $2
       GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
-      HAVING COALESCE(SUM(np.salario_base_bs), 0) > 0
+      HAVING COALESCE(SUM(e.salario_base_usd), 0) > 0
       ORDER BY pn.fecha_hasta ASC`,
       [desde, hasta]
     );
@@ -278,9 +287,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const r = await pool.query<{ total_usd: string }>(
-      `SELECT COALESCE(SUM(np.salario_base_bs / NULLIF(pn.tasa_dia, 0)), 0) AS total_usd
+      `SELECT COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
        FROM nomina_pagos np
        JOIN periodos_nomina pn ON pn.id = np.periodo_id
+       JOIN empleados e ON e.id = np.empleado_id
        WHERE np.estado = 'PAGADO' AND np.pagado_at >= $1`,
       [mesInicio]
     );
@@ -300,7 +310,7 @@ export async function GET(request: NextRequest) {
   const items: Item[] = allRaw.map((r) => {
     const montoBs = Number(r.monto_bs);
     const tasaDia = Number(r.tasa_dia);
-    const montoUsd = tasaDia > 0 ? montoBs / tasaDia : 0;
+    const montoUsd = r.monto_usd != null ? Number(r.monto_usd) : (tasaDia > 0 ? montoBs / tasaDia : 0);
     const fechaVenc = toDate(r.fecha_vencimiento);
     let estado: "vencido" | "pendiente" | "programado";
     if (fechaVenc < hoy) estado = "vencido";

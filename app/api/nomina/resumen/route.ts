@@ -15,19 +15,14 @@ export async function GET(request: NextRequest) {
       `SELECT COUNT(*) AS total FROM empleados WHERE activo = TRUE`
     );
 
-    const totalUsdExpr = `
-      COALESCE(SUM(
-        CASE WHEN pn.tasa_dia > 0
-          THEN (np.salario_base_bs + COALESCE(inc.total_incidencias_bs, 0)) / pn.tasa_dia
-          ELSE 0
-        END
-      ), 0)
-    `;
-
     const pendienteResult = await pool.query(
-      `SELECT ${totalUsdExpr} AS total
+      `SELECT COALESCE(SUM(
+         e.salario_base_usd +
+         CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
+       ), 0) AS total
        FROM nomina_pagos np
        JOIN periodos_nomina pn ON pn.id = np.periodo_id
+       JOIN empleados e ON e.id = np.empleado_id
        LEFT JOIN (
          SELECT nomina_pago_id, SUM(monto_bs) AS total_incidencias_bs
          FROM nomina_incidencias GROUP BY nomina_pago_id
@@ -36,9 +31,13 @@ export async function GET(request: NextRequest) {
     );
 
     const pagadaMesResult = await pool.query(
-      `SELECT ${totalUsdExpr} AS total
+      `SELECT COALESCE(SUM(
+         e.salario_base_usd +
+         CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
+       ), 0) AS total
        FROM nomina_pagos np
        JOIN periodos_nomina pn ON pn.id = np.periodo_id
+       JOIN empleados e ON e.id = np.empleado_id
        LEFT JOIN (
          SELECT nomina_pago_id, SUM(monto_bs) AS total_incidencias_bs
          FROM nomina_incidencias GROUP BY nomina_pago_id
@@ -60,13 +59,12 @@ export async function GET(request: NextRequest) {
          SELECT
            COUNT(DISTINCT pn.id)::int AS periodos,
            COALESCE(SUM(
-             CASE WHEN pn.tasa_dia > 0
-               THEN (np.salario_base_bs + COALESCE(inc.total_incidencias_bs, 0)) / pn.tasa_dia
-               ELSE 0
-             END
+             e.salario_base_usd +
+             CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
            ), 0) AS total_usd
          FROM semana, periodos_nomina pn
          JOIN nomina_pagos np ON np.periodo_id = pn.id
+         JOIN empleados e ON e.id = np.empleado_id
          LEFT JOIN (
            SELECT nomina_pago_id, SUM(monto_bs) AS total_incidencias_bs
            FROM nomina_incidencias GROUP BY nomina_pago_id
