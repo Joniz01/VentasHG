@@ -184,7 +184,10 @@ export async function GET(request: NextRequest) {
          WHERE f.fecha_pago BETWEEN $1 AND $2
            AND NOT EXISTS (
              SELECT 1 FROM periodos_nomina pn
-             WHERE pn.nomina_id = f.nomina_id AND pn.fecha_hasta = f.fecha_pago
+             WHERE pn.nomina_id = f.nomina_id
+               AND pn.fecha_hasta BETWEEN
+                 date_trunc('week', f.fecha_pago)::date
+                 AND (date_trunc('week', f.fecha_pago) + INTERVAL '6 days')::date
            )
        )
        SELECT f.nomina_id, f.nombre, f.fecha_pago,
