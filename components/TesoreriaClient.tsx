@@ -192,6 +192,8 @@ export default function TesoreriaClient() {
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [notaPago, setNotaPago] = useState("");
   const [expandedHistorial, setExpandedHistorial] = useState<string | null>(null);
+  const [eliminandoConfirm, setEliminandoConfirm] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -237,6 +239,21 @@ export default function TesoreriaClient() {
       await cargar();
     } finally {
       setPagando(null);
+    }
+  };
+
+  const eliminarGasto = async (id: string) => {
+    setEliminando(id);
+    try {
+      await fetch("/api/tesoreria/planificacion", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setEliminandoConfirm(null);
+      await cargar();
+    } finally {
+      setEliminando(null);
     }
   };
 
@@ -600,21 +617,65 @@ export default function TesoreriaClient() {
                 </span>
 
                 {/* Acción */}
-                <div className="tsr-cell-btn" onClick={(e) => e.stopPropagation()}>
-                  {item.estado !== "pagado" && item.id.startsWith("G") ? (
-                    <button
-                      onClick={() => abrirPagoModal(item)}
-                      disabled={pagando === item.id}
-                      style={{
-                        padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                        cursor: pagando === item.id ? "wait" : "pointer",
-                        border: "1.5px solid #059669", background: "transparent", color: "#059669",
-                        opacity: pagando === item.id ? 0.6 : 1, transition: "all 0.15s",
-                        whiteSpace: "nowrap", width: "100%",
-                      }}
-                    >
-                      {pagando === item.id ? "…" : "✓ Registrar Pago"}
-                    </button>
+                <div className="tsr-cell-btn" onClick={(e) => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {item.estado !== "pagado" && item.id.startsWith("G") && eliminandoConfirm !== item.id ? (
+                    <>
+                      <button
+                        onClick={() => abrirPagoModal(item)}
+                        disabled={pagando === item.id}
+                        style={{
+                          padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                          cursor: pagando === item.id ? "wait" : "pointer",
+                          border: "1.5px solid #059669", background: "transparent", color: "#059669",
+                          opacity: pagando === item.id ? 0.6 : 1, transition: "all 0.15s",
+                          whiteSpace: "nowrap", width: "100%",
+                        }}
+                      >
+                        {pagando === item.id ? "…" : "✓ Registrar Pago"}
+                      </button>
+                      <button
+                        onClick={() => setEliminandoConfirm(item.id)}
+                        disabled={item.estado === "pendiente_parcial"}
+                        title={item.estado === "pendiente_parcial" ? "Tiene abonos registrados — no se puede eliminar" : "Eliminar gasto"}
+                        style={{
+                          padding: "4px 8px", borderRadius: 7, fontSize: 11, fontWeight: 600,
+                          cursor: item.estado === "pendiente_parcial" ? "not-allowed" : "pointer",
+                          border: "1.5px solid #EF4444", background: "transparent", color: "#EF4444",
+                          opacity: item.estado === "pendiente_parcial" ? 0.35 : 0.7,
+                          transition: "all 0.15s", width: "100%",
+                        }}
+                      >
+                        🗑 Eliminar
+                      </button>
+                    </>
+                  ) : eliminandoConfirm === item.id ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <p style={{ fontSize: 11, color: "#EF4444", fontWeight: 600, margin: 0, textAlign: "center" }}>¿Eliminar este gasto?</p>
+                      <div style={{ display: "flex", gap: 5 }}>
+                        <button
+                          onClick={() => setEliminandoConfirm(null)}
+                          style={{
+                            flex: 1, padding: "5px 0", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            cursor: "pointer", border: "1.5px solid var(--erp-border)",
+                            background: "transparent", color: "var(--erp-text-2)",
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => eliminarGasto(item.id)}
+                          disabled={eliminando === item.id}
+                          style={{
+                            flex: 1, padding: "5px 0", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                            cursor: eliminando === item.id ? "wait" : "pointer",
+                            border: "none", background: "#EF4444", color: "#fff",
+                            opacity: eliminando === item.id ? 0.6 : 1,
+                          }}
+                        >
+                          {eliminando === item.id ? "…" : "Sí, eliminar"}
+                        </button>
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               </div>

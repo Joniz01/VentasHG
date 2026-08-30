@@ -527,3 +527,32 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ error: "ID no reconocido" }, { status: 400 });
 }
+
+// DELETE — eliminar gasto (solo si no tiene abonos parciales registrados)
+export async function DELETE(request: NextRequest) {
+  const sesion = await getSesionFromRequest(request);
+  if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.gastos)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const body = (await request.json()) as { id: string };
+  if (!body.id?.startsWith("G")) {
+    return NextResponse.json({ error: "Solo se pueden eliminar gastos" }, { status: 400 });
+  }
+
+  const gastoId = Number(body.id.slice(1));
+
+  // Verificar que no tenga abonos registrados
+  try {
+    const hist = await pool.query(
+      `SELECT COUNT(*) AS total FROM gasto_pagos_historial WHERE gasto_id = $1`,
+      [gastoId]
+    );
+    if (Number(hist.rows[0]?.total) > 0) {
+      return NextResponse.json({ error: "Este gasto tiene abonos registrados y no puede eliminarse" }, { status: 400 });
+    }
+  } catch { /* tabla historial aún no existe — continuar */ }
+
+  await pool.query(`DELETE FROM gastos WHERE id = $1`, [gastoId]);
+  return NextResponse.json({ ok: true });
+}
