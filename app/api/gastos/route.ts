@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
   const hasta = searchParams.get("hasta");
   const proveedor = searchParams.get("proveedor");
   const tipoGastoId = searchParams.get("tipoGastoId");
+  const tipoNaturaleza = searchParams.get("tipoNaturaleza"); // "FIJO" | "OCASIONAL"
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 10));
 
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest) {
   if (hasta) { params.push(hasta); conditions.push(`g.fecha <= $${params.length}`); }
   if (proveedor) { params.push(`%${proveedor}%`); conditions.push(`lower(g.proveedor) LIKE lower($${params.length})`); }
   if (tipoGastoId) { params.push(Number(tipoGastoId)); conditions.push(`g.tipo_gasto_id = $${params.length}`); }
+  if (tipoNaturaleza === "FIJO" || tipoNaturaleza === "OCASIONAL") { params.push(tipoNaturaleza); conditions.push(`g.tipo = $${params.length}`); }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 

@@ -107,6 +107,7 @@ export default function GastosClient() {
   const [filtroHasta, setFiltroHasta] = useState("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
   const [filtroTipoGastoId, setFiltroTipoGastoId] = useState("");
+  const [filtroNaturaleza, setFiltroNaturaleza] = useState<"" | "FIJO" | "OCASIONAL">("");
 
   const [tiposGasto, setTiposGasto] = useState<TipoGastoCatalogo[]>([]);
   const [locaciones, setLocaciones] = useState<Locacion[]>([]);
@@ -223,6 +224,7 @@ export default function GastosClient() {
       if (filtroHasta) params.set("hasta", filtroHasta);
       if (filtroProveedor) params.set("proveedor", filtroProveedor);
       if (filtroTipoGastoId) params.set("tipoGastoId", filtroTipoGastoId);
+      if (filtroNaturaleza) params.set("tipoNaturaleza", filtroNaturaleza);
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
 
@@ -275,7 +277,7 @@ export default function GastosClient() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadGastos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, filtroDesde, filtroHasta, filtroProveedor, filtroTipoGastoId]);
+  }, [page, pageSize, filtroDesde, filtroHasta, filtroProveedor, filtroTipoGastoId, filtroNaturaleza]);
 
   function tipoGastoIdPorDefecto(): string {
     const operativo = tiposGasto.find((t) => t.nombre === "Gasto Operativo");
@@ -1165,10 +1167,35 @@ export default function GastosClient() {
             ))}
           </select>
         </div>
-        {(filtroDesde || filtroHasta || filtroProveedor || filtroTipoGastoId) && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Naturaleza</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            {(["", "FIJO", "OCASIONAL"] as const).map((v) => {
+              const label = v === "" ? "Todos" : v === "FIJO" ? "Fijos" : "Ocasionales";
+              const active = filtroNaturaleza === v;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => { setFiltroNaturaleza(v); setPage(1); }}
+                  style={{
+                    padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                    cursor: "pointer", transition: "all 0.15s",
+                    border: `1.5px solid ${active ? "var(--erp-primary)" : "var(--erp-border)"}`,
+                    background: active ? "var(--erp-primary)" : "transparent",
+                    color: active ? "#fff" : "var(--erp-text-2)",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {(filtroDesde || filtroHasta || filtroProveedor || filtroTipoGastoId || filtroNaturaleza) && (
           <button
             type="button"
-            onClick={() => { setFiltroDesde(""); setFiltroHasta(""); setFiltroProveedor(""); setFiltroTipoGastoId(""); setPage(1); }}
+            onClick={() => { setFiltroDesde(""); setFiltroHasta(""); setFiltroProveedor(""); setFiltroTipoGastoId(""); setFiltroNaturaleza(""); setPage(1); }}
             className="text-xs px-3 py-1.5 rounded-md border"
             style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
           >
