@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   const result = await pool.query(
     `SELECT id, nombre, alcance, uso, recurrencia, dias_semana, dia_numero, fecha_especifica, usuarios_alerta
      FROM conteo_programacion
-     WHERE activo = TRUE AND ($1 = ANY(usuarios_alerta) OR $2 = 'ADMIN')
+     WHERE activo = TRUE AND ($1 = ANY(COALESCE(usuarios_alerta, ARRAY[]::integer[])) OR $2 = 'ADMIN')
      ORDER BY nombre ASC`,
     [sesion.id, sesion.rol]
   );

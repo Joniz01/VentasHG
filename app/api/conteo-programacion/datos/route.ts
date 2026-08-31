@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     pool.query(
       `SELECT id, nombre, COALESCE(grupo, 'PARA_LA_VENTA') AS grupo
        FROM productos
-       WHERE activo = TRUE AND COALESCE(tipo_producto,'NORMAL') != 'COMBO'
+       WHERE activo = TRUE
        ORDER BY nombre ASC`
     ),
     pool.query(`SELECT id, nombre FROM usuarios WHERE activo = TRUE ORDER BY nombre ASC`),
