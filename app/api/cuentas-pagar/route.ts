@@ -4,6 +4,19 @@ import { getSesionFromRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+const DIAS_FRECUENCIA: Record<string, number> = { SEMANAL: 7, QUINCENAL: 15, MENSUAL: 30 };
+
+function calcularProximoVencimiento(base: string, frecuencia: string): string {
+  const d = new Date(`${base}T00:00:00`);
+  d.setDate(d.getDate() + (DIAS_FRECUENCIA[frecuencia] ?? 30));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function toDateStr(v: unknown): string {
+  if (!v) return "";
+  return v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10);
+}
+
 function mapCP(r: Record<string, unknown>) {
   const montoBs = Number(r.monto_bs);
   const montoUsd = Number(r.monto_usd);
@@ -14,8 +27,8 @@ function mapCP(r: Record<string, unknown>) {
     proveedorRif: r.proveedor_rif ?? null,
     numeroFactura: r.numero_factura ?? null,
     descripcion: r.descripcion ?? null,
-    fechaEmision: r.fecha_emision instanceof Date ? r.fecha_emision.toISOString().slice(0, 10) : String(r.fecha_emision).slice(0, 10),
-    fechaVencimiento: r.fecha_vencimiento instanceof Date ? r.fecha_vencimiento.toISOString().slice(0, 10) : String(r.fecha_vencimiento).slice(0, 10),
+    fechaEmision: toDateStr(r.fecha_emision),
+    fechaVencimiento: toDateStr(r.fecha_vencimiento),
     montoBs,
     montoUsd,
     tasaDia,
@@ -25,6 +38,9 @@ function mapCP(r: Record<string, unknown>) {
     pagadoAt: r.pagado_at ?? null,
     comprobanteUrl: r.comprobante_url ?? null,
     notas: r.notas ?? null,
+    recurrente: Boolean(r.recurrente),
+    frecuencia: r.frecuencia ?? null,
+    proximoVencimiento: r.proximo_vencimiento ? toDateStr(r.proximo_vencimiento) : null,
     createdAt: r.created_at,
   };
 }
@@ -90,18 +106,29 @@ export async function POST(request: NextRequest) {
     tasaDia?: number;
     estado?: string;
     notas?: string;
+    recurrente?: boolean;
+    frecuencia?: string | null;
   };
 
   if (!body.proveedor?.trim() || !body.fechaEmision || !body.fechaVencimiento) {
     return NextResponse.json({ error: "Proveedor, fecha de emisión y fecha de vencimiento son obligatorios" }, { status: 400 });
   }
+  if (body.recurrente && !body.frecuencia) {
+    return NextResponse.json({ error: "Indica la frecuencia de recurrencia" }, { status: 400 });
+  }
+
+  const recurrente = Boolean(body.recurrente);
+  const frecuencia = recurrente ? (body.frecuencia ?? null) : null;
+  const proximoVencimiento = recurrente && frecuencia
+    ? calcularProximoVencimiento(body.fechaVencimiento, frecuencia)
+    : null;
 
   try {
     const result = await pool.query(
       `INSERT INTO cuentas_pagar
         (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
-         monto_bs, monto_usd, tasa_dia, estado, notas, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING id`,
       [
         body.proveedor.trim(),
@@ -115,6 +142,9 @@ export async function POST(request: NextRequest) {
         Number(body.tasaDia) || 0,
         body.estado || "PENDIENTE",
         body.notas?.trim() || null,
+        recurrente,
+        frecuencia,
+        proximoVencimiento,
         sesion.id,
       ]
     );

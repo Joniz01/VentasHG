@@ -23,6 +23,9 @@ type CuentaPagar = {
   pagadoAt: string | null;
   comprobanteUrl: string | null;
   notas: string | null;
+  recurrente: boolean;
+  frecuencia: string | null;
+  proximoVencimiento: string | null;
 };
 
 type OcrData = {
@@ -55,6 +58,8 @@ function esPendiente(cp: CuentaPagar) {
 
 // ── Form types ─────────────────────────────────────────────────────────────
 
+type FrecuenciaCP = "SEMANAL" | "QUINCENAL" | "MENSUAL";
+
 type FormData = {
   proveedor: string;
   proveedorRif: string;
@@ -66,6 +71,8 @@ type FormData = {
   montoUsd: string;
   tasaDia: string;
   notas: string;
+  recurrente: boolean;
+  frecuencia: FrecuenciaCP;
 };
 
 const HOY = new Date().toISOString().slice(0, 10);
@@ -73,6 +80,7 @@ const HOY = new Date().toISOString().slice(0, 10);
 const FORM_VACIO: FormData = {
   proveedor: "", proveedorRif: "", numeroFactura: "", descripcion: "",
   fechaEmision: HOY, fechaVencimiento: HOY, montoBs: "", montoUsd: "", tasaDia: "", notas: "",
+  recurrente: false, frecuencia: "MENSUAL",
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -322,6 +330,23 @@ function FormularioCP({
         </CampoForm>
       </div>
 
+      {/* Recurrencia */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--erp-text)", cursor: "pointer" }}>
+          <input type="checkbox" checked={form.recurrente}
+            onChange={e => setForm(p => ({ ...p, recurrente: e.target.checked }))} />
+          🔁 Gasto recurrente (genera siguiente período al pagar)
+        </label>
+        {form.recurrente && (
+          <select style={{ ...inputStyle, width: "auto" }} value={form.frecuencia}
+            onChange={e => setForm(p => ({ ...p, frecuencia: e.target.value as FrecuenciaCP }))}>
+            <option value="SEMANAL">Semanal</option>
+            <option value="QUINCENAL">Quincenal</option>
+            <option value="MENSUAL">Mensual</option>
+          </select>
+        )}
+      </div>
+
       {formError && <p style={{ fontSize: 13, color: "#EF4444", margin: 0 }}>{formError}</p>}
 
       <div style={{ display: "flex", gap: 10 }}>
@@ -399,6 +424,8 @@ export default function CuentasPagarClient() {
       montoUsd: Number(form.montoUsd) || 0,
       tasaDia: Number(form.tasaDia) || 0,
       notas: form.notas || undefined,
+      recurrente: form.recurrente,
+      frecuencia: form.recurrente ? form.frecuencia : undefined,
     };
     const r = await fetch("/api/cuentas-pagar", {
       method: "POST",
@@ -540,7 +567,14 @@ export default function CuentasPagarClient() {
                 return (
                   <tr key={cp.id} style={{ borderBottom: "1px solid var(--erp-border)", background: esElim ? "rgba(239,68,68,0.06)" : undefined }}>
                     <td style={{ padding: "10px 10px" }}>
-                      <div style={{ fontWeight: 600, color: "var(--erp-text)" }}>{cp.proveedor}</div>
+                      <div style={{ fontWeight: 600, color: "var(--erp-text)", display: "flex", alignItems: "center", gap: 6 }}>
+                        {cp.proveedor}
+                        {cp.recurrente && (
+                          <span title={`Recurrente ${cp.frecuencia ?? ""}`} style={{ fontSize: 11, background: "rgba(37,99,235,0.10)", color: "#2563EB", borderRadius: 10, padding: "1px 7px", fontWeight: 600 }}>
+                            🔁 {cp.frecuencia}
+                          </span>
+                        )}
+                      </div>
                       {cp.proveedorRif && <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{cp.proveedorRif}</div>}
                       {cp.descripcion && <div style={{ fontSize: 11, color: "var(--erp-text-3)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cp.descripcion}</div>}
                     </td>

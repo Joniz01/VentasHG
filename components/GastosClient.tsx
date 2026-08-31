@@ -1078,28 +1078,7 @@ export default function GastosClient() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--erp-text)" }}>
-              <input
-                type="checkbox"
-                checked={form.recurrente}
-                onChange={(e) => setForm((p) => ({ ...p, recurrente: e.target.checked }))}
-              />
-              Gasto recurrente (recordatorio automático)
-            </label>
-            {form.recurrente && (
-              <select
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.frecuencia}
-                onChange={(e) => setForm((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaRecurrencia }))}
-              >
-                {FRECUENCIAS_RECURRENCIA.map((f) => (
-                  <option key={f} value={f}>{FRECUENCIA_RECURRENCIA_LABELS[f]}</option>
-                ))}
-              </select>
-            )}
-          </div>
+          {/* Recurrencia deshabilitada — los gastos recurrentes se gestionan en Cuentas por Pagar */}
 
           <div className="flex gap-2 justify-end">
             <button

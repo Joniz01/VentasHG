@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
 
+const DIAS_FRECUENCIA: Record<string, number> = { SEMANAL: 7, QUINCENAL: 15, MENSUAL: 30 };
+
+function calcularProximoVencimiento(base: string, frecuencia: string): string {
+  const d = new Date(`${base}T00:00:00`);
+  d.setDate(d.getDate() + (DIAS_FRECUENCIA[frecuencia] ?? 30));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,10 +48,39 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await client.query("BEGIN");
 
     if (body.accion === "pagar") {
+      // Leer antes de marcar pagado para saber si es recurrente
+      const cpRead = await client.query(
+        `SELECT proveedor, proveedor_rif, numero_factura, descripcion, fecha_vencimiento,
+                monto_bs, monto_usd, tasa_dia, notas, recurrente, frecuencia, created_by
+         FROM cuentas_pagar WHERE id = $1`,
+        [id]
+      );
+      const cp = cpRead.rows[0];
+
       await client.query(
         `UPDATE cuentas_pagar SET estado = 'PAGADO', pagado_at = NOW(), comprobante_url = COALESCE($2, comprobante_url) WHERE id = $1`,
         [id, body.comprobanteUrl ?? null]
       );
+
+      // Si es recurrente, generar el siguiente período automáticamente
+      if (cp?.recurrente && cp?.frecuencia) {
+        const baseVenc = cp.fecha_vencimiento instanceof Date
+          ? cp.fecha_vencimiento.toISOString().slice(0, 10)
+          : String(cp.fecha_vencimiento).slice(0, 10);
+        const nuevoVenc = calcularProximoVencimiento(baseVenc, String(cp.frecuencia));
+        const nuevoProxVenc = calcularProximoVencimiento(nuevoVenc, String(cp.frecuencia));
+        await client.query(
+          `INSERT INTO cuentas_pagar
+            (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+             monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+           VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
+          [
+            cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
+            nuevoVenc, cp.monto_bs, cp.monto_usd, cp.tasa_dia, cp.notas,
+            cp.frecuencia, nuevoProxVenc, cp.created_by,
+          ]
+        );
+      }
 
     } else if (body.accion === "pago_parcial") {
       const cpResult = await client.query(`SELECT monto_bs, monto_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`, [id]);
