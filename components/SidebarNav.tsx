@@ -79,15 +79,10 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Tesorería",
-    items: [
-      { href: "/tesoreria",         icon: "🏦", label: "Planif. de Pagos",  permiso: "gastos" },
-      { href: "/cuentas-por-pagar", icon: "📤", label: "Cuentas por Pagar" },
-    ],
-  },
-  {
     label: "Finanzas",
     items: [
+      { href: "/tesoreria",           icon: "🏦", label: "Planif. de Pagos",    permiso: "gastos" },
+      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar" },
       { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
       { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero" },
     ],

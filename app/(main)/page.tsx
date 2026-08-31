@@ -73,17 +73,12 @@ const GRUPOS: TileGroup[] = [
     ],
   },
   {
-    label: "Tesorería",
-    tiles: [
-      { href: "/tesoreria",       icon: "🏦", label: "Planif. de Pagos", sub: "Nóminas, gastos y compromisos próximos", color: "#0891B2", permiso: "gastos", new: true },
-      { href: "/cuentas-por-pagar", icon: "📤", label: "Cuentas por Pagar", sub: "Pagos y obligaciones",              color: "#B45309", new: true },
-    ],
-  },
-  {
     label: "Finanzas",
     tiles: [
-      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  sub: "CxC Directa, Cashea y Yummy", color: "#B45309", permiso: "reportes" },
-      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero", sub: "Indicadores y flujo de caja",  color: "#B45309", new: true },
+      { href: "/tesoreria",           icon: "🏦", label: "Planif. de Pagos",    sub: "Nóminas, gastos y compromisos próximos", color: "#0891B2", permiso: "gastos", new: true },
+      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar",   sub: "Facturas de proveedores de servicios",   color: "#B45309", new: true },
+      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  sub: "CxC Directa, Cashea y Yummy",           color: "#15803D", permiso: "reportes" },
+      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero", sub: "Indicadores y flujo de caja",           color: "#B45309", new: true },
     ],
   },
   {
