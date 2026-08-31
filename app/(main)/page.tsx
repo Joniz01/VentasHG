@@ -54,8 +54,9 @@ const GRUPOS: TileGroup[] = [
       { href: "/productos",          icon: "📦", label: "Productos",                sub: "Catálogo y categorías",      color: "#1D4ED8", permiso: "productos" },
       { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",      color: "#15803D", permiso: "productos", new: true },
       { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos", color: "#1D4ED8", permiso: "productos" },
-      { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",   color: "#7C3AED", permiso: "autorizarConteo" },
-      { href: "/conteo",             icon: "📱", label: "Conteo Físico",            sub: "Conteo desde dispositivo",   color: "#7C3AED", permiso: "conteo" },
+      { href: "/inventario/conteos",      icon: "📋", label: "Bandeja Conteos",            sub: "Control de conteo físico",       color: "#7C3AED", permiso: "autorizarConteo" },
+      { href: "/conteo",                  icon: "📱", label: "Conteo Físico",              sub: "Conteo desde dispositivo",       color: "#7C3AED", permiso: "conteo" },
+      { href: "/inventario/programacion", icon: "🗓️", label: "Programación de Conteos",    sub: "Alertas y calendarios de conteo", color: "#0891B2", permiso: "programarConteo" },
     ],
   },
   {

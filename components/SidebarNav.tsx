@@ -7,6 +7,7 @@ import type { PermisosUsuario, Rol } from "@/lib/types";
 import CuentasPorCobrarAlerta from "@/components/CuentasPorCobrarAlerta";
 import CasheaAlerta from "@/components/CasheaAlerta";
 import ConteoAlerta from "@/components/ConteoAlerta";
+import ConteoProgramacionAlerta from "@/components/ConteoProgramacionAlerta";
 
 type Props = { rol: Rol | null; permisos: PermisosUsuario | null };
 
@@ -16,7 +17,7 @@ type NavItem = {
   icon: string;
   permiso?: keyof PermisosUsuario;
   rolReq?: Rol;
-  badge?: "cxc" | "cashea" | "conteo";
+  badge?: "cxc" | "cashea" | "conteo" | "programacion";
 };
 
 type NavGroup = { label: string; items: NavItem[] };
@@ -60,8 +61,9 @@ const GRUPOS: NavGroup[] = [
       { href: "/productos",          icon: "📦", label: "Productos",                permiso: "productos" },
       { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
       { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
-      { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
-      { href: "/conteo",             icon: "📱", label: "Conteo Físico",            permiso: "conteo" },
+      { href: "/inventario/conteos",       icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
+      { href: "/conteo",                   icon: "📱", label: "Conteo Físico",            permiso: "conteo" },
+      { href: "/inventario/programacion",  icon: "🗓️", label: "Programación de Conteos",  permiso: "programarConteo", badge: "programacion" },
     ],
   },
   {
@@ -224,6 +226,7 @@ export default function SidebarNav({ rol, permisos }: Props) {
                     {!collapsed && item.badge === "cxc" && puedeVerReportes && <CuentasPorCobrarAlerta />}
                     {!collapsed && item.badge === "cashea" && puedeVerReportes && <CasheaAlerta />}
                     {!collapsed && item.badge === "conteo" && <ConteoAlerta />}
+                    {!collapsed && item.badge === "programacion" && <ConteoProgramacionAlerta />}
                   </Link>
                 );
               })}

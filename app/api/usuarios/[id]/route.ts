@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const permisos =
     body.rol === "ADMIN"
-      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, conteo: true, promociones: true }
+      ? { productos: true, ventas: true, reportes: true, pedidosPendientes: true, descuento: true, dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, conteo: true, programarConteo: true, promociones: true }
       : body.permisos ?? PERMISOS_VACIOS;
 
   const nombre = body.nombre!.trim();
@@ -41,7 +41,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const activo = body.activo ?? true;
   const claveHash = body.clave?.trim() ? hashPassword(body.clave) : null;
 
-  type UpdateOpts = { dashboard: boolean; compras: boolean; eliminarCompras: boolean; gastos: boolean; autorizarConteo: boolean; conteo: boolean; promociones: boolean };
+  type UpdateOpts = { dashboard: boolean; compras: boolean; eliminarCompras: boolean; gastos: boolean; autorizarConteo: boolean; conteo: boolean; programarConteo: boolean; promociones: boolean };
 
   const runUpdate = async (opts: UpdateOpts) => {
     const cols: string[] = [];
@@ -65,6 +65,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (opts.gastos) add("ve_gastos", permisos.gastos);
     if (opts.autorizarConteo) add("ve_autorizar_conteo", permisos.autorizarConteo);
     if (opts.conteo) add("ve_conteo", permisos.conteo);
+    if (opts.programarConteo) add("ve_programar_conteo", permisos.programarConteo);
     if (opts.promociones) add("ve_promociones", permisos.promociones);
 
     vals.push(id);
@@ -77,7 +78,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     // Reintenta desactivando únicamente la columna opcional que realmente falta,
     // sin afectar las demás (cada migración pendiente es independiente).
-    const opts: UpdateOpts = { dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, conteo: true, promociones: true };
+    const opts: UpdateOpts = { dashboard: true, compras: true, eliminarCompras: true, gastos: true, autorizarConteo: true, conteo: true, programarConteo: true, promociones: true };
     const columnaPorOpt: Record<keyof UpdateOpts, string> = {
       dashboard: "ve_dashboard",
       compras: "ve_compras",
@@ -85,6 +86,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       gastos: "ve_gastos",
       autorizarConteo: "ve_autorizar_conteo",
       conteo: "ve_conteo",
+      programarConteo: "ve_programar_conteo",
       promociones: "ve_promociones",
     };
 

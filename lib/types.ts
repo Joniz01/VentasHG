@@ -18,6 +18,7 @@ export const PERMISO_TABS = [
   { key: "gastos", label: "Nómina & Gastos" },
   { key: "autorizarConteo", label: "Autorizar Conteo de Inventario" },
   { key: "conteo", label: "Conteo de Inventario (dispositivo)" },
+  { key: "programarConteo", label: "Programar Conteos" },
   { key: "promociones", label: "Crear Promociones" },
 ] as const;
 
@@ -37,6 +38,7 @@ export const PERMISOS_VACIOS: PermisosUsuario = {
   gastos: false,
   autorizarConteo: false,
   conteo: false,
+  programarConteo: false,
   promociones: false,
 };
 

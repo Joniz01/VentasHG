@@ -66,6 +66,7 @@ export async function getUsuarioFromSession(token: string): Promise<SesionUsuari
               COALESCE(u.ve_gastos, FALSE) AS ve_gastos,
               COALESCE(u.ve_autorizar_conteo, FALSE) AS ve_autorizar_conteo,
               COALESCE(u.ve_conteo, FALSE) AS ve_conteo,
+              COALESCE(u.ve_programar_conteo, FALSE) AS ve_programar_conteo,
               COALESCE(u.ve_promociones, FALSE) AS ve_promociones
        FROM sesiones s
        JOIN usuarios u ON u.id = s.usuario_id
@@ -106,6 +107,7 @@ export async function getUsuarioFromSession(token: string): Promise<SesionUsuari
       gastos: (row.ve_gastos ?? false) as boolean,
       autorizarConteo: (row.ve_autorizar_conteo ?? row.rol === "ADMIN") as boolean,
       conteo: (row.ve_conteo ?? false) as boolean,
+      programarConteo: (row.ve_programar_conteo ?? false) as boolean,
       promociones: (row.ve_promociones ?? false) as boolean,
     },
   };
