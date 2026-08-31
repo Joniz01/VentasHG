@@ -7,12 +7,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
 import PerfilMenu from "@/components/PerfilMenu";
 import ConteoAlertaShell from "@/components/ConteoAlertaShell";
+import ConteoProgramacionAlertaShell from "@/components/ConteoProgramacionAlertaShell";
 
 const MODULE_NAMES: Record<string, string> = {
   "/ventas":             "Punto de Venta",
   "/pedidos-pendientes": "Pedidos Pendientes",
   "/productos":          "Inventario · Productos",
-  "/inventario/conteos": "Inventario · Bandeja Conteos",
+  "/inventario/conteos":       "Inventario · Bandeja Conteos",
+  "/inventario/programacion":  "Inventario · Programación de Conteos",
   "/inventarios":        "Inventario · Movimientos",
   "/compras":            "Compras",
   "/mrp":                "MRP · Planificación",
@@ -246,8 +248,11 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
         </>
       )}
 
-      {/* Conteos pendientes */}
+      {/* Conteos pendientes de revisión */}
       {sesionActiva && <ConteoAlertaShell />}
+
+      {/* Conteos programados para hoy */}
+      {sesionActiva && <ConteoProgramacionAlertaShell />}
 
       {/* Profile */}
       {sesionActiva && <PerfilMenu />}
