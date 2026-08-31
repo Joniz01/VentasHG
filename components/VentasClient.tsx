@@ -1314,6 +1314,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                 }}
                                 placeholder="Buscar producto..."
                               />
+                              {producto && producto.stockActual <= 0 && (
+                                <p className="text-xs font-medium" style={{ color: "#b45309" }}>
+                                  El producto que esta tratando de vender no tiene disponibilidad, realice un ajuste o conteo para no afectar el inventario real y la demanda.
+                                </p>
+                              )}
                             </div>
                             {producto && producto.extras.length > 0 && (
                               <div className="flex flex-col gap-1">
@@ -2171,6 +2176,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     }}
                     placeholder="Selecciona o escribe un producto"
                   />
+                  {producto && producto.stockActual <= 0 && (
+                    <p className="col-span-12 text-xs font-medium" style={{ color: "#b45309" }}>
+                      El producto que esta tratando de vender no tiene disponibilidad, realice un ajuste o conteo para no afectar el inventario real y la demanda.
+                    </p>
+                  )}
                   <select
                     className="col-span-3 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3"
                     value={item.extraId}
