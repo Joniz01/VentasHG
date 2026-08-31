@@ -168,6 +168,30 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Query cuentas por pagar pendientes ────────────────────────────────────────
+  let cpRows: RawItem[] = [];
+  try {
+    const r = await pool.query<RawItem>(
+      `SELECT
+        'CP' || cp.id                                                              AS id,
+        'proveedor'                                                                AS tipo,
+        cp.proveedor || COALESCE(' · Fact. ' || cp.numero_factura, '')            AS descripcion,
+        cp.fecha_vencimiento                                                       AS fecha_vencimiento,
+        cp.monto_bs                                                                AS monto_bs,
+        cp.tasa_dia                                                                AS tasa_dia,
+        cp.numero_factura                                                          AS referencia,
+        cp.monto_original_bs                                                       AS monto_original_bs,
+        cp.estado                                                                  AS estado_raw,
+        cp.monto_usd::text                                                         AS monto_usd
+      FROM cuentas_pagar cp
+      WHERE cp.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
+        AND cp.fecha_vencimiento BETWEEN $1 AND $2
+      ORDER BY cp.fecha_vencimiento ASC`,
+      [desde, hasta]
+    );
+    cpRows = r.rows;
+  } catch { /* tabla cuentas_pagar aún no existe */ }
+
   // ── Nóminas automáticas estimadas (sin período generado) dentro de la ventana ─
   type EstimadaRow = { nomina_id: number; nombre: string; fecha_pago: string; total_usd: number };
   let nominasEstimadas: EstimadaRow[] = [];
@@ -331,7 +355,7 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Merge + enrich ─────────────────────────────────────────────────────────
-  const allRaw = [...nominaRows, ...gastoRows];
+  const allRaw = [...nominaRows, ...gastoRows, ...cpRows];
 
   type Item = {
     id: string; tipo: string; descripcion: string;
@@ -388,6 +412,8 @@ export async function GET(request: NextRequest) {
   items.sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
+  const proveedoresUsd = cpRows.reduce((s, r) => s + (r.monto_usd != null ? Number(r.monto_usd) : (Number(r.tasa_dia) > 0 ? Number(r.monto_bs) / Number(r.tasa_dia) : 0)), 0);
+
   const vencidoUsd = items.filter((i) => i.estado === "vencido").reduce((s, i) => s + i.montoUsd, 0);
   const estaSemanaUsd = items
     .filter((i) => i.fechaVencimiento >= lunes && i.fechaVencimiento <= domingo)
@@ -413,7 +439,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
-    kpis: { vencidoUsd, estaSemanaUsd, proximaSemanaUsd, esteMesUsd, pagadoUsd },
+    kpis: { vencidoUsd, estaSemanaUsd, proximaSemanaUsd, esteMesUsd, pagadoUsd, proveedoresUsd },
     items,
     semanas,
     hoy,
@@ -504,6 +530,44 @@ export async function PATCH(request: NextRequest) {
       `UPDATE gastos SET estado = 'PAGADO', pagado_at = now() WHERE id = $1`,
       [gastoId]
     );
+    return NextResponse.json({ ok: true });
+  }
+
+  // Cuenta por pagar
+  if (body.id.startsWith("CP")) {
+    const cpId = Number(body.id.slice(2));
+    if (body.parcial) {
+      const { montoPagadoUsd, nuevaFecha, nota } = body.parcial;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const cpRes = await client.query(`SELECT monto_bs, tasa_dia, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`, [cpId]);
+        if (!cpRes.rows.length) throw new Error("Cuenta no encontrada");
+        const row = cpRes.rows[0];
+        const tasaDia = Number(row.tasa_dia);
+        const montoOriginalBs = row.monto_original_bs != null ? Number(row.monto_original_bs) : Number(row.monto_bs);
+        const pagadoBs = tasaDia > 0 ? montoPagadoUsd * tasaDia : montoPagadoUsd;
+        const restanteBs = Number(row.monto_bs) - pagadoBs;
+        if (restanteBs <= 0.01) {
+          await client.query(`UPDATE cuentas_pagar SET estado='PAGADO', pagado_at=NOW(), monto_bs=0, monto_usd=0, monto_original_bs=$2 WHERE id=$1`, [cpId, montoOriginalBs]);
+        } else {
+          const restanteUsd = tasaDia > 0 ? restanteBs / tasaDia : 0;
+          await client.query(
+            `UPDATE cuentas_pagar SET estado='PENDIENTE_PARCIAL', fecha_vencimiento=COALESCE($2::date, fecha_vencimiento), monto_bs=$3, monto_usd=$4, monto_original_bs=$5 WHERE id=$1`,
+            [cpId, nuevaFecha || null, restanteBs, restanteUsd, montoOriginalBs]
+          );
+        }
+        await client.query(`INSERT INTO cuentas_pagar_historial (cuenta_pagar_id, fecha_pago, monto_bs, monto_usd, tasa_dia, nota) VALUES ($1, NOW()::date, $2, $3, $4, $5)`, [cpId, pagadoBs, montoPagadoUsd, tasaDia, nota ?? null]);
+        await client.query("COMMIT");
+        return NextResponse.json({ ok: true, restanteBs });
+      } catch (err) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+      } finally {
+        client.release();
+      }
+    }
+    await pool.query(`UPDATE cuentas_pagar SET estado='PAGADO', pagado_at=NOW() WHERE id=$1`, [cpId]);
     return NextResponse.json({ ok: true });
   }
 

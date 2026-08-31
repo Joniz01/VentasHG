@@ -30,12 +30,12 @@ type ObligacionItem = {
   historialPagos?: PagoHistorial[];
 };
 
-type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes";
+type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes" | "proveedores";
 
 type Semana = { lunes: string; domingo: string; totalUsd: number; tipos: string[] };
 
 type PlanificacionData = {
-  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number };
+  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number; proveedoresUsd?: number };
   items: ObligacionItem[];
   semanas: Semana[];
   hoy: string;
@@ -119,6 +119,7 @@ function KpiCard({
 
 function sourceUrl(item: ObligacionItem): string | null {
   if (item.id.startsWith("G")) return "/gastos";
+  if (item.id.startsWith("CP")) return "/cuentas-por-pagar";
   if (item.id.startsWith("NE")) return "/nomina"; // estimated → config nomina
   if (item.id.startsWith("N")) return "/nomina";  // period → gestión pagos
   return null;
@@ -279,6 +280,7 @@ export default function TesoreriaClient() {
     if (drillKey === "proxima_semana") return items.filter((i) => i.fechaVencimiento >= lunesProx && i.fechaVencimiento <= domingoProx);
     if (drillKey === "prox_4sem") return items.filter((i) => i.estado !== "vencido" && i.estado !== "pagado");
     if (drillKey === "pagado_mes") return items.filter((i) => i.estado === "pagado");
+    if (drillKey === "proveedores") return items.filter((i) => i.id.startsWith("CP"));
     return null;
   })();
 
@@ -304,6 +306,7 @@ export default function TesoreriaClient() {
     esta_semana: "Esta Semana",
     prox_4sem: "Próximas 4 Semanas",
     pagado_mes: "Pagado · Mes",
+    proveedores: "Proveedores",
   };
 
   // Timeline scale
@@ -364,6 +367,9 @@ export default function TesoreriaClient() {
         <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} active={drillKey === "esta_semana"} onClick={() => setDrillKey(drillKey === "esta_semana" ? null : "esta_semana")} />
         <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" active={drillKey === "prox_4sem"}     onClick={() => setDrillKey(drillKey === "prox_4sem" ? null : "prox_4sem")} />
         <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" active={drillKey === "pagado_mes"}    onClick={() => setDrillKey(drillKey === "pagado_mes" ? null : "pagado_mes")} />
+        {(kpis.proveedoresUsd ?? 0) > 0 && (
+          <KpiCard label="Proveedores" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores" active={drillKey === "proveedores"} onClick={() => setDrillKey(drillKey === "proveedores" ? null : "proveedores")} />
+        )}
       </div>
 
       {/* ── Drill breadcrumb ───────────────────────────────────────────── */}
