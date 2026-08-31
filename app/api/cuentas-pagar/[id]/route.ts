@@ -4,13 +4,14 @@ import { getSesionFromRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.gastos)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const id = Number(params.id);
+  const { id: idStr } = await params;
+  const id = Number(idStr);
   if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   const body = (await request.json()) as {
@@ -113,13 +114,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.gastos)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const id = Number(params.id);
+  const { id: idStr2 } = await params;
+  const id = Number(idStr2);
   if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
