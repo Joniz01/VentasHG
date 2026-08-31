@@ -18,8 +18,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     accion?: "toggle";
     nombre?: string;
     alcance?: string;
-    categoriaId?: number | null;
-    productoId?: number | null;
+    categoriaIds?: number[];
+    productoIds?: number[];
     uso?: string | null;
     recurrencia?: string;
     diasSemana?: string[];
@@ -40,8 +40,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (body.nombre !== undefined) add("nombre", body.nombre.trim());
   if (body.alcance !== undefined) add("alcance", body.alcance);
-  if (body.categoriaId !== undefined) add("categoria_id", body.categoriaId);
-  if (body.productoId !== undefined) add("producto_id", body.productoId);
+  if (body.categoriaIds !== undefined) add("categoria_ids", body.categoriaIds?.length ? body.categoriaIds : null);
+  if (body.productoIds !== undefined) add("producto_ids", body.productoIds?.length ? body.productoIds : null);
   if (body.uso !== undefined) add("uso", body.uso);
   if (body.recurrencia !== undefined) add("recurrencia", body.recurrencia);
   if (body.diasSemana !== undefined) add("dias_semana", body.diasSemana?.length ? body.diasSemana : null);

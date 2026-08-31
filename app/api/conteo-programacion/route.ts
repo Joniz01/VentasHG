@@ -22,8 +22,7 @@ function venceHoy(row: Record<string, unknown>): boolean {
     }
     case "QUINCENAL": {
       const dia = Number(row.dia_numero ?? 1);
-      const dia2 = Math.min(dia + 15, 28);
-      return dom === dia || dom === dia2;
+      return dom === dia || dom === Math.min(dia + 15, 28);
     }
     case "MENSUAL": return dom === Number(row.dia_numero ?? 1);
     case "FECHA": {
@@ -84,14 +83,13 @@ function mapRow(r: Record<string, unknown>) {
     id: r.id,
     nombre: r.nombre,
     alcance: r.alcance,
-    categoriaId: r.categoria_id ?? null,
-    categoriaNombre: r.categoria_nombre ?? null,
-    productoId: r.producto_id ?? null,
-    productoNombre: r.producto_nombre ?? null,
+    categoriaIds: (r.categoria_ids as number[] | null) ?? [],
+    categoriaNombres: (r.categoria_nombres as string[] | null) ?? [],
+    productoIds: (r.producto_ids as number[] | null) ?? [],
+    productoNombres: (r.producto_nombres as string[] | null) ?? [],
     uso: r.uso ?? null,
     recurrencia: r.recurrencia,
     diasSemana: (r.dias_semana as string[] | null) ?? [],
-    diaNumerо: r.dia_numero ?? null,
     diaNumero: r.dia_numero ?? null,
     fechaEspecifica: r.fecha_especifica
       ? (r.fecha_especifica instanceof Date ? r.fecha_especifica.toISOString().slice(0, 10) : String(r.fecha_especifica).slice(0, 10))
@@ -113,14 +111,10 @@ export async function GET(request: NextRequest) {
 
   const result = await pool.query(
     `SELECT cp.*,
-            c.nombre AS categoria_nombre,
-            p.nombre AS producto_nombre,
-            ARRAY(
-              SELECT u.nombre FROM usuarios u WHERE u.id = ANY(cp.usuarios_alerta)
-            ) AS usuarios_nombres
+            ARRAY(SELECT c.nombre FROM categorias c WHERE c.id = ANY(cp.categoria_ids)) AS categoria_nombres,
+            ARRAY(SELECT p.nombre FROM productos p WHERE p.id = ANY(cp.producto_ids)) AS producto_nombres,
+            ARRAY(SELECT u.nombre FROM usuarios u WHERE u.id = ANY(cp.usuarios_alerta)) AS usuarios_nombres
      FROM conteo_programacion cp
-     LEFT JOIN categorias c ON c.id = cp.categoria_id
-     LEFT JOIN productos p ON p.id = cp.producto_id
      ORDER BY cp.created_at DESC`
   );
 
@@ -136,8 +130,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as {
     nombre: string;
     alcance: string;
-    categoriaId?: number | null;
-    productoId?: number | null;
+    categoriaIds?: number[];
+    productoIds?: number[];
     uso?: string | null;
     recurrencia: string;
     diasSemana?: string[];
@@ -155,13 +149,13 @@ export async function POST(request: NextRequest) {
 
   const result = await pool.query(
     `INSERT INTO conteo_programacion
-       (nombre, alcance, categoria_id, producto_id, uso, recurrencia, dias_semana, dia_numero, fecha_especifica, usuarios_alerta, activo, created_by)
+       (nombre, alcance, categoria_ids, producto_ids, uso, recurrencia, dias_semana, dia_numero, fecha_especifica, usuarios_alerta, activo, created_by)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE,$11) RETURNING id`,
     [
       body.nombre.trim(),
       body.alcance,
-      body.categoriaId ?? null,
-      body.productoId ?? null,
+      body.categoriaIds?.length ? body.categoriaIds : null,
+      body.productoIds?.length ? body.productoIds : null,
       body.uso ?? null,
       body.recurrencia,
       body.diasSemana?.length ? body.diasSemana : null,

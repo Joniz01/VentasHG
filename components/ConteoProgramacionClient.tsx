@@ -12,10 +12,10 @@ type Programacion = {
   id: number;
   nombre: string;
   alcance: Alcance;
-  categoriaId: number | null;
-  categoriaNombre: string | null;
-  productoId: number | null;
-  productoNombre: string | null;
+  categoriaIds: number[];
+  categoriaNombres: string[];
+  productoIds: number[];
+  productoNombres: string[];
   uso: Uso | null;
   recurrencia: Recurrencia;
   diasSemana: string[];
@@ -61,8 +61,8 @@ const ALCANCE_LABELS: Record<Alcance, string> = {
 type FormData = {
   nombre: string;
   alcance: Alcance;
-  categoriaId: number | null;
-  productoId: number | null;
+  categoriaIds: number[];
+  productoIds: number[];
   uso: Uso | null;
   recurrencia: Recurrencia;
   diasSemana: string[];
@@ -74,8 +74,8 @@ type FormData = {
 const FORM_VACIO: FormData = {
   nombre: "",
   alcance: "TODOS",
-  categoriaId: null,
-  productoId: null,
+  categoriaIds: [],
+  productoIds: [],
   uso: null,
   recurrencia: "MENSUAL",
   diasSemana: [],
@@ -93,8 +93,10 @@ function formatDate(iso: string | null): string {
 function alcanceResumen(p: Programacion): string {
   switch (p.alcance) {
     case "TODOS": return "Todos";
-    case "CATEGORIA": return p.categoriaNombre ?? "—";
-    case "PRODUCTO": return p.productoNombre ?? "—";
+    case "CATEGORIA":
+      return p.categoriaNombres.length ? p.categoriaNombres.join(", ") : "—";
+    case "PRODUCTO":
+      return p.productoNombres.length ? p.productoNombres.join(", ") : "—";
     case "USO": return p.uso === "MATERIA_PRIMA" ? "Materia Prima" : "Para la Venta";
   }
 }
@@ -119,14 +121,11 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(FORM_VACIO);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  // Delete confirm
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const cargar = useCallback(async () => {
@@ -136,8 +135,7 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
         fetch("/api/conteo-programacion/datos"),
       ]);
       if (!listRes.ok) { setError("Error al cargar programaciones"); return; }
-      const list = await listRes.json();
-      setProgramaciones(list);
+      setProgramaciones(await listRes.json());
       if (datosRes.ok) {
         const datos = await datosRes.json();
         setCategorias(datos.categorias ?? []);
@@ -165,8 +163,8 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
     setForm({
       nombre: p.nombre,
       alcance: p.alcance,
-      categoriaId: p.categoriaId,
-      productoId: p.productoId,
+      categoriaIds: p.categoriaIds,
+      productoIds: p.productoIds,
       uso: p.uso,
       recurrencia: p.recurrencia,
       diasSemana: p.diasSemana,
@@ -198,8 +196,8 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
       const body: Record<string, unknown> = {
         nombre: form.nombre,
         alcance: form.alcance,
-        categoriaId: form.alcance === "CATEGORIA" ? form.categoriaId : null,
-        productoId: form.alcance === "PRODUCTO" ? form.productoId : null,
+        categoriaIds: form.alcance === "CATEGORIA" ? form.categoriaIds : [],
+        productoIds: form.alcance === "PRODUCTO" ? form.productoIds : [],
         uso: form.alcance === "USO" ? form.uso : null,
         recurrencia: form.recurrencia,
         diasSemana: form.recurrencia === "SEMANAL" ? form.diasSemana : [],
@@ -227,25 +225,17 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
     cargar();
   };
 
-  const toggleDia = (dia: string) => {
-    setForm((f) => ({
-      ...f,
-      diasSemana: f.diasSemana.includes(dia)
-        ? f.diasSemana.filter((d) => d !== dia)
-        : [...f.diasSemana, dia],
-    }));
+  const toggle = (key: keyof Pick<FormData, "diasSemana" | "categoriaIds" | "productoIds" | "usuariosAlerta">, val: number | string) => {
+    setForm((f) => {
+      const arr = f[key] as (number | string)[];
+      return {
+        ...f,
+        [key]: arr.includes(val as never)
+          ? arr.filter((x) => x !== val)
+          : [...arr, val],
+      };
+    });
   };
-
-  const toggleUsuario = (uid: number) => {
-    setForm((f) => ({
-      ...f,
-      usuariosAlerta: f.usuariosAlerta.includes(uid)
-        ? f.usuariosAlerta.filter((u) => u !== uid)
-        : [...f.usuariosAlerta, uid],
-    }));
-  };
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) return <div className="text-sm p-6" style={{ color: "var(--erp-text-3)" }}>Cargando…</div>;
   if (error) return <div className="text-sm p-6 text-red-500">{error}</div>;
@@ -254,7 +244,6 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
 
   return (
     <div className="max-w-5xl">
-      {/* Alert: due today */}
       {hoy.length > 0 && (
         <div
           className="mb-4 rounded-xl px-4 py-3 flex gap-3 items-start"
@@ -272,7 +261,6 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <h1 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>
           Programación de Conteos
@@ -288,7 +276,6 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
         )}
       </div>
 
-      {/* Form panel */}
       {showForm && (
         <FormPanel
           form={form}
@@ -301,12 +288,10 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
           formError={formError}
           onGuardar={guardar}
           onCancelar={cerrarForm}
-          toggleDia={toggleDia}
-          toggleUsuario={toggleUsuario}
+          toggle={toggle}
         />
       )}
 
-      {/* Table */}
       {programaciones.length === 0 ? (
         <div
           className="rounded-xl p-8 text-center text-sm"
@@ -320,7 +305,7 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]" style={{ background: "var(--erp-surface)" }}>
               <thead>
-                <tr style={{ background: "var(--erp-surface-2, var(--erp-surface))", borderBottom: "1px solid var(--erp-border)" }}>
+                <tr style={{ borderBottom: "1px solid var(--erp-border)" }}>
                   {["Nombre", "Alcance", "Recurrencia", "Próxima fecha", "Usuarios alerta", "Estado", ""].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--erp-text-3)" }}>{h}</th>
                   ))}
@@ -328,24 +313,21 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
               </thead>
               <tbody>
                 {programaciones.map((p) => (
-                  <tr
-                    key={p.id}
-                    style={{ borderBottom: "1px solid var(--erp-border)" }}
-                  >
+                  <tr key={p.id} style={{ borderBottom: "1px solid var(--erp-border)" }}>
                     <td className="px-3 py-2.5 font-semibold" style={{ color: "var(--erp-text)" }}>
                       {p.nombre}
                       {p.venceHoy && p.activo && (
                         <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: "#FEF3C7", color: "#92400E" }}>HOY</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5" style={{ color: "var(--erp-text-2)" }}>
+                    <td className="px-3 py-2.5 max-w-[180px]" style={{ color: "var(--erp-text-2)" }}>
                       <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--erp-text-3)" }}>{ALCANCE_LABELS[p.alcance]}</div>
-                      {alcanceResumen(p)}
+                      <span className="text-[11px] leading-snug">{alcanceResumen(p)}</span>
                     </td>
-                    <td className="px-3 py-2.5 whitespace-pre-wrap max-w-[180px]" style={{ color: "var(--erp-text-2)" }}>
+                    <td className="px-3 py-2.5 max-w-[180px]" style={{ color: "var(--erp-text-2)" }}>
                       {recurrenciaResumen(p)}
                     </td>
-                    <td className="px-3 py-2.5 font-variant-numeric tabular-nums" style={{ color: "var(--erp-text-2)" }}>
+                    <td className="px-3 py-2.5 tabular-nums" style={{ color: "var(--erp-text-2)" }}>
                       {formatDate(p.proximaFecha)}
                     </td>
                     <td className="px-3 py-2.5 max-w-[160px]" style={{ color: "var(--erp-text-2)" }}>
@@ -384,25 +366,11 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
                           </button>
                           {deleteId === p.id ? (
                             <span className="flex items-center gap-1">
-                              <button
-                                onClick={() => eliminar(p.id)}
-                                className="text-[11px] font-bold text-red-500 hover:opacity-70"
-                              >
-                                Confirmar
-                              </button>
-                              <button
-                                onClick={() => setDeleteId(null)}
-                                className="text-[11px] hover:opacity-70"
-                                style={{ color: "var(--erp-text-3)" }}
-                              >
-                                Cancelar
-                              </button>
+                              <button onClick={() => eliminar(p.id)} className="text-[11px] font-bold text-red-500 hover:opacity-70">Confirmar</button>
+                              <button onClick={() => setDeleteId(null)} className="text-[11px] hover:opacity-70" style={{ color: "var(--erp-text-3)" }}>Cancelar</button>
                             </span>
                           ) : (
-                            <button
-                              onClick={() => setDeleteId(p.id)}
-                              className="text-[11px] font-semibold transition-opacity hover:opacity-70 text-red-500"
-                            >
+                            <button onClick={() => setDeleteId(p.id)} className="text-[11px] font-semibold text-red-500 hover:opacity-70">
                               Eliminar
                             </button>
                           )}
@@ -422,12 +390,72 @@ export default function ConteoProgramacionClient({ canEdit }: { canEdit: boolean
 
 // ── Form Panel ───────────────────────────────────────────────────────────────
 
+function Chips({
+  items,
+  selected,
+  onToggle,
+  color = "var(--erp-primary)",
+  searchable = false,
+}: {
+  items: { id: number; label: string }[];
+  selected: number[];
+  onToggle: (id: number) => void;
+  color?: string;
+  searchable?: boolean;
+}) {
+  const [q, setQ] = useState("");
+  const filtered = searchable && q
+    ? items.filter((i) => i.label.toLowerCase().includes(q.toLowerCase()))
+    : items;
+
+  return (
+    <div>
+      {searchable && items.length > 8 && (
+        <input
+          className="mb-2 w-full rounded-lg border px-3 py-1 text-[12px] outline-none"
+          style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)", color: "var(--erp-text)" }}
+          placeholder="Buscar…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      )}
+      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+        {filtered.map((item) => {
+          const active = selected.includes(item.id);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onToggle(item.id)}
+              className="rounded-full px-3 py-1 text-[11px] font-semibold border transition-colors"
+              style={{
+                background: active ? color : "var(--erp-surface)",
+                borderColor: active ? color : "var(--erp-border)",
+                color: active ? "#fff" : "var(--erp-text-2)",
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+        {filtered.length === 0 && (
+          <span className="text-[11px]" style={{ color: "var(--erp-text-3)" }}>Sin resultados</span>
+        )}
+      </div>
+      {selected.length > 0 && (
+        <p className="mt-1 text-[10px]" style={{ color: "var(--erp-text-3)" }}>
+          {selected.length} seleccionado{selected.length !== 1 ? "s" : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function FormPanel({
   form, setForm, editId,
   categorias, productos, usuarios,
   saving, formError,
-  onGuardar, onCancelar,
-  toggleDia, toggleUsuario,
+  onGuardar, onCancelar, toggle,
 }: {
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
@@ -439,14 +467,13 @@ function FormPanel({
   formError: string | null;
   onGuardar: () => void;
   onCancelar: () => void;
-  toggleDia: (d: string) => void;
-  toggleUsuario: (uid: number) => void;
+  toggle: (key: keyof Pick<FormData, "diasSemana" | "categoriaIds" | "productoIds" | "usuariosAlerta">, val: number | string) => void;
 }) {
   const set = <K extends keyof FormData>(key: K, val: FormData[K]) => setForm((f) => ({ ...f, [key]: val }));
 
   const inputCls = "w-full rounded-lg border px-3 py-1.5 text-[12.5px] outline-none transition-colors focus:border-[var(--erp-primary)]";
   const inputStyle = { background: "var(--erp-surface)", borderColor: "var(--erp-border)", color: "var(--erp-text)" };
-  const labelCls = "block text-[11px] font-bold uppercase tracking-wider mb-1";
+  const labelCls = "block text-[11px] font-bold uppercase tracking-wider mb-1.5";
   const labelStyle = { color: "var(--erp-text-3)" };
 
   return (
@@ -458,7 +485,8 @@ function FormPanel({
         {editId ? "Editar Programación" : "Nueva Programación"}
       </h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
         {/* Nombre */}
         <div className="sm:col-span-2">
           <label className={labelCls} style={labelStyle}>Nombre</label>
@@ -472,9 +500,9 @@ function FormPanel({
         </div>
 
         {/* Alcance */}
-        <div>
+        <div className="sm:col-span-2">
           <label className={labelCls} style={labelStyle}>Alcance</label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-3">
             {(["TODOS", "CATEGORIA", "PRODUCTO", "USO"] as Alcance[]).map((a) => (
               <button
                 key={a}
@@ -492,31 +520,44 @@ function FormPanel({
             ))}
           </div>
 
-          {/* Sub-field for alcance */}
           {form.alcance === "CATEGORIA" && (
-            <select
-              className={`${inputCls} mt-2`}
-              style={inputStyle}
-              value={form.categoriaId ?? ""}
-              onChange={(e) => set("categoriaId", e.target.value ? Number(e.target.value) : null)}
+            <div
+              className="rounded-lg p-3"
+              style={{ background: "var(--erp-surface-2, var(--erp-surface))", border: "1px solid var(--erp-border)" }}
             >
-              <option value="">— Selecciona categoría —</option>
-              {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
+              <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--erp-text-3)" }}>
+                Selecciona una o varias categorías
+              </p>
+              <Chips
+                items={categorias.map((c) => ({ id: c.id, label: c.nombre }))}
+                selected={form.categoriaIds}
+                onToggle={(id) => toggle("categoriaIds", id)}
+                color="#1D4ED8"
+                searchable
+              />
+            </div>
           )}
+
           {form.alcance === "PRODUCTO" && (
-            <select
-              className={`${inputCls} mt-2`}
-              style={inputStyle}
-              value={form.productoId ?? ""}
-              onChange={(e) => set("productoId", e.target.value ? Number(e.target.value) : null)}
+            <div
+              className="rounded-lg p-3"
+              style={{ background: "var(--erp-surface-2, var(--erp-surface))", border: "1px solid var(--erp-border)" }}
             >
-              <option value="">— Selecciona producto —</option>
-              {productos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
+              <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--erp-text-3)" }}>
+                Selecciona uno o varios productos
+              </p>
+              <Chips
+                items={productos.map((p) => ({ id: p.id, label: p.nombre }))}
+                selected={form.productoIds}
+                onToggle={(id) => toggle("productoIds", id)}
+                color="#15803D"
+                searchable
+              />
+            </div>
           )}
+
           {form.alcance === "USO" && (
-            <div className="flex gap-3 mt-2">
+            <div className="flex gap-4">
               {([["MATERIA_PRIMA", "Materia Prima"], ["PARA_LA_VENTA", "Para la Venta"]] as [Uso, string][]).map(([key, lbl]) => (
                 <label key={key} className="flex items-center gap-1.5 cursor-pointer text-[12px]" style={{ color: "var(--erp-text-2)" }}>
                   <input type="radio" checked={form.uso === key} onChange={() => set("uso", key)} />
@@ -528,9 +569,9 @@ function FormPanel({
         </div>
 
         {/* Recurrencia */}
-        <div>
+        <div className="sm:col-span-2">
           <label className={labelCls} style={labelStyle}>Recurrencia</label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-3">
             {(["DIARIA", "SEMANAL", "QUINCENAL", "MENSUAL", "FECHA"] as Recurrencia[]).map((r) => (
               <button
                 key={r}
@@ -548,14 +589,13 @@ function FormPanel({
             ))}
           </div>
 
-          {/* Sub-fields for recurrencia */}
           {form.recurrencia === "SEMANAL" && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap gap-1.5">
               {DIAS_SEMANA.map((d) => (
                 <button
                   key={d.key}
                   type="button"
-                  onClick={() => toggleDia(d.key)}
+                  onClick={() => toggle("diasSemana", d.key)}
                   className="rounded-md px-2.5 py-1 text-[11px] font-semibold border transition-colors"
                   style={{
                     background: form.diasSemana.includes(d.key) ? "#1D4ED8" : "var(--erp-surface)",
@@ -568,8 +608,9 @@ function FormPanel({
               ))}
             </div>
           )}
+
           {(form.recurrencia === "QUINCENAL" || form.recurrencia === "MENSUAL") && (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span className="text-[12px]" style={{ color: "var(--erp-text-2)" }}>Día del mes:</span>
               <input
                 type="number"
@@ -587,11 +628,12 @@ function FormPanel({
               )}
             </div>
           )}
+
           {form.recurrencia === "FECHA" && (
             <input
               type="date"
-              className={`${inputCls} mt-2`}
-              style={inputStyle}
+              className={inputCls}
+              style={{ ...inputStyle, maxWidth: 200 }}
               value={form.fechaEspecifica}
               onChange={(e) => set("fechaEspecifica", e.target.value)}
             />
@@ -604,23 +646,12 @@ function FormPanel({
           {usuarios.length === 0 ? (
             <p className="text-[12px]" style={{ color: "var(--erp-text-3)" }}>Sin usuarios disponibles</p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {usuarios.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => toggleUsuario(u.id)}
-                  className="rounded-full px-3 py-1 text-[11px] font-semibold border transition-colors"
-                  style={{
-                    background: form.usuariosAlerta.includes(u.id) ? "#0891B2" : "var(--erp-surface)",
-                    borderColor: form.usuariosAlerta.includes(u.id) ? "#0891B2" : "var(--erp-border)",
-                    color: form.usuariosAlerta.includes(u.id) ? "#fff" : "var(--erp-text-2)",
-                  }}
-                >
-                  {u.nombre}
-                </button>
-              ))}
-            </div>
+            <Chips
+              items={usuarios.map((u) => ({ id: u.id, label: u.nombre }))}
+              selected={form.usuariosAlerta}
+              onToggle={(id) => toggle("usuariosAlerta", id)}
+              color="#0891B2"
+            />
           )}
         </div>
       </div>
