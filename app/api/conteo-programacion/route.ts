@@ -109,16 +109,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const result = await pool.query(
-    `SELECT cp.*,
-            ARRAY(SELECT c.nombre FROM categorias c WHERE c.id = ANY(COALESCE(cp.categoria_ids, ARRAY[]::integer[]))) AS categoria_nombres,
-            ARRAY(SELECT p.nombre FROM productos p WHERE p.id = ANY(COALESCE(cp.producto_ids, ARRAY[]::integer[]))) AS producto_nombres,
-            ARRAY(SELECT u.nombre FROM usuarios u WHERE u.id = ANY(COALESCE(cp.usuarios_alerta, ARRAY[]::integer[]))) AS usuarios_nombres
-     FROM conteo_programacion cp
-     ORDER BY cp.created_at DESC`
-  );
+  let rows: Record<string, unknown>[];
 
-  return NextResponse.json(result.rows.map(mapRow));
+  try {
+    // Versión con columnas de array (categoria_ids, producto_ids)
+    const result = await pool.query(
+      `SELECT cp.*,
+              ARRAY(SELECT c.nombre FROM categorias c WHERE c.id = ANY(COALESCE(cp.categoria_ids, ARRAY[]::integer[]))) AS categoria_nombres,
+              ARRAY(SELECT p.nombre FROM productos p WHERE p.id = ANY(COALESCE(cp.producto_ids, ARRAY[]::integer[]))) AS producto_nombres,
+              ARRAY(SELECT u.nombre FROM usuarios u WHERE u.id = ANY(COALESCE(cp.usuarios_alerta, ARRAY[]::integer[]))) AS usuarios_nombres
+       FROM conteo_programacion cp
+       ORDER BY cp.created_at DESC`
+    );
+    rows = result.rows;
+  } catch {
+    // Fallback: tabla creada con columnas singulares (categoria_id, producto_id)
+    try {
+      const result = await pool.query(
+        `SELECT cp.*,
+                ARRAY[]::text[] AS categoria_nombres,
+                ARRAY[]::text[] AS producto_nombres,
+                ARRAY(SELECT u.nombre FROM usuarios u WHERE u.id = ANY(COALESCE(cp.usuarios_alerta, ARRAY[]::integer[]))) AS usuarios_nombres
+         FROM conteo_programacion cp
+         ORDER BY cp.created_at DESC`
+      );
+      // Normalizar columnas singulares a arrays
+      rows = result.rows.map((r) => ({
+        ...r,
+        categoria_ids: r.categoria_id ? [r.categoria_id] : null,
+        producto_ids: r.producto_id ? [r.producto_id] : null,
+      }));
+    } catch (err2) {
+      const msg = err2 instanceof Error ? err2.message : String(err2);
+      return NextResponse.json({ error: "Error al consultar programaciones", detalle: msg }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json(rows.map(mapRow));
 }
 
 export async function POST(request: NextRequest) {
@@ -147,24 +174,41 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Selecciona al menos un día para recurrencia semanal" }, { status: 400 });
   }
 
-  const result = await pool.query(
-    `INSERT INTO conteo_programacion
-       (nombre, alcance, categoria_ids, producto_ids, uso, recurrencia, dias_semana, dia_numero, fecha_especifica, usuarios_alerta, activo, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE,$11) RETURNING id`,
-    [
-      body.nombre.trim(),
-      body.alcance,
-      body.categoriaIds?.length ? body.categoriaIds : null,
-      body.productoIds?.length ? body.productoIds : null,
-      body.uso ?? null,
-      body.recurrencia,
-      body.diasSemana?.length ? body.diasSemana : null,
-      body.diaNumero ?? null,
-      body.fechaEspecifica ?? null,
-      body.usuariosAlerta?.length ? body.usuariosAlerta : null,
-      sesion.id,
-    ]
-  );
+  let insertResult;
+  try {
+    insertResult = await pool.query(
+      `INSERT INTO conteo_programacion
+         (nombre, alcance, categoria_ids, producto_ids, uso, recurrencia, dias_semana, dia_numero, fecha_especifica, usuarios_alerta, activo, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE,$11) RETURNING id`,
+      [
+        body.nombre.trim(), body.alcance,
+        body.categoriaIds?.length ? body.categoriaIds : null,
+        body.productoIds?.length ? body.productoIds : null,
+        body.uso ?? null, body.recurrencia,
+        body.diasSemana?.length ? body.diasSemana : null,
+        body.diaNumero ?? null, body.fechaEspecifica ?? null,
+        body.usuariosAlerta?.length ? body.usuariosAlerta : null,
+        sesion.id,
+      ]
+    );
+  } catch {
+    // Fallback para tabla con columnas singulares
+    insertResult = await pool.query(
+      `INSERT INTO conteo_programacion
+         (nombre, alcance, categoria_id, producto_id, uso, recurrencia, dias_semana, dia_numero, fecha_especifica, usuarios_alerta, activo, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE,$11) RETURNING id`,
+      [
+        body.nombre.trim(), body.alcance,
+        body.categoriaIds?.[0] ?? null,
+        body.productoIds?.[0] ?? null,
+        body.uso ?? null, body.recurrencia,
+        body.diasSemana?.length ? body.diasSemana : null,
+        body.diaNumero ?? null, body.fechaEspecifica ?? null,
+        body.usuariosAlerta?.length ? body.usuariosAlerta : null,
+        sesion.id,
+      ]
+    );
+  }
 
-  return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
+  return NextResponse.json({ id: insertResult.rows[0].id }, { status: 201 });
 }
