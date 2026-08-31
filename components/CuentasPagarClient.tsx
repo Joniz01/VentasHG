@@ -53,7 +53,7 @@ function esPendiente(cp: CuentaPagar) {
   return cp.estado === "PENDIENTE" || cp.estado === "PENDIENTE_PARCIAL";
 }
 
-// ── Formulario ─────────────────────────────────────────────────────────────
+// ── Form types ─────────────────────────────────────────────────────────────
 
 type FormData = {
   proveedor: string;
@@ -74,6 +74,8 @@ const FORM_VACIO: FormData = {
   proveedor: "", proveedorRif: "", numeroFactura: "", descripcion: "",
   fechaEmision: HOY, fechaVencimiento: HOY, montoBs: "", montoUsd: "", tasaDia: "", notas: "",
 };
+
+// ── Sub-components ─────────────────────────────────────────────────────────
 
 function OcrBtn({ onResult }: { onResult: (d: OcrData) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -145,6 +147,197 @@ const inputStyle: React.CSSProperties = {
   background: "var(--erp-bg)", color: "var(--erp-text)", fontSize: 14, width: "100%", boxSizing: "border-box",
 };
 
+// ── Tasa fetch ─────────────────────────────────────────────────────────────
+
+async function buscarTasaPorFecha(fecha: string): Promise<number | null> {
+  try {
+    const r = await fetch(`/api/tasa-bcv?fecha=${fecha}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.tasa ? Number(j.tasa) : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Formulario con conversión bidireccional ────────────────────────────────
+
+function FormularioCP({
+  onGuardar,
+  onCancelar,
+}: {
+  onGuardar: (data: FormData) => Promise<string | null>;
+  onCancelar: () => void;
+}) {
+  const [form, setForm] = useState<FormData>(FORM_VACIO);
+  const [guardando, setGuardando] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [tasaMsg, setTasaMsg] = useState("");
+  // "bs" | "usd" — qué campo editó el usuario por última vez
+  const lastEdit = useRef<"bs" | "usd">("bs");
+
+  // Al cambiar fecha de emisión, busca tasa histórica
+  async function handleFechaEmision(fecha: string) {
+    setForm(p => ({ ...p, fechaEmision: fecha }));
+    if (!fecha) return;
+    setTasaMsg("Buscando tasa…");
+    const tasa = await buscarTasaPorFecha(fecha);
+    if (tasa) {
+      setTasaMsg(`Tasa: ${tasa.toFixed(4)} Bs/$`);
+      setForm(p => {
+        const newForm = { ...p, tasaDia: String(tasa) };
+        // Recalcula el lado que no editó el usuario
+        if (lastEdit.current === "bs" && p.montoBs) {
+          newForm.montoUsd = (Number(p.montoBs) / tasa).toFixed(4);
+        } else if (lastEdit.current === "usd" && p.montoUsd) {
+          newForm.montoBs = (Number(p.montoUsd) * tasa).toFixed(2);
+        }
+        return newForm;
+      });
+    } else {
+      setTasaMsg("Sin tasa registrada para esta fecha");
+    }
+  }
+
+  function handleTasa(val: string) {
+    const tasa = Number(val);
+    setForm(p => {
+      const newForm = { ...p, tasaDia: val };
+      if (tasa > 0) {
+        if (lastEdit.current === "bs" && p.montoBs) {
+          newForm.montoUsd = (Number(p.montoBs) / tasa).toFixed(4);
+        } else if (lastEdit.current === "usd" && p.montoUsd) {
+          newForm.montoBs = (Number(p.montoUsd) * tasa).toFixed(2);
+        }
+      }
+      return newForm;
+    });
+  }
+
+  function handleMontoBs(val: string) {
+    lastEdit.current = "bs";
+    const tasa = Number(form.tasaDia);
+    setForm(p => ({
+      ...p,
+      montoBs: val,
+      montoUsd: tasa > 0 && val ? (Number(val) / tasa).toFixed(4) : p.montoUsd,
+    }));
+  }
+
+  function handleMontoUsd(val: string) {
+    lastEdit.current = "usd";
+    const tasa = Number(form.tasaDia);
+    setForm(p => ({
+      ...p,
+      montoUsd: val,
+      montoBs: tasa > 0 && val ? (Number(val) * tasa).toFixed(2) : p.montoBs,
+    }));
+  }
+
+  function aplicarOcr(d: OcrData) {
+    setForm(prev => {
+      const newForm = {
+        ...prev,
+        proveedor:        d.proveedorNombre   ?? prev.proveedor,
+        proveedorRif:     d.proveedorRif      ?? prev.proveedorRif,
+        numeroFactura:    d.numeroFactura     ?? prev.numeroFactura,
+        fechaEmision:     d.fechaEmision      ?? prev.fechaEmision,
+        fechaVencimiento: d.fechaVencimiento  ?? prev.fechaVencimiento,
+        montoBs:          d.totalFacturaBs    ? String(d.totalFacturaBs) : prev.montoBs,
+      };
+      // Recalcular USD si ya hay tasa
+      const tasa = Number(newForm.tasaDia);
+      if (tasa > 0 && newForm.montoBs) {
+        newForm.montoUsd = (Number(newForm.montoBs) / tasa).toFixed(4);
+        lastEdit.current = "bs";
+      }
+      return newForm;
+    });
+    // Buscar tasa para la fecha de la factura si el OCR la detectó
+    if (d.fechaEmision) handleFechaEmision(d.fechaEmision);
+  }
+
+  async function handleSubmit() {
+    setFormError("");
+    if (!form.proveedor.trim() || !form.fechaEmision || !form.fechaVencimiento) {
+      setFormError("Proveedor, fecha de emisión y vencimiento son obligatorios.");
+      return;
+    }
+    setGuardando(true);
+    const err = await onGuardar(form);
+    setGuardando(false);
+    if (err) setFormError(err);
+  }
+
+  return (
+    <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--erp-text)" }}>Nueva Cuenta por Pagar</span>
+        <OcrBtn onResult={aplicarOcr} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+        <CampoForm label="Proveedor *">
+          <input style={inputStyle} value={form.proveedor} onChange={e => setForm(p => ({ ...p, proveedor: e.target.value }))} placeholder="Nombre del proveedor" />
+        </CampoForm>
+        <CampoForm label="RIF">
+          <input style={inputStyle} value={form.proveedorRif} onChange={e => setForm(p => ({ ...p, proveedorRif: e.target.value }))} placeholder="J-00000000-0" />
+        </CampoForm>
+        <CampoForm label="Nº Factura">
+          <input style={inputStyle} value={form.numeroFactura} onChange={e => setForm(p => ({ ...p, numeroFactura: e.target.value }))} placeholder="Número de factura" />
+        </CampoForm>
+        <CampoForm label="Descripción">
+          <input style={inputStyle} value={form.descripcion} onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} placeholder="Descripción o concepto" />
+        </CampoForm>
+
+        {/* Fecha emisión — dispara búsqueda de tasa */}
+        <CampoForm label={`Fecha Emisión *${tasaMsg ? `  ·  ${tasaMsg}` : ""}`}>
+          <input type="date" style={inputStyle} value={form.fechaEmision}
+            onChange={e => handleFechaEmision(e.target.value)} />
+        </CampoForm>
+
+        <CampoForm label="Fecha Vencimiento *">
+          <input type="date" style={inputStyle} value={form.fechaVencimiento}
+            onChange={e => setForm(p => ({ ...p, fechaVencimiento: e.target.value }))} />
+        </CampoForm>
+
+        {/* Tasa editable — actualiza la conversión */}
+        <CampoForm label="Tasa del día (Bs/$)">
+          <input type="number" min="0" step="0.0001" style={inputStyle} value={form.tasaDia}
+            onChange={e => handleTasa(e.target.value)} placeholder="0.0000" />
+        </CampoForm>
+
+        {/* Monto Bs ↔ USD con conversión bidireccional */}
+        <CampoForm label="Monto Bs">
+          <input type="number" min="0" step="0.01" style={inputStyle} value={form.montoBs}
+            onChange={e => handleMontoBs(e.target.value)} placeholder="0.00" />
+        </CampoForm>
+        <CampoForm label="Monto USD">
+          <input type="number" min="0" step="0.0001" style={inputStyle} value={form.montoUsd}
+            onChange={e => handleMontoUsd(e.target.value)} placeholder="0.0000" />
+        </CampoForm>
+
+        <CampoForm label="Notas">
+          <input style={inputStyle} value={form.notas} onChange={e => setForm(p => ({ ...p, notas: e.target.value }))} placeholder="Observaciones opcionales" />
+        </CampoForm>
+      </div>
+
+      {formError && <p style={{ fontSize: 13, color: "#EF4444", margin: 0 }}>{formError}</p>}
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={handleSubmit} disabled={guardando}
+          style={{ padding: "8px 20px", borderRadius: 8, background: "#B45309", color: "#fff", fontWeight: 700, border: "none", cursor: "pointer", fontSize: 14 }}>
+          {guardando ? "Guardando…" : "Guardar"}
+        </button>
+        <button onClick={onCancelar}
+          style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 14 }}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export default function CuentasPagarClient() {
@@ -158,17 +351,15 @@ export default function CuentasPagarClient() {
   const [filtroEstado, setFiltroEstado] = useState<"" | "PENDIENTE" | "PENDIENTE_PARCIAL" | "PAGADO">("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
 
-  // formulario nuevo
+  // formulario
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<FormData>(FORM_VACIO);
-  const [guardando, setGuardando] = useState(false);
-  const [formError, setFormError] = useState("");
 
   // modal pago
   type PagoModal = { id: number; montoBs: number; montoUsd: number; tasaDia: number; proveedor: string };
   const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
   const [tipoPago, setTipoPago] = useState<"total" | "parcial">("total");
   const [montoParcialBs, setMontoParcialBs] = useState("");
+  const [montoParcialUsd, setMontoParcialUsd] = useState("");
   const [nuevaFechVenc, setNuevaFechVenc] = useState("");
   const [notaPago, setNotaPago] = useState("");
   const [pagando, setPagando] = useState(false);
@@ -196,47 +387,43 @@ export default function CuentasPagarClient() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  function aplicarOcr(d: OcrData) {
-    setForm(prev => ({
-      ...prev,
-      proveedor:        d.proveedorNombre ?? prev.proveedor,
-      proveedorRif:     d.proveedorRif    ?? prev.proveedorRif,
-      numeroFactura:    d.numeroFactura   ?? prev.numeroFactura,
-      fechaEmision:     d.fechaEmision    ?? prev.fechaEmision,
-      fechaVencimiento: d.fechaVencimiento ?? prev.fechaVencimiento,
-      montoBs:          d.totalFacturaBs ? String(d.totalFacturaBs) : prev.montoBs,
-    }));
+  async function handleGuardar(form: FormData): Promise<string | null> {
+    const body = {
+      proveedor: form.proveedor,
+      proveedorRif: form.proveedorRif || undefined,
+      numeroFactura: form.numeroFactura || undefined,
+      descripcion: form.descripcion || undefined,
+      fechaEmision: form.fechaEmision,
+      fechaVencimiento: form.fechaVencimiento,
+      montoBs: Number(form.montoBs) || 0,
+      montoUsd: Number(form.montoUsd) || 0,
+      tasaDia: Number(form.tasaDia) || 0,
+      notas: form.notas || undefined,
+    };
+    const r = await fetch("/api/cuentas-pagar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) return j.error ?? "Error al guardar";
+    setShowForm(false);
+    setPage(1);
+    cargar();
+    return null;
   }
 
-  async function handleGuardar() {
-    setFormError("");
-    if (!form.proveedor.trim() || !form.fechaEmision || !form.fechaVencimiento) {
-      setFormError("Proveedor, fecha de emisión y vencimiento son obligatorios.");
-      return;
+  // Conversión bidireccional en modal de pago parcial
+  function handleParcialBs(val: string) {
+    setMontoParcialBs(val);
+    if (pagoModal?.tasaDia && pagoModal.tasaDia > 0 && val) {
+      setMontoParcialUsd((Number(val) / pagoModal.tasaDia).toFixed(4));
     }
-    setGuardando(true);
-    try {
-      const body = {
-        proveedor: form.proveedor,
-        proveedorRif: form.proveedorRif || undefined,
-        numeroFactura: form.numeroFactura || undefined,
-        descripcion: form.descripcion || undefined,
-        fechaEmision: form.fechaEmision,
-        fechaVencimiento: form.fechaVencimiento,
-        montoBs: Number(form.montoBs) || 0,
-        montoUsd: Number(form.montoUsd) || 0,
-        tasaDia: Number(form.tasaDia) || 0,
-        notas: form.notas || undefined,
-      };
-      const r = await fetch("/api/cuentas-pagar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const j = await r.json();
-      if (!r.ok) { setFormError(j.error ?? "Error al guardar"); return; }
-      setShowForm(false);
-      setForm(FORM_VACIO);
-      setPage(1);
-      cargar();
-    } finally {
-      setGuardando(false);
+  }
+  function handleParcialUsd(val: string) {
+    setMontoParcialUsd(val);
+    if (pagoModal?.tasaDia && pagoModal.tasaDia > 0 && val) {
+      setMontoParcialBs((Number(val) * pagoModal.tasaDia).toFixed(2));
     }
   }
 
@@ -250,7 +437,7 @@ export default function CuentasPagarClient() {
           : {
               accion: "pago_parcial",
               montoPagadoBs: Number(montoParcialBs) || 0,
-              montoPagadoUsd: pagoModal.tasaDia > 0 ? (Number(montoParcialBs) || 0) / pagoModal.tasaDia : 0,
+              montoPagadoUsd: Number(montoParcialUsd) || 0,
               tasaDia: pagoModal.tasaDia,
               nuevaFechVenc: nuevaFechVenc || undefined,
               nota: notaPago || undefined,
@@ -262,7 +449,7 @@ export default function CuentasPagarClient() {
       });
       if (r.ok) {
         setPagoModal(null);
-        setMontoParcialBs(""); setNuevaFechVenc(""); setNotaPago("");
+        setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
         cargar();
       } else {
         const j = await r.json();
@@ -298,59 +485,19 @@ export default function CuentasPagarClient() {
           <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Obligaciones con proveedores</p>
         </div>
         <button
-          onClick={() => { setShowForm(!showForm); setForm(FORM_VACIO); setFormError(""); }}
+          onClick={() => setShowForm(v => !v)}
           style={{ padding: "8px 18px", borderRadius: 10, background: "#B45309", color: "#fff", fontWeight: 700, fontSize: 14, border: "none", cursor: "pointer" }}
         >
-          + Nueva Cuenta
+          {showForm ? "✕ Cancelar" : "+ Nueva Cuenta"}
         </button>
       </div>
 
       {/* Formulario */}
       {showForm && (
-        <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--erp-text)" }}>Nueva Cuenta por Pagar</span>
-            <OcrBtn onResult={aplicarOcr} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-            <CampoForm label="Proveedor *">
-              <input style={inputStyle} value={form.proveedor} onChange={e => setForm(p => ({ ...p, proveedor: e.target.value }))} placeholder="Nombre del proveedor" />
-            </CampoForm>
-            <CampoForm label="RIF">
-              <input style={inputStyle} value={form.proveedorRif} onChange={e => setForm(p => ({ ...p, proveedorRif: e.target.value }))} placeholder="J-00000000-0" />
-            </CampoForm>
-            <CampoForm label="Nº Factura">
-              <input style={inputStyle} value={form.numeroFactura} onChange={e => setForm(p => ({ ...p, numeroFactura: e.target.value }))} placeholder="Número de factura" />
-            </CampoForm>
-            <CampoForm label="Descripción">
-              <input style={inputStyle} value={form.descripcion} onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} placeholder="Descripción o concepto" />
-            </CampoForm>
-            <CampoForm label="Fecha Emisión *">
-              <input type="date" style={inputStyle} value={form.fechaEmision} onChange={e => setForm(p => ({ ...p, fechaEmision: e.target.value }))} />
-            </CampoForm>
-            <CampoForm label="Fecha Vencimiento *">
-              <input type="date" style={inputStyle} value={form.fechaVencimiento} onChange={e => setForm(p => ({ ...p, fechaVencimiento: e.target.value }))} />
-            </CampoForm>
-            <CampoForm label="Monto Bs">
-              <input type="number" min="0" step="0.01" style={inputStyle} value={form.montoBs} onChange={e => setForm(p => ({ ...p, montoBs: e.target.value }))} placeholder="0.00" />
-            </CampoForm>
-            <CampoForm label="Tasa Día (Bs/$)">
-              <input type="number" min="0" step="0.0001" style={inputStyle} value={form.tasaDia} onChange={e => setForm(p => ({ ...p, tasaDia: e.target.value }))} placeholder="0.0000" />
-            </CampoForm>
-            <CampoForm label="Notas">
-              <input style={inputStyle} value={form.notas} onChange={e => setForm(p => ({ ...p, notas: e.target.value }))} placeholder="Observaciones opcionales" />
-            </CampoForm>
-          </div>
-          {formError && <p style={{ fontSize: 13, color: "#EF4444", margin: 0 }}>{formError}</p>}
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={handleGuardar} disabled={guardando} style={{ padding: "8px 20px", borderRadius: 8, background: "#B45309", color: "#fff", fontWeight: 700, border: "none", cursor: "pointer", fontSize: 14 }}>
-              {guardando ? "Guardando…" : "Guardar"}
-            </button>
-            <button onClick={() => setShowForm(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 14 }}>
-              Cancelar
-            </button>
-          </div>
-        </div>
+        <FormularioCP
+          onGuardar={handleGuardar}
+          onCancelar={() => setShowForm(false)}
+        />
       )}
 
       {/* Filtros */}
@@ -381,7 +528,7 @@ export default function CuentasPagarClient() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid var(--erp-border)", textAlign: "left" }}>
-                {["Proveedor","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Estado","Acciones"].map(h => (
+                {["Proveedor","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Tasa","Estado","Acciones"].map(h => (
                   <th key={h} style={{ padding: "8px 10px", fontWeight: 700, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -399,19 +546,22 @@ export default function CuentasPagarClient() {
                     </td>
                     <td style={{ padding: "10px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{cp.numeroFactura ?? "—"}</td>
                     <td style={{ padding: "10px", whiteSpace: "nowrap" }}>{fmtFecha(cp.fechaEmision)}</td>
-                    <td style={{ padding: "10px", whiteSpace: "nowrap", color: cp.estado === "PENDIENTE" && cp.fechaVencimiento < HOY ? "#EF4444" : "var(--erp-text)" }}>
+                    <td style={{ padding: "10px", whiteSpace: "nowrap", color: esPendiente(cp) && cp.fechaVencimiento < HOY ? "#EF4444" : "var(--erp-text)" }}>
                       {fmtFecha(cp.fechaVencimiento)}
                     </td>
                     <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
                       {cp.montoOriginalBs ? (
-                        <span>
+                        <>
                           <span style={{ color: "var(--erp-text)" }}>{BS(cp.montoBs)}</span>
                           <span style={{ fontSize: 11, color: "var(--erp-text-3)", display: "block" }}>orig. {BS(cp.montoOriginalBs)}</span>
-                        </span>
+                        </>
                       ) : BS(cp.montoBs)}
                     </td>
                     <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: "var(--erp-text)" }}>
                       ${USD(cp.montoUsd)}
+                    </td>
+                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--erp-text-3)", fontSize: 12, whiteSpace: "nowrap" }}>
+                      {cp.tasaDia > 0 ? cp.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 }) : "—"}
                     </td>
                     <td style={{ padding: "10px" }}>
                       <span style={{ padding: "3px 10px", borderRadius: 20, background: est.bg, color: est.text, fontWeight: 700, fontSize: 12 }}>{est.label}</span>
@@ -424,13 +574,17 @@ export default function CuentasPagarClient() {
                             style={{ padding: "3px 10px", borderRadius: 6, background: "#EF4444", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
                             {eliminando ? "…" : "Sí"}
                           </button>
-                          <button onClick={() => setEliminandoId(null)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 12 }}>No</button>
+                          <button onClick={() => setEliminandoId(null)}
+                            style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 12 }}>No</button>
                         </div>
                       ) : (
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {esPendiente(cp) && (
                             <button
-                              onClick={() => { setPagoModal({ id: cp.id, montoBs: cp.montoBs, montoUsd: cp.montoUsd, tasaDia: cp.tasaDia, proveedor: cp.proveedor }); setTipoPago("total"); setMontoParcialBs(""); setNuevaFechVenc(""); setNotaPago(""); }}
+                              onClick={() => {
+                                setPagoModal({ id: cp.id, montoBs: cp.montoBs, montoUsd: cp.montoUsd, tasaDia: cp.tasaDia, proveedor: cp.proveedor });
+                                setTipoPago("total"); setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
+                              }}
                               style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(5,150,105,0.10)", color: "#059669", border: "1px solid #059669", fontSize: 12, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
                               ✓ Registrar Pago
                             </button>
@@ -467,12 +621,15 @@ export default function CuentasPagarClient() {
       {/* Modal Pago */}
       {pagoModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "var(--erp-surface)", borderRadius: 16, padding: 28, width: 420, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <h3 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 800, color: "var(--erp-text)" }}>Registrar Pago</h3>
-            <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--erp-text-2)" }}>{pagoModal.proveedor} · ${USD(pagoModal.montoUsd)} USD</p>
+          <div style={{ background: "var(--erp-surface)", borderRadius: 16, padding: 28, width: 440, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <h3 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 800, color: "var(--erp-text)" }}>Registrar Pago</h3>
+            <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--erp-text-2)" }}>
+              {pagoModal.proveedor} · <strong>${USD(pagoModal.montoUsd)}</strong> USD
+              {pagoModal.tasaDia > 0 && <span style={{ color: "var(--erp-text-3)" }}> · Tasa {pagoModal.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 })} Bs/$</span>}
+            </p>
 
             {/* Toggle tipo pago */}
-            <div style={{ display: "flex", gap: 0, marginBottom: 20, border: "1px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{ display: "flex", marginBottom: 20, border: "1px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
               {(["total", "parcial"] as const).map(t => (
                 <button key={t} onClick={() => setTipoPago(t)}
                   style={{ flex: 1, padding: "8px 0", border: "none", cursor: "pointer", fontWeight: tipoPago === t ? 700 : 400, fontSize: 14, background: tipoPago === t ? "#059669" : "var(--erp-surface)", color: tipoPago === t ? "#fff" : "var(--erp-text-2)" }}>
@@ -483,13 +640,20 @@ export default function CuentasPagarClient() {
 
             {tipoPago === "parcial" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-                <CampoForm label="Monto a abonar (Bs)">
-                  <input type="number" min="0" step="0.01" style={inputStyle} value={montoParcialBs}
-                    onChange={e => setMontoParcialBs(e.target.value)} placeholder={`Máx. ${BS(pagoModal.montoBs)}`} />
-                </CampoForm>
-                {pagoModal.tasaDia > 0 && montoParcialBs && (
+                {/* Conversión bidireccional en modal */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <CampoForm label="Monto a abonar (Bs)">
+                    <input type="number" min="0" step="0.01" style={inputStyle} value={montoParcialBs}
+                      onChange={e => handleParcialBs(e.target.value)} placeholder={`Máx. ${BS(pagoModal.montoBs)}`} />
+                  </CampoForm>
+                  <CampoForm label="Equivalente USD">
+                    <input type="number" min="0" step="0.0001" style={inputStyle} value={montoParcialUsd}
+                      onChange={e => handleParcialUsd(e.target.value)} placeholder="0.0000" />
+                  </CampoForm>
+                </div>
+                {montoParcialUsd && pagoModal.montoUsd > 0 && (
                   <p style={{ margin: 0, fontSize: 12, color: "var(--erp-text-3)" }}>
-                    ≈ ${USD((Number(montoParcialBs) || 0) / pagoModal.tasaDia)} USD · Restante: ${USD(Math.max(0, pagoModal.montoUsd - (Number(montoParcialBs) || 0) / pagoModal.tasaDia))} USD
+                    Restante: ${USD(Math.max(0, pagoModal.montoUsd - (Number(montoParcialUsd) || 0)))} USD
                   </p>
                 )}
                 <CampoForm label="Nueva fecha de vencimiento">
@@ -506,7 +670,8 @@ export default function CuentasPagarClient() {
                 style={{ flex: 1, padding: "10px 0", borderRadius: 8, background: "#059669", color: "#fff", fontWeight: 700, border: "none", cursor: "pointer", fontSize: 14 }}>
                 {pagando ? "Registrando…" : "Confirmar Pago"}
               </button>
-              <button onClick={() => setPagoModal(null)} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 14 }}>
+              <button onClick={() => setPagoModal(null)}
+                style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 14 }}>
                 Cancelar
               </button>
             </div>
