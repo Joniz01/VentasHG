@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
      UNION ALL
 
      -- CxC cobradas sin fila en pagos_venta (registros anteriores al flujo pagos_venta)
-     SELECT 'CXC_DIRECTA'::text AS metodo,
+     SELECT 'CXC_DIRECTA'::metodo_pago AS metodo,
             COALESCE(
               (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
               0
@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
      UNION ALL
 
      -- CxC cobradas sin fila en pagos_venta
-     SELECT 'CXC_DIRECTA'::text AS metodo,
+     SELECT 'CXC_DIRECTA'::metodo_pago AS metodo,
             COALESCE(
               (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
               0
