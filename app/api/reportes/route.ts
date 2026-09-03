@@ -64,7 +64,22 @@ export async function GET(request: NextRequest) {
     `SELECT pv.metodo, pv.monto, v.tasa_dia
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
-     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2`,
+     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
+
+     UNION ALL
+
+     -- CxC cobradas sin fila en pagos_venta (registros anteriores al flujo pagos_venta)
+     SELECT 'CXC_DIRECTA'::text AS metodo,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + COALESCE(v.costo_delivery, 0) AS monto,
+            v.tasa_dia
+     FROM ventas v
+     WHERE v.cuenta_por_cobrar = TRUE
+       AND v.cuenta_cobrada = TRUE
+       AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2
+       AND NOT EXISTS (SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id)`,
     [desde, hasta]
   );
 
@@ -182,7 +197,27 @@ export async function GET(request: NextRequest) {
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
      WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
-     ORDER BY pv.metodo, v.id DESC`,
+
+     UNION ALL
+
+     -- CxC cobradas sin fila en pagos_venta
+     SELECT 'CXC_DIRECTA'::text AS metodo,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + COALESCE(v.costo_delivery, 0) AS monto,
+            v.id, v.cliente, v.tasa_dia,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + COALESCE(v.costo_delivery, 0) AS total_venta_usd
+     FROM ventas v
+     WHERE v.cuenta_por_cobrar = TRUE
+       AND v.cuenta_cobrada = TRUE
+       AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2
+       AND NOT EXISTS (SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id)
+
+     ORDER BY metodo, id DESC`,
     [desde, hasta]
   );
 
