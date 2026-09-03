@@ -393,6 +393,59 @@ export default function CuentasPagarClient() {
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
   const [eliminando, setEliminando] = useState(false);
 
+  // edición
+  const [editModal, setEditModal] = useState<CuentaPagar | null>(null);
+  const [editForm, setEditForm] = useState<Partial<FormData>>({});
+  const [editGuardando, setEditGuardando] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function abrirEditar(cp: CuentaPagar) {
+    setEditModal(cp);
+    setEditForm({
+      proveedor: cp.proveedor,
+      proveedorRif: cp.proveedorRif ?? "",
+      numeroFactura: cp.numeroFactura ?? "",
+      descripcion: cp.descripcion ?? "",
+      fechaEmision: cp.fechaEmision,
+      fechaVencimiento: cp.fechaVencimiento,
+      montoBs: String(cp.montoBs),
+      montoUsd: String(cp.montoUsd),
+      notas: cp.notas ?? "",
+    });
+    setEditError(null);
+  }
+
+  async function handleEditGuardar() {
+    if (!editModal) return;
+    setEditGuardando(true);
+    setEditError(null);
+    try {
+      const r = await fetch(`/api/cuentas-pagar/${editModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proveedor: editForm.proveedor,
+          proveedorRif: editForm.proveedorRif || undefined,
+          numeroFactura: editForm.numeroFactura || undefined,
+          descripcion: editForm.descripcion || undefined,
+          fechaEmision: editForm.fechaEmision,
+          fechaVencimiento: editForm.fechaVencimiento,
+          montoBs: Number(editForm.montoBs) || 0,
+          montoUsd: Number(editForm.montoUsd) || 0,
+          notas: editForm.notas || undefined,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setEditError(j.error ?? "Error al guardar"); return; }
+      setEditModal(null);
+      cargar();
+    } catch {
+      setEditError("Error de conexión");
+    } finally {
+      setEditGuardando(false);
+    }
+  }
+
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
@@ -623,6 +676,11 @@ export default function CuentasPagarClient() {
                               ✓ Registrar Pago
                             </button>
                           )}
+                          <button
+                            onClick={() => abrirEditar(cp)}
+                            style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(99,102,241,0.08)", color: "#6366F1", border: "1px solid #6366F1", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+                            ✏️
+                          </button>
                           {cp.estado !== "PENDIENTE_PARCIAL" && (
                             <button
                               onClick={() => setEliminandoId(cp.id)}
@@ -705,6 +763,54 @@ export default function CuentasPagarClient() {
                 {pagando ? "Registrando…" : "Confirmar Pago"}
               </button>
               <button onClick={() => setPagoModal(null)}
+                style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 14 }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar */}
+      {editModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ background: "var(--erp-surface)", borderRadius: 16, padding: 28, width: 480, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 800, color: "var(--erp-text)" }}>Editar Cuenta por Pagar</h3>
+            {editError && <p style={{ margin: "0 0 12px", color: "#EF4444", fontSize: 13 }}>{editError}</p>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {([
+                { label: "Proveedor *", key: "proveedor", type: "text" },
+                { label: "RIF", key: "proveedorRif", type: "text" },
+                { label: "Nº Factura", key: "numeroFactura", type: "text" },
+                { label: "Descripción", key: "descripcion", type: "text" },
+                { label: "Fecha Emisión", key: "fechaEmision", type: "date" },
+                { label: "Fecha Vencimiento", key: "fechaVencimiento", type: "date" },
+                { label: "Monto Bs", key: "montoBs", type: "number" },
+                { label: "Monto USD", key: "montoUsd", type: "number" },
+                { label: "Notas", key: "notas", type: "text" },
+              ] as { label: string; key: keyof typeof editForm; type: string }[]).map(({ label, key, type }) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--erp-text-2)" }}>{label}</label>
+                  <input
+                    type={type}
+                    value={String(editForm[key] ?? "")}
+                    onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
+            {editModal.recurrente && (
+              <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--erp-text-3)" }}>
+                📅 Recurrente ({editModal.frecuencia}) — al guardar solo se actualiza este registro.
+              </p>
+            )}
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button onClick={handleEditGuardar} disabled={editGuardando}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 8, background: "#6366F1", color: "#fff", fontWeight: 700, border: "none", cursor: "pointer", fontSize: 14 }}>
+                {editGuardando ? "Guardando…" : "Guardar cambios"}
+              </button>
+              <button onClick={() => setEditModal(null)}
                 style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 14 }}>
                 Cancelar
               </button>

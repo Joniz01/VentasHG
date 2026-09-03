@@ -276,7 +276,7 @@ export default function TesoreriaClient() {
   const drillItems: ObligacionItem[] | null = (() => {
     if (!drillKey) return null;
     if (drillKey === "vencido") return items.filter((i) => i.estado === "vencido");
-    if (drillKey === "esta_semana") return items.filter((i) => esPendiente(i));
+    if (drillKey === "esta_semana") return items.filter((i) => esPendiente(i) || (i.estado === "vencido" && i.fechaVencimiento >= semLunes));
     if (drillKey === "proxima_semana") return items.filter((i) => i.fechaVencimiento >= lunesProx && i.fechaVencimiento <= domingoProx);
     if (drillKey === "prox_4sem") return items.filter((i) => i.estado !== "vencido" && i.estado !== "pagado");
     if (drillKey === "pagado_mes") return items.filter((i) => i.estado === "pagado");
