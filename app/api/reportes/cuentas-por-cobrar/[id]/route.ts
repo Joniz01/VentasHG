@@ -10,8 +10,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { cuentaCobrada, alarmaSilenciadaHasta } = body;
 
   if (typeof cuentaCobrada === "boolean") {
-    const { fechaPago, metodoPago } = body as { fechaPago?: string; metodoPago?: string };
-    const metodo = metodoPago || "CXC_DIRECTA";
+    const { fechaPago } = body as { fechaPago?: string; metodoPago?: string };
+    const metodo = "CXC_DIRECTA";
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
