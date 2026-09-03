@@ -61,7 +61,12 @@ export async function GET(request: NextRequest) {
   }
 
   const pagosResult = await pool.query(
-    `SELECT pv.metodo, pv.monto, v.tasa_dia
+    `SELECT
+       CASE WHEN v.cuenta_por_cobrar = TRUE AND v.cuenta_cobrada = TRUE
+            THEN 'CXC_DIRECTA'::metodo_pago
+            ELSE pv.metodo
+       END AS metodo,
+       pv.monto, v.tasa_dia
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
      WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
@@ -189,11 +194,16 @@ export async function GET(request: NextRequest) {
 
   // Detalle de ventas por forma de pago (para conciliación)
   const detalleResult = await pool.query(
-    `SELECT pv.metodo, pv.monto, v.id, v.cliente, v.tasa_dia,
-            COALESCE(
-              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
-              0
-            ) + v.costo_delivery AS total_venta_usd
+    `SELECT
+       CASE WHEN v.cuenta_por_cobrar = TRUE AND v.cuenta_cobrada = TRUE
+            THEN 'CXC_DIRECTA'::metodo_pago
+            ELSE pv.metodo
+       END AS metodo,
+       pv.monto, v.id, v.cliente, v.tasa_dia,
+       COALESCE(
+         (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+         0
+       ) + v.costo_delivery AS total_venta_usd
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
      WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
