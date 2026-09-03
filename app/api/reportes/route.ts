@@ -19,13 +19,24 @@ export async function GET(request: NextRequest) {
   const includePendientes = searchParams.get("pendientes") === "1";
 
   // Filtro base: ventas cobradas al contado + cuentas cobradas por fecha de cobro.
-  // Si includePendientes, también incluye cuentas pendientes (por fecha de venta).
+  // Para CxC usa pagos_venta.fecha_pago como fuente principal (igual que forma-de-pago),
+  // con fallback a cuenta_cobrada_at para registros anteriores sin fila en pagos_venta.
+  const cxcFiltro = `(v.cuenta_cobrada = true AND (
+    EXISTS (
+      SELECT 1 FROM pagos_venta pv
+      WHERE pv.venta_id = v.id AND pv.fecha_pago BETWEEN $1 AND $2
+    )
+    OR (
+      NOT EXISTS (SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id)
+      AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2
+    )
+  ))`;
   const filtroBase = includePendientes
     ? `(NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
-       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)
+       OR ${cxcFiltro}
        OR (v.cuenta_por_cobrar = true AND v.cuenta_cobrada = false AND v.fecha BETWEEN $1 AND $2)`
     : `(NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
-       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)`;
+       OR ${cxcFiltro}`;
 
   // Solo cuentas efectivamente cobradas en el periodo:
   // - ventas normales (no CxC) por su fecha de venta

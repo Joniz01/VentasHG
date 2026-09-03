@@ -45,6 +45,7 @@ export default function ReportesClient() {
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [resumenHoy, setResumenHoy] = useState<{ ventaHoy: number; ingresos: number } | null>(null);
   const [metodosPago, setMetodosPago] = useState<string[]>([]);
+  const [cxcDetalleAbierto, setCxcDetalleAbierto] = useState(false);
   const [paginaCliente, setPaginaCliente] = useState(1);
   const [porPaginaCliente, setPorPaginaCliente] = useState(10);
   const [paginaProducto, setPaginaProducto] = useState(1);
@@ -584,13 +585,58 @@ export default function ReportesClient() {
               <tbody className="divide-y divide-zinc-100">
                 {reporte.porFormaPago
                   .filter((fp) => metodosPago.length === 0 || metodosPago.includes(fp.metodo))
-                  .map((fp) => (
-                    <tr key={fp.metodo}>
-                      <td className="px-4 py-2 font-medium">{METODO_PAGO_LABELS[fp.metodo]}</td>
-                      <td className="px-4 py-2 text-right">${fp.totalUsd.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-right">Bs {fp.totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    </tr>
-                  ))}
+                  .map((fp) => {
+                    const isCxc = fp.metodo === "CXC_DIRECTA";
+                    const cxcItems = isCxc ? (reporte.ventasPorFormaPago["CXC_DIRECTA"] ?? []) : [];
+                    return (
+                      <>
+                        <tr key={fp.metodo}>
+                          <td className="px-4 py-2 font-medium">
+                            {METODO_PAGO_LABELS[fp.metodo]}
+                            {isCxc && fp.totalUsd > 0 && (
+                              <button
+                                onClick={() => setCxcDetalleAbierto((v) => !v)}
+                                className="ml-2 text-xs font-normal underline"
+                                style={{ color: "var(--erp-primary)" }}
+                              >
+                                {cxcDetalleAbierto ? "Ocultar" : "Ver detalle"}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right">${fp.totalUsd.toFixed(2)}</td>
+                          <td className="px-4 py-2 text-right">Bs {fp.totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        </tr>
+                        {isCxc && cxcDetalleAbierto && cxcItems.length > 0 && (
+                          <tr key="cxc-detalle">
+                            <td colSpan={3} className="px-4 pb-3 pt-0">
+                              <div className="rounded-md border border-zinc-200 bg-zinc-50 text-xs">
+                                <table className="w-full">
+                                  <thead>
+                                    <tr className="border-b border-zinc-200 text-zinc-500">
+                                      <th className="px-3 py-1.5 text-left font-medium">Venta #</th>
+                                      <th className="px-3 py-1.5 text-left font-medium">Cliente</th>
+                                      <th className="px-3 py-1.5 text-right font-medium">Monto $</th>
+                                      <th className="px-3 py-1.5 text-right font-medium">Monto Bs</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-zinc-100">
+                                    {cxcItems.map((item) => (
+                                      <tr key={item.ventaId}>
+                                        <td className="px-3 py-1.5 text-zinc-500">#{item.ventaId}</td>
+                                        <td className="px-3 py-1.5">{item.cliente || "—"}</td>
+                                        <td className="px-3 py-1.5 text-right font-medium">${item.montoUsd.toFixed(2)}</td>
+                                        <td className="px-3 py-1.5 text-right">Bs {item.montoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
               </tbody>
               <tfoot className="border-t border-zinc-200 bg-zinc-50">
                 {(() => {
