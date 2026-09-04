@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef, FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import Paginador from "@/components/Paginador";
 import {
   METODOS_PAGO,
@@ -18,6 +19,7 @@ import {
   type ClientesConfig,
   type Motorizado,
   type Producto,
+  type Promocion,
   type Rol,
   type Venta,
 } from "@/lib/types";
@@ -26,6 +28,9 @@ import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
 import NotasEntregaTab from "@/components/NotasEntregaTab";
+import SalidaCortesiasPanel from "@/components/SalidaCortesiasPanel";
+import PromocionesPanel from "@/components/PromocionesPanel";
+import ConciliacionPanel from "@/components/ConciliacionPanel";
 import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
 import FechaPagoConfirm from "@/components/FechaPagoConfirm";
 
@@ -99,18 +104,32 @@ function usdToBs(montoUsd: number, tasa: number) {
   return montoUsd * tasa;
 }
 
+// Busca la promoción activa y vigente (para la fecha de la venta) de un
+// producto. El servidor vuelve a resolver esto al guardar — esto es solo
+// para que el vendedor vea el precio/regalo antes de confirmar.
+function promoVigente(promos: Promocion[], productoId: number, fecha: string): Promocion | null {
+  return (
+    promos.find(
+      (p) =>
+        p.productoId === productoId &&
+        p.activa &&
+        p.fechaInicio <= fecha &&
+        (!p.fechaFin || p.fechaFin >= fecha)
+    ) ?? null
+  );
+}
+
+function precioConPromo(precioBase: number, promo: Promocion | null, extraPrecio: number): number {
+  if (promo?.descuentoTipo === "PORCENTAJE" && promo.valorPorcentaje != null) {
+    return precioBase * (1 - promo.valorPorcentaje / 100) + extraPrecio;
+  }
+  if (promo?.descuentoTipo === "PRECIO_FIJO" && promo.precioFijoUsd != null) {
+    return promo.precioFijoUsd + extraPrecio;
+  }
+  return precioBase + extraPrecio;
+}
+
 const pad = (n: number) => String(n).padStart(2, "0");
-
-function toTitleCase(s: string): string {
-  return s.trim().replace(/\s+/g, " ").replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
-}
-
-function autoSplitNombre(fullName: string): { nombre: string; apellido: string; flagged: boolean } {
-  const parts = fullName.trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
-  if (parts.length <= 1) return { nombre: toTitleCase(fullName), apellido: "", flagged: false };
-  if (parts.length === 2) return { nombre: toTitleCase(parts[0]), apellido: toTitleCase(parts[1]), flagged: false };
-  return { nombre: toTitleCase(parts[0]), apellido: toTitleCase(parts.slice(1).join(" ")), flagged: true };
-}
 
 function combinarFechaHora(fecha: string, hora: string): Date | null {
   if (!fecha || !hora) return null;
@@ -121,18 +140,24 @@ function combinarFechaHora(fecha: string, hora: string): Date | null {
 type Props = {
   rol?: Rol | null;
   puedeDescuento?: boolean;
+  puedePromociones?: boolean;
 };
 
-export default function VentasClient({ rol = null, puedeDescuento = false }: Props) {
-  const [vista, setVista] = useState<"ventas" | "cortesias" | "historial" | "notas">("ventas");
+export default function VentasClient({ rol = null, puedeDescuento = false, puedePromociones = false }: Props) {
+  const searchParams = useSearchParams();
+  const vistaParam = searchParams.get("vista");
+  const vistaInicial = (["ventas", "cortesias", "promociones", "historial", "notas", "conciliacion"].includes(vistaParam ?? "") ? vistaParam : "ventas") as "ventas" | "cortesias" | "promociones" | "historial" | "notas" | "conciliacion";
+  const [vista, setVista] = useState<"ventas" | "cortesias" | "promociones" | "historial" | "notas" | "conciliacion">(vistaInicial);
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [promociones, setPromociones] = useState<Promocion[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
   const [modalEmpaque, setModalEmpaque] = useState<{
     itemIndex: number;
+    racionIndex?: number; // presente cuando es una ración de Bandeja Variada
     producto: Producto;
     empaques: EmpaqueProducto[];
     seleccionado: number | null;
@@ -143,47 +168,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // ── Salida Cortesías ──
-  type SalidaHistRow = {
-    id: number; tipo: string; fecha: string; beneficiario: string | null;
-    motivo: string | null; responsable: string | null; anulada: boolean;
-    items: { nombre: string; cantidad: number }[];
-  };
-  const [cortTipo, setCortTipo] = useState<string>("CORTESIA");
-  const [cortTiposExtra, setCortTiposExtra] = useState<string[]>([]);
-  const [cortFecha, setCortFecha] = useState(today());
-  const [cortBeneficiario, setCortBeneficiario] = useState("");
-  const [cortBenefNombre, setCortBenefNombre] = useState("");
-  const [cortBenefApellido, setCortBenefApellido] = useState("");
-  const [cortBenefSplitWarning, setCortBenefSplitWarning] = useState(false);
-  const [cortBenefResultados, setCortBenefResultados] = useState<Cliente[]>([]);
-  const [cortBenefMostrar, setCortBenefMostrar] = useState(false);
-  const [cortBenefBuscando, setCortBenefBuscando] = useState(false);
-  const [cortBenefNuevoPanel, setCortBenefNuevoPanel] = useState(false);
-  const [cortBenefNuevoCi, setCortBenefNuevoCi] = useState("");
-  const [cortBenefNuevoTel, setCortBenefNuevoTel] = useState("");
-  const [cortBenefNuevoDir, setCortBenefNuevoDir] = useState("");
-  const [cortBenefGuardando, setCortBenefGuardando] = useState(false);
-  const [cortMotivo, setCortMotivo] = useState("");
-  const [cortItems, setCortItems] = useState<{ productoId: string; cantidad: string }[]>([{ productoId: "", cantidad: "1" }]);
-  const [cortSaving, setCortSaving] = useState(false);
-  const [cortError, setCortError] = useState<string | null>(null);
-  const [cortSuccess, setCortSuccess] = useState(false);
-  const [cortHistorial, setCortHistorial] = useState<SalidaHistRow[]>([]);
-  const [cortHistLoading, setCortHistLoading] = useState(false);
-  const [cortPorPagina, setCortPorPagina] = useState(10);
-  const [cortPagina, setCortPagina] = useState(1);
-  const [cortAnulando, setCortAnulando] = useState<number | null>(null);
-  const [cortEditingId, setCortEditingId] = useState<number | null>(null);
-
   const [editingId, setEditingId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(today());
   const [tasaDelDia, setTasaDelDia] = useState("");
   const [cliente, setCliente] = useState("");
-  const [clienteNombre, setClienteNombre] = useState("");
-  const [clienteApellido, setClienteApellido] = useState("");
-  const [clienteSplitWarning, setClienteSplitWarning] = useState(false);
-  const [clienteNuevoPanel, setClienteNuevoPanel] = useState(false);
   const [clienteCi, setClienteCi] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -277,6 +265,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const [soloPendientesPago, setSoloPendientesPago] = useState(false);
   const [casheaConfirm, setCasheaConfirm] = useState<{ ventaId: number; tasa: string; fechaPago: string } | null>(null);
   const [yummyConfirmId, setYummyConfirmId] = useState<number | null>(null);
+  const [cxcConfirmId, setCxcConfirmId] = useState<number | null>(null);
   const [casheaUpdating, setCasheaUpdating] = useState<number | null>(null);
   const [filtroFechaDesde, setFiltroFechaDesde] = useState(() => today());
   const [filtroFechaHasta, setFiltroFechaHasta] = useState(() => today());
@@ -284,15 +273,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   const hayDatosIngresados = useCallback(() => {
     if (editingId !== null) return false;
     return (
-      clienteNombre.trim() !== "" ||
-      clienteApellido.trim() !== "" ||
+      cliente.trim() !== "" ||
       clienteCi.trim() !== "" ||
       clienteTelefono.trim() !== "" ||
       observaciones.trim() !== "" ||
       items.some((i) => i.productoId !== "") ||
       pagos.some((p) => p.monto !== "")
     );
-  }, [editingId, clienteNombre, clienteApellido, clienteCi, clienteTelefono, observaciones, items, pagos]);
+  }, [editingId, cliente, clienteCi, clienteTelefono, observaciones, items, pagos]);
 
   // Ref para que el guard de pushState siempre lea el valor actual sin re-registrarse
   const dirtyRef = useRef(false);
@@ -338,20 +326,33 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
 
   async function loadData() {
     try {
-      const [productosRes, ventasRes, motorizadosRes] = await Promise.all([
+      const [productosRes, ventasRes, motorizadosRes, promocionesRes] = await Promise.all([
         fetch("/api/productos"),
         fetch("/api/ventas"),
         fetch("/api/motorizados"),
+        fetch("/api/promociones"),
       ]);
       setProductos(await productosRes.json());
       setVentas(await ventasRes.json());
       setMotorizados(await motorizadosRes.json());
+      if (promocionesRes.ok) setPromociones(await promocionesRes.json());
     } catch {
       setError("No se pudieron cargar los datos");
     } finally {
       setLoading(false);
     }
   }
+
+  // Recarga las promociones al volver a "Registro de Ventas": si se creó o
+  // editó una en la pestaña Promociones dentro de la misma sesión, la lista
+  // cargada al montar el componente ya quedó desactualizada.
+  useEffect(() => {
+    if (vista !== "ventas") return;
+    fetch("/api/promociones")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setPromociones(data); })
+      .catch(() => {});
+  }, [vista]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -383,9 +384,6 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           setYummyDiasOpciones(opts);
           const def = cfg.yummy_dias_default ?? opts[0] ?? "2";
           setYummyDiasSeleccion(def);
-        }
-        if (cfg.salidas_tipos_extra) {
-          setCortTiposExtra(cfg.salidas_tipos_extra.split(",").map((s: string) => s.trim()).filter(Boolean));
         }
         // Modo de vista y secciones — se aplica después de cargar preferencias de usuario
         fetch("/api/usuarios/perfil")
@@ -464,7 +462,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
   }
 
   useEffect(() => {
-    const query = (clienteNombre.trim() + " " + clienteApellido.trim()).trim() || clienteCi.trim();
+    const query = cliente.trim() || clienteCi.trim();
     if (query.length < 4) {
       return;
     }
@@ -474,54 +472,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [clienteNombre, clienteApellido, clienteCi]);
+  }, [cliente, clienteCi]);
 
   const puedeMostrarResultados =
-    mostrarResultados && ((clienteNombre.trim() + clienteApellido.trim()).length >= 4 || clienteCi.trim().length >= 4);
-
-  async function buscarCortBenef(query: string) {
-    if (query.trim().length < 4) return;
-    setCortBenefBuscando(true);
-    try {
-      const res = await fetch(`/api/clientes?q=${encodeURIComponent(query.trim())}`);
-      const data = (await res.json()) as Cliente[];
-      setCortBenefResultados(data);
-      setCortBenefMostrar(true);
-    } catch {
-      setCortBenefResultados([]);
-    } finally {
-      setCortBenefBuscando(false);
-    }
-  }
-
-  function seleccionarCortBenef(c: Cliente) {
-    if (c.apellido) {
-      setCortBenefNombre(toTitleCase(c.nombre));
-      setCortBenefApellido(toTitleCase(c.apellido));
-      setCortBenefSplitWarning(false);
-    } else {
-      const split = autoSplitNombre(c.nombre);
-      setCortBenefNombre(split.nombre);
-      setCortBenefApellido(split.apellido);
-      setCortBenefSplitWarning(split.flagged);
-    }
-    setCortBenefMostrar(false);
-    setCortBenefNuevoPanel(false);
-  }
+    mostrarResultados && (cliente.trim().length >= 4 || clienteCi.trim().length >= 4);
 
   function seleccionarCliente(c: Cliente) {
-    setCliente((c.nombre + " " + (c.apellido ?? "")).trim());
-    if (c.apellido) {
-      setClienteNombre(toTitleCase(c.nombre));
-      setClienteApellido(toTitleCase(c.apellido));
-      setClienteSplitWarning(false);
-    } else {
-      const split = autoSplitNombre(c.nombre);
-      setClienteNombre(split.nombre);
-      setClienteApellido(split.apellido);
-      setClienteSplitWarning(split.flagged);
-    }
-    setClienteNuevoPanel(false);
+    setCliente(c.nombre);
     setClienteCi(c.cedula ?? "");
     setClienteTelefono(c.telefono ?? "");
     setDireccion(c.direccion ?? "");
@@ -544,7 +501,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       const cantidad = Number(item.cantidad) || 0;
       if (!producto) continue;
       const extra = producto.extras.find((ex) => String(ex.id) === item.extraId);
-      const precioUnit = producto.precioVenta + (extra?.precioAdicional ?? 0);
+      const promo = promoVigente(promociones, producto.id, fecha);
+      const precioUnit = precioConPromo(producto.precioVenta, promo, extra?.precioAdicional ?? 0);
       ventaTotalUsd += precioUnit * cantidad;
     }
 
@@ -612,7 +570,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       totalAPagarBs: usdToBs(totalAPagarUsd, tasa),
       montoSugerido,
     };
-  }, [items, pagos, productosById, tasa, costoDelivery, descuentoPorcentaje]);
+  }, [items, pagos, productosById, tasa, costoDelivery, descuentoPorcentaje, promociones, fecha]);
 
   const minutosPreparacionNum =
     minutosPrep === "otro" ? Number(minutosPrepCustom) || 0 : Number(minutosPrep);
@@ -702,6 +660,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           return p;
         }));
       }
+      // Si era una ración de Bandeja Variada, asignar el producto en esa posición
+      if (typeof modalEmpaque.racionIndex === "number") {
+        setItems((prev) => prev.map((it, idx) => {
+          if (idx !== modalEmpaque.itemIndex) return it;
+          const nuevasSelecciones = [...it.variadaSelecciones];
+          nuevasSelecciones[modalEmpaque.racionIndex!] = String(modalEmpaque.producto.id);
+          return { ...it, variadaSelecciones: nuevasSelecciones };
+        }));
+      }
       setModalEmpaque(null);
     } catch (err) {
       setModalEmpaque((prev) => prev ? { ...prev, abriendo: false, error: err instanceof Error ? err.message : "Error" } : null);
@@ -749,10 +716,6 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setEditingId(null);
     setFecha(today());
     setCliente("");
-    setClienteNombre("");
-    setClienteApellido("");
-    setClienteSplitWarning(false);
-    setClienteNuevoPanel(false);
     setClienteCi("");
     setClienteTelefono("");
     setDireccion("");
@@ -787,7 +750,6 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     setFecha(String(venta.fecha).slice(0, 10));
     setTasaDelDia(String(venta.tasaDelDia));
     setCliente(venta.cliente);
-    { const split = autoSplitNombre(venta.cliente); setClienteNombre(split.nombre); setClienteApellido(split.apellido); setClienteSplitWarning(false); }
     setClienteCi(venta.clienteCi ?? "");
     setClienteTelefono(venta.clienteTelefono ?? "");
     setDireccion(venta.direccion ?? "");
@@ -869,12 +831,10 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     e.preventDefault();
     setError(null);
 
-    const clienteFullName = (clienteNombre.trim() + " " + clienteApellido.trim()).trim();
-    if (!clienteFullName) {
-      setError("El nombre del cliente es obligatorio");
+    if (!cliente.trim()) {
+      setError("El cliente es obligatorio");
       return;
     }
-    setCliente(clienteFullName);
 
     const ciRifError = validarCedulaRif(clienteCi);
     if (ciRifError) {
@@ -941,7 +901,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
       const payload = {
         fecha,
         tasaDelDia: Number(tasaDelDia) || 0,
-        cliente: clienteFullName,
+        cliente: cliente.trim(),
         clienteCi: clienteCi.trim(),
         clienteTelefono: clienteTelefono.trim(),
         direccion: direccion.trim(),
@@ -1061,120 +1021,40 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
     }
   }
 
-  async function handleToggleCuentaCobrada(venta: Venta) {
+  async function handleToggleCuentaCobrada(venta: Venta, fechaPago?: string, metodoPago?: string) {
     try {
       const res = await fetch(`/api/reportes/cuentas-por-cobrar/${venta.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuentaCobrada: !venta.cuentaCobrada }),
+        body: JSON.stringify({ cuentaCobrada: !venta.cuentaCobrada, fechaPago, metodoPago }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? "Error al actualizar el cobro");
       }
+      setCxcConfirmId(null);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar el cobro");
     }
   }
 
-  function startCortEdit(s: SalidaHistRow) {
-    setCortEditingId(s.id);
-    setCortTipo(s.tipo);
-    setCortFecha(s.fecha ? s.fecha.slice(0, 10) : today());
-    setCortBeneficiario(s.beneficiario ?? "");
-    setCortMotivo(s.motivo ?? "");
-    setCortItems(s.items.map((it) => ({ productoId: String((it as { productoId?: number; nombre: string; cantidad: number }).productoId ?? ""), cantidad: String(it.cantidad) })));
-    setCortError(null);
-    setCortSuccess(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function loadCortHistorial() {
-    setCortHistLoading(true);
-    try {
-      const res = await fetch("/api/salidas-gratuitas");
-      if (res.ok) setCortHistorial(await res.json());
-    } finally {
-      setCortHistLoading(false);
-    }
-  }
-
-  async function handleAnularSalida(id: number) {
-    if (!confirm("¿Anular esta salida? El stock será restaurado.")) return;
-    setCortAnulando(id);
-    try {
-      const res = await fetch(`/api/salidas-gratuitas/${id}/anular`, { method: "POST" });
-      if (res.ok) {
-        await loadCortHistorial();
-      } else {
-        const data = await res.json();
-        alert(data.error ?? "Error al anular");
-      }
-    } finally {
-      setCortAnulando(null);
-    }
-  }
-
-  async function handleCortesiaSubmit(e: FormEvent) {
-    e.preventDefault();
-    setCortError(null);
-    setCortSuccess(false);
-    const items = cortItems.filter((i) => i.productoId && Number(i.cantidad) > 0);
-    if (!items.length) { setCortError("Agrega al menos un producto con cantidad válida."); return; }
-    setCortSaving(true);
-    try {
-      const url = cortEditingId ? `/api/salidas-gratuitas/${cortEditingId}` : "/api/salidas-gratuitas";
-      const method = cortEditingId ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: cortTipo, fecha: cortFecha, beneficiario: (cortBenefNombre.trim() + " " + cortBenefApellido.trim()).trim() || cortBeneficiario, motivo: cortMotivo, items }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setCortError(data.error ?? "Error al registrar la salida.");
-      } else {
-        setCortSuccess(true);
-        setCortEditingId(null);
-        setCortItems([{ productoId: "", cantidad: "1" }]);
-        setCortBeneficiario("");
-        setCortBenefNombre("");
-        setCortBenefApellido("");
-        setCortBenefSplitWarning(false);
-        setCortBenefNuevoPanel(false);
-        setCortBenefNuevoCi("");
-        setCortBenefNuevoTel("");
-        setCortBenefNuevoDir("");
-        setCortMotivo("");
-        setCortTipo("CORTESIA");
-        setCortFecha(today());
-        setCortPagina(1);
-        await loadCortHistorial();
-      }
-    } catch {
-      setCortError("Error de red. Intenta de nuevo.");
-    } finally {
-      setCortSaving(false);
-    }
-  }
-
   return (
-    <div className="flex flex-col gap-6 min-w-0 w-full overflow-x-hidden">
+    <div className="flex flex-col gap-6">
       {/* ERP anchor tab bar */}
       <div
-        className="print:hidden border-b overflow-x-auto"
+        className="flex gap-0 print:hidden border-b"
         style={{ borderColor: "var(--erp-border)" }}
       >
-      <div className="flex gap-0 min-w-max">
-        {(["ventas", "cortesias", "historial", "notas"] as const).map((v) => {
-          const labels: Record<string, string> = { ventas: "Registro de Ventas", cortesias: "Salida Cortesías", historial: "Historial", notas: "Notas de Entrega" };
+        {(["ventas", "historial", "conciliacion"] as const)
+          .map((v) => {
+          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", conciliacion: "Conciliación" };
           const active = vista === v;
           return (
             <button
               key={v}
               type="button"
-              onClick={() => { setVista(v); if (v === "cortesias") loadCortHistorial(); }}
+              onClick={() => setVista(v)}
               className="px-4 py-2.5 text-[12.5px] font-medium transition-colors whitespace-nowrap"
               style={{
                 color: active ? "var(--erp-primary)" : "var(--erp-text-2)",
@@ -1188,365 +1068,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
           );
         })}
       </div>
-      </div>
 
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
 
-      {vista === "cortesias" && (
-        <form onSubmit={handleCortesiaSubmit} className="flex flex-col gap-4">
-          {/* Banner edición */}
-          {cortEditingId && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 8, padding: "10px 14px" }}>
-              <span style={{ fontSize: 16 }}>✏️</span>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#92400E" }}>Editando salida #{cortEditingId} — los cambios actualizarán el stock automáticamente.</span>
-              <button type="button" onClick={() => { setCortEditingId(null); setCortItems([{ productoId: "", cantidad: "1" }]); setCortBeneficiario(""); setCortMotivo(""); setCortTipo("CORTESIA"); setCortError(null); setCortSuccess(false); }} style={{ fontSize: 11, color: "#92400E", background: "transparent", border: "1px solid #F59E0B", borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontWeight: 700 }}>Cancelar edición</button>
-            </div>
-          )}
-          {/* Tipo */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 10 }}>Tipo de salida</div>
-            {(() => {
-              const BASE_TIPOS = ["CORTESIA", "SORTEO", "CONSUMO_INTERNO", "EVENTO", "FIDELIDAD"];
-              const ALL_TIPOS = [...BASE_TIPOS, ...cortTiposExtra.filter((x) => !BASE_TIPOS.includes(x))];
-              const ICONS: Record<string, string> = { CORTESIA: "🤝", SORTEO: "🎯", CONSUMO_INTERNO: "🏠", EVENTO: "🎪", FIDELIDAD: "🎖️" };
-              const LABELS: Record<string, string> = { CORTESIA: "Cortesía", SORTEO: "Sorteo", CONSUMO_INTERNO: "Consumo interno", EVENTO: "Evento", FIDELIDAD: "Fidelidad" };
-              const cols = Math.min(ALL_TIPOS.length, 5);
-              return (
-                <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 5 }}>
-                  {ALL_TIPOS.map((t) => {
-                    const sel = cortTipo === t;
-                    const label = LABELS[t] ?? t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                    return (
-                      <button key={t} type="button" onClick={() => setCortTipo(t)}
-                        style={{ padding: "7px 4px", border: `1.5px solid ${sel ? "var(--erp-primary)" : "var(--erp-border)"}`, borderRadius: 8, textAlign: "center", cursor: "pointer", background: sel ? "var(--erp-primary-lt)" : "var(--erp-surface)", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
-                      >
-                        <span style={{ fontSize: 17 }}>{ICONS[t] ?? "📦"}</span>
-                        <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".03em", color: sel ? "var(--erp-primary)" : "var(--erp-text-2)", lineHeight: 1.2 }}>{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
+      {vista === "cortesias" && <SalidaCortesiasPanel productos={productos} />}
 
-          {/* Fecha y Beneficiario */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Fecha</label>
-              <input
-                type="date"
-                value={cortFecha}
-                onChange={(e) => setCortFecha(e.target.value)}
-                required
-                style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Beneficiario / Destinatario</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="text"
-                    value={cortBenefNombre}
-                    onChange={(e) => { setCortBenefNombre(e.target.value); buscarCortBenef((e.target.value + " " + cortBenefApellido).trim()); }}
-                    onBlur={(e) => setCortBenefNombre(toTitleCase(e.target.value))}
-                    placeholder="Nombre"
-                    style={{ width: "100%", padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)", boxSizing: "border-box" }}
-                  />
-                  {cortBenefMostrar && cortBenefResultados.length > 0 && (
-                    <ul style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 7, boxShadow: "0 4px 12px rgba(0,0,0,.12)", maxHeight: 180, overflowY: "auto", margin: 0, padding: 0, listStyle: "none" }}>
-                      {cortBenefResultados.map((c) => (
-                        <li key={c.id}>
-                          <button type="button" onClick={() => seleccionarCortBenef(c)} style={{ width: "100%", textAlign: "left", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>
-                            <span style={{ fontWeight: 600 }}>{c.nombre}{c.apellido ? " " + c.apellido : ""}</span>
-                            <span style={{ fontSize: 11, color: "var(--erp-text-3)", display: "block" }}>{c.cedula ?? "Sin C.I"}{c.telefono ? " · " + c.telefono : ""}</span>
-                          </button>
-                        </li>
-                      ))}
-                      <li>
-                        <button type="button" onClick={() => { setCortBenefMostrar(false); setCortBenefNuevoPanel(true); }} style={{ width: "100%", textAlign: "left", padding: "8px 12px", background: "none", border: "none", borderTop: "1px solid var(--erp-border)", cursor: "pointer", fontSize: 12, color: "var(--erp-primary)", fontWeight: 600 }}>
-                          + Registrar como nuevo cliente
-                        </button>
-                      </li>
-                    </ul>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  value={cortBenefApellido}
-                  onChange={(e) => setCortBenefApellido(e.target.value)}
-                  onBlur={(e) => setCortBenefApellido(toTitleCase(e.target.value))}
-                  placeholder="Apellido"
-                  style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
-                />
-              </div>
-              {cortBenefSplitWarning && (
-                <div style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 5, padding: "4px 8px" }}>
-                  Nombre con 3+ palabras — confirma cómo dividirlo entre Nombre y Apellido.
-                </div>
-              )}
-              {cortBenefNuevoPanel && (
-                <div style={{ background: "var(--erp-bg)", border: "1.5px solid var(--erp-border)", borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 7, marginTop: 4 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-primary)", textTransform: "uppercase", letterSpacing: ".05em" }}>Registrar cliente</div>
-                  <input type="text" placeholder="C.I / Rif (opcional)" value={cortBenefNuevoCi} onChange={(e) => setCortBenefNuevoCi(e.target.value)} style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text)" }} />
-                  <input type="text" placeholder="Teléfono (opcional)" value={cortBenefNuevoTel} onChange={(e) => setCortBenefNuevoTel(e.target.value)} style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text)" }} />
-                  <input type="text" placeholder="Dirección (opcional)" value={cortBenefNuevoDir} onChange={(e) => setCortBenefNuevoDir(e.target.value)} style={{ padding: "6px 10px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, background: "var(--erp-surface)", color: "var(--erp-text)" }} />
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button type="button" disabled={cortBenefGuardando} onClick={async () => {
-                      const nombre = toTitleCase(cortBenefNombre);
-                      const apellido = toTitleCase(cortBenefApellido);
-                      if (!nombre) return;
-                      setCortBenefGuardando(true);
-                      try {
-                        const res = await fetch("/api/clientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre, apellido, cedula: cortBenefNuevoCi, telefono: cortBenefNuevoTel, direccion: cortBenefNuevoDir }) });
-                        if (res.ok) { setCortBenefNuevoPanel(false); setCortBenefNuevoCi(""); setCortBenefNuevoTel(""); setCortBenefNuevoDir(""); }
-                      } finally { setCortBenefGuardando(false); }
-                    }} style={{ padding: "5px 12px", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                      {cortBenefGuardando ? "Guardando..." : "Guardar cliente"}
-                    </button>
-                    <button type="button" onClick={() => setCortBenefNuevoPanel(false)} style={{ padding: "5px 12px", background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "var(--erp-text-2)" }}>
-                      Continuar sin registrar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+      {vista === "conciliacion" && <ConciliacionPanel />}
 
-          {/* Productos */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", marginBottom: 8 }}>Productos a entregar</div>
-            <div style={{ border: "1.5px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 36px", gap: 8, padding: "7px 12px", background: "var(--erp-bg)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)" }}>
-                <div>Producto</div>
-                <div>Cantidad</div>
-                <div />
-              </div>
-              {cortItems.map((item, idx) => (
-                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 110px 36px", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--erp-border)", alignItems: "center" }}>
-                  <select
-                    value={item.productoId}
-                    onChange={(e) => {
-                      const next = [...cortItems];
-                      next[idx] = { ...next[idx], productoId: e.target.value };
-                      setCortItems(next);
-                    }}
-                    required={idx === 0}
-                    style={{ padding: "6px 8px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12.5, background: "var(--erp-surface)", color: "var(--erp-text)", width: "100%" }}
-                  >
-                    <option value="">— Seleccionar producto —</option>
-                    {productos.filter((p) => p.stockActual > 0 || item.productoId === String(p.id)).map((p) => (
-                      <option key={p.id} value={String(p.id)}>{p.nombre} (stock: {p.stockActual})</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min="1"
-                    value={item.cantidad}
-                    onChange={(e) => {
-                      const next = [...cortItems];
-                      next[idx] = { ...next[idx], cantidad: e.target.value };
-                      setCortItems(next);
-                    }}
-                    style={{ padding: "6px 8px", border: "1px solid var(--erp-border)", borderRadius: 6, fontSize: 12.5, background: "var(--erp-surface)", color: "var(--erp-text)", width: "100%", textAlign: "right" }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setCortItems(cortItems.filter((_, i) => i !== idx))}
-                    disabled={cortItems.length === 1}
-                    style={{ width: 28, height: 28, border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-bg)", color: "var(--erp-text-3)", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", opacity: cortItems.length === 1 ? 0.3 : 1 }}
-                  >✕</button>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setCortItems([...cortItems, { productoId: "", cantidad: "1" }])}
-              style={{ marginTop: 8, width: "100%", padding: "8px 12px", background: "var(--erp-bg)", border: "1.5px dashed var(--erp-border)", borderRadius: 8, cursor: "pointer", fontSize: 12, color: "var(--erp-text-2)", fontWeight: 600 }}
-            >+ Agregar producto</button>
-          </div>
-
-          {/* Motivo */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Motivo / descripción</label>
-            <textarea
-              value={cortMotivo}
-              onChange={(e) => setCortMotivo(e.target.value)}
-              placeholder="Ej: Cortesía por fidelidad — cliente lleva 1 año con nosotros"
-              rows={3}
-              style={{ padding: "8px 11px", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)", resize: "vertical", fontFamily: "inherit" }}
-            />
-          </div>
-
-          {/* Aviso */}
-          <div style={{ background: "var(--erp-primary-lt)", border: "1.5px solid var(--erp-primary)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--erp-text-2)", display: "flex", gap: 8, alignItems: "flex-start" }}>
-            <span>🎁</span>
-            <div>Esta salida <strong>descuenta el inventario</strong> pero <strong>no genera ingreso ni cobro</strong>. Quedará registrada en el historial de salidas con el tipo seleccionado.</div>
-          </div>
-
-          {cortError && (
-            <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 7, padding: "9px 13px", fontSize: 12.5, color: "#DC2626" }}>{cortError}</div>
-          )}
-          {cortSuccess && (
-            <div style={{ background: "#DCFCE7", border: "1px solid #86EFAC", borderRadius: 7, padding: "9px 13px", fontSize: 12.5, color: "#15803D", fontWeight: 600 }}>✓ Salida registrada correctamente. El inventario fue actualizado.</div>
-          )}
-
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              type="submit"
-              disabled={cortSaving}
-              style={{ flex: 1, padding: "10px 20px", background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: cortSaving ? 0.6 : 1 }}
-            >{cortSaving ? "Guardando…" : cortEditingId ? "✓ Guardar cambios" : "✓ Registrar Salida Gratuita"}</button>
-            <button
-              type="button"
-              onClick={() => { setCortEditingId(null); setCortItems([{ productoId: "", cantidad: "1" }]); setCortBeneficiario(""); setCortMotivo(""); setCortTipo("CORTESIA"); setCortError(null); setCortSuccess(false); }}
-              style={{ padding: "10px 16px", background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1.5px solid var(--erp-border)", borderRadius: 7, fontSize: 13, cursor: "pointer" }}
-            >Limpiar</button>
-          </div>
-
-          {/* ── Historial de salidas ── */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", flex: 1 }}>Historial de salidas registradas</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-                <span style={{ color: "var(--erp-text-3)" }}>Mostrar:</span>
-                {[5, 10, 15, 20].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => { setCortPorPagina(n); setCortPagina(1); }}
-                    style={{
-                      padding: "3px 10px", borderRadius: 5, border: "1px solid var(--erp-border)", fontSize: 12, cursor: "pointer",
-                      background: cortPorPagina === n ? "var(--erp-primary)" : "var(--erp-surface)",
-                      color: cortPorPagina === n ? "#fff" : "var(--erp-text-2)",
-                      fontWeight: cortPorPagina === n ? 700 : 400,
-                    }}
-                  >{n}</button>
-                ))}
-              </div>
-            </div>
-
-            {cortHistLoading ? (
-              <div style={{ padding: "20px 0", textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>Cargando historial…</div>
-            ) : cortHistorial.length === 0 ? (
-              <div style={{ padding: "20px 0", textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>No hay salidas registradas aún.</div>
-            ) : (() => {
-              const totalPags = Math.ceil(cortHistorial.length / cortPorPagina);
-              const pagActual = Math.min(cortPagina, totalPags);
-              const filas = cortHistorial.slice((pagActual - 1) * cortPorPagina, pagActual * cortPorPagina);
-              const tipoPill: Record<string, { bg: string; color: string }> = {
-                CORTESIA:        { bg: "#EDE9FE", color: "#6D28D9" },
-                SORTEO:          { bg: "#FEF9C3", color: "#92400E" },
-                CONSUMO_INTERNO: { bg: "#E0F2FE", color: "#0369A1" },
-                MUESTRA:         { bg: "#E0F2FE", color: "#0369A1" },
-                EVENTO:          { bg: "#FCE7F3", color: "#9D174D" },
-                FIDELIDAD:       { bg: "#FEF3C7", color: "#92400E" },
-              };
-              const tipoLabel = (t: string) => ({ CORTESIA: "Cortesía", SORTEO: "Sorteo", CONSUMO_INTERNO: "Consumo interno", MUESTRA: "Consumo interno", EVENTO: "Evento", FIDELIDAD: "Fidelidad" }[t] ?? t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
-              return (
-                <>
-                  {/* Tarjetas móvil */}
-                  <div className="flex flex-col gap-2 sm:hidden">
-                    {filas.map((s) => {
-                      const pill = tipoPill[s.tipo] ?? { bg: "var(--erp-bg)", color: "var(--erp-text-2)" };
-                      return (
-                        <div key={s.id} style={{ border: "1.5px solid var(--erp-border)", borderRadius: 8, padding: "10px 12px", background: "var(--erp-surface)", opacity: s.anulada ? 0.6 : 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>#{s.id}</span>
-                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: pill.bg, color: pill.color }}>{tipoLabel(s.tipo)}</span>
-                              {s.anulada
-                                ? <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#FEE2E2", color: "#DC2626" }}>ANULADA</span>
-                                : <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D" }}>ACTIVA</span>
-                              }
-                            </div>
-                            <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{s.fecha ? s.fecha.slice(0, 10) : "—"}</span>
-                          </div>
-                          <div style={{ fontSize: 12, color: "var(--erp-text-2)", marginBottom: 4 }}>
-                            {s.items?.map((it, i) => <span key={i}>{i > 0 ? ", " : ""}{it.cantidad}× {it.nombre}</span>)}
-                          </div>
-                          {s.beneficiario && <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginBottom: 2 }}>Para: {s.beneficiario}</div>}
-                          {!s.anulada && (
-                            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                              <button type="button" onClick={() => startCortEdit(s)}
-                                style={{ flex: 1, padding: "5px 0", background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-primary)", borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Editar</button>
-                              <button type="button" onClick={() => handleAnularSalida(s.id)} disabled={cortAnulando === s.id}
-                                style={{ flex: 1, padding: "5px 0", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: cortAnulando === s.id ? 0.6 : 1 }}>{cortAnulando === s.id ? "…" : "Anular"}</button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {/* Tabla desktop */}
-                  <div className="hidden sm:block" style={{ overflowX: "auto", border: "1.5px solid var(--erp-border)", borderRadius: 8 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                      <thead>
-                        <tr style={{ background: "var(--erp-bg)" }}>
-                          {["#", "Fecha", "Tipo", "Productos", "Beneficiario", "Responsable", "Estado", ""].map((h) => (
-                            <th key={h} style={{ padding: "7px 11px", textAlign: "left", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)", borderBottom: "1.5px solid var(--erp-border)", whiteSpace: "nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filas.map((s) => {
-                          const pill = tipoPill[s.tipo] ?? { bg: "var(--erp-bg)", color: "var(--erp-text-2)" };
-                          return (
-                            <tr key={s.id} style={{ borderBottom: "1px solid var(--erp-border)", opacity: s.anulada ? 0.5 : 1 }}>
-                              <td style={{ padding: "8px 11px", color: "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>#{s.id}</td>
-                              <td style={{ padding: "8px 11px", whiteSpace: "nowrap" }}>{s.fecha ? s.fecha.slice(0, 10) : "—"}</td>
-                              <td style={{ padding: "8px 11px" }}>
-                                <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, background: pill.bg, color: pill.color, whiteSpace: "nowrap" }}>{s.tipo}</span>
-                              </td>
-                              <td style={{ padding: "8px 11px", maxWidth: 200 }}>
-                                {s.items?.map((it, i) => (
-                                  <div key={i} style={{ fontSize: 11.5, color: "var(--erp-text-2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {it.cantidad}× {it.nombre}
-                                  </div>
-                                ))}
-                              </td>
-                              <td style={{ padding: "8px 11px", color: "var(--erp-text-2)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.beneficiario || "—"}</td>
-                              <td style={{ padding: "8px 11px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{s.responsable || "—"}</td>
-                              <td style={{ padding: "8px 11px" }}>
-                                {s.anulada
-                                  ? <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, background: "#FEE2E2", color: "#DC2626" }}>ANULADA</span>
-                                  : <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, background: "#DCFCE7", color: "#15803D" }}>ACTIVA</span>
-                                }
-                              </td>
-                              <td style={{ padding: "8px 11px" }}>
-                                {!s.anulada && (
-                                  <div style={{ display: "flex", gap: 5 }}>
-                                    <button type="button" onClick={() => startCortEdit(s)}
-                                      style={{ padding: "4px 10px", background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "1px solid var(--erp-primary)", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Editar</button>
-                                    <button type="button" onClick={() => handleAnularSalida(s.id)} disabled={cortAnulando === s.id}
-                                      style={{ padding: "4px 10px", background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5", borderRadius: 5, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", opacity: cortAnulando === s.id ? 0.6 : 1 }}>{cortAnulando === s.id ? "…" : "Anular"}</button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Paginación */}
-                  {totalPags > 1 && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 10 }}>
-                      <button type="button" onClick={() => setCortPagina((p) => Math.max(1, p - 1))} disabled={pagActual === 1}
-                        style={{ padding: "4px 10px", border: "1px solid var(--erp-border)", borderRadius: 5, background: "var(--erp-surface)", cursor: "pointer", fontSize: 12, color: "var(--erp-text-2)", opacity: pagActual === 1 ? 0.4 : 1 }}>← Ant</button>
-                      <span style={{ fontSize: 12, color: "var(--erp-text-2)" }}>Pág {pagActual} / {totalPags}</span>
-                      <button type="button" onClick={() => setCortPagina((p) => Math.min(totalPags, p + 1))} disabled={pagActual === totalPags}
-                        style={{ padding: "4px 10px", border: "1px solid var(--erp-border)", borderRadius: 5, background: "var(--erp-surface)", cursor: "pointer", fontSize: 12, color: "var(--erp-text-2)", opacity: pagActual === totalPags ? 0.4 : 1 }}>Sig →</button>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        </form>
-      )}
+      {vista === "promociones" && puedePromociones && <PromocionesPanel productos={productos} />}
 
       {vista === "ventas" && modoVista === "pasos" && (
         <>
@@ -1720,7 +1249,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                         const producto = productosById.get(Number(item.productoId));
                         const cantidad = Number(item.cantidad) || 0;
                         const extra = producto?.extras.find((ex) => String(ex.id) === item.extraId);
-                        const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
+                        const promo = producto ? promoVigente(promociones, producto.id, fecha) : null;
+                        const precioUnit = producto ? precioConPromo(producto.precioVenta, promo, extra?.precioAdicional ?? 0) : 0;
                         return (
                           <div key={index} className="flex flex-col gap-2 rounded-md border border-zinc-100 bg-zinc-50 p-3">
                             <div className="flex items-center justify-between">
@@ -1739,6 +1269,21 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                   </span>
                                 )}
                               </div>
+                              {promo && (
+                                <div
+                                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold"
+                                  style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)" }}
+                                >
+                                  <span>🏷️ Promo: {promo.nombre}</span>
+                                  {promo.descuentoTipo && (
+                                    <span className="line-through opacity-60">${(producto?.precioVenta ?? 0).toFixed(2)}</span>
+                                  )}
+                                  {promo.descuentoTipo && <span>${precioUnit.toFixed(2)}</span>}
+                                  {promo.tieneProductoGratis && (
+                                    <span>· 🎁 +{promo.cantidadGratis} {promo.productoGratisNombre} gratis</span>
+                                  )}
+                                </div>
+                              )}
                               <input
                                 list="productos-list-pasos"
                                 className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
@@ -1769,6 +1314,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                 }}
                                 placeholder="Buscar producto..."
                               />
+                              {producto && producto.stockActual <= 0 && (
+                                <p className="text-xs font-medium" style={{ color: "#b45309" }}>
+                                  El producto que esta tratando de vender no tiene disponibilidad, realice un ajuste o conteo para no afectar el inventario real y la demanda.
+                                </p>
+                              )}
                             </div>
                             {producto && producto.extras.length > 0 && (
                               <div className="flex flex-col gap-1">
@@ -1804,9 +1354,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                                 <span className="text-xs font-medium text-zinc-600">Raciones:</span>
                                 {item.variadaSelecciones.map((seleccion, racionIndex) => (
                                   <select key={racionIndex} className="rounded-md border border-zinc-300 px-2 py-1 text-sm" value={seleccion}
-                                    onChange={(e) => { const s = [...item.variadaSelecciones]; s[racionIndex] = e.target.value; updateItem(index, { variadaSelecciones: s }); }}>
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const match = productos.find((p) => String(p.id) === val);
+                                      if (match && match.stockActual <= 0 && match.empaques?.length) {
+                                        const conStock = match.empaques.filter(em => em.empaqueStock > 0);
+                                        if (conStock.length > 0) {
+                                          setModalEmpaque({ itemIndex: index, racionIndex, producto: match, empaques: conStock, seleccionado: conStock[0].id, abriendo: false, error: null });
+                                          return;
+                                        }
+                                      }
+                                      const s = [...item.variadaSelecciones]; s[racionIndex] = val; updateItem(index, { variadaSelecciones: s });
+                                    }}>
                                     <option value="">Ración {racionIndex + 1}</option>
-                                    {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual})</option>)}
+                                    {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}</option>)}
                                   </select>
                                 ))}
                               </div>
@@ -2144,43 +1705,22 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       {tasaBcvError && <span className="text-xs text-red-600">{tasaBcvError}</span>}
                     </div>
                     <div className="relative flex flex-col gap-1 sm:col-span-2">
-                      <label className="text-sm font-medium text-zinc-700">Nombre</label>
+                      <label className="text-sm font-medium text-zinc-700">Cliente</label>
                       <div className="flex gap-1">
-                        <input className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={clienteNombre} onChange={(e) => { setClienteNombre(e.target.value); buscarClientes((e.target.value + " " + clienteApellido).trim() || clienteCi); }} onBlur={(e) => setClienteNombre(toTitleCase(e.target.value))} onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)} placeholder="Nombre" required />
-                        <input className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={clienteApellido} onChange={(e) => setClienteApellido(e.target.value)} onBlur={(e) => setClienteApellido(toTitleCase(e.target.value))} placeholder="Apellido" />
+                        <input className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={cliente} onChange={(e) => setCliente(e.target.value)} onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)} placeholder="Nombre del cliente" required />
+                        <button type="button" onClick={() => buscarClientes(cliente || clienteCi)} disabled={buscandoClientes} className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50">{buscandoClientes ? "..." : "Buscar"}</button>
                       </div>
-                      {clienteSplitWarning && <span className="text-xs" style={{ color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "2px 6px" }}>Nombre con 3+ palabras — confirma la división.</span>}
                       {puedeMostrarResultados && clientesResultados.length > 0 && (
                         <ul className="absolute top-full left-0 z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg">
                           {clientesResultados.map((c) => (
                             <li key={c.id}>
                               <button type="button" onClick={() => seleccionarCliente(c)} className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-zinc-100">
-                                <span className="font-medium">{c.nombre}{c.apellido ? " " + c.apellido : ""}</span>
+                                <span className="font-medium">{c.nombre}</span>
                                 <span className="text-xs text-zinc-500">{c.cedula ?? "Sin C.I/Rif"}{c.telefono ? ` · ${c.telefono}` : ""}{c.direccion ? ` · ${c.direccion}` : ""}</span>
                               </button>
                             </li>
                           ))}
-                          <li>
-                            <button type="button" onClick={() => { setMostrarResultados(false); setClienteNuevoPanel(true); }} className="flex w-full items-start px-3 py-2 text-left text-sm font-semibold" style={{ color: "var(--erp-primary)", borderTop: "1px solid var(--erp-border)" }}>+ Registrar nuevo cliente</button>
-                          </li>
                         </ul>
-                      )}
-                      {clienteNuevoPanel && (
-                        <div className="mt-1 rounded-md border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)", background: "var(--erp-bg)" }}>
-                          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--erp-primary)" }}>Registrar como nuevo cliente</span>
-                          <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="C.I / Rif (obligatorio)" value={clienteCi} onChange={(e) => setClienteCi(e.target.value)} />
-                          <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Teléfono (opcional)" value={clienteTelefono} onChange={(e) => setClienteTelefono(e.target.value)} />
-                          <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Dirección (opcional)" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
-                          <div className="flex gap-2">
-                            <button type="button" className="rounded-md px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--erp-primary)" }} onClick={async () => {
-                              const n = toTitleCase(clienteNombre); const a = toTitleCase(clienteApellido);
-                              if (!n) return;
-                              const res = await fetch("/api/clientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: n, apellido: a, cedula: clienteCi, telefono: clienteTelefono, direccion }) });
-                              if (res.ok) { setClienteNuevoPanel(false); }
-                            }}>Guardar cliente</button>
-                            <button type="button" className="rounded-md border px-3 py-1.5 text-xs" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }} onClick={() => setClienteNuevoPanel(false)}>Continuar sin registrar</button>
-                          </div>
-                        </div>
                       )}
                     </div>
                     <div className="flex flex-col gap-1">
@@ -2299,26 +1839,26 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
             )}
           </div>
           <div className="relative flex flex-col gap-1 sm:col-span-2">
-            <label className="text-sm font-medium text-zinc-700">Nombre / Apellido</label>
+            <label className="text-sm font-medium text-zinc-700">Cliente</label>
             <div className="flex gap-1">
               <input
                 className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                value={clienteNombre}
-                onChange={(e) => { setClienteNombre(e.target.value); buscarClientes((e.target.value + " " + clienteApellido).trim() || clienteCi); }}
-                onBlur={(e) => setClienteNombre(toTitleCase(e.target.value))}
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
                 onFocus={() => clientesResultados.length > 0 && setMostrarResultados(true)}
-                placeholder="Nombre"
+                placeholder="Nombre del cliente"
                 required
               />
-              <input
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-                value={clienteApellido}
-                onChange={(e) => setClienteApellido(e.target.value)}
-                onBlur={(e) => setClienteApellido(toTitleCase(e.target.value))}
-                placeholder="Apellido"
-              />
+              <button
+                type="button"
+                onClick={() => buscarClientes(cliente || clienteCi)}
+                disabled={buscandoClientes}
+                title="Buscar cliente"
+                className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50"
+              >
+                {buscandoClientes ? "..." : "Buscar"}
+              </button>
             </div>
-            {clienteSplitWarning && <span className="text-xs rounded px-1.5 py-0.5" style={{ color: "#92400e", background: "#fef3c7" }}>Nombre con 3+ palabras — confirma la división.</span>}
             {puedeMostrarResultados && clientesResultados.length > 0 && (
               <ul className="absolute top-full left-0 z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg">
                 {clientesResultados.map((c) => (
@@ -2328,7 +1868,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                       onClick={() => seleccionarCliente(c)}
                       className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-zinc-100"
                     >
-                      <span className="font-medium">{c.nombre}{c.apellido ? " " + c.apellido : ""}</span>
+                      <span className="font-medium">{c.nombre}</span>
                       <span className="text-xs text-zinc-500">
                         {c.cedula ?? "Sin C.I/Rif"}
                         {c.telefono ? ` · ${c.telefono}` : ""}
@@ -2337,29 +1877,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     </button>
                   </li>
                 ))}
-                <li>
-                  <button type="button" onClick={() => { setMostrarResultados(false); setClienteNuevoPanel(true); }} className="flex w-full items-start px-3 py-2 text-left text-sm font-semibold" style={{ color: "var(--erp-primary)", borderTop: "1px solid var(--erp-border)" }}>
-                    + Registrar nuevo cliente
-                  </button>
-                </li>
               </ul>
-            )}
-            {clienteNuevoPanel && (
-              <div className="mt-1 rounded-md border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)", background: "var(--erp-bg)" }}>
-                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--erp-primary)" }}>Registrar como nuevo cliente</span>
-                <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="C.I / Rif (opcional)" value={clienteCi} onChange={(e) => setClienteCi(e.target.value)} />
-                <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Teléfono (opcional)" value={clienteTelefono} onChange={(e) => setClienteTelefono(e.target.value)} />
-                <input className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm" placeholder="Dirección (opcional)" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
-                <div className="flex gap-2">
-                  <button type="button" className="rounded-md px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--erp-primary)" }} onClick={async () => {
-                    const n = toTitleCase(clienteNombre); const a = toTitleCase(clienteApellido);
-                    if (!n) return;
-                    const res = await fetch("/api/clientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: n, apellido: a, cedula: clienteCi, telefono: clienteTelefono, direccion }) });
-                    if (res.ok) { setClienteNuevoPanel(false); }
-                  }}>Guardar cliente</button>
-                  <button type="button" className="rounded-md border px-3 py-1.5 text-xs" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }} onClick={() => setClienteNuevoPanel(false)}>Continuar sin registrar</button>
-                </div>
-              </div>
             )}
           </div>
           <div className="flex flex-col gap-1">
@@ -2601,16 +2119,27 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               const producto = productosById.get(Number(item.productoId));
               const cantidad = Number(item.cantidad) || 0;
               const extra = producto?.extras.find((ex) => String(ex.id) === item.extraId);
-              const precioUnit = producto ? producto.precioVenta + (extra?.precioAdicional ?? 0) : 0;
+              const promo = producto ? promoVigente(promociones, producto.id, fecha) : null;
+              const precioUnit = producto ? precioConPromo(producto.precioVenta, promo, extra?.precioAdicional ?? 0) : 0;
               return (
                 <div key={index} className="grid grid-cols-12 items-center gap-2">
                   {producto && (
-                    <div className="col-span-12 -mb-1 flex items-center gap-2">
+                    <div className="col-span-12 -mb-1 flex items-center gap-2 flex-wrap">
                       <span className={`text-xs font-medium ${producto.stockActual <= 0 ? "text-red-600" : "text-zinc-500"}`}>
                         Stock disponible: {producto.stockActual} {producto.unidadMedida}
                       </span>
                       {producto.stockActual <= 0 && producto.empaques && producto.empaques.length > 0 && (
                         <span className="text-xs text-amber-600">· 📦 empaque disponible</span>
+                      )}
+                      {promo && (
+                        <span
+                          className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
+                          style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)" }}
+                        >
+                          🏷️ {promo.nombre}
+                          {promo.descuentoTipo && <span>→ ${precioUnit.toFixed(2)}</span>}
+                          {promo.tieneProductoGratis && <span>· 🎁 +{promo.cantidadGratis} {promo.productoGratisNombre}</span>}
+                        </span>
                       )}
                     </div>
                   )}
@@ -2647,6 +2176,11 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                     }}
                     placeholder="Selecciona o escribe un producto"
                   />
+                  {producto && producto.stockActual <= 0 && (
+                    <p className="col-span-12 text-xs font-medium" style={{ color: "#b45309" }}>
+                      El producto que esta tratando de vender no tiene disponibilidad, realice un ajuste o conteo para no afectar el inventario real y la demanda.
+                    </p>
+                  )}
                   <select
                     className="col-span-3 rounded-md border border-zinc-300 px-3 py-2 text-sm sm:col-span-3"
                     value={item.extraId}
@@ -2692,8 +2226,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           className="rounded-md border border-zinc-300 px-2 py-1 text-sm"
                           value={seleccion}
                           onChange={(e) => {
+                            const val = e.target.value;
+                            const match = productos.find((p) => String(p.id) === val);
+                            if (match && match.stockActual <= 0 && match.empaques?.length) {
+                              const conStock = match.empaques.filter(em => em.empaqueStock > 0);
+                              if (conStock.length > 0) {
+                                setModalEmpaque({ itemIndex: index, racionIndex, producto: match, empaques: conStock, seleccionado: conStock[0].id, abriendo: false, error: null });
+                                return;
+                              }
+                            }
                             const nuevasSelecciones = [...item.variadaSelecciones];
-                            nuevasSelecciones[racionIndex] = e.target.value;
+                            nuevasSelecciones[racionIndex] = val;
                             updateItem(index, { variadaSelecciones: nuevasSelecciones });
                           }}
                         >
@@ -2702,7 +2245,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                             .filter((p) => p.tipoProducto === "NORMAL")
                             .map((p) => (
                               <option key={p.id} value={p.id}>
-                                {p.nombre} (stock: {p.stockActual})
+                                {p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}
                               </option>
                             ))}
                         </select>
@@ -3343,12 +2886,27 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
                           ) : (
                             <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">Pendiente</span>
                           )}
-                          <button
-                            onClick={() => handleToggleCuentaCobrada(venta)}
-                            className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
-                          >
-                            {venta.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
-                          </button>
+                          {cxcConfirmId === venta.id && !venta.cuentaCobrada ? (
+                            <FechaPagoConfirm
+                              confirming={false}
+                              pedirMetodoPago
+                              onConfirm={(fechaPago, metodoPago) => handleToggleCuentaCobrada(venta, fechaPago, metodoPago)}
+                              onCancel={() => setCxcConfirmId(null)}
+                            />
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (!venta.cuentaCobrada) {
+                                  setCxcConfirmId(venta.id);
+                                } else {
+                                  handleToggleCuentaCobrada(venta);
+                                }
+                              }}
+                              className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                            >
+                              {venta.cuentaCobrada ? "Marcar pendiente" : "Marcar pagada"}
+                            </button>
+                          )}
                         </>
                       )}
                       {!cd && !venta.yummyDatos && !venta.cuentaPorCobrar && "-"}
@@ -3448,9 +3006,18 @@ export default function VentasClient({ rol = null, puedeDescuento = false }: Pro
               <button
                 type="button"
                 onClick={() => {
-                  // Quitar el producto del ítem para no permitir la venta sin abrir empaque
                   if (modalEmpaque) {
-                    updateItem(modalEmpaque.itemIndex, { productoId: "", extraId: "", cantidad: "1", variadaSelecciones: [] });
+                    if (typeof modalEmpaque.racionIndex === "number") {
+                      // Cancelar selección de ración: dejar vacía esa posición
+                      setItems((prev) => prev.map((it, idx) => {
+                        if (idx !== modalEmpaque.itemIndex) return it;
+                        const s = [...it.variadaSelecciones];
+                        s[modalEmpaque.racionIndex!] = "";
+                        return { ...it, variadaSelecciones: s };
+                      }));
+                    } else {
+                      updateItem(modalEmpaque.itemIndex, { productoId: "", extraId: "", cantidad: "1", variadaSelecciones: [] });
+                    }
                   }
                   setModalEmpaque(null);
                 }}

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatFecha } from "@/lib/pedidos";
 import FechaPagoConfirm from "@/components/FechaPagoConfirm";
+import type { MetodoPago } from "@/lib/types";
 
 type TipoCxC = "CxC Directa" | "CASHEA" | "YUMMY";
 type EstadoFiltro = "TODOS" | "PENDIENTE" | "COBRADA" | "VENCIDA";
@@ -189,7 +190,7 @@ export default function CuentasPorCobrarPanel() {
     setClienteQ("");
   }
 
-  async function handleToggle(item: UnifiedItem, fechaPago?: string, metodoPago?: string) {
+  async function handleToggle(item: UnifiedItem, fechaPago?: string, metodoPago?: MetodoPago) {
     setUpdatingId(item.ventaId);
     setError(null);
     try {
@@ -412,9 +413,9 @@ export default function CuentasPorCobrarPanel() {
                       {confirmando?.ventaId === item.ventaId && confirmando.tipoCxC === item.tipoCxC ? (
                         <FechaPagoConfirm
                           confirming={isUpdating}
+                          pedirMetodoPago={item.tipoCxC === "CxC Directa"}
                           onConfirm={(fechaPago, metodoPago) => handleToggle(item, fechaPago, metodoPago)}
                           onCancel={() => setConfirmando(null)}
-                          showMetodoPago={item.tipoCxC === "CxC Directa"}
                         />
                       ) : (
                         <button

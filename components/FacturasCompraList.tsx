@@ -6,18 +6,19 @@ import FacturaCompraForm from "./FacturaCompraForm";
 
 type Factura = {
   id: number; fecha: string; proveedorNombre: string; proveedorRif: string | null;
-  numeroFactura: string | null; tasaDia: number; estado: string;
+  numeroFactura: string | null; tasaDia: number; estado: string; tipoUso: "VENTA" | "MATERIA_PRIMA";
   totalBs: number; totalUsd: number;
 };
 
 type DetalleItem = {
   id: number; productoId: number | null; nombreProducto: string; cantidad: number; costoUnitBs: number; subtotalBs: number;
+  tipoUso: "VENTA" | "MATERIA_PRIMA";
 };
 
 type Detalle = {
   id: number; fecha: string; proveedorNombre: string; proveedorRif: string | null;
   numeroFactura: string | null; observaciones: string | null; tasaDia: number;
-  estado: string; imagenFactura: string | null; items: DetalleItem[];
+  estado: string; tipoUso: "VENTA" | "MATERIA_PRIMA"; imagenFactura: string | null; items: DetalleItem[];
 };
 
 export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv = 0, isAdmin = false, puedeEliminarCompras = false }: { puedeCrearProducto?: boolean; tasaBcv?: number; isAdmin?: boolean; puedeEliminarCompras?: boolean }) {
@@ -29,16 +30,19 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [proveedorQ, setProveedorQ] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState<"TODAS" | "ACTIVA" | "ANULADA">("ACTIVA");
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [anulando, setAnulando] = useState(false);
 
-  async function loadFacturas() {
+  async function loadFacturas(estadoOverride?: "TODAS" | "ACTIVA" | "ANULADA") {
     setLoading(true); setError(null);
+    const estadoEfectivo = estadoOverride ?? estadoFiltro;
     try {
       const params = new URLSearchParams();
       if (desde) params.set("desde", desde);
       if (hasta) params.set("hasta", hasta);
       if (proveedorQ) params.set("proveedor", proveedorQ);
+      if (estadoEfectivo !== "TODAS") params.set("estado", estadoEfectivo);
       const res = await fetch(`/api/compras?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -47,7 +51,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
     finally { setLoading(false); }
   }
 
-  useEffect(() => { loadFacturas(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadFacturas("ACTIVA"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadDetalle(id: number) {
     try {
@@ -178,7 +182,23 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
           <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Proveedor</label>
           <input value={proveedorQ} onChange={(e) => setProveedorQ(e.target.value)} placeholder="Buscar..." style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 13 }} />
         </div>
-        <button type="button" onClick={loadFacturas} disabled={loading} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <div className="flex flex-col gap-1">
+          <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Estado</label>
+          <div style={{ display: "flex", border: "1px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
+            {(["TODAS", "ACTIVA", "ANULADA"] as const).map((op, i, arr) => (
+              <button key={op} type="button" onClick={() => { setEstadoFiltro(op); loadFacturas(op); }}
+                style={{
+                  background: estadoFiltro === op ? "var(--erp-primary)" : "var(--erp-bg)",
+                  color: estadoFiltro === op ? "#fff" : "var(--erp-text-2)",
+                  border: "none", borderRight: i < arr.length - 1 ? "1px solid var(--erp-border)" : "none",
+                  padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+                }}>
+                {op === "TODAS" ? "Todas" : op === "ACTIVA" ? "Activa" : "Anulada"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button type="button" onClick={() => loadFacturas()} disabled={loading} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
           {loading ? "..." : "Buscar"}
         </button>
       </div>
@@ -234,7 +254,16 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
           <div style={{ background: "var(--erp-surface)", borderRadius: 16, width: "100%", maxWidth: 540, marginTop: 40 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--erp-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontWeight: 700, color: "var(--erp-text)", fontSize: 15 }}>Factura #{detalle.id}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 700, color: "var(--erp-text)", fontSize: 15 }}>Factura #{detalle.id}</span>
+                  <span style={{
+                    background: detalle.tipoUso === "MATERIA_PRIMA" ? "#FEF3C7" : "#DCFCE7",
+                    color: detalle.tipoUso === "MATERIA_PRIMA" ? "#92400E" : "#166534",
+                    borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 700,
+                  }}>
+                    {detalle.tipoUso === "MATERIA_PRIMA" ? "Materia prima" : "Para venta"}
+                  </span>
+                </div>
                 <div style={{ fontSize: 12, color: "var(--erp-text-3)" }}>{formatFecha(detalle.fecha)} · {detalle.proveedorNombre}</div>
               </div>
               <div className="flex items-center gap-2">
@@ -255,8 +284,8 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
               {detalle.numeroFactura && <div style={{ fontSize: 13, color: "var(--erp-text-2)", marginBottom: 12 }}>N° Factura: <strong>{detalle.numeroFactura}</strong></div>}
               <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
                 <thead><tr style={{ background: "var(--erp-bg)" }}>
-                  {["Producto", "Cant.", "Costo Bs", "Subtotal"].map((h) => (
-                    <th key={h} style={{ padding: "8px 10px", textAlign: h === "Cant." ? "center" : h !== "Producto" ? "right" : "left", color: "var(--erp-text-2)", fontWeight: 600, fontSize: 11 }}>{h}</th>
+                  {["Producto", "Cant.", "Costo Bs", "Tipo", "Subtotal"].map((h) => (
+                    <th key={h} style={{ padding: "8px 10px", textAlign: h === "Cant." || h === "Tipo" ? "center" : h !== "Producto" ? "right" : "left", color: "var(--erp-text-2)", fontWeight: 600, fontSize: 11 }}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
@@ -265,6 +294,15 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                       <td style={{ padding: "8px 10px", color: "var(--erp-text)" }}>{it.nombreProducto}</td>
                       <td style={{ padding: "8px 10px", textAlign: "center", color: "var(--erp-text-2)" }}>{it.cantidad}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", color: "var(--erp-text-2)" }}>{it.costoUnitBs.toFixed(2)}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                        <span style={{
+                          background: it.tipoUso === "MATERIA_PRIMA" ? "#FEF3C7" : "#DCFCE7",
+                          color: it.tipoUso === "MATERIA_PRIMA" ? "#92400E" : "#166534",
+                          borderRadius: 999, padding: "1px 8px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+                        }}>
+                          {it.tipoUso === "MATERIA_PRIMA" ? "M.P." : "Venta"}
+                        </span>
+                      </td>
                       <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "var(--erp-text)" }}>{it.subtotalBs.toFixed(2)}</td>
                     </tr>
                   ))}

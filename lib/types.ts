@@ -17,6 +17,9 @@ export const PERMISO_TABS = [
   { key: "eliminarCompras", label: "Eliminar Facturas Anuladas" },
   { key: "gastos", label: "Nómina & Gastos" },
   { key: "autorizarConteo", label: "Autorizar Conteo de Inventario" },
+  { key: "conteo", label: "Conteo de Inventario (dispositivo)" },
+  { key: "programarConteo", label: "Programar Conteos" },
+  { key: "promociones", label: "Crear Promociones" },
 ] as const;
 
 export type PermisoTab = (typeof PERMISO_TABS)[number]["key"];
@@ -34,6 +37,9 @@ export const PERMISOS_VACIOS: PermisosUsuario = {
   eliminarCompras: false,
   gastos: false,
   autorizarConteo: false,
+  conteo: false,
+  programarConteo: false,
+  promociones: false,
 };
 
 export type Usuario = {
@@ -78,7 +84,6 @@ export type Categoria = {
 export type Cliente = {
   id: number;
   nombre: string;
-  apellido: string | null;
   cedula: string | null;
   direccion: string | null;
   telefono: string | null;
@@ -86,7 +91,6 @@ export type Cliente = {
 
 export type ClienteInput = {
   nombre: string;
-  apellido?: string;
   cedula: string;
   direccion: string;
   telefono: string;
@@ -577,6 +581,9 @@ export type Gasto = {
   tipoGastoNombre: string;
   tipo: TipoGasto;
   proveedor: string;
+  proveedorRif: string | null;
+  proveedorTelefono: string | null;
+  proveedorDireccion: string | null;
   descripcion: string | null;
   locacionId: number | null;
   locacionNombre: string | null;
@@ -587,10 +594,13 @@ export type Gasto = {
   estado: EstadoGasto;
   pagadoAt: string | null;
   comprobanteUrl: string | null;
+  numeroFactura: string | null;
   recurrente: boolean;
   frecuencia: FrecuenciaRecurrencia | null;
   proximoRecordatorio: string | null;
   recordatorioVisto: boolean;
+  centroCostoId: number | null;
+  centroCostoNombre: string | null;
   createdAt: string;
 };
 
@@ -598,6 +608,9 @@ export type GastoInput = {
   tipoGastoId: number;
   tipo: TipoGasto;
   proveedor: string;
+  proveedorRif: string;
+  proveedorTelefono: string;
+  proveedorDireccion: string;
   descripcion: string;
   locacionId: number | null;
   fecha: string;
@@ -605,14 +618,60 @@ export type GastoInput = {
   tasaDia: number;
   estado: EstadoGasto;
   comprobanteUrl: string;
+  numeroFactura: string;
   recurrente: boolean;
   frecuencia: FrecuenciaRecurrencia | null;
 };
 
 export type GastoResumen = {
   gastoHoy: number;
+  gastoHoyBs: number;
   gastoMes: number;
+  gastoMesBs: number;
   pendientePorPagar: number;
+  pendientePorPagarBs: number;
+};
+
+// El descuento (% o precio fijo) y el producto gratis son independientes y
+// combinables: una promoción puede tener uno, el otro, o ambos a la vez.
+export const DESCUENTO_TIPOS = ["PORCENTAJE", "PRECIO_FIJO"] as const;
+export type DescuentoTipo = (typeof DESCUENTO_TIPOS)[number];
+
+export const DESCUENTO_TIPO_LABELS: Record<DescuentoTipo, string> = {
+  PORCENTAJE: "Descuento %",
+  PRECIO_FIJO: "Precio fijo",
+};
+
+export type Promocion = {
+  id: number;
+  nombre: string;
+  productoId: number;
+  productoNombre: string;
+  descuentoTipo: DescuentoTipo | null;
+  valorPorcentaje: number | null;
+  precioFijoUsd: number | null;
+  tieneProductoGratis: boolean;
+  productoGratisId: number | null;
+  productoGratisNombre: string | null;
+  cantidadGratis: number | null;
+  fechaInicio: string;
+  fechaFin: string | null;
+  activa: boolean;
+  createdAt: string;
+};
+
+export type PromocionInput = {
+  nombre: string;
+  productoId: number;
+  descuentoTipo?: DescuentoTipo | null;
+  valorPorcentaje?: number | null;
+  precioFijoUsd?: number | null;
+  tieneProductoGratis?: boolean;
+  productoGratisId?: number | null;
+  cantidadGratis?: number | null;
+  fechaInicio: string;
+  fechaFin?: string | null;
+  activa?: boolean;
 };
 
 export const SEXOS = ["MASCULINO", "FEMENINO"] as const;
@@ -626,10 +685,12 @@ export const SEXO_LABELS: Record<Sexo, string> = {
 export type Empleado = {
   id: number;
   nombre: string;
+  apellido: string | null;
   cedula: string | null;
   fechaNacimiento: string | null;
   sexo: Sexo | null;
   cargo: string | null;
+  cargoId: number | null;
   locacionId: number | null;
   locacionNombre: string | null;
   nominaIds: number[];
@@ -639,15 +700,18 @@ export type Empleado = {
   tasaRegistro: number;
   fechaIngreso: string | null;
   activo: boolean;
+  estadoCivil: string | null;
   createdAt: string;
 };
 
 export type EmpleadoInput = {
   nombre: string;
+  apellido?: string;
   cedula: string;
   fechaNacimiento: string;
   sexo: Sexo | null;
   cargo: string;
+  cargoId?: number | null;
   locacionId: number | null;
   nominaIds: number[];
   salarioBaseUsd: number;
@@ -655,6 +719,7 @@ export type EmpleadoInput = {
   tasaRegistro: number;
   fechaIngreso: string;
   activo: boolean;
+  estadoCivil?: string | null;
 };
 
 export type TipoIncidencia = {
@@ -747,7 +812,11 @@ export type Nomina = {
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  diaSemana: number | null;
+  diaPago1: number | null;
+  diaPago2: number | null;
   activo: boolean;
+  centroCostoId: number | null;
   empleadosAsignados: number;
   incidenciasConfig: NominaIncidenciaConfig[];
   ultimoPeriodoFechaHasta: string | null;
@@ -759,6 +828,10 @@ export type NominaInput = {
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  diaSemana?: number | null;
+  diaPago1?: number | null;
+  diaPago2?: number | null;
+  centroCostoId?: number | null;
   activo: boolean;
   incidencias: NominaIncidenciaConfigInput[];
 };
@@ -767,6 +840,21 @@ export type NominaResumen = {
   empleadosActivos: number;
   nominaPendiente: number;
   nominaPagadaMes: number;
+  proximaSemana?: {
+    periodos: number;
+    totalUsd: number;
+    lunes: string | null;
+    domingo: string | null;
+    fechaPago: string | null;
+    nominasPendientes: Array<{
+      nominaId: number;
+      nominaNombre: string;
+      totalUsdEstimado: number;
+      lunes: string | null;
+      domingo: string | null;
+      fechaHasta: string | null;
+    }>;
+  };
 };
 
 export type NominaPago = {

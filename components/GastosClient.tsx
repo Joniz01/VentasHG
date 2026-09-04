@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ESTADOS_GASTO,
   ESTADO_GASTO_LABELS,
@@ -18,38 +18,67 @@ import {
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 
+type RifTipo = "J" | "V" | "E" | "G";
+
+function parseRif(fullRif: string | null | undefined): { tipo: RifTipo; numero: string } {
+  if (!fullRif) return { tipo: "J", numero: "" };
+  const m = fullRif.match(/^([JVEGjveg])-(.+)$/);
+  if (m) return { tipo: m[1].toUpperCase() as RifTipo, numero: m[2] };
+  return { tipo: "J", numero: fullRif };
+}
+
 const PAGE_SIZES = [5, 10, 20, 25];
 
 type FormState = {
   tipoGastoId: string;
   tipo: TipoGasto;
   proveedor: string;
+  proveedorTelefono: string;
+  proveedorDireccion: string;
   descripcion: string;
   locacionId: string;
+  centroCostoId: string;
   fecha: string;
   montoBs: string;
+  montoUsd: string;
   tasaDia: string;
   estado: EstadoGasto;
   recurrente: boolean;
   frecuencia: FrecuenciaRecurrencia;
+  numeroFactura: string;
+  comprobanteUrl: string;
 };
 
 const EMPTY_FORM: FormState = {
   tipoGastoId: "",
   tipo: "OCASIONAL",
   proveedor: "",
+  proveedorTelefono: "",
+  proveedorDireccion: "",
   descripcion: "",
   locacionId: "",
+  centroCostoId: "",
   fecha: today(),
   montoBs: "",
+  montoUsd: "",
   tasaDia: "",
-  estado: "PENDIENTE",
+  estado: "PAGADO",
   recurrente: false,
   frecuencia: "MENSUAL",
+  numeroFactura: "",
+  comprobanteUrl: "",
 };
+
+type FacturaItem = { key: number; nombre: string; cantidad: string; costoUnitBs: string };
+let itemKeySeq = 0;
+const nextItemKey = () => ++itemKeySeq;
 
 function formatFechaCorta(fecha: string): string {
   return fecha.slice(8, 10) + "/" + fecha.slice(5, 7) + "/" + fecha.slice(0, 4);
+}
+
+function formatMonto(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 const ESTADO_COLORES: Record<EstadoGasto, string> = {
@@ -58,11 +87,12 @@ const ESTADO_COLORES: Record<EstadoGasto, string> = {
   PAGADO: "#15803d",
 };
 
-function StatTile({ label, value, color }: { label: string; value: number; color: string }) {
+function StatTile({ label, value, valueBs, color }: { label: string; value: number; valueBs: number; color: string }) {
   return (
     <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
       <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
-      <div className="text-xl font-extrabold" style={{ color }}>${value.toFixed(2)}</div>
+      <div className="text-xl font-extrabold" style={{ color }}>${formatMonto(value)}</div>
+      <div className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs{formatMonto(valueBs)}</div>
     </div>
   );
 }
@@ -77,10 +107,12 @@ export default function GastosClient() {
   const [filtroHasta, setFiltroHasta] = useState("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
   const [filtroTipoGastoId, setFiltroTipoGastoId] = useState("");
+  const [filtroNaturaleza, setFiltroNaturaleza] = useState<"" | "FIJO" | "OCASIONAL">("");
 
   const [tiposGasto, setTiposGasto] = useState<TipoGastoCatalogo[]>([]);
   const [locaciones, setLocaciones] = useState<Locacion[]>([]);
-  const [resumen, setResumen] = useState<GastoResumen>({ gastoHoy: 0, gastoMes: 0, pendientePorPagar: 0 });
+  const [centrosCosto, setCentrosCosto] = useState<{ id: number; nombre: string }[]>([]);
+  const [resumen, setResumen] = useState<GastoResumen>({ gastoHoy: 0, gastoHoyBs: 0, gastoMes: 0, gastoMesBs: 0, pendientePorPagar: 0, pendientePorPagarBs: 0 });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,11 +122,98 @@ export default function GastosClient() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [nuevaLocacion, setNuevaLocacion] = useState("");
-  const [nuevoTipoGasto, setNuevoTipoGasto] = useState("");
+  const [rifTipo, setRifTipo] = useState<RifTipo>("J");
+  const [rifNumero, setRifNumero] = useState("");
+  const [imagenAmpliada, setImagenAmpliada] = useState<string | null>(null);
+
+  const [showCargaFactura, setShowCargaFactura] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrProvider, setOcrProvider] = useState<string | null>(null);
+  const [ocrVerif, setOcrVerif] = useState<{ reintentado: boolean; reintentoFallo: string | null; totalFactura: number; sumaItems: number; coincide: boolean } | null>(null);
+  const [facturaItems, setFacturaItems] = useState<FacturaItem[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const [montoBsFocus, setMontoBsFocus] = useState(false);
+  const [montoUsdFocus, setMontoUsdFocus] = useState(false);
+  const [consultandoTasa, setConsultandoTasa] = useState(false);
+  const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
+  const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
+
+  async function handleConsultarTasaBcv() {
+    setTasaBcvError(null);
+    setConsultandoTasa(true);
+    try {
+      const res = await fetch("/api/tasa-bcv");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detalle ? `${data.error}: ${data.detalle}` : (data.error ?? "No se pudo consultar la tasa BCV"));
+      setForm((p) => ({ ...p, tasaDia: String(data.tasa) }));
+      setTasaBcvFecha(data.fecha);
+    } catch (err) {
+      setTasaBcvError(err instanceof Error ? err.message : "No se pudo consultar la tasa BCV");
+    } finally {
+      setConsultandoTasa(false);
+    }
+  }
+
+  const fechaFetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!showForm) return;
+    if (fechaFetchedRef.current === form.fecha) return;
+    fechaFetchedRef.current = form.fecha;
+    (async () => {
+      try {
+        const res = await fetch(`/api/tasa-bcv?fecha=${form.fecha}`);
+        const data = res.ok ? await res.json() : null;
+        if (data?.tasa) {
+          setForm((p) => ({ ...p, tasaDia: String(data.tasa) }));
+          setTasaBcvFecha(data.fecha);
+        } else if (form.fecha !== today()) {
+          // No hay tasa guardada para esa fecha pasada: dejar vacío en vez de
+          // arrastrar la tasa de otra fecha (ej. la del día actual).
+          setForm((p) => ({ ...p, tasaDia: "" }));
+          setTasaBcvFecha(null);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [showForm, form.fecha]);
 
   const [recordatorios, setRecordatorios] = useState<
     { id: number; proveedor: string; tipoGastoNombre: string; montoBs: number; proximoRecordatorio: string }[]
   >([]);
+
+  const totalFacturaBs = facturaItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+  const totalFacturaUsd = Number(form.tasaDia) > 0 ? totalFacturaBs / Number(form.tasaDia) : 0;
+
+  // Mantiene Monto Bs sincronizado con la suma de ítems mientras haya al menos uno cargado
+  useEffect(() => {
+    if (facturaItems.length === 0) return;
+    setForm((p) => ({ ...p, montoBs: totalFacturaBs > 0 ? String(totalFacturaBs) : p.montoBs }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalFacturaBs, facturaItems.length]);
+
+  // Recalcula Monto $ cuando cambia la tasa o el Monto Bs (ej. tasa cargada después de
+  // escribir el monto, o Monto Bs completado por el OCR / la tabla de ítems)
+  useEffect(() => {
+    const tasa = Number(form.tasaDia) || 0;
+    const bs = Number(form.montoBs) || 0;
+    const usd = tasa > 0 && bs > 0 ? (bs / tasa).toFixed(2) : "";
+    setForm((p) => (p.montoUsd === usd ? p : { ...p, montoUsd: usd }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.tasaDia, form.montoBs]);
+
+  function updateFacturaItem(key: number, cambios: Partial<FacturaItem>) {
+    setFacturaItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...cambios } : it)));
+  }
+
+  function removeFacturaItem(key: number) {
+    setFacturaItems((prev) => prev.filter((it) => it.key !== key));
+  }
+
+  function addFacturaItem() {
+    setFacturaItems((prev) => [...prev, { key: nextItemKey(), nombre: "", cantidad: "1", costoUnitBs: "" }]);
+  }
 
   async function loadGastos() {
     setLoading(true);
@@ -105,6 +224,7 @@ export default function GastosClient() {
       if (filtroHasta) params.set("hasta", filtroHasta);
       if (filtroProveedor) params.set("proveedor", filtroProveedor);
       if (filtroTipoGastoId) params.set("tipoGastoId", filtroTipoGastoId);
+      if (filtroNaturaleza) params.set("tipoNaturaleza", filtroNaturaleza);
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
 
@@ -150,18 +270,34 @@ export default function GastosClient() {
     loadLocaciones();
     loadResumen();
     loadRecordatorios();
+    fetch("/api/centros-costo").then((r) => r.ok && r.json()).then((d) => { if (d) setCentrosCosto(d); });
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadGastos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, filtroDesde, filtroHasta, filtroProveedor, filtroTipoGastoId]);
+  }, [page, pageSize, filtroDesde, filtroHasta, filtroProveedor, filtroTipoGastoId, filtroNaturaleza]);
+
+  function tipoGastoIdPorDefecto(): string {
+    const operativo = tiposGasto.find((t) => t.nombre === "Gasto Operativo");
+    return operativo ? String(operativo.id) : "";
+  }
 
   function resetForm() {
     setEditingId(null);
-    setForm({ ...EMPTY_FORM });
+    setForm({ ...EMPTY_FORM, tipoGastoId: tipoGastoIdPorDefecto() });
+    setRifTipo("J");
+    setRifNumero("");
     setShowForm(false);
+    setShowCargaFactura(false);
+    setOcrError(null);
+    setOcrProvider(null);
+    setOcrVerif(null);
+    setFacturaItems([]);
+    setTasaBcvFecha(null);
+    setTasaBcvError(null);
+    fechaFetchedRef.current = null;
   }
 
   function startEdit(g: Gasto) {
@@ -170,16 +306,138 @@ export default function GastosClient() {
       tipoGastoId: String(g.tipoGastoId),
       tipo: g.tipo,
       proveedor: g.proveedor,
+      proveedorTelefono: g.proveedorTelefono ?? "",
+      proveedorDireccion: g.proveedorDireccion ?? "",
       descripcion: g.descripcion ?? "",
       locacionId: g.locacionId ? String(g.locacionId) : "",
+      centroCostoId: g.centroCostoId ? String(g.centroCostoId) : "",
       fecha: g.fecha,
       montoBs: String(g.montoBs),
+      montoUsd: Number(g.tasaDia) > 0 ? (Number(g.montoBs) / Number(g.tasaDia)).toFixed(2) : "",
       tasaDia: String(g.tasaDia),
       estado: g.estado,
       recurrente: g.recurrente,
       frecuencia: g.frecuencia ?? "MENSUAL",
+      numeroFactura: g.numeroFactura ?? "",
+      comprobanteUrl: g.comprobanteUrl ?? "",
     });
+    const parsed = parseRif(g.proveedorRif);
+    setRifTipo(parsed.tipo);
+    setRifNumero(parsed.numero);
+    setFacturaItems([]);
+    setShowCargaFactura(false);
+    fechaFetchedRef.current = g.fecha; // no sobrescribir la tasa ya guardada al editar
     setShowForm(true);
+  }
+
+  const compressImage = (file: File): Promise<{ dataUrl: string; base64: string }> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const MAX = 1200;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+            else { width = Math.round((width * MAX) / height); height = MAX; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          resolve({ dataUrl, base64: dataUrl.split(",")[1] });
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
+  async function handleCargaFacturaFile(file: File) {
+    setOcrError(null);
+    setOcrProvider(null);
+    setOcrVerif(null);
+    setOcrLoading(true);
+    try {
+      const { dataUrl, base64 } = await compressImage(file);
+      setForm((p) => ({ ...p, comprobanteUrl: dataUrl }));
+
+      const res = await fetch("/api/compras/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagenBase64: base64, mimeType: "image/jpeg" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const d = data.data ?? {};
+      setOcrProvider(data.provider ?? null);
+      setOcrVerif({
+        reintentado: !!data._reintentado,
+        reintentoFallo: data._reintentoFallo ?? null,
+        totalFactura: Number(data._totalFactura) || 0,
+        sumaItems: Number(data._sumaItems) || 0,
+        coincide: data._coincide !== false,
+      });
+
+      const clean = (v: unknown): string => {
+        if (!v || v === "null" || v === "undefined") return "";
+        return String(v).trim();
+      };
+
+      const proveedor = clean(d.proveedorNombre);
+      const proveedorRif = clean(d.proveedorRif);
+      const proveedorTelefono = clean(d.proveedorTelefono);
+      const proveedorDireccion = clean(d.proveedorDireccion);
+      const numeroFactura = clean(d.numeroFactura);
+      const fecha = clean(d.fecha);
+      const ocrItems: { nombre?: string; cantidad?: number; costoUnitBs?: number }[] = Array.isArray(d.items) ? d.items : [];
+      const mappedItems = ocrItems
+        .map((it) => {
+          const nombre = clean(it.nombre);
+          if (!nombre) return null;
+          return {
+            key: nextItemKey(),
+            nombre,
+            cantidad: String(Number(it.cantidad) || 1),
+            costoUnitBs: Number(it.costoUnitBs) > 0 ? String(it.costoUnitBs) : "",
+          };
+        })
+        .filter((it): it is FacturaItem => it !== null);
+      const total = mappedItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+
+      if (mappedItems.length > 0) setFacturaItems(mappedItems);
+      if (proveedorRif) { const p = parseRif(proveedorRif); setRifTipo(p.tipo); setRifNumero(p.numero); }
+
+      setForm((p) => ({
+        ...p,
+        proveedor: proveedor || p.proveedor,
+        proveedorTelefono: proveedorTelefono || p.proveedorTelefono,
+        proveedorDireccion: proveedorDireccion || p.proveedorDireccion,
+        numeroFactura: numeroFactura || p.numeroFactura,
+        fecha: fecha && fecha !== "null" ? fecha.slice(0, 10) : p.fecha,
+        montoBs: total > 0 ? String(total) : p.montoBs,
+      }));
+    } catch (err) {
+      setOcrError(err instanceof Error ? err.message : "Error al procesar la factura");
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+
+  function updateMontoBs(bsVal: string) {
+    const bs = Number(bsVal) || 0;
+    const tasa = Number(form.tasaDia) || 0;
+    const usd = tasa > 0 ? (bs / tasa).toFixed(2) : "";
+    setForm((p) => ({ ...p, montoBs: bsVal, montoUsd: usd }));
+  }
+
+  function updateMontoUsd(usdVal: string) {
+    const usd = Number(usdVal) || 0;
+    const tasa = Number(form.tasaDia) || 0;
+    const bs = tasa > 0 ? (usd * tasa).toFixed(2) : "";
+    setForm((p) => ({ ...p, montoUsd: usdVal, montoBs: bs }));
   }
 
   async function handleAgregarLocacion() {
@@ -195,22 +453,6 @@ export default function GastosClient() {
       setLocaciones((prev) => [...prev, loc].sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setForm((p) => ({ ...p, locacionId: String(loc.id) }));
       setNuevaLocacion("");
-    }
-  }
-
-  async function handleAgregarTipoGasto() {
-    const nombre = nuevoTipoGasto.trim();
-    if (!nombre) return;
-    const res = await fetch("/api/tipos-gasto", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre }),
-    });
-    if (res.ok) {
-      const tipo = await res.json();
-      setTiposGasto((prev) => [...prev, tipo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      setForm((p) => ({ ...p, tipoGastoId: String(tipo.id) }));
-      setNuevoTipoGasto("");
     }
   }
 
@@ -233,18 +475,25 @@ export default function GastosClient() {
 
     setSaving(true);
     try {
+      const fullRif = rifNumero.trim() ? `${rifTipo}-${rifNumero.trim()}` : "";
       const payload = {
         tipoGastoId: Number(form.tipoGastoId),
         tipo: form.tipo,
         proveedor: form.proveedor.trim(),
+        proveedorRif: fullRif,
+        proveedorTelefono: form.proveedorTelefono.trim(),
+        proveedorDireccion: form.proveedorDireccion.trim(),
         descripcion: form.descripcion.trim(),
         locacionId: form.locacionId ? Number(form.locacionId) : null,
+        centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
         fecha: form.fecha,
         montoBs: Number(form.montoBs) || 0,
         tasaDia: Number(form.tasaDia) || 0,
         estado: form.estado,
         recurrente: form.recurrente,
         frecuencia: form.recurrente ? form.frecuencia : null,
+        numeroFactura: form.numeroFactura.trim(),
+        comprobanteUrl: form.comprobanteUrl,
       };
 
       const res = await fetch(editingId ? `/api/gastos/${editingId}` : "/api/gastos", {
@@ -254,7 +503,7 @@ export default function GastosClient() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al guardar el gasto");
+      if (!res.ok) throw new Error(data.detalle ? `${data.error}: ${data.detalle}` : (data.error ?? "Error al guardar el gasto"));
 
       resetForm();
       await loadGastos();
@@ -292,6 +541,8 @@ export default function GastosClient() {
         estado,
         recurrente: g.recurrente,
         frecuencia: g.frecuencia,
+        numeroFactura: g.numeroFactura,
+        comprobanteUrl: g.comprobanteUrl,
       }),
     });
     await loadGastos();
@@ -319,6 +570,8 @@ export default function GastosClient() {
         estado: g.estado,
         recurrente: g.recurrente,
         frecuencia: g.frecuencia,
+        numeroFactura: g.numeroFactura,
+        comprobanteUrl: g.comprobanteUrl,
         recordatorioVisto: true,
       }),
     });
@@ -356,24 +609,59 @@ export default function GastosClient() {
       )}
 
       <div className="flex gap-3 flex-wrap">
-        <StatTile label="Gasto Hoy" value={resumen.gastoHoy} color="var(--erp-text)" />
-        <StatTile label="Gasto del Mes" value={resumen.gastoMes} color="var(--erp-text)" />
-        <StatTile label="Pendiente por Pagar" value={resumen.pendientePorPagar} color="#a16207" />
+        <StatTile label="Gasto Hoy" value={resumen.gastoHoy} valueBs={resumen.gastoHoyBs} color="var(--erp-text)" />
+        <StatTile label="Gasto del Mes" value={resumen.gastoMes} valueBs={resumen.gastoMesBs} color="var(--erp-text)" />
+        <StatTile label="Pendiente por Pagar" value={resumen.pendientePorPagar} valueBs={resumen.pendientePorPagarBs} color="#a16207" />
       </div>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            setForm({ ...EMPTY_FORM });
-            setEditingId(null);
-            setShowForm((v) => !v);
-          }}
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
-          style={{ background: "var(--erp-accent)" }}
-        >
-          {showForm ? "Cancelar" : "+ Registrar Gasto"}
-        </button>
+      <div className="flex justify-end gap-2 flex-wrap">
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => {
+              setForm({ ...EMPTY_FORM, tipoGastoId: tipoGastoIdPorDefecto() });
+              setEditingId(null);
+              setFacturaItems([]);
+              setShowCargaFactura(false);
+              fechaFetchedRef.current = null;
+              setShowForm(true);
+            }}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+            style={{ background: "var(--erp-accent)" }}
+          >
+            + Registrar Gasto
+          </button>
+        )}
+        {showForm && (
+          <>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+              style={{ background: "var(--erp-accent)" }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCargaFactura((v) => {
+                  const next = !v;
+                  if (next && facturaItems.length === 0) {
+                    setFacturaItems([{ key: nextItemKey(), nombre: "", cantidad: "1", costoUnitBs: "" }]);
+                  }
+                  return next;
+                });
+              }}
+              className="rounded-lg px-4 py-2 text-sm font-semibold"
+              style={showCargaFactura
+                ? { background: "var(--erp-primary)", color: "#fff", border: "1px solid var(--erp-primary)" }
+                : { border: "1px solid var(--erp-primary)", color: "var(--erp-primary)", background: "var(--erp-surface)" }}
+            >
+              📷 {showCargaFactura ? "Ocultar factura" : "Cargar Factura"}
+            </button>
+          </>
+        )}
       </div>
 
       {error && (
@@ -386,6 +674,241 @@ export default function GastosClient() {
           className="rounded-xl border p-4 flex flex-col gap-3"
           style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
         >
+          {showCargaFactura && (
+            <div
+              className="rounded-lg p-3 flex flex-col gap-2"
+              style={{ background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)" }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs sm:text-sm font-medium flex-1 min-w-0 truncate" style={{ color: "var(--erp-text)" }}>
+                  📷 Escanear / Cargar
+                </span>
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.click()}
+                  className="shrink-0 rounded-md px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-white whitespace-nowrap"
+                  style={{ background: "var(--erp-primary)" }}
+                >
+                  📸 Cámara
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="shrink-0 rounded-md border px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold whitespace-nowrap"
+                  style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)", background: "var(--erp-surface)" }}
+                >
+                  ⬆ Subir
+                </button>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {ocrLoading && <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>Analizando factura…</span>}
+                {!ocrLoading && form.comprobanteUrl && !ocrError && (
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: "var(--erp-surface)", color: "var(--erp-primary)", border: "1px solid var(--erp-border)" }}
+                  >
+                    ✓ Procesada — revisa y completa los faltantes
+                  </span>
+                )}
+                {ocrProvider && (
+                  <span className="text-xs font-semibold" style={{ color: "var(--erp-text-3)" }}>
+                    vía {ocrProvider === "gemini" ? "Gemini" : "Groq"}
+                  </span>
+                )}
+              </div>
+              {ocrError && <span className="text-xs" style={{ color: "#B91C1C" }}>⚠ {ocrError}</span>}
+              <input
+                ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) handleCargaFacturaFile(e.target.files[0]); }}
+              />
+              <input
+                ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) handleCargaFacturaFile(e.target.files[0]); }}
+              />
+              {form.comprobanteUrl && !ocrLoading && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={form.comprobanteUrl}
+                  alt="Factura"
+                  onClick={() => setImagenAmpliada(form.comprobanteUrl)}
+                  className="rounded-md border max-h-40 object-contain cursor-zoom-in"
+                  style={{ borderColor: "var(--erp-border)" }}
+                />
+              )}
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>Ítems de la factura</span>
+                <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>{facturaItems.length} línea{facturaItems.length !== 1 ? "s" : ""}</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th className="text-left px-1 py-1" style={{ color: "var(--erp-text-3)" }}>Producto</th>
+                      <th className="text-left px-1 py-1 w-16" style={{ color: "var(--erp-text-3)" }}>Cant.</th>
+                      <th className="text-left px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Bs</th>
+                      <th className="text-right px-1 py-1 w-24" style={{ color: "var(--erp-text-3)" }}>Subtotal</th>
+                      <th className="w-6"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {facturaItems.map((it) => (
+                      <tr key={it.key} style={{ borderTop: "1px solid var(--erp-border)" }}>
+                        <td className="px-1 py-1">
+                          <input
+                            className="rounded border px-1.5 py-1 text-xs w-full"
+                            style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                            value={it.nombre}
+                            onChange={(e) => updateFacturaItem(it.key, { nombre: e.target.value })}
+                            placeholder="Nombre del producto"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <input
+                            type="number" min="0" step="0.01"
+                            className="rounded border px-1.5 py-1 text-xs w-full"
+                            style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                            value={it.cantidad}
+                            onChange={(e) => updateFacturaItem(it.key, { cantidad: e.target.value })}
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <input
+                            type="number" min="0" step="0.01"
+                            className="rounded border px-1.5 py-1 text-xs w-full"
+                            style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}
+                            value={it.costoUnitBs}
+                            onChange={(e) => updateFacturaItem(it.key, { costoUnitBs: e.target.value })}
+                          />
+                        </td>
+                        <td className="px-1 py-1 text-right font-semibold" style={{ color: "var(--erp-text)" }}>
+                          {formatMonto((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0))}
+                        </td>
+                        <td className="px-1 py-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeFacturaItem(it.key)}
+                            disabled={facturaItems.length === 1}
+                            className="text-xs disabled:opacity-30"
+                            style={{ color: "#B91C1C" }}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                type="button"
+                onClick={addFacturaItem}
+                className="text-xs font-semibold rounded-md border-dashed border py-1.5 text-center"
+                style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)" }}
+              >
+                ＋ Agregar ítem
+              </button>
+
+              {facturaItems.length > 0 && (
+                <div className="flex justify-end gap-5 pt-2" style={{ borderTop: "1px solid var(--erp-border)" }}>
+                  {Number(form.tasaDia) > 0 && (
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total USD</div>
+                      <div className="text-base font-extrabold" style={{ color: "var(--erp-primary)" }}>${formatMonto(totalFacturaUsd)}</div>
+                    </div>
+                  )}
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total Bs</div>
+                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{formatMonto(totalFacturaBs)}</div>
+                  </div>
+                </div>
+              )}
+              {form.comprobanteUrl && (
+                <div className="text-right text-xs" style={{ color: "#B45309" }}>
+                  ⚠ Verifica los costos de cada ítem contra la factura física antes de guardar
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-lg p-3 flex flex-col gap-3" style={{ background: "var(--erp-bg)", border: "1px solid var(--erp-border)" }}>
+            <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>Datos del proveedor</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Gasto / Proveedor</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.proveedor}
+                  onChange={(e) => setForm((p) => ({ ...p, proveedor: e.target.value }))}
+                  placeholder="Ej: Simple Fibra"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>RIF / C.I.</label>
+                <div className="flex">
+                  <div className="flex rounded-l-md border overflow-hidden" style={{ borderColor: "var(--erp-border)" }}>
+                    {(["J", "V", "E", "G"] as RifTipo[]).map((t, i, arr) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setRifTipo(t)}
+                        className="text-sm font-bold px-2.5 py-2"
+                        style={{
+                          background: rifTipo === t ? "var(--erp-primary)" : "var(--erp-surface)",
+                          color: rifTipo === t ? "#fff" : "var(--erp-text-2)",
+                          borderRight: i < arr.length - 1 ? "1px solid var(--erp-border)" : "none",
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    className="rounded-r-md border px-3 py-2 text-sm flex-1 min-w-0"
+                    style={{ borderColor: "var(--erp-border)", borderLeft: "none" }}
+                    value={rifNumero}
+                    onChange={(e) => setRifNumero(e.target.value.replace(/[^0-9\-]/g, ""))}
+                    placeholder="12345678-9"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Teléfono</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.proveedorTelefono}
+                  onChange={(e) => setForm((p) => ({ ...p, proveedorTelefono: e.target.value }))}
+                  placeholder="0412-0000000"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>N° Factura</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.numeroFactura}
+                  onChange={(e) => setForm((p) => ({ ...p, numeroFactura: e.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+              <div className="flex flex-col gap-1 sm:col-span-2">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Dirección</label>
+                <input
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.proveedorDireccion}
+                  onChange={(e) => setForm((p) => ({ ...p, proveedorDireccion: e.target.value }))}
+                  placeholder="Dirección del proveedor"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tipo de gasto</label>
@@ -401,18 +924,6 @@ export default function GastosClient() {
                   <option key={t.id} value={t.id}>{t.nombre}</option>
                 ))}
               </select>
-              <div className="flex gap-1 mt-1">
-                <input
-                  className="rounded-md border px-2 py-1 text-xs flex-1"
-                  style={{ borderColor: "var(--erp-border)" }}
-                  value={nuevoTipoGasto}
-                  onChange={(e) => setNuevoTipoGasto(e.target.value)}
-                  placeholder="Nuevo tipo de gasto"
-                />
-                <button type="button" onClick={handleAgregarTipoGasto} className="text-xs px-2 rounded-md border" style={{ borderColor: "var(--erp-border)" }}>
-                  +
-                </button>
-              </div>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fijo / Ocasional</label>
@@ -442,31 +953,18 @@ export default function GastosClient() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Gasto / Proveedor</label>
-              <input
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.proveedor}
-                onChange={(e) => setForm((p) => ({ ...p, proveedor: e.target.value }))}
-                placeholder="Ej: Simple Fibra"
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Descripción</label>
-              <input
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.descripcion}
-                onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))}
-                placeholder="Ej: Servicio de Internet"
-              />
-            </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Descripción</label>
+            <input
+              className="rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--erp-border)" }}
+              value={form.descripcion}
+              onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))}
+              placeholder="Ej: Servicio de Internet"
+            />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Locación</label>
               <select
@@ -493,6 +991,22 @@ export default function GastosClient() {
                 </button>
               </div>
             </div>
+            {centrosCosto.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Centro de Costo</label>
+                <select
+                  className="rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.centroCostoId}
+                  onChange={(e) => setForm((p) => ({ ...p, centroCostoId: e.target.value }))}
+                >
+                  <option value="">— Sin asignar —</option>
+                  {centrosCosto.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha</label>
               <input
@@ -503,57 +1017,68 @@ export default function GastosClient() {
                 onChange={(e) => setForm((p) => ({ ...p, fecha: e.target.value }))}
                 required
               />
+              {form.fecha && (
+                <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>{formatFechaCorta(form.fecha)}</span>
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Monto Bs</label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 className="rounded-md border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--erp-border)" }}
-                value={form.montoBs}
-                onChange={(e) => setForm((p) => ({ ...p, montoBs: e.target.value }))}
+                value={montoBsFocus ? form.montoBs : (form.montoBs ? formatMonto(Number(form.montoBs) || 0) : "")}
+                onFocus={() => setMontoBsFocus(true)}
+                onBlur={() => setMontoBsFocus(false)}
+                onChange={(e) => updateMontoBs(e.target.value.replace(/,/g, ""))}
                 required
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tasa del día</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Monto $</label>
               <input
-                type="number"
-                step="0.0001"
-                min="0"
-                className="rounded-md border px-3 py-2 text-sm"
+                type="text"
+                inputMode="decimal"
+                className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
                 style={{ borderColor: "var(--erp-border)" }}
-                value={form.tasaDia}
-                onChange={(e) => setForm((p) => ({ ...p, tasaDia: e.target.value }))}
-                required
+                value={montoUsdFocus ? form.montoUsd : (form.montoUsd ? formatMonto(Number(form.montoUsd) || 0) : "")}
+                onFocus={() => setMontoUsdFocus(true)}
+                onBlur={() => setMontoUsdFocus(false)}
+                onChange={(e) => updateMontoUsd(e.target.value.replace(/,/g, ""))}
+                disabled={!(Number(form.tasaDia) > 0)}
+                placeholder={Number(form.tasaDia) > 0 ? "0.00" : "Carga la tasa primero"}
               />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tasa del día</label>
+              <div className="flex gap-1">
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  className="rounded-md border px-3 py-2 text-sm flex-1 min-w-0"
+                  style={{ borderColor: "var(--erp-border)" }}
+                  value={form.tasaDia}
+                  onChange={(e) => setForm((p) => ({ ...p, tasaDia: e.target.value }))}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={handleConsultarTasaBcv}
+                  disabled={consultandoTasa}
+                  className="shrink-0 rounded-md border px-2 text-xs font-semibold disabled:opacity-50"
+                  style={{ borderColor: "var(--erp-border)", color: "var(--erp-primary)", background: "var(--erp-primary-lt)" }}
+                >
+                  {consultandoTasa ? "..." : "BCV"}
+                </button>
+              </div>
+              {tasaBcvFecha && <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>BCV: {tasaBcvFecha}</span>}
+              {tasaBcvError && <span className="text-xs" style={{ color: "#B91C1C" }}>{tasaBcvError}</span>}
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--erp-text)" }}>
-              <input
-                type="checkbox"
-                checked={form.recurrente}
-                onChange={(e) => setForm((p) => ({ ...p, recurrente: e.target.checked }))}
-              />
-              Gasto recurrente (recordatorio automático)
-            </label>
-            {form.recurrente && (
-              <select
-                className="rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--erp-border)" }}
-                value={form.frecuencia}
-                onChange={(e) => setForm((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaRecurrencia }))}
-              >
-                {FRECUENCIAS_RECURRENCIA.map((f) => (
-                  <option key={f} value={f}>{FRECUENCIA_RECURRENCIA_LABELS[f]}</option>
-                ))}
-              </select>
-            )}
-          </div>
+          {/* Recurrencia deshabilitada — los gastos recurrentes se gestionan en Cuentas por Pagar */}
 
           <div className="flex gap-2 justify-end">
             <button
@@ -621,10 +1146,35 @@ export default function GastosClient() {
             ))}
           </select>
         </div>
-        {(filtroDesde || filtroHasta || filtroProveedor || filtroTipoGastoId) && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Naturaleza</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            {(["", "FIJO", "OCASIONAL"] as const).map((v) => {
+              const label = v === "" ? "Todos" : v === "FIJO" ? "Fijos" : "Ocasionales";
+              const active = filtroNaturaleza === v;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => { setFiltroNaturaleza(v); setPage(1); }}
+                  style={{
+                    padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                    cursor: "pointer", transition: "all 0.15s",
+                    border: `1.5px solid ${active ? "var(--erp-primary)" : "var(--erp-border)"}`,
+                    background: active ? "var(--erp-primary)" : "transparent",
+                    color: active ? "#fff" : "var(--erp-text-2)",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {(filtroDesde || filtroHasta || filtroProveedor || filtroTipoGastoId || filtroNaturaleza) && (
           <button
             type="button"
-            onClick={() => { setFiltroDesde(""); setFiltroHasta(""); setFiltroProveedor(""); setFiltroTipoGastoId(""); setPage(1); }}
+            onClick={() => { setFiltroDesde(""); setFiltroHasta(""); setFiltroProveedor(""); setFiltroTipoGastoId(""); setFiltroNaturaleza(""); setPage(1); }}
             className="text-xs px-3 py-1.5 rounded-md border"
             style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
           >
@@ -671,8 +1221,8 @@ export default function GastosClient() {
                     <td className="px-3 py-2">{g.tipo === "FIJO" ? "Fijo" : "Ocasional"}</td>
                     <td className="px-3 py-2">{g.descripcion}</td>
                     <td className="px-3 py-2">{g.locacionNombre ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">Bs{g.montoBs.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">${g.montoUsd.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">Bs{formatMonto(g.montoBs)}</td>
+                    <td className="px-3 py-2 text-right">${formatMonto(g.montoUsd)}</td>
                     <td className="px-3 py-2">
                       <select
                         value={g.estado}
@@ -726,6 +1276,32 @@ export default function GastosClient() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {imagenAmpliada && (
+        <div
+          onClick={() => setImagenAmpliada(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.85)", touchAction: "pinch-zoom" }}
+        >
+          <button
+            type="button"
+            onClick={() => setImagenAmpliada(null)}
+            className="fixed top-3 right-4 text-3xl font-bold leading-none"
+            style={{ color: "#fff" }}
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imagenAmpliada}
+            alt="Factura ampliada"
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-full object-contain"
+            style={{ touchAction: "pinch-zoom" }}
+          />
         </div>
       )}
     </div>

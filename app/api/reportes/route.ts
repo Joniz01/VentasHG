@@ -19,13 +19,24 @@ export async function GET(request: NextRequest) {
   const includePendientes = searchParams.get("pendientes") === "1";
 
   // Filtro base: ventas cobradas al contado + cuentas cobradas por fecha de cobro.
-  // Si includePendientes, también incluye cuentas pendientes (por fecha de venta).
+  // Para CxC usa pagos_venta.fecha_pago como fuente principal (igual que forma-de-pago),
+  // con fallback a cuenta_cobrada_at para registros anteriores sin fila en pagos_venta.
+  const cxcFiltro = `(v.cuenta_cobrada = true AND (
+    EXISTS (
+      SELECT 1 FROM pagos_venta pv
+      WHERE pv.venta_id = v.id AND pv.fecha_pago BETWEEN $1 AND $2
+    )
+    OR (
+      NOT EXISTS (SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id)
+      AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2
+    )
+  ))`;
   const filtroBase = includePendientes
     ? `(NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
-       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)
+       OR ${cxcFiltro}
        OR (v.cuenta_por_cobrar = true AND v.cuenta_cobrada = false AND v.fecha BETWEEN $1 AND $2)`
     : `(NOT v.cuenta_por_cobrar AND v.fecha BETWEEN $1 AND $2)
-       OR (v.cuenta_cobrada = true AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2)`;
+       OR ${cxcFiltro}`;
 
   // Solo cuentas efectivamente cobradas en el periodo:
   // - ventas normales (no CxC) por su fecha de venta
@@ -50,10 +61,30 @@ export async function GET(request: NextRequest) {
   }
 
   const pagosResult = await pool.query(
-    `SELECT pv.metodo, pv.monto, v.tasa_dia
+    `SELECT
+       CASE WHEN v.cuenta_por_cobrar = TRUE AND v.cuenta_cobrada = TRUE
+            THEN 'CXC_DIRECTA'::metodo_pago
+            ELSE pv.metodo
+       END AS metodo,
+       pv.monto, v.tasa_dia
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
-     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2`,
+     WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
+
+     UNION ALL
+
+     -- CxC cobradas sin fila en pagos_venta (registros anteriores al flujo pagos_venta)
+     SELECT 'CXC_DIRECTA'::metodo_pago AS metodo,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + COALESCE(v.costo_delivery, 0) AS monto,
+            v.tasa_dia
+     FROM ventas v
+     WHERE v.cuenta_por_cobrar = TRUE
+       AND v.cuenta_cobrada = TRUE
+       AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2
+       AND NOT EXISTS (SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id)`,
     [desde, hasta]
   );
 
@@ -163,15 +194,40 @@ export async function GET(request: NextRequest) {
 
   // Detalle de ventas por forma de pago (para conciliación)
   const detalleResult = await pool.query(
-    `SELECT pv.metodo, pv.monto, v.id, v.cliente, v.tasa_dia,
-            COALESCE(
-              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
-              0
-            ) + v.costo_delivery AS total_venta_usd
+    `SELECT
+       CASE WHEN v.cuenta_por_cobrar = TRUE AND v.cuenta_cobrada = TRUE
+            THEN 'CXC_DIRECTA'::metodo_pago
+            ELSE pv.metodo
+       END AS metodo,
+       pv.monto, v.id, v.cliente, v.tasa_dia,
+       COALESCE(
+         (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+         0
+       ) + v.costo_delivery AS total_venta_usd
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
      WHERE COALESCE(pv.fecha_pago, v.fecha) BETWEEN $1 AND $2
-     ORDER BY pv.metodo, v.id DESC`,
+
+     UNION ALL
+
+     -- CxC cobradas sin fila en pagos_venta
+     SELECT 'CXC_DIRECTA'::metodo_pago AS metodo,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + COALESCE(v.costo_delivery, 0) AS monto,
+            v.id, v.cliente, v.tasa_dia,
+            COALESCE(
+              (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
+              0
+            ) + COALESCE(v.costo_delivery, 0) AS total_venta_usd
+     FROM ventas v
+     WHERE v.cuenta_por_cobrar = TRUE
+       AND v.cuenta_cobrada = TRUE
+       AND v.cuenta_cobrada_at::date BETWEEN $1 AND $2
+       AND NOT EXISTS (SELECT 1 FROM pagos_venta pv WHERE pv.venta_id = v.id)
+
+     ORDER BY metodo, id DESC`,
     [desde, hasta]
   );
 

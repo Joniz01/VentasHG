@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { hoyCaracas } from "@/lib/date";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -9,7 +10,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { cuentaCobrada, alarmaSilenciadaHasta } = body;
 
   if (typeof cuentaCobrada === "boolean") {
-    const { fechaPago, metodoPago } = body as { fechaPago?: string; metodoPago?: string };
+    const { fechaPago } = body as { fechaPago?: string; metodoPago?: string };
+    const metodo = "CXC_DIRECTA";
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -35,14 +37,15 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
       const row = result.rows[0];
 
-      // Sincronizar pagos_venta: borrar entrada previa y reinsertar si cobrada
-      const metodo = metodoPago || "CXC_DIRECTA";
+      // Sincronizar pagos_venta: borrar entrada previa (cualquier forma de pago
+      // registrada por este flujo de cobro) y reinsertar si cobrada
       await client.query(
-        `DELETE FROM pagos_venta WHERE venta_id = $1 AND metodo = ANY($2::text[])`,
-        [id, ["CXC_DIRECTA","EFECTIVO_USD","EFECTIVO_BS","TRANSFERENCIA","PUNTO_VENTA","PAGO_MOVIL","ZELLE"]]
+        `DELETE FROM pagos_venta WHERE venta_id = $1
+           AND metodo IN ('CXC_DIRECTA','PUNTO_VENTA','TRANSFERENCIA','PAGO_MOVIL','EFECTIVO_BS','EFECTIVO_USD','ZELLE')`,
+        [id]
       );
       if (cuentaCobrada) {
-        const fp = fechaPago || new Date().toISOString().slice(0, 10);
+        const fp = fechaPago || hoyCaracas();
         await client.query(
           `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
            VALUES ($1, $2, $3, $4)`,

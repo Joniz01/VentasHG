@@ -55,7 +55,11 @@ export async function GET(request: NextRequest) {
       tipo: r.tipo,
       frecuencia: r.frecuencia,
       modoGeneracion: r.modo_generacion ?? "MANUAL",
+      diaSemana: r.dia_semana ?? null,
+      diaPago1: r.dia_pago_1 ?? null,
+      diaPago2: r.dia_pago_2 ?? null,
       activo: r.activo,
+      centroCostoId: r.centro_costo_id ?? null,
       empleadosAsignados: Number(r.empleados_asignados),
       incidenciasConfig: incidenciasResult.rows
         .filter((i) => i.nomina_id === r.id)
@@ -88,11 +92,39 @@ export async function POST(request: NextRequest) {
   try {
     await client.query("BEGIN");
 
-    const result = await client.query(
-      `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, activo) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true]
-    );
-    const nominaId = result.rows[0].id;
+    const centroCostoId = body.centroCostoId ? Number(body.centroCostoId) : null;
+    const diaSemana = body.diaSemana != null ? Number(body.diaSemana) : null;
+    const diaPago1 = body.diaPago1 != null ? Number(body.diaPago1) : null;
+    const diaPago2 = body.diaPago2 != null ? Number(body.diaPago2) : null;
+
+    // Intentar con todas las columnas nuevas; usar SAVEPOINT antes de cada intento
+    // para poder recuperar la transacción si la columna no existe aún en la BD.
+    await client.query("SAVEPOINT sp1");
+    let nominaId: number;
+    try {
+      const result = await client.query(
+        `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, dia_semana, dia_pago_1, dia_pago_2, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", diaSemana, diaPago1, diaPago2, body.activo ?? true, centroCostoId]
+      );
+      nominaId = result.rows[0].id;
+    } catch {
+      await client.query("ROLLBACK TO sp1");
+      await client.query("SAVEPOINT sp2");
+      try {
+        const result = await client.query(
+          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, activo, centro_costo_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true, centroCostoId]
+        );
+        nominaId = result.rows[0].id;
+      } catch {
+        await client.query("ROLLBACK TO sp2");
+        const result = await client.query(
+          `INSERT INTO nominas (nombre, tipo, frecuencia, modo_generacion, activo) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+          [body.nombre.trim(), body.tipo || "NORMAL", body.frecuencia, body.modoGeneracion || "MANUAL", body.activo ?? true]
+        );
+        nominaId = result.rows[0].id;
+      }
+    }
 
     for (const inc of body.incidencias ?? []) {
       await client.query(
@@ -115,11 +147,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: nominaId }, { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
-    const message =
-      err instanceof Error && err.message.includes("duplicate")
-        ? "Ya existe una Nómina con ese nombre"
-        : "Error al crear la Nómina";
-    return NextResponse.json({ error: message }, { status: 400 });
+    const detalle = err instanceof Error ? err.message : String(err);
+    const message = detalle.includes("duplicate")
+      ? "Ya existe una Nómina con ese nombre"
+      : "Error al crear la Nómina";
+    return NextResponse.json({ error: message, detalle }, { status: 400 });
   } finally {
     client.release();
   }

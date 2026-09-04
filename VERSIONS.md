@@ -5,122 +5,150 @@ Cuando una sesión de VentasFactory pregunte "¿qué debo aplicar?", leer este a
 
 ---
 
-## v3.7 — 2026-08-08
+## v5.0 — 2026-08-20
 
 ### Resumen
-Normalización de clientes (split Nombre/Apellido): nueva pestaña en Admin, campo dividido en Registrar Venta y Salida Cortesías con autocompletado y registro inline. Tipo "Muestra" renombrado a "Consumo Interno" en Salida Cortesías. Tipos de salida personalizados configurables desde Admin. Mejoras de UX: forma de pago al marcar CxC como pagada, banner home más compacto, responsive en Salida Cortesías, paginación en Normalización, fix scroll horizontal.
+Restauración de "Salida Cortesías" (eliminada por error en una sincronización previa), nueva sección **Promociones** en Ventas (descuento %, precio fijo y/o producto gratis combinables, auto-aplicadas al vender), datos de proveedor (RIF/teléfono/dirección) en Gastos, forma de pago real al cobrar una CxC Directa, creación de categorías al vuelo, zoom de la foto de factura, y varios fixes de esquema de BD descubiertos en producción (columnas/constraints inconsistentes con migraciones nunca aplicadas realmente).
 
 ### Archivos nuevos
 | Archivo | Descripción |
 |---------|-------------|
-| `app/api/admin/clientes-normalizar/route.ts` | GET lista clientes con auto-split y stats; POST bulk-approve de nombres simples (2 palabras) |
-| `app/api/admin/clientes-normalizar/[id]/route.ts` | PATCH aprueba y guarda nombre+apellido normalizados por cliente |
-| `components/NormalizacionClientesTab.tsx` | Tab de normalización: KPIs, barra de progreso, paginación 10/20/50, staging de aprobaciones, edición inline |
+| `app/api/salidas-gratuitas/route.ts`, `[id]/route.ts`, `[id]/anular/route.ts` | Restaurados tal cual (habían sido borrados por error) |
+| `components/SalidaCortesiasPanel.tsx` | Pestaña "Salida Cortesías" reconstruida como componente propio (antes vivía inline en `VentasClient.tsx`); adaptado al tipo `Cliente` actual (sin split nombre/apellido) |
+| `components/PromocionesPanel.tsx` | Pestaña "Promociones": lista + detalle (crear/editar/pausar/reactivar/eliminar), descuento (%/precio fijo) y producto gratis combinables, con validación de campos resaltados |
+| `lib/promociones.ts` | `mapPromocion()` + `validarPromocion()` compartidos entre los endpoints de promociones |
+| `db/migrations/059_gastos_tipo_gasto_id.sql` | Agrega `tipo_gasto_id` (FK a `tipos_gasto`) a `gastos` — la tabla real nunca la tuvo, quedó con una columna legada `categoria` |
+| `db/migrations/060_salidas_gratuitas.sql` | Recrea `salidas_gratuitas`/`salidas_gratuitas_items` (idempotente) + amplía el CHECK de `inventario_movimientos.origen` |
+| `db/migrations/061_promociones.sql` | Tabla `promociones` (versión inicial) + `usuarios.ve_promociones` |
+| `db/migrations/062_promociones_combinables.sql` | Separa `descuento_tipo` de `tiene_producto_gratis` (antes una única columna `tipo` mutuamente excluyente); `fecha_inicio` pasa a `NOT NULL` |
+
+### Archivos modificados (principales)
+| Archivo | Cambio |
+|---------|--------|
+| `components/VentasClient.tsx` | Nueva pestaña "Promociones" (gateada por permiso); badge "🏷️ [promo]" con precio tachado/nuevo y aviso de producto gratis al seleccionar un producto con promo activa; recarga las promociones al volver a "Registro de Ventas"; pestaña "Salida Cortesías" restaurada |
+| `lib/ventas.ts` | `insertarItemsYPagos` resuelve la promoción activa y vigente de cada producto (precio % / precio fijo, y/o inserta automáticamente la línea del producto gratis) — único punto donde se calcula el precio real de la venta |
+| `lib/auth.ts`, `app/api/usuarios/route.ts`, `app/api/usuarios/[id]/route.ts` | Nuevo permiso `promociones` (mismo patrón tolerante a migración que el resto) |
+| `lib/types.ts` | Tipos `Promocion`/`PromocionInput`/`DescuentoTipo`; permiso `promociones` en `PERMISO_TABS`/`PERMISOS_VACIOS` |
+| `app/api/gastos/route.ts`, `[id]/route.ts` | Agregan `proveedor_rif`/`proveedor_telefono`/`proveedor_direccion`; rellenan la columna legada `categoria` (NOT NULL, CHECK `MATERIA_PRIMA`/`OPERACION`) con `'OPERACION'` fijo; mensajes de error propagan el detalle real de Postgres |
+| `components/GastosClient.tsx` | Sección "Datos del proveedor" (Nombre, RIF/CI con selector J/V/E/G, Teléfono, N° Factura, Dirección) debajo del card de OCR/ítems; OCR precarga RIF/Tlf/Dirección; tasa BCV: si la fecha detectada no tiene tasa guardada, se deja vacío en vez de arrastrar la de hoy; zoom de la foto de factura al tocarla; defaults "Gasto Operativo" y "Pagado"; indicadores Gasto Hoy/Mes/Pendiente muestran también el monto en Bs |
+| `components/CuentasPorCobrarPanel.tsx`, `components/FechaPagoConfirm.tsx` | Al marcar una CxC Directa como pagada, se pide también la forma de pago real (antes quedaba fija como `CXC_DIRECTA`) |
+| `app/api/reportes/cuentas-por-cobrar/[id]/route.ts` | Guarda en `pagos_venta` la forma de pago elegida en vez de `CXC_DIRECTA` fijo |
+| `components/ProductosClient.tsx`, `components/FacturaCompraForm.tsx` | "+ Crear Categoría" (Productos) y "+ Nueva categoría..." (Registrar Factura) para crear categorías sin salir del flujo |
+| `components/FacturaCompraForm.tsx` | Zoom de la foto de factura al tocarla (mismo componente que Gastos) |
+
+### Migraciones SQL
+`059`, `060`, `061`, `062` (ver arriba). Todas usan `IF NOT EXISTS`/`DROP CONSTRAINT IF EXISTS` — seguras de re-ejecutar.
+
+### Notas técnicas
+- **Esquema real desincronizado del código**: la tabla `gastos` en producción nunca tuvo `tipo_gasto_id` (se creó antes de que existiera el catálogo `tipos_gasto`, con una columna `categoria` de texto libre) y esa columna además tiene un `CHECK` que solo acepta `'MATERIA_PRIMA'`/`'OPERACION'`. La migración 034 usa `CREATE TABLE IF NOT EXISTS`, así que nunca corrigió esto por sí sola. Cualquier despliegue nuevo de VentasFactory debe verificar con `information_schema.columns` si su tabla `gastos` real coincide con lo que el código espera antes de asumir que las migraciones numeradas son suficientes.
+- **`salidas_gratuitas` nunca tuvo migración propia**: la tabla se creaba manualmente en Neon; ahora existe `060_salidas_gratuitas.sql` (idempotente) para dejar constancia en código.
+- **Bug de fechas Date vs string**: `node-postgres` devuelve columnas `DATE` como objetos `Date`, no strings — `String(date).slice(0,10)` da `"Thu Aug 20"` en vez de `"2026-08-20"`, rompiendo cualquier comparación de vigencia hecha en JS. Patrón correcto: `date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10)` (ya usado en `gastos`, replicado ahora en `promociones`).
+- **Promociones — descuento y producto gratis son combinables**: no es un `tipo` único mutuamente excluyente; una promoción puede tener descuento (%/precio fijo), producto gratis, o ambos. La aplicación es 100% server-side en `insertarItemsYPagos` (consultando `promociones` por `producto_id` + vigencia + `activa`) — el cliente solo hace un preview con la misma regla, para que el vendedor vea el precio antes de confirmar.
+- **"Salida Cortesías" — causa raíz de la pérdida**: commit `11b251d` ("Sincronizar todos los cambios de la sesión...") borró por accidente los 3 endpoints y la pestaña completa, junto con el split nombre/apellido de clientes (ese último no se restauró — quedó fuera de alcance). Restaurado como componente propio en vez de reinsertarlo inline en `VentasClient.tsx`.
+
+### Variables de entorno
+Sin cambios.
+
+---
+
+## v4.0 — 2026-08-11
+
+### Resumen
+Endurecimiento del pipeline de OCR (modelo Gemini vigente, múltiples API keys de Gemini con reintento real, diagnóstico de causa exacta de fallback) y mejoras de UX en Gastos Operativos: campo "Monto $" con conversión bidireccional a Monto Bs, montos mostrados con separador de miles (formato `9,916.20`).
 
 ### Archivos modificados
 | Archivo | Cambio |
 |---------|--------|
-| `lib/types.ts` | Agrega campo `apellido` a tipo `Cliente` y `ClienteInput` |
-| `app/api/clientes/route.ts` | GET busca por `apellido` y `nombre+apellido` combinado; devuelve `apellido`; POST guarda `apellido` con `normalizado=TRUE` |
-| `components/VentasClient.tsx` | Campo Cliente dividido en Nombre+Apellido con autocompletado, auto-split al seleccionar, warning para 3+ palabras, panel de registro inline, toTitleCase onBlur; Beneficiario en Salida Cortesías con el mismo flujo; tipo MUESTRA→CONSUMO_INTERNO; tipos de salida dinámicos (lee `salidas_tipos_extra` del config) |
-| `components/ConfiguracionClient.tsx` | Nueva sección "Salidas Cortesía — Tipos": tipos base (no editables) + gestión de tipos adicionales guardados en `salidas_tipos_extra` |
-| `components/AdminTabsClient.tsx` | Nueva pestaña "Normalización" (🔤) con `NormalizacionClientesTab` |
-| `components/FechaPagoConfirm.tsx` | Prop `showMetodoPago`; selector de forma de pago (Efectivo USD/Bs, Transferencia, Punto de Venta, Pago Móvil, Zelle) al marcar CxC Directa como pagada |
-| `components/CuentasPorCobrarPanel.tsx` | Pasa `metodoPago` al API al liquidar CxC Directa; `FechaPagoConfirm` con `showMetodoPago` solo para CxC Directa |
-| `app/api/reportes/cuentas-por-cobrar/[id]/route.ts` | Acepta `metodoPago`; DELETE limpia todos los métodos CxC posibles; INSERT con `metodo = metodoPago \|\| "CXC_DIRECTA"` |
-| `app/(main)/page.tsx` | Banner de saludo con fondo `var(--erp-surface)` translúcido y menor altura vertical |
-| `app/api/salidas-gratuitas/route.ts` | `tiposValidos` incluye CONSUMO_INTERNO, mantiene MUESTRA para compatibilidad; acepta tipos extras de `salidas_tipos_extra` en configuración |
-| `app/api/salidas-gratuitas/[id]/route.ts` | Misma actualización de validación de tipos |
+| `app/api/compras/ocr/route.ts` | Modelo Gemini por defecto actualizado a `gemini-3.6-flash` (`gemini-2.0-flash` fue descontinuado por Google el 1 de junio de 2026); se prueban **todas** las API keys de Gemini activas (no solo la primera) antes de caer a Groq; diagnóstico `_geminiSkipReason` con la causa exacta (HTTP, respuesta sin ítems, excepción) de cada fallback |
+| `lib/llm/llm-config.ts` | Modelo Gemini por defecto actualizado a `gemini-3.6-flash` |
+| `lib/llm/key-manager.ts` | Nueva función `getActiveKeys()` — retorna todas las keys activas con cuota disponible de un proveedor (antes solo existía `getActiveKey()`, que devolvía únicamente la primera) |
+| `components/FacturaCompraForm.tsx` | Panel de diagnóstico OCR muestra la razón de fallback de Gemini cuando aplica |
+| `components/GastosClient.tsx` | Nuevo campo "Monto $" junto a "Monto Bs" con conversión bidireccional según la tasa del día (mismo patrón que el costo de ítems en Compras); se recalcula automáticamente al cambiar Monto Bs (incluye lo cargado por OCR) o la tasa; ambos montos se muestran con separador de miles y 2 decimales cuando el campo no tiene el foco (se edita en crudo al enfocar) |
 
-### Migración SQL requerida (aplicar en Neon)
+### Migraciones SQL
+Ninguna nueva en esta versión.
+
+### Notas técnicas
+- **Modelo Gemini obsoleto:** `gemini-2.0-flash` fue el causante más probable del patrón de respuestas 200 OK pero incompletas visto en v3.5 — el modelo ya no está soportado por Google desde junio 2026. Cualquier despliegue que dependa de `GEMINI_MODEL` sin configurar explícitamente debe usar `gemini-3.6-flash` (GA) o una versión GA posterior.
+- **Múltiples keys de Gemini:** antes, `quota_used` nunca se incrementaba realmente para Gemini (la llamada a `incrementQuotaUsed` siempre pasaba `0`), así que aunque hubiera una segunda key activa, el sistema nunca rotaba a ella tras un 429 real de Google dentro de la misma solicitud — siempre reintentaba con la primera. `getActiveKeys()` + el loop en `route.ts` corrigen esto: se agota cada key de Gemini en orden antes de recurrir a Groq.
+- **Formato de montos en Gastos:** los inputs nativos `type="number"` no soportan comas mientras se escribe: se optó por mostrar el valor formateado (`toLocaleString`) solo cuando el campo no tiene foco, y el valor crudo editable mientras el usuario escribe.
+
+### Variables de entorno
+Sin cambios. (`GEMINI_MODEL` sigue siendo opcional — si se define explícitamente en Vercel, tiene prioridad sobre el default `gemini-3.6-flash`.)
+
+---
+
+## v3.5 — 2026-08-10
+
+### Resumen
+OCR de facturas con doble proveedor (Gemini + fallback automático a Groq) aplicado tanto en Compras como en Gastos Operativos. Tasa BCV con auto-carga y caché local por fecha. Rediseño de Compras (selector Venta/Materia Prima, unificación clientes/proveedores). Gastos Operativos: nueva función "Cargar Factura" con OCR + tabla de ítems editable, y administración de "Tipos de gasto" movida a Configuración con control de permisos.
+
+### Archivos nuevos
+| Archivo | Descripción |
+|---------|-------------|
+| `db/migrations/053_compras_tipo_uso.sql` | Columna `tipo_uso` (VENTA/MATERIA_PRIMA) en `compras` |
+| `db/migrations/054_clientes_es_proveedor.sql` | Columna `es_proveedor` en `clientes` + índice |
+| `db/migrations/055_tasas_bcv_historico.sql` | Tabla `tasas_bcv_historico` (caché de tasa BCV por fecha) |
+| `db/migrations/056_desactivar_gasto_materia_prima.sql` | Desactiva el tipo de gasto sembrado "Gasto Materia Prima" |
+| `db/migrations/057_gastos_numero_factura.sql` | Columna `numero_factura` en `gastos` |
+| `app/api/tipos-gasto/[id]/route.ts` | PATCH para activar/desactivar (y renombrar) un tipo de gasto |
+| `components/TiposGastoConfigClient.tsx` | Panel en Configuración para administrar Tipos de gasto (alta + activar/desactivar) |
+
+### Archivos modificados (principales)
+| Archivo | Cambio |
+|---------|--------|
+| `app/api/compras/ocr/route.ts` | OCR con Gemini (responseSchema + `temperature:0` + `maxOutputTokens:8192`) y fallback automático a Groq (`qwen/qwen3.6-27b`, `reasoning_effort:"none"`) ante 429/503 **o** ante una respuesta 200 sin ítems. Prompt de instrucciones ahora 100% controlable desde Configuración → IA/LLM (reemplaza, no concatena); el formato JSON de salida queda fijo en código. |
+| `lib/llm/providers/groq.ts` | `callGroqVision()`: soporte de imágenes vía `image_url`, `reasoning_effort:"none"`, diagnóstico de modelos disponibles en la cuenta ante 404 |
+| `lib/bcv.ts` | `obtenerTasaBcv()` (vigente, con fallback bcv.org.ve → pyDolarVenezuela → DolarApi; se retiró `bcv-api.rafnixg.dev`, dominio dado de baja) |
+| `app/api/tasa-bcv/route.ts` | Acepta `?fecha=YYYY-MM-DD`; responde desde caché local (`tasas_bcv_historico`) o 404 si no hay dato — sin llamar APIs externas de histórico (no se encontró ninguna confiable) |
+| `components/FacturaCompraForm.tsx` | Selector Venta/Materia Prima por factura; mapeo OCR camelCase con limpieza de `"null"`; botón/auto-consulta de tasa BCV por fecha; recálculo de USD por ítem al cambiar tasa |
+| `app/api/compras/route.ts` | POST guarda `tipo_uso` y `fecha_vencimiento_pago` |
+| `app/api/proveedores/route.ts` | POST incluye `dias_credito`; GET incluye clientes con `es_proveedor = TRUE` |
+| `app/api/clientes/route.ts`, `app/api/clientes/[id]/route.ts` | Campo `esProveedor`; nuevo PATCH para toggle rápido |
+| `components/ClientesPageClient.tsx` | Columna/checkbox "Proveedor" en la lista y el formulario |
+| `components/GastosClient.tsx` | Botón "Cargar Factura" (junto a Cancelar, arriba) que despliega panel OCR + tabla de ítems editable + N° Factura + totales Bs/USD; tasa BCV automática/manual; `numero_factura` y `comprobante_url` (imagen) persistidos |
+| `app/api/gastos/route.ts`, `app/api/gastos/[id]/route.ts` | Aceptan `numeroFactura` (tolerante a migración 057 pendiente) |
+| `app/api/tipos-gasto/route.ts` | `GET ?all=1` incluye inactivos; POST sigue creando/reactivando |
+| `components/AdminTabsClient.tsx`, `app/(main)/admin/page.tsx` | Nuevo tab "Gastos" en Configuración, accesible a ADMIN y a usuarios con permiso `gastos` (acceso restringido solo a esa sección) |
+| `components/LLMAdminPanel.tsx` | Campo de prompt OCR precargado con el texto real por defecto; botón "Restaurar por defecto" |
+
+### Migraciones SQL (ejecutar en Neon SQL Editor, en orden)
+
 ```sql
--- Columnas para normalización de clientes
-ALTER TABLE clientes
-  ADD COLUMN IF NOT EXISTS apellido TEXT,
-  ADD COLUMN IF NOT EXISTS normalizado BOOLEAN DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS normalizado_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS normalizado_por INTEGER REFERENCES usuarios(id);
+-- 053
+ALTER TABLE compras
+  ADD COLUMN IF NOT EXISTS tipo_uso TEXT NOT NULL DEFAULT 'VENTA'
+    CHECK (tipo_uso IN ('VENTA', 'MATERIA_PRIMA'));
 
--- Clave de configuración para tipos de salida extra (opcional, se crea al guardar)
-INSERT INTO configuracion (clave, valor) VALUES ('salidas_tipos_extra', '')
-  ON CONFLICT (clave) DO NOTHING;
+-- 054
+ALTER TABLE clientes
+  ADD COLUMN IF NOT EXISTS es_proveedor BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_clientes_es_proveedor ON clientes (es_proveedor) WHERE es_proveedor = TRUE;
+
+-- 055
+CREATE TABLE IF NOT EXISTS tasas_bcv_historico (
+  fecha DATE PRIMARY KEY,
+  tasa NUMERIC(12,4) NOT NULL,
+  fuente TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 056
+UPDATE tipos_gasto SET activo = FALSE WHERE nombre = 'Gasto Materia Prima';
+
+-- 057
+ALTER TABLE gastos ADD COLUMN IF NOT EXISTS numero_factura TEXT;
 ```
 
 ### Notas técnicas
-- El campo `cliente` en ventas sigue siendo un solo texto; la división Nombre/Apellido se concatena antes de guardar. La normalización en BD es independiente (tabla `clientes`).
-- Los registros de Salida Cortesías con `tipo = 'MUESTRA'` existentes se muestran como "Consumo interno" por compatibilidad retroactiva vía el mapa de labels.
-- Los tipos de salida adicionales se guardan como lista CSV en `configuracion.salidas_tipos_extra`.
-- La validación API de tipos de salida consulta `configuracion` en cada request para aceptar los tipos extra configurados.
+- **OCR — proveedor doble:** Gemini es el proveedor principal; si falla con 429/503 **o responde 200 sin ítems**, se reintenta automáticamente con Groq (`qwen/qwen3.6-27b`, con visión). Este último caso fue clave: Gemini puede "tener éxito" devolviendo solo un subconjunto de campos, y sin este chequeo de calidad el sistema nunca intentaba el fallback.
+- **Prompt OCR editable:** Configuración → IA/LLM → "Prompt OCR — Facturas de Compra". El texto ahí **reemplaza completamente** las instrucciones de extracción (ya no se concatena, evitando prompts contradictorios). El formato de salida (nombres de campos JSON) permanece fijo en el código.
+- **Tasa BCV:** sin fecha, se consulta la tasa vigente (bcv.org.ve → pyDolarVenezuela → DolarApi) y se cachea por su fecha de publicación. Con fecha, solo se sirve desde el caché local (no existe API externa gratuita de histórico confiable) — el caché se llena orgánicamente con el uso diario del sistema.
+- **Modelo Groq:** `qwen/qwen3.6-27b` fue confirmado como el único modelo con soporte de visión disponible en la cuenta (Llama 4 Scout/Maverick fueron descontinuados en el plan actual). Límite TPM de 8000 tok/min obliga a mantener `max_tokens` bajo (2000, con reintento a 800 si hay 413).
+- Todas las nuevas columnas siguen el patrón de tolerancia a migración pendiente (try/catch con fallback) usado en el resto del proyecto.
 
-### Sin nuevas variables de entorno
-
----
-
-## v3.6 — 2026-08-07
-
-### Resumen
-Nuevo módulo **Salida Cortesías**: pestaña independiente entre "Registro de Ventas" e "Historial" en el Punto de Venta. Permite registrar salidas de inventario sin cobro (cortesía, sorteo, muestra, evento) con descuento automático de stock y registro de movimiento de inventario. Incluye API REST completa con validación de stock.
-
-### Archivos nuevos
-| Archivo | Descripción |
-|---------|-------------|
-| `app/api/salidas-gratuitas/route.ts` | API POST (registra salida + descuenta stock + movimiento inventario) y GET (lista con filtros por tipo/fecha) |
-
-### Archivos modificados
-| Archivo | Cambio |
-|---------|--------|
-| `components/VentasClient.tsx` | Nueva tab "Salida Cortesías" entre Registro de Ventas e Historial; estado local del formulario (`cortTipo`, `cortFecha`, `cortBeneficiario`, `cortMotivo`, `cortItems`); handler `handleCortesiaSubmit`; panel con selector de tipo, lista de productos con stock, campo beneficiario, motivo y confirmación |
-| `VERSIONS.md` | Versión v3.6 documentada |
-
-### Migración SQL requerida (aplicar en Neon antes de usar el módulo)
-```sql
-CREATE TABLE salidas_gratuitas (
-  id          SERIAL PRIMARY KEY,
-  tipo        TEXT NOT NULL CHECK (tipo IN ('CORTESIA','SORTEO','MUESTRA','EVENTO')),
-  fecha       DATE NOT NULL,
-  beneficiario TEXT,
-  motivo      TEXT,
-  usuario_id  INTEGER REFERENCES usuarios(id),
-  created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE salidas_gratuitas_items (
-  id          SERIAL PRIMARY KEY,
-  salida_id   INTEGER NOT NULL REFERENCES salidas_gratuitas(id) ON DELETE CASCADE,
-  producto_id INTEGER NOT NULL REFERENCES productos(id),
-  cantidad    DECIMAL(12,4) NOT NULL,
-  costo       DECIMAL(12,2) NOT NULL
-);
-```
-
-### Sin variables de entorno nuevas
-
----
-
-## v3.5 — 2026-08-05
-
-### Resumen
-Correcciones de reportes (conversor bidireccional USD↔Bs, pendiente por cliente calculado aritméticamente, formato Bs venezolano, uniformidad de guiones) y mejoras de UX (subtítulo en Ventas por Cliente, prefijo "Bs" en cobrado, ojo en claves de conteo). Corrección completa de responsive móvil para Productos, Inventario Dashboard, Inventarios, Bandeja de Conteo: sin scroll horizontal en el body, tablas con ocultamiento de columnas no esenciales en móvil, targets táctiles de 44px, grids colapsables.
-
-### Sin archivos nuevos
-
-### Archivos modificados
-| Archivo | Cambio |
-|---------|--------|
-| `components/VentasClient.tsx` | Conversor USD↔Bs bidireccional: dos inputs enlazados — escribir $ calcula Bs y viceversa |
-| `app/api/reportes/route.ts` | `pendiente_usd` calculado con `GREATEST(total - cobrado, 0)` en vez de flags CxC; incluye `cuenta_por_cobrar` y `cuenta_cobrada` en CTE |
-| `lib/getReporte.ts` | Misma corrección de cálculo `pendiente_usd` que la ruta API |
-| `components/ReportesClient.tsx` | Umbral `>= 0.01` para mostrar pendiente (evita "$0.00" por flotantes); "-" cuando no hay pendiente; subtítulo "(incluye cargos por manejo y envío)" en Ventas por Cliente; formato Bs venezolano (`toLocaleString("es-VE", ...)`) en Ventas por forma de pago y Total Bs; prefijo "Bs " en columna cobrado de Ventas por cliente |
-| `components/ConteoUsuariosConfigClient.tsx` | Ojo toggle (show/hide) en campos de clave al crear y editar usuario de conteo |
-| `app/(main)/layout.tsx` | `overflowX: "hidden"` en `<body>` para eliminar scroll horizontal; `minWidth: 0 / maxWidth: "100%"` en `<main>` |
-| `app/globals.css` | `.inv-col-nombre-stock { display: none }` en desktop; clase `.prod-empaque-row` con grid responsivo (4 col → 2 col en móvil) con `min-width: 0` en celdas; `min-width: 0` en `.prod-form-grid`, `.inv-table-row`; ocultar `.inv-sc-estado` y `.bc-col-id / .bc-col-contador / .bc-col-aprobado` en móvil; `.inv-btn-full / .inv-btn-short` para acortar botón Movimientos en móvil |
-| `components/ProductosClient.tsx` | Grid empaque usa clase `.prod-empaque-row`; botones de acción `padding: "6px 10px"`; KPI cards con `overflow: hidden / minWidth: 0` para truncar texto largo |
-| `components/BandejaConteoClient.tsx` | Filtros de estado con `flexWrap: wrap`; tabla lista sin `minWidth` forzado; columnas #, Contador, Aprobado por con clase `bc-col-*` (ocultas en móvil); fecha inputs con `width: 100%`; tabla detalle con `minWidth: 560` |
-| `components/InventarioDashboardClient.tsx` | Botones OutstockToggle con `padding: "7px 12px"` (target táctil); input motivo `width: "100%"`; botones confirmar/cancelar `padding: "7px 10px"`; filtros toolbar `padding: "9px 14px"` |
-| `components/InventariosClient.tsx` | Columna Estado con clase `inv-sc-estado` (oculta en móvil); columna Mínimo siempre visible (quitado `display: none` inline del `<td>`); botón Movimientos con span `.inv-btn-full / .inv-btn-short`; `padding: "7px 12px"` en botón |
-
-### Sin migraciones SQL nuevas
-### Sin nuevas variables de entorno
+### Variables de entorno
+Sin nuevas variables. (Recordatorio: `GEMINI_MODEL`, `GROQ_MODEL`, `GROQ_VISION_MODEL` son opcionales y ya soportadas por `lib/llm/llm-config.ts` / `lib/llm/providers/groq.ts`.)
 
 ---
 

@@ -6,6 +6,7 @@ type LLMKey = {
   id: number;
   provider: "gemini" | "groq";
   key_label: string;
+  key_hint?: string;
   is_active: boolean;
   quota_limit: number | null;
   quota_used: number;
@@ -64,13 +65,51 @@ export default function LLMAdminPanel() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  // Revelar key completa bajo demanda (nunca viaja en el listado general)
+  const [revealed, setRevealed] = useState<Record<number, string>>({});
+  const [revealing, setRevealing] = useState<Record<number, boolean>>({});
+
+  async function toggleReveal(id: number) {
+    if (revealed[id] !== undefined) {
+      setRevealed((r) => { const next = { ...r }; delete next[id]; return next; });
+      return;
+    }
+    setRevealing((r) => ({ ...r, [id]: true }));
+    try {
+      const res = await fetch(`/api/admin/llm/keys/${id}/reveal`);
+      const data = await res.json();
+      setRevealed((r) => ({ ...r, [id]: res.ok ? data.api_key : `Error: ${data.error ?? "?"}` }));
+    } catch {
+      setRevealed((r) => ({ ...r, [id]: "Error al revelar" }));
+    } finally {
+      setRevealing((r) => ({ ...r, [id]: false }));
+    }
+  }
+
   // Prompts editables
   const [prompts, setPrompts] = useState<Record<string, string>>({});
   const [promptSaving, setPromptSaving] = useState<string | null>(null);
   const [promptMsg, setPromptMsg] = useState<Record<string, string>>({});
 
+  // Orden de fallback OCR (Gemini primero por defecto)
+  const [ocrOrden, setOcrOrden] = useState<"gemini" | "groq">("gemini");
+  const [ocrOrdenSaving, setOcrOrdenSaving] = useState(false);
+  const [ocrOrdenMsg, setOcrOrdenMsg] = useState("");
+
+  const OCR_INSTRUCCIONES_DEFAULT = `- El RIF del emisor aparece cerca de "SENIAT" e inicia con J-, V-, E- o G-
+- El teléfono puede venir precedido de: Teléfono, Telf, Tlf, Tel, Cel, Celular, Fono, Móvil
+- La dirección del emisor suele aparecer debajo del nombre/RIF, antes de la fecha o el detalle de la factura (puede ocupar varias líneas: avenida, centro comercial, local, sector, ciudad, zona postal). Únela en un solo texto
+- Si un ítem no tiene cantidad explícita, usa 1
+- Reemplaza comas decimales por punto en los montos (ej: 2.189,58 → 2189.58)
+- Si un campo no es legible usa null`;
+
   const PROMPT_DEFS = [
-    { key: "compras_ocr_prompt", label: "Prompt OCR — Facturas de Compra", desc: "Instrucción enviada a Gemini al analizar una imagen de factura de compra." },
+    {
+      key: "compras_ocr_prompt",
+      label: "Prompt OCR — Facturas de Compra",
+      desc: "Estas instrucciones REEMPLAZAN por completo las de extracción al analizar una factura (no se agregan a otras). El formato de salida (nombres de campo JSON) es fijo y no se controla aquí — solo edita el texto de instrucciones.",
+      defaultValue: OCR_INSTRUCCIONES_DEFAULT,
+    },
   ];
 
   const fetchPrompts = useCallback(async () => {
@@ -79,11 +118,27 @@ export default function LLMAdminPanel() {
       const data = await r.json();
       const filtered: Record<string, string> = {};
       for (const def of PROMPT_DEFS) {
-        filtered[def.key] = data[def.key] ?? "";
+        filtered[def.key] = data[def.key] || def.defaultValue;
       }
       setPrompts(filtered);
+      setOcrOrden(data.ocr_provider_orden === "groq" ? "groq" : "gemini");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveOcrOrden(nuevo: "gemini" | "groq") {
+    setOcrOrden(nuevo);
+    setOcrOrdenSaving(true);
+    try {
+      const r = await fetch("/api/configuracion", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ocr_provider_orden: nuevo }) });
+      if (!r.ok) throw new Error();
+      setOcrOrdenMsg("Guardado");
+      setTimeout(() => setOcrOrdenMsg(""), 2000);
+    } catch {
+      setOcrOrdenMsg("Error al guardar");
+    } finally {
+      setOcrOrdenSaving(false);
+    }
+  }
 
   async function savePrompt(key: string) {
     setPromptSaving(key);
@@ -303,6 +358,7 @@ export default function LLMAdminPanel() {
                 <thead className="bg-zinc-50 text-xs text-zinc-500">
                   <tr>
                     <th className="p-2 text-left">Etiqueta</th>
+                    <th className="p-2 text-left">Key</th>
                     <th className="p-2 text-right">Tokens usados</th>
                     <th className="p-2 text-right">Límite</th>
                     <th className="p-2 text-center">Estado</th>
@@ -319,6 +375,22 @@ export default function LLMAdminPanel() {
                       <>
                         <tr key={k.id} className="border-t border-zinc-100 hover:bg-zinc-50">
                           <td className="p-2 font-medium">{k.key_label}</td>
+                          <td className="p-2 font-mono text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: revealed[k.id] ? "normal" : "nowrap", wordBreak: "break-all" }}>
+                                {revealed[k.id] ?? `••••••••${k.key_hint ?? "????"}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleReveal(k.id)}
+                                disabled={revealing[k.id]}
+                                title={revealed[k.id] ? "Ocultar" : "Mostrar key completa"}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--erp-text-3)", flexShrink: 0 }}
+                              >
+                                <EyeIcon open={!!revealed[k.id]} />
+                              </button>
+                            </div>
+                          </td>
                           <td className="p-2 text-right font-mono">
                             {k.quota_used.toLocaleString()}
                             {pct !== null && (
@@ -375,7 +447,7 @@ export default function LLMAdminPanel() {
                         </tr>
                         {kr !== null && kr !== undefined && (
                           <tr key={`test-${k.id}`} className="border-t border-zinc-100 bg-zinc-50">
-                            <td colSpan={6} className="px-3 py-1.5 text-xs">
+                            <td colSpan={7} className="px-3 py-1.5 text-xs">
                               {kr.ok
                                 ? <span className="text-green-600">✓ OK — "{kr.text}" · {kr.latency}ms</span>
                                 : <span className="text-red-600">✗ Error: {kr.error}</span>}
@@ -384,7 +456,7 @@ export default function LLMAdminPanel() {
                         )}
                         {isEditing && (
                           <tr key={`edit-${k.id}`} className="border-t border-blue-100 bg-blue-50">
-                            <td colSpan={6} className="p-3">
+                            <td colSpan={7} className="p-3">
                               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
                                   <label className="mb-1 block text-xs text-zinc-500">Etiqueta</label>
@@ -515,6 +587,34 @@ export default function LLMAdminPanel() {
         )}
       </div>
 
+      {/* Orden de fallback OCR */}
+      <div className="mt-6 rounded-xl border border-zinc-200 p-4">
+        <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-zinc-400">Orden de proveedores — OCR de Facturas</h3>
+        <p className="mb-3 text-xs text-zinc-500">Elige qué proveedor se intenta primero al escanear una factura. El otro se usa automáticamente como respaldo si el primero falla o no tiene cuota.</p>
+        <div className="flex items-center gap-2">
+          <div style={{ display: "flex", borderRadius: 8, border: "1px solid var(--erp-border)", overflow: "hidden" }}>
+            {(["gemini", "groq"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => saveOcrOrden(p)}
+                disabled={ocrOrdenSaving}
+                style={{
+                  padding: "8px 16px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+                  background: ocrOrden === p ? "var(--erp-primary)" : "var(--erp-surface)",
+                  color: ocrOrden === p ? "#fff" : "var(--erp-text-2)",
+                }}
+              >
+                {p === "gemini" ? "Gemini primero" : "Groq primero"}
+              </button>
+            ))}
+          </div>
+          {ocrOrdenMsg && (
+            <span style={{ fontSize: 12, color: ocrOrdenMsg === "Guardado" ? "#166534" : "#B91C1C" }}>{ocrOrdenMsg}</span>
+          )}
+        </div>
+      </div>
+
       {/* Prompts editables */}
       <div className="mt-6 rounded-xl border border-zinc-200 p-4">
         <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-zinc-400">Prompts de IA</h3>
@@ -527,7 +627,7 @@ export default function LLMAdminPanel() {
               <textarea
                 value={prompts[def.key] ?? ""}
                 onChange={(e) => setPrompts((p) => ({ ...p, [def.key]: e.target.value }))}
-                rows={5}
+                rows={8}
                 style={{ width: "100%", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "8px 12px", fontSize: 13, background: "var(--erp-bg)", color: "var(--erp-text)", resize: "vertical", fontFamily: "inherit" }}
               />
               <div className="mt-2 flex items-center gap-3">
@@ -538,6 +638,13 @@ export default function LLMAdminPanel() {
                   style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: promptSaving === def.key ? 0.7 : 1 }}
                 >
                   {promptSaving === def.key ? "Guardando..." : "Guardar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrompts((p) => ({ ...p, [def.key]: def.defaultValue }))}
+                  style={{ background: "transparent", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Restaurar por defecto
                 </button>
                 {promptMsg[def.key] && (
                   <span style={{ fontSize: 12, color: promptMsg[def.key] === "Guardado" ? "#166534" : "#B91C1C" }}>{promptMsg[def.key]}</span>

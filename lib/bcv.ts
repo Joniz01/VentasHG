@@ -89,26 +89,6 @@ async function fromBcvOrgVe(): Promise<TasaBcv> {
   return { tasa, fecha };
 }
 
-async function fromRafnixg(): Promise<TasaBcv> {
-  const res = await fetch("https://bcv-api.rafnixg.dev/rates/", {
-    cache: "no-store",
-    headers: { "User-Agent": NAVEGADOR_USER_AGENT },
-  });
-
-  if (!res.ok) {
-    throw new Error(`bcv-api.rafnixg.dev respondió con estado ${res.status}`);
-  }
-
-  const data = await res.json();
-  const tasa = Number(data?.dollar);
-
-  if (Number.isNaN(tasa) || tasa <= 0) {
-    throw new Error("Respuesta inválida de bcv-api.rafnixg.dev");
-  }
-
-  return { tasa, fecha: data?.date ?? null };
-}
-
 async function fromPyDolarVenezuela(): Promise<TasaBcv> {
   const res = await fetch("https://pydolarve.org/api/v1/dollar?page=bcv", {
     cache: "no-store",
@@ -151,9 +131,9 @@ async function fromDolarApi(): Promise<TasaBcv> {
 // Se prioriza el scraping directo de bcv.org.ve porque refleja la última
 // tasa publicada (incluso si ya corresponde al día siguiente). Las demás
 // fuentes son respaldo en caso de que bcv.org.ve bloquee la solicitud.
+// bcv-api.rafnixg.dev fue retirado: su dominio ya no resuelve en DNS (confirmado en producción).
 const FUENTES_BCV: { nombre: string; fn: () => Promise<TasaBcv> }[] = [
   { nombre: "bcv.org.ve", fn: fromBcvOrgVe },
-  { nombre: "bcv-api.rafnixg.dev", fn: fromRafnixg },
   { nombre: "pyDolarVenezuela", fn: fromPyDolarVenezuela },
   { nombre: "DolarApi", fn: fromDolarApi },
 ];
@@ -169,3 +149,4 @@ export async function obtenerTasaBcv(): Promise<TasaBcv> {
   }
   throw new Error(`No se pudo consultar la tasa BCV: ${JSON.stringify(errores)}`);
 }
+

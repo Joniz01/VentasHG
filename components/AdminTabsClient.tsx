@@ -9,12 +9,14 @@ import AdminAccesoClient from "@/components/AdminAccesoClient";
 import InventarioInicialClient from "@/components/InventarioInicialClient";
 import LLMAdminPanel from "@/components/LLMAdminPanel";
 import ConteoUsuariosConfigClient from "@/components/ConteoUsuariosConfigClient";
-import NormalizacionClientesTab from "@/components/NormalizacionClientesTab";
+import TiposGastoConfigClient from "@/components/TiposGastoConfigClient";
+import CentrosCostoConfigClient from "@/components/CentrosCostoConfigClient";
 
 type Props = {
   usuarioActualId: number;
   nombre: string;
   usuario: string;
+  esAdmin?: boolean;
 };
 
 const TABS = [
@@ -25,13 +27,15 @@ const TABS = [
   { key: "acceso",        label: "Acceso al Sistema",   icon: "🔐", desc: "Contraseña y sesión" },
   { key: "llm",           label: "IA / LLM",            icon: "🤖", desc: "API keys de Gemini y Groq" },
   { key: "conteo",        label: "Conteo Inventario",   icon: "📋", desc: "Usuarios de conteo físico" },
-  { key: "normalizacion", label: "Normalización",        icon: "🔤", desc: "Split Nombre/Apellido de clientes" },
+  { key: "gastos-config",   label: "Gastos",              icon: "🧾", desc: "Tipos de gasto configurables" },
+  { key: "centros-costo",   label: "Centros de Costo",    icon: "🏢", desc: "Sucursales y centros de costo" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
-export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Props) {
+export default function AdminTabsClient({ usuarioActualId, nombre, usuario, esAdmin = true }: Props) {
   const [tab, setTab] = useState<TabKey | null>(null);
+  const tabsVisibles = esAdmin ? TABS : TABS.filter((t) => t.key === "gastos-config");
 
   if (!tab) {
     return (
@@ -43,7 +47,7 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
             gap: "0.75rem",
           }}
         >
-          {TABS.map((t) => (
+          {tabsVisibles.map((t) => (
             <button
               key={t.key}
               type="button"
@@ -184,15 +188,21 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario }: Pr
         </div>
       )}
 
-      {tab === "normalizacion" && (
+      {tab === "gastos-config" && (
         <div>
-          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
-            Revisa y aprueba el split de Nombre / Apellido para todos los clientes registrados.
-            Los clientes simples (2 palabras) pueden aprobarse en lote; los complejos requieren revisión manual.
-          </p>
-          <NormalizacionClientesTab />
+          <TiposGastoConfigClient />
         </div>
       )}
+
+      {tab === "centros-costo" && (
+        <div>
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
+            Gestiona las sucursales o centros de costo para asignar a Nóminas y Gastos.
+          </p>
+          <CentrosCostoConfigClient />
+        </div>
+      )}
+
     </div>
   );
 }

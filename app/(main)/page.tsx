@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
 import type { PermisosUsuario, Rol } from "@/lib/types";
+import HomeScrollHandler from "@/components/HomeScrollHandler";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +23,14 @@ type TileGroup = { label: string; tiles: Tile[] };
 
 const GRUPOS: TileGroup[] = [
   {
-    label: "Punto de Venta",
+    label: "Ventas",
     tiles: [
-      { href: "/ventas",             icon: "🛒", label: "Registrar Venta",    sub: "Nueva transacción",       color: "#EA6B0A", permiso: "ventas" },
-      { href: "/pedidos-pendientes", icon: "📋", label: "Pedidos Pendientes", sub: "Por preparar o entregar", color: "#1D4ED8", permiso: "pedidosPendientes" },
-      { href: "/delivery",           icon: "📬", label: "Deliveries",         sub: "Pedidos a domicilio",     color: "#15803D" },
+      { href: "/ventas",                        icon: "🛒", label: "Punto de Venta",     sub: "Registrar venta",          color: "#EA6B0A", permiso: "ventas" },
+      { href: "/pedidos-pendientes",            icon: "📋", label: "Pedidos Pendientes", sub: "Por preparar o entregar",  color: "#1D4ED8", permiso: "pedidosPendientes" },
+      { href: "/delivery",                      icon: "📬", label: "Deliveries",         sub: "Pedidos a domicilio",      color: "#15803D" },
+      { href: "/ventas?vista=cortesias",        icon: "🎁", label: "Salida Cortesías",   sub: "Salidas sin cobro",        color: "#7C3AED", permiso: "ventas" },
+      { href: "/ventas?vista=promociones",      icon: "🏷️", label: "Promociones",        sub: "Descuentos y combos",      color: "#0891B2", permiso: "ventas" },
+      { href: "/ventas?vista=notas",            icon: "📝", label: "Notas de Entrega",   sub: "Órdenes de despacho",      color: "#15803D", permiso: "ventas" },
     ],
   },
   {
@@ -49,7 +54,9 @@ const GRUPOS: TileGroup[] = [
       { href: "/productos",          icon: "📦", label: "Productos",                sub: "Catálogo y categorías",      color: "#1D4ED8", permiso: "productos" },
       { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",      color: "#15803D", permiso: "productos", new: true },
       { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos", color: "#1D4ED8", permiso: "productos" },
-      { href: "/inventario/conteos", icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",   color: "#7C3AED", permiso: "autorizarConteo" },
+      { href: "/inventario/conteos",      icon: "📋", label: "Bandeja Conteos",            sub: "Control de conteo físico",       color: "#7C3AED", permiso: "autorizarConteo" },
+      { href: "/conteo",                  icon: "📱", label: "Conteo Físico",              sub: "Conteo desde dispositivo",       color: "#7C3AED", permiso: "conteo" },
+      { href: "/inventario/programacion", icon: "🗓️", label: "Programación de Conteos",    sub: "Alertas y calendarios de conteo", color: "#0891B2", permiso: "programarConteo" },
     ],
   },
   {
@@ -69,9 +76,10 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Finanzas",
     tiles: [
-      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  sub: "CxC Directa, Cashea y Yummy", color: "#B45309", permiso: "reportes" },
-      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar",   sub: "Pagos y obligaciones",         color: "#B45309", new: true },
-      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero", sub: "Indicadores y flujo de caja",  color: "#B45309", new: true },
+      { href: "/tesoreria",           icon: "🏦", label: "Planif. de Pagos",    sub: "Nóminas, gastos y compromisos próximos", color: "#0891B2", permiso: "gastos", new: true },
+      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar",   sub: "Facturas de proveedores de servicios",   color: "#B45309", new: true },
+      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  sub: "CxC Directa, Cashea y Yummy",           color: "#15803D", permiso: "reportes" },
+      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero", sub: "Indicadores y flujo de caja",           color: "#B45309", new: true },
     ],
   },
   {
@@ -106,19 +114,17 @@ export default async function Home() {
 
   return (
     <div className="max-w-4xl">
+      <Suspense fallback={null}><HomeScrollHandler /></Suspense>
       {/* Welcome banner */}
       <div
-        className="mb-4 rounded-xl px-4 py-2.5 flex items-center gap-3 overflow-hidden relative"
-        style={{
-          background: "var(--erp-surface)",
-          border: "1px solid var(--erp-border)",
-        }}
+        className="mb-6 rounded-xl px-5 py-3 flex items-center justify-between gap-4 flex-wrap"
+        style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)" }}
       >
         <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>
+          <p className="text-sm font-bold" style={{ color: "var(--erp-text)" }}>
             {saludo}, {nombre.split(" ")[0]} 👋
           </p>
-          <p className="text-xs capitalize" style={{ color: "var(--erp-text-3)" }}>
+          <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--erp-text-3)" }}>
             {hoy}
           </p>
         </div>
@@ -131,8 +137,9 @@ export default async function Home() {
         );
         if (!visibles.length) return null;
 
+        const slug = grupo.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
         return (
-          <div key={grupo.label} className="mb-6">
+          <div key={grupo.label} id={`section-${slug}`} className="mb-6 scroll-mt-16">
             <div
               className="flex items-center gap-3 mb-3 text-[10px] font-bold uppercase tracking-widest"
               style={{ color: "var(--erp-text-3)" }}

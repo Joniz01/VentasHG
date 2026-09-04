@@ -22,28 +22,88 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     await client.query("BEGIN");
 
-    const result = await client.query(
-      `UPDATE empleados
-       SET nombre = $1, cedula = $2, fecha_nacimiento = $3, sexo = $4, cargo = $5, locacion_id = $6,
-           salario_base_usd = $7, salario_base_bs = $8, tasa_registro = $9,
-           fecha_ingreso = $10, activo = $11
-       WHERE id = $12
-       RETURNING id`,
-      [
-        body.nombre.trim(),
-        body.cedula?.trim() || null,
-        body.fechaNacimiento || null,
-        body.sexo || null,
-        body.cargo?.trim() || null,
-        body.locacionId || null,
-        Number(body.salarioBaseUsd) || 0,
-        Number(body.salarioBaseBs) || 0,
-        Number(body.tasaRegistro) || 0,
-        body.fechaIngreso || null,
-        body.activo ?? true,
-        id,
-      ]
-    );
+    await client.query("SAVEPOINT sp_emp_put");
+    let result: { rowCount: number | null; rows: { id: number }[] };
+    try {
+      result = await client.query(
+        `UPDATE empleados
+         SET nombre = $1, apellido = $2, cedula = $3, fecha_nacimiento = $4, sexo = $5, cargo = $6, cargo_id = $7, locacion_id = $8,
+             salario_base_usd = $9, salario_base_bs = $10, tasa_registro = $11,
+             fecha_ingreso = $12, activo = $13, estado_civil = $14
+         WHERE id = $15
+         RETURNING id`,
+        [
+          body.nombre.trim(),
+          body.apellido?.trim() || null,
+          body.cedula?.trim() || null,
+          body.fechaNacimiento || null,
+          body.sexo || null,
+          body.cargo?.trim() || null,
+          body.cargoId || null,
+          body.locacionId || null,
+          Number(body.salarioBaseUsd) || 0,
+          Number(body.salarioBaseBs) || 0,
+          Number(body.tasaRegistro) || 0,
+          body.fechaIngreso || null,
+          body.activo ?? true,
+          body.estadoCivil || null,
+          id,
+        ]
+      );
+    } catch {
+      // Migración 067/068 pendiente — actualizar sin apellido ni cargo_id
+      await client.query("ROLLBACK TO sp_emp_put");
+      await client.query("SAVEPOINT sp_emp_put2");
+      try {
+        result = await client.query(
+          `UPDATE empleados
+           SET nombre = $1, apellido = $2, cedula = $3, fecha_nacimiento = $4, sexo = $5, cargo = $6, locacion_id = $7,
+               salario_base_usd = $8, salario_base_bs = $9, tasa_registro = $10,
+               fecha_ingreso = $11, activo = $12
+           WHERE id = $13
+           RETURNING id`,
+          [
+            body.nombre.trim(),
+            body.apellido?.trim() || null,
+            body.cedula?.trim() || null,
+            body.fechaNacimiento || null,
+            body.sexo || null,
+            body.cargo?.trim() || null,
+            body.locacionId || null,
+            Number(body.salarioBaseUsd) || 0,
+            Number(body.salarioBaseBs) || 0,
+            Number(body.tasaRegistro) || 0,
+            body.fechaIngreso || null,
+            body.activo ?? true,
+            id,
+          ]
+        );
+      } catch {
+        await client.query("ROLLBACK TO sp_emp_put2");
+        result = await client.query(
+          `UPDATE empleados
+           SET nombre = $1, cedula = $2, fecha_nacimiento = $3, sexo = $4, cargo = $5, locacion_id = $6,
+               salario_base_usd = $7, salario_base_bs = $8, tasa_registro = $9,
+               fecha_ingreso = $10, activo = $11
+           WHERE id = $12
+           RETURNING id`,
+          [
+            body.nombre.trim(),
+            body.cedula?.trim() || null,
+            body.fechaNacimiento || null,
+            body.sexo || null,
+            body.cargo?.trim() || null,
+            body.locacionId || null,
+            Number(body.salarioBaseUsd) || 0,
+            Number(body.salarioBaseBs) || 0,
+            Number(body.tasaRegistro) || 0,
+            body.fechaIngreso || null,
+            body.activo ?? true,
+            id,
+          ]
+        );
+      }
+    }
 
     if (result.rowCount === 0) {
       await client.query("ROLLBACK");

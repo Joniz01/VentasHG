@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Paginador from "@/components/Paginador";
 import { useSearchParams } from "next/navigation";
 import type { ReporteVentas, ReporteDetalleVenta } from "@/lib/types";
@@ -29,10 +29,9 @@ function startOfMonth(date: Date) {
 export default function ReportesClient() {
   const searchParams = useSearchParams();
   const tabInicial = searchParams.get("tab");
-  const [tab, setTab] = useState<"ventas" | "conciliacion" | "deliveries">(
-    tabInicial === "deliveries" ? "deliveries" : tabInicial === "conciliacion" ? "conciliacion" : "ventas"
+  const [tab, setTab] = useState<"ventas" | "deliveries" | null>(
+    tabInicial === "deliveries" ? "deliveries" : tabInicial === "ventas" ? "ventas" : null
   );
-  const [concilMetodo, setConcilMetodo] = useState<string>("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [mesEspecifico, setMesEspecifico] = useState("");
@@ -46,6 +45,7 @@ export default function ReportesClient() {
   const [enlaceCopiado, setEnlaceCopiado] = useState(false);
   const [resumenHoy, setResumenHoy] = useState<{ ventaHoy: number; ingresos: number } | null>(null);
   const [metodosPago, setMetodosPago] = useState<string[]>([]);
+  const [cxcDetalleAbierto, setCxcDetalleAbierto] = useState(false);
   const [paginaCliente, setPaginaCliente] = useState(1);
   const [porPaginaCliente, setPorPaginaCliente] = useState(10);
   const [paginaProducto, setPaginaProducto] = useState(1);
@@ -233,49 +233,70 @@ export default function ReportesClient() {
     generar(desde, hasta);
   }
 
+  const NAV_CARDS = [
+    { key: "ventas",       icon: "📑", label: "Ventas",           sub: "Reportes y resúmenes" },
+    { key: "deliveries",   icon: "📬", label: "Pagos a Delivery", sub: "Liquidaciones de delivery" },
+  ] as const;
+
+  const tabActual = tab ? NAV_CARDS.find((c) => c.key === tab) : null;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-2 border-b border-zinc-200">
-        <button
-          type="button"
-          onClick={() => setTab("ventas")}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === "ventas"
-              ? "border-b-2 border-zinc-900 text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Ventas
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("conciliacion")}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === "conciliacion"
-              ? "border-b-2 border-zinc-900 text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Conciliación
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("deliveries")}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === "deliveries"
-              ? "border-b-2 border-zinc-900 text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Pagos a Delivery
-        </button>
-      </div>
+      {/* Cards de selección — sólo visibles cuando no hay sección activa */}
+      {!tab && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+          {NAV_CARDS.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setTab(c.key)}
+              style={{
+                background: "var(--erp-surface)",
+                border: "1px solid var(--erp-border)",
+                borderTop: "3px solid var(--erp-primary)",
+                borderRadius: 8,
+                padding: "12px 14px",
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <span style={{ fontSize: 22 }}>{c.icon}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)" }}>{c.label}</span>
+              <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{c.sub}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Cabecera compacta cuando hay sección activa */}
+      {tab && tabActual && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setTab(null)}
+            style={{
+              background: "var(--erp-surface)",
+              border: "1px solid var(--erp-border)",
+              borderRadius: 6,
+              padding: "5px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+              color: "var(--erp-text-2)",
+            }}
+          >
+            ← Reportes
+          </button>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-primary)" }}>
+            {tabActual.icon} {tabActual.label}
+          </span>
+        </div>
+      )}
 
       {tab === "deliveries" && <DeliveryPagosPanel />}
 
-      {tab === "conciliacion" && (
-        <ConciliacionPanel reporte={reporte} metodo={concilMetodo} setMetodo={setConcilMetodo} loading={loading} />
-      )}
 
       {tab === "ventas" && (
       <>
@@ -564,13 +585,58 @@ export default function ReportesClient() {
               <tbody className="divide-y divide-zinc-100">
                 {reporte.porFormaPago
                   .filter((fp) => metodosPago.length === 0 || metodosPago.includes(fp.metodo))
-                  .map((fp) => (
-                    <tr key={fp.metodo}>
-                      <td className="px-4 py-2 font-medium">{METODO_PAGO_LABELS[fp.metodo]}</td>
-                      <td className="px-4 py-2 text-right">${fp.totalUsd.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-right">Bs {fp.totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    </tr>
-                  ))}
+                  .map((fp) => {
+                    const isCxc = fp.metodo === "CXC_DIRECTA";
+                    const cxcItems = isCxc ? (reporte.ventasPorFormaPago["CXC_DIRECTA"] ?? []) : [];
+                    return (
+                      <>
+                        <tr key={fp.metodo}>
+                          <td className="px-4 py-2 font-medium">
+                            {METODO_PAGO_LABELS[fp.metodo]}
+                            {isCxc && fp.totalUsd > 0 && (
+                              <button
+                                onClick={() => setCxcDetalleAbierto((v) => !v)}
+                                className="ml-2 text-xs font-normal underline"
+                                style={{ color: "var(--erp-primary)" }}
+                              >
+                                {cxcDetalleAbierto ? "Ocultar" : "Ver detalle"}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right">${fp.totalUsd.toFixed(2)}</td>
+                          <td className="px-4 py-2 text-right">Bs {fp.totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        </tr>
+                        {isCxc && cxcDetalleAbierto && cxcItems.length > 0 && (
+                          <tr key="cxc-detalle">
+                            <td colSpan={3} className="px-4 pb-3 pt-0">
+                              <div className="rounded-md border border-zinc-200 bg-zinc-50 text-xs">
+                                <table className="w-full">
+                                  <thead>
+                                    <tr className="border-b border-zinc-200 text-zinc-500">
+                                      <th className="px-3 py-1.5 text-left font-medium">Venta #</th>
+                                      <th className="px-3 py-1.5 text-left font-medium">Cliente</th>
+                                      <th className="px-3 py-1.5 text-right font-medium">Monto $</th>
+                                      <th className="px-3 py-1.5 text-right font-medium">Monto Bs</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-zinc-100">
+                                    {cxcItems.map((item) => (
+                                      <tr key={item.ventaId}>
+                                        <td className="px-3 py-1.5 text-zinc-500">#{item.ventaId}</td>
+                                        <td className="px-3 py-1.5">{item.cliente || "—"}</td>
+                                        <td className="px-3 py-1.5 text-right font-medium">${item.montoUsd.toFixed(2)}</td>
+                                        <td className="px-3 py-1.5 text-right">Bs {item.montoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
               </tbody>
               <tfoot className="border-t border-zinc-200 bg-zinc-50">
                 {(() => {
@@ -740,120 +806,3 @@ export default function ReportesClient() {
   );
 }
 
-// ── Conciliación por forma de pago ────────────────────────────────────────────
-function ConciliacionPanel({
-  reporte,
-  metodo,
-  setMetodo,
-  loading,
-}: {
-  reporte: ReporteVentas | null;
-  metodo: string;
-  setMetodo: (m: string) => void;
-  loading: boolean;
-}) {
-  if (loading) return <div className="text-sm text-zinc-500">Generando reporte...</div>;
-
-  if (!reporte) {
-    return (
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
-        Genera un reporte en la pestaña <strong>Ventas</strong> para ver la conciliación por forma de pago.
-      </div>
-    );
-  }
-
-  const metodosConVentas = METODOS_PAGO.filter(
-    (m) => (reporte.ventasPorFormaPago?.[m]?.length ?? 0) > 0
-  );
-
-  const ventas: ReporteDetalleVenta[] = metodo
-    ? (reporte.ventasPorFormaPago?.[metodo] ?? [])
-    : metodosConVentas.flatMap((m) => reporte.ventasPorFormaPago?.[m] ?? []);
-
-  const totalUsd = ventas.reduce((s, v) => s + v.montoUsd, 0);
-  const totalBs = ventas.reduce((s, v) => s + v.montoBs, 0);
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Selector de forma de pago */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setMetodo("")}
-          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-            !metodo ? "border-zinc-800 bg-zinc-800 text-white" : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-500"
-          }`}
-        >
-          Todos
-        </button>
-        {metodosConVentas.map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMetodo(metodo === m ? "" : m)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              metodo === m ? "border-zinc-800 bg-zinc-800 text-white" : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-500"
-            }`}
-          >
-            {METODO_PAGO_LABELS[m as keyof typeof METODO_PAGO_LABELS]} ({reporte.ventasPorFormaPago?.[m]?.length ?? 0})
-          </button>
-        ))}
-      </div>
-
-      {/* Tabla de ventas */}
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 px-4 py-3">
-          <h3 className="text-base font-semibold">
-            {metodo ? METODO_PAGO_LABELS[metodo as keyof typeof METODO_PAGO_LABELS] : "Todas las formas de pago"}
-            <span className="ml-2 text-sm font-normal text-zinc-500">{ventas.length} {ventas.length === 1 ? "venta" : "ventas"}</span>
-          </h3>
-        </div>
-        <table className="min-w-full divide-y divide-zinc-200 text-sm">
-          <thead className="bg-zinc-50">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Pedido</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Monto $</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Monto Bs</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Detalle</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {ventas.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-zinc-400">Sin ventas en este período</td>
-              </tr>
-            ) : (
-              ventas.map((v) => (
-                <tr key={`${metodo}-${v.ventaId}`} className="hover:bg-zinc-50">
-                  <td className="px-4 py-2 font-medium text-zinc-700">#{v.ventaId}</td>
-                  <td className="px-4 py-2 text-zinc-700">{v.cliente}</td>
-                  <td className="px-4 py-2 text-right font-variant-numeric tabular-nums">${v.montoUsd.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right text-zinc-500 font-variant-numeric tabular-nums">Bs {v.montoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-2 text-right">
-                    <a
-                      href={`/ventas/${v.ventaId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100"
-                    >
-                      Ver →
-                    </a>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-          <tfoot className="border-t border-zinc-200 bg-zinc-50">
-            <tr>
-              <td colSpan={2} className="px-4 py-2 font-semibold">Total</td>
-              <td className="px-4 py-2 text-right font-semibold">${totalUsd.toFixed(2)}</td>
-              <td className="px-4 py-2 text-right font-semibold">Bs {totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>
-  );
-}

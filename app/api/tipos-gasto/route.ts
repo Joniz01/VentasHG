@@ -6,9 +6,13 @@ export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  const incluirInactivos = request.nextUrl.searchParams.get("all") === "1";
+
   try {
     const result = await pool.query(
-      `SELECT id, nombre, activo FROM tipos_gasto WHERE activo = TRUE ORDER BY nombre ASC`
+      incluirInactivos
+        ? `SELECT id, nombre, activo FROM tipos_gasto ORDER BY nombre ASC`
+        : `SELECT id, nombre, activo FROM tipos_gasto WHERE activo = TRUE ORDER BY nombre ASC`
     );
     return NextResponse.json(
       result.rows.map((r) => ({ id: r.id, nombre: r.nombre, activo: r.activo }))

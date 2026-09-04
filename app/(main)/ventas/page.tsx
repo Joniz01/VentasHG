@@ -7,6 +7,10 @@ export default async function VentasPage() {
   const sesion = await requirePermiso("ventas");
 
   return (
-    <VentasClient rol={sesion.rol} puedeDescuento={sesion.rol === "ADMIN" || sesion.permisos.descuento} />
+    <VentasClient
+      rol={sesion.rol}
+      puedeDescuento={sesion.rol === "ADMIN" || sesion.permisos.descuento}
+      puedePromociones={sesion.rol === "ADMIN" || sesion.permisos.promociones}
+    />
   );
 }

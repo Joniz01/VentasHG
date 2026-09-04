@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import CargosConfigClient from "@/components/CargosConfigClient";
 import {
   ESTADOS_NOMINA_PAGO,
   ESTADO_NOMINA_PAGO_LABELS,
@@ -53,39 +54,60 @@ const ESTADO_COLORES: Record<EstadoNominaPago, string> = {
 
 /* ───────────────────────── Empleados ───────────────────────── */
 
+function toTitleCase(s: string) {
+  return s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function formatBs(value: string): string {
+  const num = parseFloat(value.replace(/,/g, ""));
+  if (isNaN(num)) return value;
+  return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+type CargoOption = { id: number; nombre: string };
+
 type EmpleadoForm = {
   nombre: string;
+  apellido: string;
   cedula: string;
   fechaNacimiento: string;
   sexo: Sexo | "";
   cargo: string;
+  cargoId: string;
   locacionId: string;
   nominaIds: number[];
   tasaRegistro: string;
   salarioBaseUsd: string;
   salarioBaseBs: string;
+  salarioBaseBsDisplay: string;
   fechaIngreso: string;
   activo: boolean;
+  estadoCivil: string;
 };
 
 const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   nombre: "",
+  apellido: "",
   cedula: "",
   fechaNacimiento: "",
   sexo: "",
   cargo: "",
+  cargoId: "",
   locacionId: "",
   nominaIds: [],
   tasaRegistro: "",
   salarioBaseUsd: "",
   salarioBaseBs: "",
+  salarioBaseBsDisplay: "",
   fechaIngreso: today(),
   activo: true,
+  estadoCivil: "SOLTERO",
 };
 
 function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [locaciones, setLocaciones] = useState<Locacion[]>([]);
+  const [cargosOpts, setCargosOpts] = useState<CargoOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -93,19 +115,27 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<EmpleadoForm>({ ...EMPTY_EMPLEADO_FORM });
   const [consultandoTasa, setConsultandoTasa] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function recalcularBs(salarioBaseUsd: string, tasaRegistro: string) {
+  function recalcularBs(salarioBaseUsd: string, tasaRegistro: string): { raw: string; display: string } {
     const usd = Number(salarioBaseUsd) || 0;
     const tasa = Number(tasaRegistro) || 0;
-    return usd > 0 && tasa > 0 ? (usd * tasa).toFixed(2) : "";
+    if (usd > 0 && tasa > 0) {
+      const raw = (usd * tasa).toFixed(2);
+      return { raw, display: formatBs(raw) };
+    }
+    return { raw: "", display: "" };
   }
 
   function handleSalarioUsdChange(value: string) {
-    setForm((p) => ({ ...p, salarioBaseUsd: value, salarioBaseBs: recalcularBs(value, p.tasaRegistro) }));
+    const bs = recalcularBs(value, form.tasaRegistro);
+    setForm((p) => ({ ...p, salarioBaseUsd: value, salarioBaseBs: bs.raw, salarioBaseBsDisplay: bs.display }));
   }
 
   function handleTasaChange(value: string) {
-    setForm((p) => ({ ...p, tasaRegistro: value, salarioBaseBs: recalcularBs(p.salarioBaseUsd, value) }));
+    const bs = recalcularBs(form.salarioBaseUsd, value);
+    setForm((p) => ({ ...p, tasaRegistro: value, salarioBaseBs: bs.raw, salarioBaseBsDisplay: bs.display }));
   }
 
   async function handleConsultarTasa() {
@@ -132,11 +162,25 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     if (res.ok) setLocaciones(await res.json());
   }
 
+  async function loadCargos() {
+    const res = await fetch("/api/cargos");
+    if (res.ok) setCargosOpts(await res.json());
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadEmpleados();
     loadLocaciones();
+    loadCargos();
   }, []);
+
+  // Auto-fetch tasa BCV al abrir el formulario de nuevo empleado
+  useEffect(() => {
+    if (showForm && !editingId && !form.tasaRegistro) {
+      handleConsultarTasa();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm]);
 
   function resetForm() {
     setEditingId(null);
@@ -146,19 +190,24 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
 
   function startEdit(e: Empleado) {
     setEditingId(e.id);
+    const bsRaw = String(e.salarioBaseBs);
     setForm({
       nombre: e.nombre,
+      apellido: e.apellido ?? "",
       cedula: e.cedula ?? "",
       fechaNacimiento: e.fechaNacimiento ?? "",
       sexo: e.sexo ?? "",
       cargo: e.cargo ?? "",
+      cargoId: e.cargoId ? String(e.cargoId) : "",
       locacionId: e.locacionId ? String(e.locacionId) : "",
       nominaIds: e.nominaIds,
       tasaRegistro: e.tasaRegistro ? String(e.tasaRegistro) : "",
       salarioBaseUsd: e.salarioBaseUsd ? String(e.salarioBaseUsd) : "",
-      salarioBaseBs: String(e.salarioBaseBs),
+      salarioBaseBs: bsRaw,
+      salarioBaseBsDisplay: formatBs(bsRaw),
       fechaIngreso: e.fechaIngreso ?? today(),
       activo: e.activo,
+      estadoCivil: e.estadoCivil ?? "SOLTERO",
     });
     setShowForm(true);
   }
@@ -179,12 +228,15 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     }
     setSaving(true);
     try {
+      const cargoSeleccionado = cargosOpts.find((c) => String(c.id) === form.cargoId);
       const payload: EmpleadoInput = {
         nombre: form.nombre.trim(),
+        apellido: form.apellido.trim() || undefined,
         cedula: form.cedula.trim(),
         fechaNacimiento: form.fechaNacimiento,
         sexo: form.sexo || null,
-        cargo: form.cargo.trim(),
+        cargo: cargoSeleccionado?.nombre ?? form.cargo.trim(),
+        cargoId: form.cargoId ? Number(form.cargoId) : null,
         locacionId: form.locacionId ? Number(form.locacionId) : null,
         nominaIds: form.nominaIds,
         salarioBaseUsd: Number(form.salarioBaseUsd) || 0,
@@ -192,6 +244,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
         tasaRegistro: Number(form.tasaRegistro) || 0,
         fechaIngreso: form.fechaIngreso,
         activo: form.activo,
+        estadoCivil: form.estadoCivil || null,
       };
       const res = await fetch(editingId ? `/api/empleados/${editingId}` : "/api/empleados", {
         method: editingId ? "PUT" : "POST",
@@ -215,6 +268,46 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     if (res.ok) await loadEmpleados();
   }
 
+  async function handleOcrCedula(file: File) {
+    setOcrLoading(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/nomina/ocr-cedula", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagenBase64: base64, mimeType: file.type || "image/jpeg" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Error en OCR");
+      const d = data.data;
+      setForm((p) => ({
+        ...p,
+        nombre: d.nombres ? toTitleCase(d.nombres) : p.nombre,
+        apellido: d.apellidos ? toTitleCase(d.apellidos) : p.apellido,
+        cedula: d.cedula ? `${d.nacionalidad ?? "V"}-${d.cedula}` : p.cedula,
+        fechaNacimiento: d.fechaNacimiento ?? p.fechaNacimiento,
+        sexo: d.sexo === "M" ? "MASCULINO" : d.sexo === "F" ? "FEMENINO" : d.sexo ? (d.sexo as Sexo) : p.sexo,
+        estadoCivil: (() => {
+          const ec = (d.estadoCivil ?? "").toUpperCase().trim();
+          if (ec.startsWith("CAS")) return "CASADO";
+          if (ec.startsWith("DIV")) return "DIVORCIADO";
+          if (ec.startsWith("VIU")) return "VIUDO";
+          if (ec.startsWith("SOL")) return "SOLTERO";
+          return ec || p.estadoCivil;
+        })(),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al escanear el documento");
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
@@ -232,23 +325,75 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+          <div className="flex justify-end">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleOcrCedula(f); e.target.value = ""; }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={ocrLoading}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium border disabled:opacity-50"
+              style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
+            >
+              {ocrLoading ? "Escaneando…" : "📷 Escanear Cédula"}
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} required />
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, nombre: toTitleCase(p.nombre) }))} required />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Cargo</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} placeholder="Ej: Cocinero" />
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Apellido</label>
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.apellido} onChange={(e) => setForm((p) => ({ ...p, apellido: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, apellido: toTitleCase(p.apellido) }))} placeholder="Ej: González" />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Cargo</label>
+              {cargosOpts.length > 0 ? (
+                <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargoId} onChange={(e) => setForm((p) => ({ ...p, cargoId: e.target.value, cargo: "" }))}>
+                  <option value="">— Seleccionar —</option>
+                  {cargosOpts.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              ) : (
+                <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cargo} onChange={(e) => setForm((p) => ({ ...p, cargo: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, cargo: toTitleCase(p.cargo) }))} placeholder="Ej: Cocinero" />
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>C.I.</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.cedula} onChange={(e) => setForm((p) => ({ ...p, cedula: e.target.value }))} placeholder="Ej: V-12345678" />
+              <input
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--erp-border)" }}
+                value={form.cedula}
+                onChange={(e) => setForm((p) => ({ ...p, cedula: e.target.value }))}
+                onBlur={() => setForm((p) => {
+                  const v = p.cedula.trim();
+                  if (v && /^\d+$/.test(v)) return { ...p, cedula: "V-" + v };
+                  return p;
+                })}
+                placeholder="Ej: V-12345678"
+              />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha de nacimiento</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>
+                Fecha de nacimiento
+                {form.fechaNacimiento && (() => {
+                  const hoy = new Date(today() + "T00:00:00");
+                  const nac = new Date(form.fechaNacimiento + "T00:00:00");
+                  let edad = hoy.getFullYear() - nac.getFullYear();
+                  if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) edad--;
+                  return <span className="ml-2 font-normal text-xs" style={{ color: "var(--erp-text-2)" }}>{edad} años</span>;
+                })()}
+              </label>
               <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaNacimiento} onChange={(e) => setForm((p) => ({ ...p, fechaNacimiento: e.target.value }))} />
             </div>
             <div className="flex flex-col gap-1">
@@ -256,6 +401,15 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.sexo} onChange={(e) => setForm((p) => ({ ...p, sexo: e.target.value as Sexo | "" }))}>
                 <option value="">—</option>
                 {SEXOS.map((s) => <option key={s} value={s}>{SEXO_LABELS[s]}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Estado Civil</label>
+              <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.estadoCivil} onChange={(e) => setForm((p) => ({ ...p, estadoCivil: e.target.value }))}>
+                <option value="SOLTERO">Soltero/a</option>
+                <option value="CASADO">Casado/a</option>
+                <option value="DIVORCIADO">Divorciado/a</option>
+                <option value="VIUDO">Viudo/a</option>
               </select>
             </div>
           </div>
@@ -268,7 +422,26 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha ingreso</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>
+                Fecha ingreso
+                {form.fechaIngreso && (() => {
+                  const hoy = new Date(today() + "T00:00:00");
+                  const ing = new Date(form.fechaIngreso + "T00:00:00");
+                  const dias = Math.floor((hoy.getTime() - ing.getTime()) / 86400000);
+                  let antiguedad: string;
+                  if (dias < 30) antiguedad = dias === 1 ? "1 día" : `${dias} días`;
+                  else if (dias < 365) {
+                    const meses = Math.floor(dias / 30);
+                    antiguedad = meses === 1 ? "1 mes" : `${meses} meses`;
+                  } else {
+                    const anios = Math.floor(dias / 365);
+                    const mesesRest = Math.floor((dias % 365) / 30);
+                    antiguedad = anios === 1 ? "1 año" : `${anios} años`;
+                    if (mesesRest > 0) antiguedad += ` ${mesesRest}m`;
+                  }
+                  return <span className="ml-2 font-normal text-xs" style={{ color: "var(--erp-text-2)" }}>{antiguedad}</span>;
+                })()}
+              </label>
               <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaIngreso} onChange={(e) => setForm((p) => ({ ...p, fechaIngreso: e.target.value }))} />
             </div>
             <div className="flex flex-col gap-1">
@@ -288,7 +461,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Salario Base Bs</label>
-              <input type="number" step="0.01" min="0" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.salarioBaseBs} onChange={(e) => setForm((p) => ({ ...p, salarioBaseBs: e.target.value }))} required />
+              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.salarioBaseBsDisplay} onChange={(e) => setForm((p) => ({ ...p, salarioBaseBs: e.target.value.replace(/,/g, ""), salarioBaseBsDisplay: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, salarioBaseBsDisplay: formatBs(p.salarioBaseBs) }))} required />
             </div>
           </div>
 
@@ -348,13 +521,13 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
             <tbody>
               {empleados.map((e) => (
                 <tr key={e.id} className="border-t" style={{ borderColor: "var(--erp-border)" }}>
-                  <td className="px-3 py-2" style={{ color: "var(--erp-text)" }}>{e.nombre}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--erp-text)" }}>{e.nombre}{e.apellido ? ` ${e.apellido}` : ""}</td>
                   <td className="px-3 py-2">{e.cedula ?? "—"}</td>
                   <td className="px-3 py-2">{e.cargo ?? "—"}</td>
                   <td className="px-3 py-2">{e.locacionNombre ?? "—"}</td>
                   <td className="px-3 py-2">{e.nominaNombres.length ? e.nominaNombres.join(", ") : "—"}</td>
                   <td className="px-3 py-2 text-right">${e.salarioBaseUsd.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-right">Bs{e.salarioBaseBs.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right">Bs{formatBs(String(e.salarioBaseBs))}</td>
                   <td className="px-3 py-2">{e.activo ? "Activo" : "Inactivo"}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-2">
@@ -496,10 +669,68 @@ const TIPO_NOMINA_BADGE_COLOR: Record<TipoNomina, string> = {
   SOLO_SUELDO: "#15803d",
 };
 
-function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tiposIncidencia: TipoIncidencia[]; onChange: () => void }) {
+type EmpleadoAsignacion = { id: number; nombre: string; cedula: string | null; salarioBaseUsd: number; asignado: boolean };
+
+function NominaCard({ nomina, tiposIncidencia, onChange, onEdit }: { nomina: Nomina; tiposIncidencia: TipoIncidencia[]; onChange: () => void; onEdit: (n: Nomina) => void }) {
   const [expandido, setExpandido] = useState(false);
   const [row, setRow] = useState<IncidenciaConfigRow>({ ...EMPTY_INCIDENCIA_ROW });
   const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
+
+  // Panel empleados
+  const [panelEmpleados, setPanelEmpleados] = useState(false);
+  const [empleados, setEmpleados] = useState<EmpleadoAsignacion[]>([]);
+  const [loadingEmp, setLoadingEmp] = useState(false);
+  const [savingEmp, setSavingEmp] = useState(false);
+  const [seleccion, setSeleccion] = useState<Set<number>>(new Set());
+
+  async function abrirPanelEmpleados() {
+    setPanelEmpleados(true);
+    setLoadingEmp(true);
+    try {
+      const res = await fetch(`/api/nominas/${nomina.id}/empleados`);
+      if (res.ok) {
+        const data: EmpleadoAsignacion[] = await res.json();
+        setEmpleados(data);
+        setSeleccion(new Set(data.filter((e) => e.asignado).map((e) => e.id)));
+      }
+    } finally {
+      setLoadingEmp(false);
+    }
+  }
+
+  function toggleEmp(id: number) {
+    setSeleccion((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  }
+
+  function seleccionarTodos() {
+    setSeleccion(new Set(empleados.map((e) => e.id)));
+  }
+
+  function deseleccionarTodos() {
+    setSeleccion(new Set());
+  }
+
+  async function guardarEmpleados() {
+    setSavingEmp(true);
+    try {
+      const res = await fetch(`/api/nominas/${nomina.id}/empleados`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ empleadoIds: Array.from(seleccion) }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error ?? "Error al guardar");
+        return;
+      }
+      setPanelEmpleados(false);
+      onChange();
+    } catch {
+      alert("Error de red al guardar");
+    } finally {
+      setSavingEmp(false);
+    }
+  }
 
   function recalcularBs(montoUsd: string, tasa: string) {
     const usd = Number(montoUsd) || 0;
@@ -587,6 +818,9 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
           </span>
           <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>
             {FRECUENCIA_RECURRENCIA_LABELS[nomina.frecuencia]} · {MODO_GENERACION_NOMINA_LABELS[nomina.modoGeneracion]}
+            {nomina.modoGeneracion === "AUTOMATICO" && nomina.frecuencia === "SEMANAL" && nomina.diaSemana !== null && ` · Pago ${DIAS_SEMANA.find((d) => d.value === nomina.diaSemana)?.label ?? ""}`}
+            {nomina.modoGeneracion === "AUTOMATICO" && nomina.frecuencia === "MENSUAL" && nomina.diaPago1 !== null && ` · Día ${nomina.diaPago1}`}
+            {nomina.modoGeneracion === "AUTOMATICO" && nomina.frecuencia === "QUINCENAL" && nomina.diaPago1 !== null && ` · Días ${nomina.diaPago1} y ${nomina.diaPago2 ?? "?"}`}
           </span>
         </span>
         <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>
@@ -596,10 +830,73 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
 
       {expandido && (
         <div className="p-3 flex flex-col gap-3">
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 flex-wrap">
+            <button type="button" onClick={() => onEdit(nomina)} className="text-xs font-medium" style={{ color: "var(--erp-primary)" }}>Editar Nómina</button>
+            <button type="button" onClick={abrirPanelEmpleados} className="text-xs font-medium" style={{ color: "#7C3AED" }}>👥 Gestionar Empleados</button>
             <GenerarPeriodoForm nomina={nomina} onCreated={onChange} />
             <button type="button" onClick={handleDesactivar} className="text-xs text-red-600">Desactivar Nómina</button>
           </div>
+
+          {panelEmpleados && (
+            <div className="rounded-lg border flex flex-col gap-3 p-3" style={{ borderColor: "#7C3AED", background: "var(--erp-surface)" }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>👥 Empleados en esta nómina</span>
+                <button type="button" onClick={() => setPanelEmpleados(false)} className="text-xs" style={{ color: "var(--erp-text-2)" }}>✕ Cerrar</button>
+              </div>
+
+              {loadingEmp ? (
+                <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>Cargando empleados…</p>
+              ) : (
+                <>
+                  <div className="flex gap-2 flex-wrap">
+                    <button type="button" onClick={seleccionarTodos} className="rounded px-2 py-1 text-xs border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
+                      Seleccionar todos ({empleados.length})
+                    </button>
+                    <button type="button" onClick={deseleccionarTodos} className="rounded px-2 py-1 text-xs border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
+                      Quitar todos
+                    </button>
+                    <span className="text-xs ml-auto" style={{ color: "#7C3AED", fontWeight: 600 }}>
+                      {seleccion.size} seleccionado(s)
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+                    {empleados.length === 0 && (
+                      <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>No hay empleados activos registrados.</p>
+                    )}
+                    {empleados.map((emp) => (
+                      <label key={emp.id} className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:opacity-80" style={{ background: seleccion.has(emp.id) ? "#f3e8ff" : "var(--erp-bg)" }}>
+                        <input
+                          type="checkbox"
+                          checked={seleccion.has(emp.id)}
+                          onChange={() => toggleEmp(emp.id)}
+                          className="rounded"
+                        />
+                        <span className="text-sm flex-1" style={{ color: "var(--erp-text)" }}>{emp.nombre}</span>
+                        {emp.cedula && <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>{emp.cedula}</span>}
+                        <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>${emp.salarioBaseUsd.toFixed(2)}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setPanelEmpleados(false)} className="rounded-lg px-3 py-1.5 text-xs border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={guardarEmpleados}
+                      disabled={savingEmp}
+                      className="rounded-lg px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                      style={{ background: "#7C3AED" }}
+                    >
+                      {savingEmp ? "Guardando…" : "Guardar asignaciones"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {nomina.tipo !== "SOLO_SUELDO" && (
             <div className="rounded-lg border p-3 flex flex-col gap-2" style={{ borderColor: "var(--erp-border)" }}>
@@ -671,21 +968,39 @@ function NominaCard({ nomina, tiposIncidencia, onChange }: { nomina: Nomina; tip
   );
 }
 
+const DIAS_SEMANA = [
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miércoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sábado" },
+  { value: 0, label: "Domingo" },
+];
+
+const DIAS_CALENDARIO = Array.from({ length: 31 }, (_, i) => i + 1);
+
 type NominaForm = {
   nombre: string;
   tipo: TipoNomina;
   frecuencia: FrecuenciaRecurrencia;
   modoGeneracion: ModoGeneracionNomina;
+  diaSemana: string;
+  diaPago1: string;
+  diaPago2: string;
+  centroCostoId: string;
 };
 
-const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL" };
+const EMPTY_NOMINA_FORM: NominaForm = { nombre: "", tipo: "NORMAL", frecuencia: "QUINCENAL", modoGeneracion: "MANUAL", diaSemana: "5", diaPago1: "15", diaPago2: "30", centroCostoId: "" };
 
 function NominasTab() {
   const [nominas, setNominas] = useState<Nomina[]>([]);
   const [tiposIncidencia, setTiposIncidencia] = useState<TipoIncidencia[]>([]);
+  const [centrosCosto, setCentrosCosto] = useState<{ id: number; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingNominaId, setEditingNominaId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [nuevoTipoIncidencia, setNuevoTipoIncidencia] = useState("");
   const [form, setForm] = useState<NominaForm>({ ...EMPTY_NOMINA_FORM });
@@ -710,10 +1025,16 @@ function NominasTab() {
     if (res.ok) setTiposIncidencia(await res.json());
   }
 
+  async function loadCentrosCosto() {
+    const res = await fetch("/api/centros-costo");
+    if (res.ok) setCentrosCosto(await res.json());
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNominas();
     loadTiposIncidencia();
+    loadCentrosCosto();
   }, []);
 
   async function handleAgregarTipoIncidencia() {
@@ -731,6 +1052,29 @@ function NominasTab() {
     }
   }
 
+  function startEditNomina(n: Nomina) {
+    setEditingNominaId(n.id);
+    setForm({
+      nombre: n.nombre,
+      tipo: n.tipo,
+      frecuencia: n.frecuencia,
+      modoGeneracion: n.modoGeneracion,
+      diaSemana: n.diaSemana !== null ? String(n.diaSemana) : "5",
+      diaPago1: n.diaPago1 !== null ? String(n.diaPago1) : "15",
+      diaPago2: n.diaPago2 !== null ? String(n.diaPago2) : "30",
+      centroCostoId: n.centroCostoId ? String(n.centroCostoId) : "",
+    });
+    setShowForm(true);
+    setError(null);
+  }
+
+  function resetNominaForm() {
+    setEditingNominaId(null);
+    setForm({ ...EMPTY_NOMINA_FORM });
+    setShowForm(false);
+    setError(null);
+  }
+
   async function handleSubmit(ev: FormEvent) {
     ev.preventDefault();
     setError(null);
@@ -740,18 +1084,29 @@ function NominasTab() {
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/nominas", {
-        method: "POST",
+      const payload = {
+        nombre: form.nombre.trim(),
+        tipo: form.tipo,
+        frecuencia: form.frecuencia,
+        modoGeneracion: form.modoGeneracion,
+        diaSemana: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "SEMANAL" ? Number(form.diaSemana) : null,
+        diaPago1: form.modoGeneracion === "AUTOMATICO" && form.frecuencia !== "SEMANAL" ? Number(form.diaPago1) : null,
+        diaPago2: form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "QUINCENAL" ? Number(form.diaPago2) : null,
+        centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
+        activo: true,
+        incidencias: [],
+      };
+      const res = await fetch(editingNominaId ? `/api/nominas/${editingNominaId}` : "/api/nominas", {
+        method: editingNominaId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: form.nombre.trim(), tipo: form.tipo, frecuencia: form.frecuencia, modoGeneracion: form.modoGeneracion, activo: true, incidencias: [] }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al crear la Nómina");
-      setShowForm(false);
-      setForm({ ...EMPTY_NOMINA_FORM });
+      if (!res.ok) throw new Error(data.detalle ? `${data.error ?? "Error"}: ${data.detalle}` : (data.error ?? (editingNominaId ? "Error al actualizar la Nómina" : "Error al crear la Nómina")));
+      resetNominaForm();
       await loadNominas();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al crear la Nómina");
+      setError(err instanceof Error ? err.message : "Error al guardar la Nómina");
     } finally {
       setSaving(false);
     }
@@ -781,7 +1136,7 @@ function NominasTab() {
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => showForm ? resetNominaForm() : setShowForm(true)}
           className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
           style={{ background: "var(--erp-accent)" }}
         >
@@ -793,6 +1148,7 @@ function NominasTab() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>{editingNominaId ? "Editar Nómina" : "Nueva Nómina"}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre de la Nómina</label>
@@ -805,7 +1161,7 @@ function NominasTab() {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Frecuencia</label>
               <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.frecuencia} onChange={(e) => setForm((p) => ({ ...p, frecuencia: e.target.value as FrecuenciaRecurrencia }))}>
@@ -818,14 +1174,110 @@ function NominasTab() {
                 {MODOS_GENERACION_NOMINA.map((m) => <option key={m} value={m}>{MODO_GENERACION_NOMINA_LABELS[m]}</option>)}
               </select>
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Centro de Costo</label>
+              <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.centroCostoId} onChange={(e) => setForm((p) => ({ ...p, centroCostoId: e.target.value }))}>
+                <option value="">— Sin asignar —</option>
+                {centrosCosto.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
           </div>
+          {form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "SEMANAL" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Día de pago</label>
+              <div className="flex flex-wrap gap-2">
+                {DIAS_SEMANA.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, diaSemana: String(d.value) }))}
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium border"
+                    style={form.diaSemana === String(d.value)
+                      ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+                      : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs" style={{ color: "var(--erp-text-3)" }}>
+                El cron generará el período cada {DIAS_SEMANA.find((d) => String(d.value) === form.diaSemana)?.label}.
+              </p>
+            </div>
+          )}
+          {form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "MENSUAL" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Día de pago mensual</label>
+              <div className="flex flex-wrap gap-1.5">
+                {DIAS_CALENDARIO.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, diaPago1: String(d) }))}
+                    className="rounded-md w-8 h-8 text-xs font-medium border"
+                    style={form.diaPago1 === String(d)
+                      ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+                      : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs" style={{ color: "var(--erp-text-3)" }}>
+                El cron generará el período el día {form.diaPago1} de cada mes.
+              </p>
+            </div>
+          )}
+          {form.modoGeneracion === "AUTOMATICO" && form.frecuencia === "QUINCENAL" && (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Primera quincena — día de pago</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAS_CALENDARIO.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, diaPago1: String(d) }))}
+                      className="rounded-md w-8 h-8 text-xs font-medium border"
+                      style={form.diaPago1 === String(d)
+                        ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+                        : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Segunda quincena — día de pago</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAS_CALENDARIO.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, diaPago2: String(d) }))}
+                      className="rounded-md w-8 h-8 text-xs font-medium border"
+                      style={form.diaPago2 === String(d)
+                        ? { background: "var(--erp-accent)", color: "#fff", borderColor: "var(--erp-accent)" }
+                        : { background: "var(--erp-surface)", color: "var(--erp-text)", borderColor: "var(--erp-border)" }}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs" style={{ color: "var(--erp-text-3)" }}>
+                El cron generará períodos el día {form.diaPago1} y el día {form.diaPago2} de cada mes.
+              </p>
+            </div>
+          )}
           <p className="text-xs" style={{ color: "var(--erp-text-2)" }}>
             Luego de crearla, asigna empleados desde su ficha y agrega las incidencias que apliquen antes de generar un período.
           </p>
           <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
+            <button type="button" onClick={resetNominaForm} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
             <button type="submit" disabled={saving} className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" style={{ background: "var(--erp-primary)" }}>
-              {saving ? "Creando..." : "Crear Nómina"}
+              {saving ? "Guardando..." : editingNominaId ? "Actualizar Nómina" : "Crear Nómina"}
             </button>
           </div>
         </form>
@@ -840,7 +1292,7 @@ function NominasTab() {
       ) : (
         <div className="flex flex-col gap-3">
           {nominas.map((n) => (
-            <NominaCard key={n.id} nomina={n} tiposIncidencia={tiposIncidencia} onChange={() => loadNominas(true)} />
+            <NominaCard key={n.id} nomina={n} tiposIncidencia={tiposIncidencia} onChange={() => loadNominas(true)} onEdit={startEditNomina} />
           ))}
         </div>
       )}
@@ -899,7 +1351,12 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
 
   async function handleEliminarPeriodo() {
     if (!confirm("¿Eliminar este período de nómina? Se perderán los pagos e incidencias asociados.")) return;
-    await fetch(`/api/nomina/periodos/${periodo.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/nomina/periodos/${periodo.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "No se pudo eliminar el período");
+      return;
+    }
     onChange();
   }
 
@@ -928,7 +1385,15 @@ function PeriodoCard({ periodo, tiposIncidencia, onChange }: {
             ) : (
               <button type="button" onClick={() => handleCerrarPeriodo("ABIERTO")} className="text-xs rounded-md border px-2 py-1" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>Reabrir período</button>
             )}
-            <button type="button" onClick={handleEliminarPeriodo} className="text-xs text-red-600">Eliminar período</button>
+            <button
+              type="button"
+              onClick={handleEliminarPeriodo}
+              disabled={periodo.pagos.some((p) => p.estado === "PAGADO")}
+              title={periodo.pagos.some((p) => p.estado === "PAGADO") ? "No se puede eliminar: hay pagos ya realizados" : "Eliminar período"}
+              className="text-xs text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Eliminar período
+            </button>
           </div>
 
           {periodo.pagos.length === 0 ? (
@@ -1064,16 +1529,426 @@ function PeriodosTab() {
 
 function StatTile({ label, value, color, prefix = "$" }: { label: string; value: number; color: string; prefix?: string }) {
   return (
-    <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
+    <div className="rounded-xl border px-4 py-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
       <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
       <div className="text-xl font-extrabold" style={{ color }}>{prefix}{value.toFixed(prefix === "$" ? 2 : 0)}</div>
     </div>
   );
 }
 
+/* ───────────────────────── Gestión de Pagos ───────────────────────── */
+
+type NominaPendienteInfo = { nominaId: number; nominaNombre: string; totalUsdEstimado: number; lunes: string | null; domingo: string | null; fechaHasta: string | null };
+type ProximaSemanaInfo = { periodos: number; totalUsd: number; lunes: string | null; domingo: string | null; fechaPago: string | null; nominasPendientes?: NominaPendienteInfo[] };
+
+type FiltroGestion = "todas" | "por_pagar" | "parcial" | "pagadas";
+type PanelState = { open: boolean; modo: "total" | "parcial"; seleccion: Set<number> };
+
+const bs2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function estadoPeriodo(periodo: PeriodoNomina): "por_pagar" | "parcial" | "pagadas" {
+  const pend = periodo.pagos.filter((p) => p.estado === "PENDIENTE").length;
+  const pag = periodo.pagos.filter((p) => p.estado === "PAGADO").length;
+  if (pend === 0) return "pagadas";
+  if (pag === 0) return "por_pagar";
+  return "parcial";
+}
+
+const FILTROS_GESTION: { key: FiltroGestion; label: string }[] = [
+  { key: "todas", label: "Todas" },
+  { key: "por_pagar", label: "Por Pagar" },
+  { key: "parcial", label: "Parciales" },
+  { key: "pagadas", label: "Pagadas" },
+];
+
+const DIAS_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRefreshResumen: () => void; proximaSemana?: ProximaSemanaInfo; onIrConfig?: () => void }) {
+  const [periodos, setPeriodos] = useState<PeriodoNomina[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState<FiltroGestion>("por_pagar");
+  const [paneles, setPaneles] = useState<Record<number, PanelState>>({});
+  const [saving, setSaving] = useState<number | null>(null);
+  const [generando, setGenerando] = useState<number | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/nomina/periodos");
+      if (res.ok) {
+        const data = await res.json();
+        setPeriodos(data.periodos ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  function openPanel(periodoId: number, pendienteIds: number[]) {
+    setPaneles((prev) => ({
+      ...prev,
+      [periodoId]: prev[periodoId]?.open
+        ? { open: false, modo: "total", seleccion: new Set() }
+        : { open: true, modo: "total", seleccion: new Set(pendienteIds) },
+    }));
+  }
+
+  function setModo(periodoId: number, modo: "total" | "parcial") {
+    setPaneles((prev) => ({ ...prev, [periodoId]: { ...prev[periodoId], modo } }));
+  }
+
+  function toggleSel(periodoId: number, pagoId: number) {
+    setPaneles((prev) => {
+      const s = new Set(prev[periodoId].seleccion);
+      s.has(pagoId) ? s.delete(pagoId) : s.add(pagoId);
+      return { ...prev, [periodoId]: { ...prev[periodoId], seleccion: s } };
+    });
+  }
+
+  function toggleTodos(periodoId: number, pendienteIds: number[]) {
+    setPaneles((prev) => {
+      const cur = prev[periodoId].seleccion;
+      const allSel = pendienteIds.every((id) => cur.has(id));
+      return { ...prev, [periodoId]: { ...prev[periodoId], seleccion: allSel ? new Set() : new Set(pendienteIds) } };
+    });
+  }
+
+  async function confirmarPago(periodo: PeriodoNomina) {
+    const panel = paneles[periodo.id];
+    if (!panel) return;
+    const pendientes = periodo.pagos.filter((p) => p.estado === "PENDIENTE");
+    const ids = panel.modo === "total" ? pendientes.map((p) => p.id) : Array.from(panel.seleccion);
+    if (!ids.length) return;
+    setSaving(periodo.id);
+    try {
+      await fetch("/api/nomina/pagos/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pagoIds: ids }),
+      });
+      setPaneles((prev) => ({ ...prev, [periodo.id]: { open: false, modo: "total", seleccion: new Set() } }));
+      await load();
+      onRefreshResumen();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function generarPeriodo(np: NominaPendienteInfo) {
+    if (!np.lunes || !np.fechaHasta) return;
+    setGenerando(np.nominaId);
+    try {
+      const res = await fetch("/api/nomina/periodos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nominaId: np.nominaId, fechaDesde: np.lunes, fechaHasta: np.fechaHasta }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error ?? "Error al generar el período");
+        return;
+      }
+      await load();
+      onRefreshResumen();
+    } catch {
+      alert("Error de red al generar el período");
+    } finally {
+      setGenerando(null);
+    }
+  }
+
+  if (loading) return <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>;
+
+  const pendientes = proximaSemana?.nominasPendientes ?? [];
+  const tieneProxima = proximaSemana && (proximaSemana.periodos > 0 || pendientes.length > 0);
+  const proximaCard = tieneProxima ? (
+    <div className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "#1d4ed8" }}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>📅 Próximas nóminas a pagar</span>
+        <div className="text-right">
+          <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${(proximaSemana!.totalUsd + pendientes.reduce((s, n) => s + n.totalUsdEstimado, 0)).toFixed(2)}</div>
+          <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+            {proximaSemana!.lunes && proximaSemana!.domingo ? `Semana: ${formatFechaCorta(proximaSemana!.lunes)} – ${formatFechaCorta(proximaSemana!.domingo)}` : "Próxima semana"}
+          </div>
+        </div>
+      </div>
+
+      {/* Períodos ya generados (pendientes) */}
+      {proximaSemana!.periodos > 0 && (
+        <div className="rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap" style={{ background: "#eff6ff" }}>
+          <div>
+            <span className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>{proximaSemana!.periodos} período(s) generado(s)</span>
+            {proximaSemana!.fechaPago && (
+              <span className="ml-2 text-xs" style={{ color: "#1d4ed8" }}>
+                · Vence: {(() => { const d = new Date(proximaSemana!.fechaPago! + "T00:00:00"); return `${DIAS_ES[d.getDay()]} ${formatFechaCorta(proximaSemana!.fechaPago!)}`; })()}
+              </span>
+            )}
+          </div>
+          <span className="text-xs font-bold" style={{ color: "#1d4ed8" }}>${proximaSemana!.totalUsd.toFixed(2)}</span>
+        </div>
+      )}
+
+      {/* Nóminas pendientes de generar */}
+      {pendientes.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Por generar:</span>
+          {pendientes.map((np) => (
+            <div key={np.nominaId} className="rounded-lg border px-3 py-2 flex items-center justify-between gap-2 flex-wrap" style={{ borderColor: "var(--erp-border)", background: "var(--erp-bg)" }}>
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold" style={{ color: "var(--erp-text)" }}>{np.nominaNombre}</span>
+                {np.fechaHasta && (
+                  <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>Hasta: {formatFechaCorta(np.fechaHasta)}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold" style={{ color: "var(--erp-text)" }}>~${np.totalUsdEstimado.toFixed(2)}</span>
+                <button
+                  type="button"
+                  disabled={generando === np.nominaId}
+                  onClick={() => generarPeriodo(np)}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white flex-shrink-0 disabled:opacity-60"
+                  style={{ background: "#1d4ed8" }}
+                >
+                  {generando === np.nominaId ? "Generando…" : "+ Generar"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  // Filtrar
+  const periodosFiltrados = periodos.filter((p) => filtro === "todas" || estadoPeriodo(p) === filtro);
+
+  const counts = {
+    todas: periodos.length,
+    por_pagar: periodos.filter((p) => estadoPeriodo(p) === "por_pagar").length,
+    parcial: periodos.filter((p) => estadoPeriodo(p) === "parcial").length,
+    pagadas: periodos.filter((p) => estadoPeriodo(p) === "pagadas").length,
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {proximaCard}
+
+      {/* Toggles filtro */}
+      <div className="flex gap-1.5 flex-wrap">
+        {FILTROS_GESTION.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setFiltro(key)}
+            className="rounded-full px-3 py-1 text-xs font-semibold border transition-colors"
+            style={filtro === key
+              ? { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }
+              : { background: "var(--erp-surface)", color: "var(--erp-text-2)", borderColor: "var(--erp-border)" }}
+          >
+            {label} {counts[key] > 0 && <span className="ml-0.5 opacity-70">({counts[key]})</span>}
+          </button>
+        ))}
+      </div>
+
+      {periodosFiltrados.length === 0 && (
+        <div className="rounded-lg border px-4 py-6 flex flex-col items-center gap-3 text-center text-sm" style={{ background: "var(--erp-primary-lt)", borderColor: "var(--erp-primary)", color: "var(--erp-text-2)" }}>
+          {filtro === "por_pagar" ? "No hay nóminas pendientes por pagar. ¡Todo al día!" : "Sin resultados para este filtro."}
+          {filtro === "por_pagar" && onIrConfig && (
+            <button
+              type="button"
+              onClick={onIrConfig}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+              style={{ background: "var(--erp-primary)" }}
+            >
+              Ir a Configuración para generar un período →
+            </button>
+          )}
+        </div>
+      )}
+
+      {periodosFiltrados.map((periodo) => {
+        const pendientes = periodo.pagos.filter((p) => p.estado === "PENDIENTE");
+        const pagados = periodo.pagos.filter((p) => p.estado === "PAGADO");
+        const pendienteIds = pendientes.map((p) => p.id);
+        const totalPendBs = pendientes.reduce((s, p) => s + p.totalBs, 0);
+        const totalPendUsd = pendientes.reduce((s, p) => s + p.totalUsd, 0);
+        const totalPagBs = pagados.reduce((s, p) => s + p.totalBs, 0);
+        const totalPagUsd = pagados.reduce((s, p) => s + p.totalUsd, 0);
+        const est = estadoPeriodo(periodo);
+        const panel = paneles[periodo.id] ?? { open: false, modo: "total" as const, seleccion: new Set<number>() };
+
+        const selArr = panel.modo === "total" ? pendientes : pendientes.filter((p) => panel.seleccion.has(p.id));
+        const selUsd = selArr.reduce((s, p) => s + p.totalUsd, 0);
+        const selBs = selArr.reduce((s, p) => s + p.totalBs, 0);
+        const allSel = pendienteIds.length > 0 && pendienteIds.every((id) => panel.seleccion.has(id));
+
+        const badgeStyle: Record<string, { bg: string; color: string; label: string }> = {
+          por_pagar: { bg: "#fff1f2", color: "#be123c", label: "Por Pagar" },
+          parcial: { bg: "#fff7ed", color: "#c2410c", label: "Pago Parcial" },
+          pagadas: { bg: "#f0fdf4", color: "#15803d", label: "Pagada" },
+        };
+        const badge = badgeStyle[est];
+
+        return (
+          <div key={periodo.id} className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--erp-border)" }}>
+            {/* Cabecera */}
+            <div className="px-4 pt-3 pb-2 flex flex-col gap-2" style={{ background: "var(--erp-primary-lt)" }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>{periodo.nominaNombre}</span>
+                  <span className="ml-2 text-xs" style={{ color: "var(--erp-text-2)" }}>
+                    {formatFechaCorta(periodo.fechaDesde)} – {formatFechaCorta(periodo.fechaHasta)}
+                  </span>
+                </div>
+                <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
+              </div>
+
+              {/* Totales cancelado / por cancelar */}
+              <div className="flex gap-2">
+                {pagados.length > 0 && (
+                  <div className="flex-1 rounded-lg px-3 py-2" style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
+                    <div className="text-[10px] font-semibold" style={{ color: "#15803d" }}>✓ Cancelado</div>
+                    <div className="text-sm font-bold" style={{ color: "#15803d" }}>${totalPagUsd.toFixed(2)}</div>
+                    <div className="text-[10px]" style={{ color: "#16a34a" }}>Bs {bs2(totalPagBs)}</div>
+                  </div>
+                )}
+                {pendientes.length > 0 && (
+                  <div className="flex-1 rounded-lg px-3 py-2" style={{ background: "#fff1f2", border: "1px solid #fca5a5" }}>
+                    <div className="text-[10px] font-semibold" style={{ color: "#be123c" }}>⚠ Por Cancelar</div>
+                    <div className="text-sm font-bold" style={{ color: "#be123c" }}>${totalPendUsd.toFixed(2)}</div>
+                    <div className="text-[10px]" style={{ color: "#dc2626" }}>Bs {bs2(totalPendBs)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Panel de pago */}
+            {pendientes.length > 0 && (
+              <div className="px-4 py-3 flex flex-col gap-3">
+                {/* Toggle abrir panel */}
+                <button
+                  type="button"
+                  onClick={() => openPanel(periodo.id, pendienteIds)}
+                  className="self-start rounded-lg px-4 py-2 text-sm font-semibold border transition-colors"
+                  style={panel.open
+                    ? { background: "var(--erp-surface)", color: "var(--erp-text-2)", borderColor: "var(--erp-border)" }
+                    : { background: "var(--erp-primary)", color: "#fff", borderColor: "var(--erp-primary)" }}
+                >
+                  {panel.open ? "✕ Cancelar" : "💳 Registrar Pago"}
+                </button>
+
+                {panel.open && (
+                  <div className="flex flex-col gap-3 rounded-xl border p-3" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+                    {/* Modo pago */}
+                    <div className="flex gap-1 rounded-lg p-1" style={{ background: "var(--erp-primary-lt)" }}>
+                      {(["total", "parcial"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            setModo(periodo.id, m);
+                            if (m === "parcial") setPaneles((prev) => ({ ...prev, [periodo.id]: { ...prev[periodo.id], modo: "parcial", seleccion: new Set(pendienteIds) } }));
+                            else setPaneles((prev) => ({ ...prev, [periodo.id]: { ...prev[periodo.id], modo: "total" } }));
+                          }}
+                          className="flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors"
+                          style={panel.modo === m
+                            ? { background: "var(--erp-primary)", color: "#fff" }
+                            : { color: "var(--erp-text-2)" }}
+                        >
+                          {m === "total" ? "Pago Total" : "Pago Parcial"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Lista empleados (siempre visible) */}
+                    <div className="flex flex-col gap-1">
+                      {panel.modo === "parcial" && (
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Seleccionar empleados:</span>
+                          <button type="button" onClick={() => toggleTodos(periodo.id, pendienteIds)} className="text-xs underline" style={{ color: "var(--erp-primary)" }}>
+                            {allSel ? "Deseleccionar todos" : "Seleccionar todos"}
+                          </button>
+                        </div>
+                      )}
+                      {pendientes.map((pago) => {
+                        const selected = panel.modo === "total" || panel.seleccion.has(pago.id);
+                        return (
+                          <div
+                            key={pago.id}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2"
+                            style={{
+                              background: selected ? "#f0fdf4" : "#f9fafb",
+                              border: `1px solid ${selected ? "#86efac" : "var(--erp-border)"}`,
+                              opacity: panel.modo === "parcial" && !selected ? 0.55 : 1,
+                            }}
+                          >
+                            {panel.modo === "parcial" && (
+                              <input type="checkbox" checked={panel.seleccion.has(pago.id)} onChange={() => toggleSel(periodo.id, pago.id)} className="w-4 h-4 flex-shrink-0" />
+                            )}
+                            <span className="flex-1 text-sm" style={{ color: "var(--erp-text)" }}>{pago.empleadoNombre}</span>
+                            <div className="text-right">
+                              <div className="text-sm font-bold" style={{ color: selected ? "#15803d" : "var(--erp-text-2)" }}>${pago.totalUsd.toFixed(2)}</div>
+                              <div className="text-[10px]" style={{ color: "var(--erp-text-2)" }}>Bs {bs2(pago.totalBs)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Total seleccionado + confirmar */}
+                    <div className="flex items-center justify-between gap-3 pt-1 border-t flex-wrap" style={{ borderColor: "var(--erp-border)" }}>
+                      <div>
+                        <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+                          {panel.modo === "total" ? "Total a pagar:" : `${panel.seleccion.size} empleado(s) seleccionado(s):`}
+                        </div>
+                        <div className="text-base font-bold" style={{ color: "#15803d" }}>${selUsd.toFixed(2)}</div>
+                        <div className="text-xs" style={{ color: "#16a34a" }}>Bs {bs2(selBs)}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => confirmarPago(periodo)}
+                        disabled={saving === periodo.id || (panel.modo === "parcial" && panel.seleccion.size === 0)}
+                        className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ background: "#15803d" }}
+                      >
+                        {saving === periodo.id ? "Procesando…" : "✓ Confirmar Pago"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Empleados ya pagados (colapsado) */}
+            {pagados.length > 0 && pendientes.length === 0 && (
+              <div className="px-4 pb-3">
+                <div className="text-xs font-medium mb-1" style={{ color: "#15803d" }}>Empleados pagados ({pagados.length}):</div>
+                <div className="flex flex-col gap-1">
+                  {pagados.map((pago) => (
+                    <div key={pago.id} className="flex items-center justify-between text-xs px-3 py-1.5 rounded-lg" style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
+                      <span style={{ color: "var(--erp-text)" }}>{pago.empleadoNombre}</span>
+                      <span className="font-semibold" style={{ color: "#15803d" }}>${pago.totalUsd.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ───────────────────────── Componente principal ───────────────────────── */
+
+type SeccionPrincipal = "pagos" | "nominas" | "periodos" | "empleados" | "parametros" | null;
+
 export default function NominaClient() {
-  const [tab, setTab] = useState<"nominas" | "periodos" | "empleados">("nominas");
-  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0 });
+  const [seccion, setSeccion] = useState<SeccionPrincipal>(null);
+  const [resumen, setResumen] = useState<NominaResumen>({ empleadosActivos: 0, nominaPendiente: 0, nominaPagadaMes: 0, proximaSemana: { periodos: 0, totalUsd: 0, lunes: null, domingo: null, fechaPago: null, nominasPendientes: [] } });
   const [nominas, setNominas] = useState<Nomina[]>([]);
 
   async function loadResumen() {
@@ -1092,44 +1967,161 @@ export default function NominaClient() {
     loadNominasParaEmpleados();
   }, []);
 
+  function volver() { setSeccion(null); loadResumen(); }
+
+  // ── Indicadores KPI ──────────────────────────────────────────────────────
+  const kpi = (
+    <div className="grid grid-cols-2 gap-3">
+      <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
+      <StatTile label="Nómina Pendiente" value={resumen.nominaPendiente} color="#a16207" />
+      <StatTile label="Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
+      <button
+        type="button"
+        onClick={() => setSeccion("pagos")}
+        className="rounded-xl border px-4 py-3 flex flex-col gap-1 text-left transition-opacity hover:opacity-80"
+        style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
+      >
+        <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Próxima Semana ↗</div>
+        <div className="text-xl font-extrabold" style={{ color: "#1d4ed8" }}>
+          ${(resumen.proximaSemana?.totalUsd ?? 0).toFixed(2)}
+        </div>
+        <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
+          {resumen.proximaSemana?.periodos ?? 0} período(s)
+          {resumen.proximaSemana?.lunes && resumen.proximaSemana?.domingo && (
+            <span className="block">{formatFechaCorta(resumen.proximaSemana.lunes)} – {formatFechaCorta(resumen.proximaSemana.domingo)}</span>
+          )}
+        </div>
+      </button>
+    </div>
+  );
+
+  // ── Botón Volver ─────────────────────────────────────────────────────────
+  const volverBtn = (
+    <button
+      type="button"
+      onClick={volver}
+      className="self-start flex items-center gap-1 text-sm rounded-lg px-3 py-1.5 border"
+      style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
+    >
+      ← Volver
+    </button>
+  );
+
+  // ── Pantalla principal: 5 cards ──────────────────────────────────────────
+  if (!seccion) {
+    const cards: { key: SeccionPrincipal; icon: string; label: string; desc: string; badge?: string }[] = [
+      {
+        key: "pagos",
+        icon: "💳",
+        label: "Gestión de Pagos",
+        desc: "Nóminas pendientes por pagar, pago total o parcial por empleado",
+        badge: (resumen.nominaPendiente ?? 0) > 0 ? `$${resumen.nominaPendiente.toFixed(2)} pendiente` : undefined,
+      },
+      {
+        key: "nominas",
+        icon: "📋",
+        label: "Nóminas",
+        desc: "Nóminas maestro, tipos de incidencia y generación de períodos",
+      },
+      {
+        key: "periodos",
+        icon: "📅",
+        label: "Períodos",
+        desc: "Períodos generados, pagos por empleado e incidencias ad-hoc",
+      },
+      {
+        key: "empleados",
+        icon: "👷",
+        label: "Empleados",
+        desc: "Registro de empleados, salarios, cargos y asignación a nóminas",
+      },
+      {
+        key: "parametros",
+        icon: "⚙️",
+        label: "Configuración y Parámetros",
+        desc: "Cargos y posiciones de empleados",
+      },
+    ];
+
+    return (
+      <div className="flex flex-col gap-4">
+        {kpi}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {cards.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => { if (c.key === "empleados") loadNominasParaEmpleados(); setSeccion(c.key); }}
+              className="rounded-xl border p-5 text-left flex flex-col gap-2 transition-opacity hover:opacity-80"
+              style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
+            >
+              <span className="text-2xl">{c.icon}</span>
+              <span className="text-base font-bold" style={{ color: "var(--erp-text)" }}>{c.label}</span>
+              <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>{c.desc}</span>
+              {c.badge && (
+                <span className="mt-1 text-sm font-bold" style={{ color: "#a16207" }}>{c.badge}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Sección Nóminas ──────────────────────────────────────────────────────
+  if (seccion === "nominas") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>📋 Nóminas</h2>
+        <NominasTab />
+      </div>
+    );
+  }
+
+  // ── Sección Períodos ─────────────────────────────────────────────────────
+  if (seccion === "periodos") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>📅 Períodos</h2>
+        <PeriodosTab />
+      </div>
+    );
+  }
+
+  // ── Sección Empleados ────────────────────────────────────────────────────
+  if (seccion === "empleados") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>👷 Empleados</h2>
+        <EmpleadosTab nominas={nominas} />
+      </div>
+    );
+  }
+
+  // ── Sección Configuración y Parámetros ───────────────────────────────────
+  if (seccion === "parametros") {
+    return (
+      <div className="flex flex-col gap-4">
+        {volverBtn}
+        <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>⚙️ Configuración y Parámetros</h2>
+        <CargosConfigClient />
+      </div>
+    );
+  }
+
+  // ── Sección Gestión de Pagos ─────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-3 flex-wrap">
-        <StatTile label="Empleados Activos" value={resumen.empleadosActivos} color="var(--erp-text)" prefix="" />
-        <StatTile label="Nómina Pendiente por Pagar" value={resumen.nominaPendiente} color="#a16207" />
-        <StatTile label="Nómina Pagada este Mes" value={resumen.nominaPagadaMes} color="#15803d" />
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setTab("nominas")}
-          className="rounded-lg px-4 py-2 text-sm font-semibold"
-          style={tab === "nominas" ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
-        >
-          Nóminas
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("periodos")}
-          className="rounded-lg px-4 py-2 text-sm font-semibold"
-          style={tab === "periodos" ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
-        >
-          Períodos
-        </button>
-        <button
-          type="button"
-          onClick={() => { setTab("empleados"); loadNominasParaEmpleados(); }}
-          className="rounded-lg px-4 py-2 text-sm font-semibold"
-          style={tab === "empleados" ? { background: "var(--erp-primary)", color: "white" } : { background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)" }}
-        >
-          Empleados
-        </button>
-      </div>
-
-      {tab === "nominas" && <NominasTab />}
-      {tab === "periodos" && <PeriodosTab />}
-      {tab === "empleados" && <EmpleadosTab nominas={nominas} />}
+      {volverBtn}
+      <h2 className="text-base font-bold" style={{ color: "var(--erp-text)" }}>💳 Gestión de Pagos</h2>
+      <GestionPagosTab
+        onRefreshResumen={loadResumen}
+        proximaSemana={resumen.proximaSemana ?? undefined}
+        onIrConfig={() => setSeccion("nominas")}
+      />
     </div>
   );
 }
