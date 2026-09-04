@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
         'CP' || cp.id                                                              AS id,
         'proveedor'                                                                AS tipo,
         cp.proveedor || COALESCE(' · Fact. ' || cp.numero_factura, '')            AS descripcion,
-        cp.fecha_vencimiento                                                       AS fecha_vencimiento,
+        LEAST(cp.fecha_emision, cp.fecha_vencimiento)                              AS fecha_vencimiento,
         cp.monto_bs                                                                AS monto_bs,
         cp.tasa_dia                                                                AS tasa_dia,
         cp.numero_factura                                                          AS referencia,
@@ -185,8 +185,8 @@ export async function GET(request: NextRequest) {
         cp.monto_usd::text                                                         AS monto_usd
       FROM cuentas_pagar cp
       WHERE cp.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
-        AND cp.fecha_vencimiento BETWEEN $1 AND $2
-      ORDER BY cp.fecha_vencimiento ASC`,
+        AND LEAST(cp.fecha_emision, cp.fecha_vencimiento) BETWEEN $1 AND $2
+      ORDER BY LEAST(cp.fecha_emision, cp.fecha_vencimiento) ASC`,
       [desde, hasta]
     );
     cpRows = r.rows;
