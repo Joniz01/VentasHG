@@ -388,6 +388,11 @@ export default function CuentasPagarClient() {
   const [nuevaFechVenc, setNuevaFechVenc] = useState("");
   const [notaPago, setNotaPago] = useState("");
   const [pagando, setPagando] = useState(false);
+  const [fechaPago, setFechaPago] = useState("");
+  const [tasaPago, setTasaPago] = useState<number | null>(null);
+  const [tasaPagoEditable, setTasaPagoEditable] = useState(false);
+  const [tasaPagoInput, setTasaPagoInput] = useState("");
+  const [buscandoTasa, setBuscandoTasa] = useState(false);
 
   // eliminación inline
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
@@ -493,18 +498,43 @@ export default function CuentasPagarClient() {
     return null;
   }
 
+  // Fecha de pago → busca tasa histórica
+  async function handleFechaPagoModal(fecha: string) {
+    setFechaPago(fecha);
+    if (!fecha) { setTasaPago(null); setTasaPagoEditable(false); setTasaPagoInput(""); return; }
+    setBuscandoTasa(true);
+    const tasa = await buscarTasaPorFecha(fecha);
+    setBuscandoTasa(false);
+    if (tasa) {
+      setTasaPago(tasa);
+      setTasaPagoInput(String(tasa));
+      setTasaPagoEditable(false);
+    } else {
+      setTasaPago(null);
+      setTasaPagoInput("");
+      setTasaPagoEditable(true);
+    }
+  }
+
+  function handleTasaPagoInput(val: string) {
+    setTasaPagoInput(val);
+    const t = Number(val);
+    setTasaPago(t > 0 ? t : null);
+    if (t > 0) {
+      if (montoParcialBs) setMontoParcialUsd((Number(montoParcialBs) / t).toFixed(4));
+    }
+  }
+
   // Conversión bidireccional en modal de pago parcial
   function handleParcialBs(val: string) {
     setMontoParcialBs(val);
-    if (pagoModal?.tasaDia && pagoModal.tasaDia > 0 && val) {
-      setMontoParcialUsd((Number(val) / pagoModal.tasaDia).toFixed(4));
-    }
+    const t = tasaPago ?? pagoModal?.tasaDia;
+    if (t && t > 0 && val) setMontoParcialUsd((Number(val) / t).toFixed(4));
   }
   function handleParcialUsd(val: string) {
     setMontoParcialUsd(val);
-    if (pagoModal?.tasaDia && pagoModal.tasaDia > 0 && val) {
-      setMontoParcialBs((Number(val) * pagoModal.tasaDia).toFixed(2));
-    }
+    const t = tasaPago ?? pagoModal?.tasaDia;
+    if (t && t > 0 && val) setMontoParcialBs((Number(val) * t).toFixed(2));
   }
 
   async function handlePagar() {
@@ -518,7 +548,8 @@ export default function CuentasPagarClient() {
               accion: "pago_parcial",
               montoPagadoBs: Number(montoParcialBs) || 0,
               montoPagadoUsd: Number(montoParcialUsd) || 0,
-              tasaDia: pagoModal.tasaDia,
+              tasaDia: tasaPago ?? pagoModal.tasaDia,
+              fechaPago: fechaPago || undefined,
               nuevaFechVenc: nuevaFechVenc || undefined,
               nota: notaPago || undefined,
             };
@@ -530,6 +561,7 @@ export default function CuentasPagarClient() {
       if (r.ok) {
         setPagoModal(null);
         setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
+        setFechaPago(""); setTasaPago(null); setTasaPagoInput(""); setTasaPagoEditable(false);
         cargar();
       } else {
         const j = await r.json();
@@ -671,6 +703,7 @@ export default function CuentasPagarClient() {
                               onClick={() => {
                                 setPagoModal({ id: cp.id, montoBs: cp.montoBs, montoUsd: cp.montoUsd, tasaDia: cp.tasaDia, proveedor: cp.proveedor });
                                 setTipoPago("total"); setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
+                                setFechaPago(""); setTasaPago(null); setTasaPagoInput(""); setTasaPagoEditable(false);
                               }}
                               style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(5,150,105,0.10)", color: "#059669", border: "1px solid #059669", fontSize: 12, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
                               ✓ Registrar Pago
@@ -747,6 +780,24 @@ export default function CuentasPagarClient() {
                   <p style={{ margin: 0, fontSize: 12, color: "var(--erp-text-3)" }}>
                     Restante: ${USD(Math.max(0, pagoModal.montoUsd - (Number(montoParcialUsd) || 0)))} USD
                   </p>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <CampoForm label="Fecha de pago">
+                    <input type="date" style={inputStyle} value={fechaPago} onChange={e => handleFechaPagoModal(e.target.value)} />
+                  </CampoForm>
+                  <CampoForm label={tasaPagoEditable ? "Tasa Bs/$ (manual)" : "Tasa Bs/$"}>
+                    <input
+                      type="number" min="0" step="0.01"
+                      style={{ ...inputStyle, background: tasaPagoEditable ? undefined : "var(--erp-bg)", color: tasaPagoEditable ? undefined : "var(--erp-text-3)" }}
+                      value={buscandoTasa ? "" : tasaPagoInput}
+                      placeholder={buscandoTasa ? "Buscando…" : tasaPagoEditable ? "Ingresa la tasa" : "—"}
+                      readOnly={!tasaPagoEditable}
+                      onChange={e => tasaPagoEditable && handleTasaPagoInput(e.target.value)}
+                    />
+                  </CampoForm>
+                </div>
+                {!tasaPagoEditable && fechaPago && !buscandoTasa && tasaPago == null && (
+                  <p style={{ margin: 0, fontSize: 12, color: "#D97706" }}>Sin tasa registrada — ingresa la tasa manualmente.</p>
                 )}
                 <CampoForm label="Nueva fecha de vencimiento">
                   <input type="date" style={inputStyle} value={nuevaFechVenc} onChange={e => setNuevaFechVenc(e.target.value)} />
