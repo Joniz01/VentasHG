@@ -52,21 +52,37 @@ export async function GET(request: NextRequest) {
     ingresosRows = r.rows;
   } catch (e) { _errIngresos = String(e); }
 
-  // ── COGS (compras) por mes ──────────────────────────────────────
+  // ── COGS (compras activas) por mes, separado por tipo_uso ─────────
+  type CogsRow = { mes: string; tipo_uso: string; total_usd: string };
   let cogsRows: { mes: string; total_usd: string }[] = [];
+  let cogsMpRows: { mes: string; total_usd: string }[] = [];
+  let cogsVentaRows: { mes: string; total_usd: string }[] = [];
   try {
-    const r = await pool.query<{ mes: string; total_usd: string }>(
-      `SELECT TO_CHAR(fecha, 'YYYY-MM') AS mes,
-              COALESCE(SUM(monto_bs / NULLIF(tasa_dia, 0)), 0) AS total_usd
-       FROM gastos
-       WHERE estado = 'PAGADO'
-         AND recurrente = false
-         AND TO_CHAR(fecha, 'YYYY-MM') = ANY($1::text[])
-       GROUP BY mes
+    const r = await pool.query<CogsRow>(
+      `SELECT TO_CHAR(c.fecha, 'YYYY-MM') AS mes,
+              COALESCE(ci.tipo_uso, c.tipo_uso, 'MATERIA_PRIMA') AS tipo_uso,
+              ROUND(COALESCE(SUM(ci.subtotal_bs / NULLIF(c.tasa_dia, 0)), 0)::numeric, 2) AS total_usd
+       FROM compras c
+       JOIN compra_items ci ON ci.compra_id = c.id
+       WHERE c.estado = 'ACTIVA'
+         AND TO_CHAR(c.fecha, 'YYYY-MM') = ANY($1::text[])
+       GROUP BY TO_CHAR(c.fecha, 'YYYY-MM'), COALESCE(ci.tipo_uso, c.tipo_uso, 'MATERIA_PRIMA')
        ORDER BY mes`,
       [meses]
     );
-    cogsRows = r.rows;
+    // Agregar por mes para el total y por tipo_uso para el desglose
+    const totMap: Record<string, number> = {};
+    const mpMap: Record<string, number> = {};
+    const vtMap: Record<string, number> = {};
+    for (const row of r.rows) {
+      const v = Number(row.total_usd);
+      totMap[row.mes] = (totMap[row.mes] ?? 0) + v;
+      if (row.tipo_uso === "MATERIA_PRIMA") mpMap[row.mes] = (mpMap[row.mes] ?? 0) + v;
+      else vtMap[row.mes] = (vtMap[row.mes] ?? 0) + v;
+    }
+    cogsRows     = Object.entries(totMap).map(([mes, v]) => ({ mes, total_usd: String(v) }));
+    cogsMpRows   = Object.entries(mpMap).map(([mes, v]) => ({ mes, total_usd: String(v) }));
+    cogsVentaRows= Object.entries(vtMap).map(([mes, v]) => ({ mes, total_usd: String(v) }));
   } catch { /* skip */ }
 
   // ── Nómina pagada por mes ────────────────────────────────────────
@@ -126,27 +142,31 @@ export async function GET(request: NextRequest) {
     return m;
   }
 
-  const ingMap   = toMap(ingresosRows);
-  const cogsMap  = toMap(cogsRows);
-  const nomMap   = toMap(nominaRows);
-  const opexMap  = toMap(opexRows);
-  const cortMap  = toMap(cortesiasRows);
+  const ingMap    = toMap(ingresosRows);
+  const cogsMap   = toMap(cogsRows);
+  const cogsMpMap = toMap(cogsMpRows);
+  const cogsVtMap = toMap(cogsVentaRows);
+  const nomMap    = toMap(nominaRows);
+  const opexMap   = toMap(opexRows);
+  const cortMap   = toMap(cortesiasRows);
 
   const trend = meses.map((mes) => {
-    const ingresos   = ingMap[mes]  ?? 0;
-    const cogs       = cogsMap[mes] ?? 0;
-    const nomina     = nomMap[mes]  ?? 0;
-    const opex       = opexMap[mes] ?? 0;
-    const cortesias  = cortMap[mes] ?? 0;
+    const ingresos      = ingMap[mes]    ?? 0;
+    const cogs          = cogsMap[mes]   ?? 0;
+    const cogsMp        = cogsMpMap[mes] ?? 0;
+    const cogsVenta     = cogsVtMap[mes] ?? 0;
+    const nomina        = nomMap[mes]    ?? 0;
+    const opex          = opexMap[mes]   ?? 0;
+    const cortesias     = cortMap[mes]   ?? 0;
     const gananciaBruta = ingresos - cogs;
-    const gastosOp   = nomina + opex + cortesias;
-    const utilidad   = gananciaBruta - gastosOp;
+    const gastosOp      = nomina + opex + cortesias;
+    const utilidad      = gananciaBruta - gastosOp;
     const margenBruto   = ingresos > 0 ? (gananciaBruta / ingresos) * 100 : 0;
     const margenNeto    = ingresos > 0 ? (utilidad / ingresos) * 100 : 0;
     return {
       mes,
       label: mesLabel(mes),
-      ingresos, cogs, nomina, opex, cortesias,
+      ingresos, cogs, cogsMp, cogsVenta, nomina, opex, cortesias,
       gananciaBruta, gastosOp, utilidad,
       margenBruto: +margenBruto.toFixed(1),
       margenNeto:  +margenNeto.toFixed(1),
@@ -316,7 +336,7 @@ export async function GET(request: NextRequest) {
     trend,
     actual: actual ?? {
       mes: mesActual, label: mesLabel(mesActual),
-      ingresos: 0, cogs: 0, nomina: 0, opex: 0, cortesias: 0,
+      ingresos: 0, cogs: 0, cogsMp: 0, cogsVenta: 0, nomina: 0, opex: 0, cortesias: 0,
       gananciaBruta: 0, gastosOp: 0, utilidad: 0, margenBruto: 0, margenNeto: 0,
     },
     anterior: anterior ?? null,

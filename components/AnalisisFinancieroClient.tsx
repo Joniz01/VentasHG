@@ -7,6 +7,8 @@ type MesTrend = {
   label: string;
   ingresos: number;
   cogs: number;
+  cogsMp: number;
+  cogsVenta: number;
   nomina: number;
   opex: number;
   cortesias: number;
@@ -233,6 +235,8 @@ export default function AnalisisFinancieroClient() {
       mes: d.mesLabel,
       ingresos: d.actual.ingresos,
       cogs: d.actual.cogs,
+      cogsMp: d.actual.cogsMp,
+      cogsVenta: d.actual.cogsVenta,
       nomina: d.actual.nomina,
       opex: d.actual.opex,
       cortesias: d.actual.cortesias,
@@ -455,7 +459,13 @@ export default function AnalisisFinancieroClient() {
   const wfTotal = actual.ingresos || 1;
   const wfRows = [
     { label: "Ingresos por Ventas", bold: true, color: "#3FB950", amount: actual.ingresos, pct: 100, indent: false },
-    { label: "Compras / Materia Prima", bold: false, color: "#F85149", amount: -actual.cogs, pct: actual.ingresos > 0 ? actual.cogs / actual.ingresos * 100 : 0, indent: true },
+    ...(actual.cogs > 0 ? [
+      { label: "Compras (total)", bold: false, color: "#F85149", amount: -actual.cogs, pct: actual.ingresos > 0 ? actual.cogs / actual.ingresos * 100 : 0, indent: true },
+      ...(actual.cogsMp > 0 ? [{ label: "↳ Materia Prima", bold: false, color: "#F85149", amount: -actual.cogsMp, pct: actual.ingresos > 0 ? actual.cogsMp / actual.ingresos * 100 : 0, indent: true, sub: true }] : []),
+      ...(actual.cogsVenta > 0 ? [{ label: "↳ Para Venta / Reventa", bold: false, color: "#F85149", amount: -actual.cogsVenta, pct: actual.ingresos > 0 ? actual.cogsVenta / actual.ingresos * 100 : 0, indent: true, sub: true }] : []),
+    ] : [
+      { label: "Compras / Materia Prima", bold: false, color: "#F85149", amount: 0, pct: 0, indent: true },
+    ]),
     { label: "Ganancia Bruta", bold: true, color: "#58A6FF", amount: actual.gananciaBruta, pct: actual.margenBruto, indent: false, divider: true },
     { label: "Nómina (salarios)", bold: false, color: "#D29922", amount: -actual.nomina, pct: actual.ingresos > 0 ? actual.nomina / actual.ingresos * 100 : 0, indent: true },
     { label: "Gastos Operativos", bold: false, color: "#BC8CFF", amount: -actual.opex, pct: actual.ingresos > 0 ? actual.opex / actual.ingresos * 100 : 0, indent: true },
@@ -465,7 +475,8 @@ export default function AnalisisFinancieroClient() {
 
   const totalEgresos = actual.cogs + actual.nomina + actual.opex + actual.cortesias || 1;
   const donut = [
-    { label: "Insumos",     val: actual.cogs,      color: "#F85149" },
+    { label: "Mat. Prima",  val: actual.cogsMp,    color: "#F85149" },
+    { label: "Para Venta",  val: actual.cogsVenta, color: "#FF7B72" },
     { label: "Gastos Op.",  val: actual.opex,      color: "#BC8CFF" },
     { label: "Nómina",      val: actual.nomina,    color: "#D29922" },
     { label: "Cortesías",   val: actual.cortesias, color: "#00B4D8" },
@@ -570,9 +581,12 @@ export default function AnalisisFinancieroClient() {
               {row.divider && <div style={{ height: 1, background: "var(--erp-border)", margin: "8px 0" }} />}
               <div className="af-wf-row">
                 <p style={{
-                  fontSize: row.bold ? 13 : 12, fontWeight: row.bold ? 700 : 400,
+                  fontSize: (row as {sub?: boolean}).sub ? 11 : row.bold ? 13 : 12,
+                  fontWeight: row.bold ? 700 : 400,
                   color: row.bold ? "var(--erp-text)" : "var(--erp-text-2)",
-                  paddingLeft: row.indent ? 12 : 0, margin: 0,
+                  paddingLeft: (row as {sub?: boolean}).sub ? 24 : row.indent ? 12 : 0,
+                  margin: 0,
+                  opacity: (row as {sub?: boolean}).sub ? 0.8 : 1,
                 }}>
                   {row.label}
                 </p>
