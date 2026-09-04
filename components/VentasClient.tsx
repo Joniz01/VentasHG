@@ -206,6 +206,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   const [tasaBcvFecha, setTasaBcvFecha] = useState<string | null>(null);
   const [tasaBcvError, setTasaBcvError] = useState<string | null>(null);
   const [consultandoTasa, setConsultandoTasa] = useState(false);
+  const [mostrarFechaTasaHistorial, setMostrarFechaTasaHistorial] = useState(false);
 
   // Modo de vista y wizard
   const [modoVista, setModoVista] = useState<"clasico" | "pasos">("pasos");
@@ -712,6 +713,27 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
     }
   }
 
+  async function buscarTasaPorFecha(fechaBuscar: string) {
+    if (!fechaBuscar) return;
+    setTasaBcvError(null);
+    setConsultandoTasa(true);
+    try {
+      const res = await fetch(`/api/tasa-bcv?fecha=${fechaBuscar}`);
+      const data = await res.json();
+      if (!res.ok || !data.tasa) {
+        setTasaBcvError(`Sin tasa registrada para ${fechaBuscar}`);
+        return;
+      }
+      setTasaDelDia(String(data.tasa));
+      setTasaBcvFecha(data.fecha);
+      setMostrarFechaTasaHistorial(false);
+    } catch (err) {
+      setTasaBcvError(err instanceof Error ? err.message : "Error al buscar tasa");
+    } finally {
+      setConsultandoTasa(false);
+    }
+  }
+
   function resetForm() {
     setEditingId(null);
     setFecha(today());
@@ -1117,7 +1139,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   }}
                 />
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", position: "relative" }}>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>BCV</span>
                 <input
                   type="number"
@@ -1134,9 +1156,46 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   onClick={handleConsultarTasaBcv}
                   disabled={consultandoTasa}
                   className="text-xs font-medium text-zinc-400 hover:text-zinc-700 disabled:opacity-50"
+                  title="Tasa del día (hoy)"
                 >
                   {consultandoTasa ? "..." : "↻"}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setMostrarFechaTasaHistorial((v) => !v)}
+                  className="text-xs font-medium text-zinc-400 hover:text-zinc-700"
+                  title="Buscar tasa por fecha"
+                >
+                  📅
+                </button>
+                {mostrarFechaTasaHistorial && (
+                  <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "10px 12px", zIndex: 50, minWidth: 220, boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", marginBottom: 6, textTransform: "uppercase" }}>Buscar tasa por fecha</p>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        type="date"
+                        defaultValue={fecha}
+                        max={today()}
+                        style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "4px 8px", fontSize: 13 }}
+                        onKeyDown={(e) => { if (e.key === "Enter") buscarTasaPorFecha((e.target as HTMLInputElement).value); }}
+                        id="input-fecha-tasa-historial"
+                      />
+                      <button
+                        type="button"
+                        disabled={consultandoTasa}
+                        onClick={() => {
+                          const el = document.getElementById("input-fecha-tasa-historial") as HTMLInputElement | null;
+                          if (el?.value) buscarTasaPorFecha(el.value);
+                        }}
+                        style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        {consultandoTasa ? "..." : "Buscar"}
+                      </button>
+                    </div>
+                    {tasaBcvError && <p style={{ fontSize: 11, color: "#B91C1C", marginTop: 4 }}>{tasaBcvError}</p>}
+                    {tasaBcvFecha && !tasaBcvError && <p style={{ fontSize: 11, color: "#166534", marginTop: 4 }}>✓ Tasa del {formatFecha(tasaBcvFecha)}: {tasaDelDia}</p>}
+                  </div>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)" }}>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Venta Hoy</span>
@@ -1693,16 +1752,26 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-zinc-700">Fecha</label>
-                      <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
+                      <input
+                        type="date"
+                        className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                        value={fecha}
+                        max={today()}
+                        onChange={(e) => {
+                          setFecha(e.target.value);
+                          if (e.target.value) buscarTasaPorFecha(e.target.value);
+                        }}
+                        required
+                      />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-zinc-700">Tasa del día</label>
                       <div className="flex gap-1">
-                        <input type="number" step="0.0001" min="0" className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={tasaDelDia} onChange={(e) => setTasaDelDia(e.target.value)} placeholder="0.00" />
-                        <button type="button" onClick={handleConsultarTasaBcv} disabled={consultandoTasa} className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50">{consultandoTasa ? "..." : "BCV"}</button>
+                        <input type="number" step="0.0001" min="0" className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" value={tasaDelDia} onChange={(e) => { setTasaDelDia(e.target.value); setTasaBcvFecha(null); }} placeholder="0.00" />
+                        <button type="button" onClick={handleConsultarTasaBcv} disabled={consultandoTasa} className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50" title="Tasa de hoy">{consultandoTasa ? "..." : "BCV"}</button>
                       </div>
-                      {tasaBcvFecha && <span className="text-xs text-zinc-500">BCV: {formatFecha(tasaBcvFecha)}</span>}
-                      {tasaBcvError && <span className="text-xs text-red-600">{tasaBcvError}</span>}
+                      {tasaBcvFecha && !tasaBcvError && <span className="text-xs text-green-700">✓ Tasa del {formatFecha(tasaBcvFecha)}</span>}
+                      {tasaBcvError && <span className="text-xs text-red-600">{tasaBcvError} — ingrese manualmente</span>}
                     </div>
                     <div className="relative flex flex-col gap-1 sm:col-span-2">
                       <label className="text-sm font-medium text-zinc-700">Cliente</label>
