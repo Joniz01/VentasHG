@@ -51,8 +51,8 @@ export async function GET(request: NextRequest) {
   const hoy = hoyCaracas();
   const lunes = lunesDeHoy(hoy);
   const domingo = addDays(lunes, 6);
-  // Ventana: desde 4 semanas atrás hasta 4 semanas adelante
-  const desde = addDays(hoy, -28);
+  // Ventana: desde el lunes de esta semana (nada anterior se muestra)
+  const desde = lunes;
   const hasta = addDays(hoy, 28);
   const mesInicio = inicioMes(hoy);
 
