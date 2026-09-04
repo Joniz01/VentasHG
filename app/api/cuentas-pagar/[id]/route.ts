@@ -104,7 +104,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const nuevaFechVenc = body.nuevaFechVenc || null;
 
-      // Intento con columnas opcionales (monto_pagado_bs, monto_original_bs)
+      // Usar SAVEPOINT para poder reintentar si fallan columnas opcionales
+      await client.query("SAVEPOINT sp_update");
       try {
         await client.query(
           `UPDATE cuentas_pagar SET
@@ -118,8 +119,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
            WHERE id = $1`,
           [id, restanteBs, montoOriginalBs, montoPagadoBs, tasaDia, nuevaFechVenc]
         );
+        await client.query("RELEASE SAVEPOINT sp_update");
       } catch {
-        // Fallback sin columnas opcionales
+        // Columnas opcionales no existen — rollback al savepoint y fallback
+        await client.query("ROLLBACK TO SAVEPOINT sp_update");
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2,
@@ -132,6 +135,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         );
       }
 
+      await client.query("SAVEPOINT sp_historial");
       try {
         const fpHistorial = body.fechaPago || null;
         await client.query(
@@ -139,7 +143,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
            VALUES ($1, COALESCE($6::date, CURRENT_DATE), $2, $3, $4, $5)`,
           [id, montoPagadoBs, montoPagadoUsd, tasaDia, body.nota ?? null, fpHistorial]
         );
-      } catch { /* tabla historial aún no migrada — el pago principal ya se guardó */ }
+      } catch { await client.query("ROLLBACK TO SAVEPOINT sp_historial"); /* tabla historial aún no migrada */ }
 
     } else {
       // editar campos
