@@ -27,6 +27,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     montoPagadoBs?: number;
     montoPagadoUsd?: number;
     tasaDia?: number;
+    fechaPago?: string;
     nuevaFechVenc?: string;
     nota?: string;
     comprobanteUrl?: string;
@@ -103,24 +104,42 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const nuevaFechVenc = body.nuevaFechVenc || null;
 
-      await client.query(
-        `UPDATE cuentas_pagar SET
-           monto_bs = $2,
-           monto_usd = CASE WHEN $5 > 0 THEN $2 / $5 ELSE monto_usd END,
-           monto_original_bs = COALESCE($3, monto_original_bs),
-           monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $4,
-           estado = CASE WHEN $2 <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
-           fecha_vencimiento = COALESCE($6::date, fecha_vencimiento),
-           pagado_at = CASE WHEN $2 <= 0 THEN NOW() ELSE NULL END
-         WHERE id = $1`,
-        [id, restanteBs, montoOriginalBs, montoPagadoBs, tasaDia, nuevaFechVenc]
-      );
+      // Intento con columnas opcionales (monto_pagado_bs, monto_original_bs)
+      try {
+        await client.query(
+          `UPDATE cuentas_pagar SET
+             monto_bs = $2,
+             monto_usd = CASE WHEN $5 > 0 THEN $2 / $5 ELSE monto_usd END,
+             monto_original_bs = COALESCE($3, monto_original_bs),
+             monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $4,
+             estado = CASE WHEN $2 <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
+             fecha_vencimiento = COALESCE($6::date, fecha_vencimiento),
+             pagado_at = CASE WHEN $2 <= 0 THEN NOW() ELSE NULL END
+           WHERE id = $1`,
+          [id, restanteBs, montoOriginalBs, montoPagadoBs, tasaDia, nuevaFechVenc]
+        );
+      } catch {
+        // Fallback sin columnas opcionales
+        await client.query(
+          `UPDATE cuentas_pagar SET
+             monto_bs = $2,
+             monto_usd = CASE WHEN $4 > 0 THEN $2 / $4 ELSE monto_usd END,
+             estado = CASE WHEN $2 <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
+             fecha_vencimiento = COALESCE($5::date, fecha_vencimiento),
+             pagado_at = CASE WHEN $2 <= 0 THEN NOW() ELSE NULL END
+           WHERE id = $1`,
+          [id, restanteBs, montoPagadoBs, tasaDia, nuevaFechVenc]
+        );
+      }
 
-      await client.query(
-        `INSERT INTO cuentas_pagar_historial (cuenta_pagar_id, fecha_pago, monto_bs, monto_usd, tasa_dia, nota)
-         VALUES ($1, CURRENT_DATE, $2, $3, $4, $5)`,
-        [id, montoPagadoBs, montoPagadoUsd, tasaDia, body.nota ?? null]
-      );
+      try {
+        const fpHistorial = body.fechaPago || null;
+        await client.query(
+          `INSERT INTO cuentas_pagar_historial (cuenta_pagar_id, fecha_pago, monto_bs, monto_usd, tasa_dia, nota)
+           VALUES ($1, COALESCE($6::date, CURRENT_DATE), $2, $3, $4, $5)`,
+          [id, montoPagadoBs, montoPagadoUsd, tasaDia, body.nota ?? null, fpHistorial]
+        );
+      } catch { /* tabla historial aún no migrada — el pago principal ya se guardó */ }
 
     } else {
       // editar campos

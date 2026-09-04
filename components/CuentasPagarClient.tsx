@@ -565,7 +565,7 @@ export default function CuentasPagarClient() {
         cargar();
       } else {
         const j = await r.json();
-        alert(j.error ?? "Error al registrar pago");
+        alert((j.error ?? "Error al registrar pago") + (j.detalle ? `\n\n${j.detalle}` : ""));
       }
     } finally {
       setPagando(false);
