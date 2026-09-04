@@ -398,6 +398,10 @@ export default function CuentasPagarClient() {
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
   const [eliminando, setEliminando] = useState(false);
 
+  // revertir último abono
+  const [revirtiendoId, setRevirtiendoId] = useState<number | null>(null);
+  const [revirtiendo, setRevirtiendo] = useState(false);
+
   // edición
   const [editModal, setEditModal] = useState<CuentaPagar | null>(null);
   const [editForm, setEditForm] = useState<Partial<FormData>>({});
@@ -583,6 +587,21 @@ export default function CuentasPagarClient() {
     }
   }
 
+  async function handleRevertir(id: number) {
+    setRevirtiendo(true);
+    try {
+      const r = await fetch(`/api/cuentas-pagar/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "revertir_ultimo_abono" }),
+      });
+      if (r.ok) { setRevirtiendoId(null); cargar(); }
+      else { const j = await r.json(); alert((j.error ?? "Error al revertir") + (j.detalle ? `\n\n${j.detalle}` : "")); }
+    } finally {
+      setRevirtiendo(false);
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -714,6 +733,25 @@ export default function CuentasPagarClient() {
                             style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(99,102,241,0.08)", color: "#6366F1", border: "1px solid #6366F1", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
                             ✏️
                           </button>
+                          {(cp.estado === "PENDIENTE_PARCIAL" || cp.estado === "PAGADO") && (
+                            revirtiendoId === cp.id ? (
+                              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                                <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>¿Revertir último abono?</span>
+                                <button onClick={() => handleRevertir(cp.id)} disabled={revirtiendo}
+                                  style={{ padding: "3px 8px", borderRadius: 6, background: "#D97706", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
+                                  {revirtiendo ? "…" : "Sí"}
+                                </button>
+                                <button onClick={() => setRevirtiendoId(null)}
+                                  style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 11 }}>No</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setRevirtiendoId(cp.id)}
+                                title="Revertir último abono"
+                                style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(217,119,6,0.08)", color: "#D97706", border: "1px solid #D97706", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                ↩
+                              </button>
+                            )
+                          )}
                           {cp.estado !== "PENDIENTE_PARCIAL" && (
                             <button
                               onClick={() => setEliminandoId(cp.id)}

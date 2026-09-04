@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   const body = (await request.json()) as {
-    accion?: "pagar" | "pago_parcial" | "editar";
+    accion?: "pagar" | "pago_parcial" | "editar" | "revertir_ultimo_abono";
     montoPagadoBs?: number;
     montoPagadoUsd?: number;
     tasaDia?: number;
@@ -144,6 +144,47 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           [id, montoPagadoBs, montoPagadoUsd, tasaDia, body.nota ?? null, fpHistorial]
         );
       } catch { await client.query("ROLLBACK TO SAVEPOINT sp_historial"); /* tabla historial aún no migrada */ }
+
+    } else if (body.accion === "revertir_ultimo_abono") {
+      // Leer el último abono del historial
+      const histResult = await client.query(
+        `SELECT id, monto_bs, monto_usd FROM cuentas_pagar_historial
+         WHERE cuenta_pagar_id = $1 ORDER BY id DESC LIMIT 1`,
+        [id]
+      );
+      if (!histResult.rows.length) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "No hay abonos registrados para revertir" }, { status: 400 });
+      }
+      const abono = histResult.rows[0];
+      const abonoMontoBs = Number(abono.monto_bs);
+      const abonoMontoUsd = Number(abono.monto_usd);
+
+      // Leer saldo actual
+      const cpRead = await client.query(
+        `SELECT monto_bs, monto_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`,
+        [id]
+      );
+      const cp = cpRead.rows[0];
+      const nuevoMontoBs = Number(cp.monto_bs) + abonoMontoBs;
+      const nuevoMontoUsd = Number(cp.monto_usd) + abonoMontoUsd;
+      const originalBs = cp.monto_original_bs ? Number(cp.monto_original_bs) : nuevoMontoBs;
+
+      // Determinar nuevo estado
+      const nuevoEstado = nuevoMontoBs >= originalBs * 0.999 ? "PENDIENTE" : "PENDIENTE_PARCIAL";
+
+      await client.query(
+        `UPDATE cuentas_pagar SET
+           monto_bs = $2::numeric,
+           monto_usd = $3::numeric,
+           estado = $4,
+           pagado_at = NULL
+         WHERE id = $1`,
+        [id, nuevoMontoBs, nuevoMontoUsd, nuevoEstado]
+      );
+
+      // Eliminar el registro del historial revertido
+      await client.query(`DELETE FROM cuentas_pagar_historial WHERE id = $1`, [abono.id]);
 
     } else {
       // editar campos
