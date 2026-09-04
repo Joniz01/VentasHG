@@ -30,18 +30,19 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [proveedorQ, setProveedorQ] = useState("");
-  const [estadoFiltro, setEstadoFiltro] = useState<"TODAS" | "ACTIVA" | "ANULADA">("TODAS");
+  const [estadoFiltro, setEstadoFiltro] = useState<"TODAS" | "ACTIVA" | "ANULADA">("ACTIVA");
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [anulando, setAnulando] = useState(false);
 
-  async function loadFacturas() {
+  async function loadFacturas(estadoOverride?: "TODAS" | "ACTIVA" | "ANULADA") {
     setLoading(true); setError(null);
+    const estadoEfectivo = estadoOverride ?? estadoFiltro;
     try {
       const params = new URLSearchParams();
       if (desde) params.set("desde", desde);
       if (hasta) params.set("hasta", hasta);
       if (proveedorQ) params.set("proveedor", proveedorQ);
-      if (estadoFiltro !== "TODAS") params.set("estado", estadoFiltro);
+      if (estadoEfectivo !== "TODAS") params.set("estado", estadoEfectivo);
       const res = await fetch(`/api/compras?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -50,7 +51,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
     finally { setLoading(false); }
   }
 
-  useEffect(() => { loadFacturas(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadFacturas("ACTIVA"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadDetalle(id: number) {
     try {
@@ -185,7 +186,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
           <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Estado</label>
           <div style={{ display: "flex", border: "1px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
             {(["TODAS", "ACTIVA", "ANULADA"] as const).map((op, i, arr) => (
-              <button key={op} type="button" onClick={() => setEstadoFiltro(op)}
+              <button key={op} type="button" onClick={() => { setEstadoFiltro(op); loadFacturas(op); }}
                 style={{
                   background: estadoFiltro === op ? "var(--erp-primary)" : "var(--erp-bg)",
                   color: estadoFiltro === op ? "#fff" : "var(--erp-text-2)",
