@@ -250,23 +250,3 @@ export async function PUT(request: NextRequest, { params }: Params) {
     client.release();
   }
 }
-
-export async function DELETE(request: NextRequest, { params }: Params) {
-  const sesion = await getSesionFromRequest(request);
-  if (!sesion || (sesion.rol !== "ADMIN" && !sesion.permisos.eliminarCompras)) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  }
-  const { id } = await params;
-  try {
-    const check = await pool.query(`SELECT estado FROM compras WHERE id = $1`, [id]);
-    if (!check.rowCount) return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 });
-    if (check.rows[0].estado !== "ANULADA") {
-      return NextResponse.json({ error: "Solo se pueden eliminar facturas anuladas" }, { status: 409 });
-    }
-    await pool.query(`DELETE FROM compra_items WHERE compra_id = $1`, [id]);
-    await pool.query(`DELETE FROM compras WHERE id = $1`, [id]);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
-  }
-}

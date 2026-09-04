@@ -198,7 +198,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
             ))}
           </div>
         </div>
-        <button type="button" onClick={loadFacturas} disabled={loading} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <button type="button" onClick={() => loadFacturas()} disabled={loading} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
           {loading ? "..." : "Buscar"}
         </button>
       </div>
