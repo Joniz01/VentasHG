@@ -1139,44 +1139,46 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   }}
                 />
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--erp-border)", background: "var(--erp-surface)", position: "relative" }}>
-                <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>BCV</span>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  className="w-20 bg-transparent text-sm font-bold outline-none"
-                  style={{ color: "var(--erp-text)" }}
-                  value={tasaDelDia}
-                  onChange={(e) => setTasaDelDia(e.target.value)}
-                  placeholder="0.00"
-                />
-                <button
-                  type="button"
-                  onClick={handleConsultarTasaBcv}
-                  disabled={consultandoTasa}
-                  className="text-xs font-medium text-zinc-400 hover:text-zinc-700 disabled:opacity-50"
-                  title="Tasa del día (hoy)"
-                >
-                  {consultandoTasa ? "..." : "↻"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMostrarFechaTasaHistorial((v) => !v)}
-                  className="text-xs font-medium text-zinc-400 hover:text-zinc-700"
-                  title="Buscar tasa por fecha"
-                >
-                  📅
-                </button>
+              <div style={{ position: "relative" }}>
+                <div className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5" style={{ borderColor: mostrarFechaTasaHistorial ? "var(--erp-primary)" : "var(--erp-border)", background: "var(--erp-surface)" }}>
+                  <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>BCV</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    className="w-20 bg-transparent text-sm font-bold outline-none"
+                    style={{ color: "var(--erp-text)" }}
+                    value={tasaDelDia}
+                    onChange={(e) => setTasaDelDia(e.target.value)}
+                    placeholder="0.00"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleConsultarTasaBcv}
+                    disabled={consultandoTasa}
+                    className="text-xs font-medium text-zinc-400 hover:text-zinc-700 disabled:opacity-50"
+                    title="Tasa de hoy"
+                  >
+                    {consultandoTasa ? "..." : "↻"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMostrarFechaTasaHistorial((v) => !v); setTasaBcvError(null); }}
+                    style={{ fontSize: 11, fontWeight: 700, color: mostrarFechaTasaHistorial ? "var(--erp-primary)" : "var(--erp-text-2)", background: "none", border: "none", cursor: "pointer", padding: "0 2px" }}
+                    title="Buscar tasa por fecha anterior"
+                  >
+                    {mostrarFechaTasaHistorial ? "✕ hist." : "hist."}
+                  </button>
+                </div>
                 {mostrarFechaTasaHistorial && (
-                  <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "10px 12px", zIndex: 50, minWidth: 220, boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-2)", marginBottom: 6, textTransform: "uppercase" }}>Buscar tasa por fecha</p>
+                  <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "var(--erp-surface)", border: "1px solid var(--erp-primary)", borderRadius: 10, padding: "12px 14px", zIndex: 200, minWidth: 240, boxShadow: "0 8px 24px rgba(0,0,0,.15)" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-primary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>Buscar tasa por fecha</p>
                     <div style={{ display: "flex", gap: 6 }}>
                       <input
                         type="date"
                         defaultValue={fecha}
                         max={today()}
-                        style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "4px 8px", fontSize: 13 }}
+                        style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 8px", fontSize: 13 }}
                         onKeyDown={(e) => { if (e.key === "Enter") buscarTasaPorFecha((e.target as HTMLInputElement).value); }}
                         id="input-fecha-tasa-historial"
                       />
@@ -1187,13 +1189,13 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           const el = document.getElementById("input-fecha-tasa-historial") as HTMLInputElement | null;
                           if (el?.value) buscarTasaPorFecha(el.value);
                         }}
-                        style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
                       >
                         {consultandoTasa ? "..." : "Buscar"}
                       </button>
                     </div>
-                    {tasaBcvError && <p style={{ fontSize: 11, color: "#B91C1C", marginTop: 4 }}>{tasaBcvError}</p>}
-                    {tasaBcvFecha && !tasaBcvError && <p style={{ fontSize: 11, color: "#166534", marginTop: 4 }}>✓ Tasa del {formatFecha(tasaBcvFecha)}: {tasaDelDia}</p>}
+                    {tasaBcvError && <p style={{ fontSize: 11, color: "#B91C1C", marginTop: 6 }}>{tasaBcvError}</p>}
+                    {tasaBcvFecha && !tasaBcvError && <p style={{ fontSize: 11, color: "#166534", marginTop: 6 }}>✓ Tasa del {formatFecha(tasaBcvFecha)}: <strong>{tasaDelDia}</strong></p>}
                   </div>
                 )}
               </div>
@@ -1872,7 +1874,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
               type="date"
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+              max={today()}
+              onChange={(e) => { setFecha(e.target.value); if (e.target.value) buscarTasaPorFecha(e.target.value); }}
               required
             />
           </div>
