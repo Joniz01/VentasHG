@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
   const proveedor = searchParams.get("proveedor");
   const desde = searchParams.get("desde");
   const hasta = searchParams.get("hasta");
+  const soloRecurrente = searchParams.get("recurrente");
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
 
@@ -64,6 +65,8 @@ export async function GET(request: NextRequest) {
   if (proveedor) { params.push(`%${proveedor}%`); conditions.push(`lower(cp.proveedor) LIKE lower($${params.length})`); }
   if (desde) { params.push(desde); conditions.push(`cp.fecha_vencimiento >= $${params.length}`); }
   if (hasta) { params.push(hasta); conditions.push(`cp.fecha_vencimiento <= $${params.length}`); }
+  if (soloRecurrente === "true") { conditions.push(`cp.recurrente = TRUE`); }
+  else if (soloRecurrente === "false") { conditions.push(`cp.recurrente = FALSE`); }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 

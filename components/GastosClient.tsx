@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import React, { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ESTADOS_GASTO,
   ESTADO_GASTO_LABELS,
@@ -182,6 +182,68 @@ export default function GastosClient() {
   const [recordatorios, setRecordatorios] = useState<
     { id: number; proveedor: string; tipoGastoNombre: string; montoBs: number; proximoRecordatorio: string }[]
   >([]);
+
+  // ── Tab state ────────────────────────────────────────────────────────────
+  type TabKey = "ocasionales" | "recurrentes";
+  const [tab, setTab] = useState<TabKey>("ocasionales");
+
+  type CxPRecurrente = {
+    id: number; proveedor: string; frecuencia: string | null;
+    fechaVencimiento: string; montoUsd: number; montoBs: number; estado: string;
+    descripcion: string | null;
+  };
+  const EMPTY_REC_FORM = { proveedor: "", montoUsd: "", frecuencia: "MENSUAL", fechaVencimiento: "", descripcion: "" };
+  const [recurrentes, setRecurrentes] = useState<CxPRecurrente[]>([]);
+  const [loadingRec, setLoadingRec] = useState(false);
+  const [showFormRec, setShowFormRec] = useState(false);
+  const [recForm, setRecForm] = useState({ ...EMPTY_REC_FORM });
+  const [savingRec, setSavingRec] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+
+  async function fetchRecurrentes() {
+    setLoadingRec(true);
+    try {
+      const r = await fetch("/api/cuentas-pagar?recurrente=true&pageSize=100&estado=PENDIENTE");
+      const data = await r.json();
+      setRecurrentes(data.items ?? []);
+    } catch { /* ignore */ }
+    finally { setLoadingRec(false); }
+  }
+
+  useEffect(() => {
+    if (tab === "recurrentes") fetchRecurrentes();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  async function handleGuardarRec() {
+    if (!recForm.proveedor.trim()) { setRecError("El nombre del servicio es obligatorio"); return; }
+    if (!recForm.fechaVencimiento) { setRecError("Indica el próximo vencimiento"); return; }
+    setRecError(null);
+    setSavingRec(true);
+    try {
+      const r = await fetch("/api/cuentas-pagar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proveedor: recForm.proveedor.trim(),
+          descripcion: recForm.descripcion?.trim() || undefined,
+          fechaEmision: today(),
+          fechaVencimiento: recForm.fechaVencimiento,
+          montoUsd: Number(recForm.montoUsd) || 0,
+          montoBs: 0,
+          recurrente: true,
+          frecuencia: recForm.frecuencia,
+          estado: "PENDIENTE",
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setRecError(j.error ?? "Error al guardar"); return; }
+      setShowFormRec(false);
+      setRecForm({ ...EMPTY_REC_FORM });
+      fetchRecurrentes();
+    } catch { setRecError("Error de conexión"); }
+    finally { setSavingRec(false); }
+  }
 
   const totalFacturaBs = facturaItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
   const totalFacturaUsd = Number(form.tasaDia) > 0 ? totalFacturaBs / Number(form.tasaDia) : 0;
@@ -580,8 +642,34 @@ export default function GastosClient() {
 
   const totalPaginas = Math.max(1, Math.ceil(total / pageSize));
 
+  const recInputStyle: React.CSSProperties = {
+    padding: "7px 10px", borderRadius: 8, border: "1px solid var(--erp-border)",
+    background: "var(--erp-bg)", color: "var(--erp-text)", fontSize: 13, width: "100%",
+  };
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Tab nav */}
+      <div style={{ display: "flex", borderBottom: "1.5px solid var(--erp-border)", gap: 0, marginBottom: -4 }}>
+        {([
+          { key: "ocasionales" as TabKey, label: "Ocasionales" },
+          { key: "recurrentes" as TabKey, label: "🔁 Recurrentes" },
+        ]).map(t => (
+          <button key={t.key} type="button"
+            onClick={() => { setTab(t.key); setShowForm(false); setShowFormRec(false); }}
+            style={{
+              padding: "8px 18px", fontSize: 13, fontWeight: 700, background: "transparent",
+              border: "none", cursor: "pointer",
+              borderBottom: tab === t.key ? "2.5px solid var(--erp-accent)" : "2.5px solid transparent",
+              color: tab === t.key ? "var(--erp-accent)" : "var(--erp-text-3)",
+              marginBottom: -1.5,
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "ocasionales" && (<>
       {recordatorios.length > 0 && (
         <div
           className="rounded-lg border p-3 flex flex-col gap-2"
@@ -1276,6 +1364,125 @@ export default function GastosClient() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      </>)}
+
+      {tab === "recurrentes" && (
+        <div className="flex flex-col gap-4">
+          {/* Callout */}
+          <div style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#2563EB", lineHeight: 1.5 }}>
+            Los servicios configurados aquí aparecen en <strong>Cuentas por Pagar</strong> cuando entran en período de pago.
+            Los gastos ocasionales pendientes de pago también se consolidan allí.
+          </div>
+
+          {/* Botón + form */}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            {!showFormRec && (
+              <button type="button" onClick={() => setShowFormRec(true)}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+                style={{ background: "var(--erp-accent)" }}>
+                + Configurar Servicio
+              </button>
+            )}
+          </div>
+
+          {showFormRec && (
+            <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: "var(--erp-text)" }}>Nuevo Servicio Recurrente</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Nombre / Proveedor *</label>
+                  <input type="text" value={recForm.proveedor} placeholder="Ej: Alquiler local"
+                    onChange={e => setRecForm(p => ({ ...p, proveedor: e.target.value }))} style={recInputStyle} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Frecuencia</label>
+                  <select value={recForm.frecuencia} onChange={e => setRecForm(p => ({ ...p, frecuencia: e.target.value }))} style={recInputStyle}>
+                    {FRECUENCIAS_RECURRENCIA.map(f => (
+                      <option key={f} value={f}>{FRECUENCIA_RECURRENCIA_LABELS[f]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Monto USD (referencia)</label>
+                  <input type="number" min="0" step="0.01" value={recForm.montoUsd} placeholder="0.00"
+                    onChange={e => setRecForm(p => ({ ...p, montoUsd: e.target.value }))} style={recInputStyle} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Próximo vencimiento *</label>
+                  <input type="date" value={recForm.fechaVencimiento}
+                    onChange={e => setRecForm(p => ({ ...p, fechaVencimiento: e.target.value }))} style={recInputStyle} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
+                  <input type="text" value={recForm.descripcion} placeholder="Opcional"
+                    onChange={e => setRecForm(p => ({ ...p, descripcion: e.target.value }))} style={recInputStyle} />
+                </div>
+              </div>
+              {recError && <p style={{ color: "#EF4444", fontSize: 12, marginBottom: 8 }}>{recError}</p>}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button type="button" onClick={() => { setShowFormRec(false); setRecForm({ ...EMPTY_REC_FORM }); setRecError(null); }}
+                  style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", cursor: "pointer", fontSize: 13, color: "var(--erp-text)" }}>
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleGuardarRec} disabled={savingRec}
+                  style={{ padding: "7px 14px", borderRadius: 8, background: "var(--erp-accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                  {savingRec ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Lista */}
+          {loadingRec ? (
+            <p style={{ textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>Cargando…</p>
+          ) : recurrentes.length === 0 ? (
+            <div style={{ textAlign: "center", color: "var(--erp-text-3)", fontSize: 13, padding: "2.5rem 0",
+              border: "1px dashed var(--erp-border)", borderRadius: 12 }}>
+              Sin servicios recurrentes configurados.<br />
+              <span style={{ fontSize: 12 }}>Usa el botón + Configurar Servicio para agregar uno.</span>
+            </div>
+          ) : (
+            <div style={{ border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden", background: "var(--erp-surface)" }}>
+              {recurrentes.map((rec, idx) => (
+                <div key={rec.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+                  borderBottom: idx < recurrentes.length - 1 ? "1px solid var(--erp-border)" : undefined }}>
+                  <div style={{ fontSize: 18, width: 36, height: 36, borderRadius: 8, background: "var(--erp-bg)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔧</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "var(--erp-text)" }}>{rec.proveedor}</div>
+                    {rec.descripcion && <div style={{ fontSize: 11, color: "var(--erp-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.descripcion}</div>}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, background: "var(--erp-bg)", border: "1px solid var(--erp-border)",
+                        borderRadius: 4, padding: "1px 6px", color: "var(--erp-text-3)", textTransform: "uppercase" }}>
+                        {FRECUENCIA_RECURRENCIA_LABELS[rec.frecuencia as FrecuenciaRecurrencia] ?? rec.frecuencia}
+                      </span>
+                      {rec.fechaVencimiento && (
+                        <span style={{ fontSize: 11, fontWeight: 600,
+                          color: rec.fechaVencimiento < today() ? "#EF4444" : "#D97706" }}>
+                          Vence {formatFechaCorta(rec.fechaVencimiento)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    {rec.montoUsd > 0 && (
+                      <div style={{ fontWeight: 800, fontSize: 14, color: "var(--erp-text)" }}>
+                        ${formatMonto(rec.montoUsd)}
+                      </div>
+                    )}
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700,
+                      background: rec.estado === "PENDIENTE" ? "rgba(217,119,6,0.10)" : "rgba(5,150,105,0.10)",
+                      color: rec.estado === "PENDIENTE" ? "#D97706" : "#059669" }}>
+                      {rec.estado === "PENDIENTE" ? "En período" : rec.estado}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

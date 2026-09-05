@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -76,12 +76,6 @@ type FormData = {
 };
 
 const HOY = new Date().toISOString().slice(0, 10);
-
-const FORM_VACIO: FormData = {
-  proveedor: "", proveedorRif: "", numeroFactura: "", descripcion: "",
-  fechaEmision: HOY, fechaVencimiento: HOY, montoBs: "", montoUsd: "", tasaDia: "", notas: "",
-  recurrente: false, frecuencia: "MENSUAL",
-};
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
@@ -168,7 +162,7 @@ async function buscarTasaPorFecha(fecha: string): Promise<number | null> {
   }
 }
 
-// ── Formulario con conversión bidireccional ────────────────────────────────
+// ── Formulario de nueva cuenta — usado desde Gastos > Recurrentes ────────────────────────────
 
 function FormularioCP({
   onGuardar,
@@ -177,7 +171,11 @@ function FormularioCP({
   onGuardar: (data: FormData) => Promise<string | null>;
   onCancelar: () => void;
 }) {
-  const [form, setForm] = useState<FormData>(FORM_VACIO);
+  const [form, setForm] = useState<FormData>({
+    proveedor: "", proveedorRif: "", numeroFactura: "", descripcion: "",
+    fechaEmision: HOY, fechaVencimiento: HOY, montoBs: "", montoUsd: "", tasaDia: "", notas: "",
+    recurrente: false, frecuencia: "MENSUAL",
+  });
   const [guardando, setGuardando] = useState(false);
   const [formError, setFormError] = useState("");
   const [tasaMsg, setTasaMsg] = useState("");
@@ -376,9 +374,6 @@ export default function CuentasPagarClient() {
   const [filtroEstado, setFiltroEstado] = useState<"" | "PENDIENTE" | "PENDIENTE_PARCIAL" | "PAGADO">("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
 
-  // formulario
-  const [showForm, setShowForm] = useState(false);
-
   // modal pago
   type PagoModal = { id: number; montoBs: number; montoUsd: number; tasaDia: number; proveedor: string };
   const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
@@ -493,34 +488,6 @@ export default function CuentasPagarClient() {
   }, [page, filtroEstado, filtroProveedor]);
 
   useEffect(() => { cargar(); }, [cargar]);
-
-  async function handleGuardar(form: FormData): Promise<string | null> {
-    const body = {
-      proveedor: form.proveedor,
-      proveedorRif: form.proveedorRif || undefined,
-      numeroFactura: form.numeroFactura || undefined,
-      descripcion: form.descripcion || undefined,
-      fechaEmision: form.fechaEmision,
-      fechaVencimiento: form.fechaVencimiento,
-      montoBs: Number(form.montoBs) || 0,
-      montoUsd: Number(form.montoUsd) || 0,
-      tasaDia: Number(form.tasaDia) || 0,
-      notas: form.notas || undefined,
-      recurrente: form.recurrente,
-      frecuencia: form.recurrente ? form.frecuencia : undefined,
-    };
-    const r = await fetch("/api/cuentas-pagar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const j = await r.json();
-    if (!r.ok) return j.error ?? "Error al guardar";
-    setShowForm(false);
-    setPage(1);
-    cargar();
-    return null;
-  }
 
   // Fecha de pago → busca tasa histórica; si no hay, consulta la tasa BCV vigente (live)
   async function handleFechaPagoModal(fecha: string) {
@@ -650,23 +617,9 @@ export default function CuentasPagarClient() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--erp-text)", margin: 0 }}>Cuentas por Pagar</h2>
-          <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Obligaciones con proveedores y servicios</p>
+          <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Panel consolidado — Servicios · Compras a crédito · Gastos ocasionales</p>
         </div>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          style={{ padding: "8px 18px", borderRadius: 10, background: "#B45309", color: "#fff", fontWeight: 700, fontSize: 14, border: "none", cursor: "pointer" }}
-        >
-          {showForm ? "✕ Cancelar" : "+ Nueva Cuenta"}
-        </button>
       </div>
-
-      {/* Formulario */}
-      {showForm && (
-        <FormularioCP
-          onGuardar={handleGuardar}
-          onCancelar={() => setShowForm(false)}
-        />
-      )}
 
       {/* Filtros */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -702,11 +655,29 @@ export default function CuentasPagarClient() {
               </tr>
             </thead>
             <tbody>
-              {items.map(cp => {
+              {[...items]
+                .sort((a, b) => (b.recurrente ? 1 : 0) - (a.recurrente ? 1 : 0))
+                .map((cp, idx, sorted) => {
+                const prev = idx > 0 ? sorted[idx - 1] : null;
+                const showSeccionServicios = cp.recurrente && !prev?.recurrente;
+                const showSeccionGastos = !cp.recurrente && (idx === 0 || prev?.recurrente);
+                const NCOLS = 11;
+                const secStyle: React.CSSProperties = {
+                  padding: "5px 10px", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                  textTransform: "uppercase", color: "var(--erp-text-3)",
+                  background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)",
+                };
                 const est = ESTADO_STYLE[cp.estado] ?? ESTADO_STYLE.PENDIENTE;
                 const esElim = eliminandoId === cp.id;
                 return (
-                  <tr key={cp.id} style={{ borderBottom: "1px solid var(--erp-border)", background: esElim ? "rgba(239,68,68,0.06)" : undefined }}>
+                  <React.Fragment key={cp.id}>
+                  {showSeccionServicios && (
+                    <tr><td colSpan={NCOLS} style={secStyle}>🔧 Servicios Recurrentes</td></tr>
+                  )}
+                  {showSeccionGastos && (
+                    <tr><td colSpan={NCOLS} style={secStyle}>📋 Gastos Ocasionales</td></tr>
+                  )}
+                  <tr style={{ borderBottom: "1px solid var(--erp-border)", background: esElim ? "rgba(239,68,68,0.06)" : undefined }}>
                     <td style={{ padding: "10px 10px" }}>
                       <div style={{ fontWeight: 600, color: "var(--erp-text)", display: "flex", alignItems: "center", gap: 6 }}>
                         {cp.proveedor}
@@ -812,6 +783,7 @@ export default function CuentasPagarClient() {
                       )}
                     </td>
                   </tr>
+                  </React.Fragment>
                 );
               })}
             </tbody>
