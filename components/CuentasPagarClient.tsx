@@ -285,7 +285,7 @@ function FormularioCP({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-        <CampoForm label="Proveedor *">
+        <CampoForm label="Proveedor / Servicio *">
           <input style={inputStyle} value={form.proveedor} onChange={e => setForm(p => ({ ...p, proveedor: e.target.value }))} placeholder="Nombre del proveedor" />
         </CampoForm>
         <CampoForm label="RIF">
@@ -613,7 +613,7 @@ export default function CuentasPagarClient() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--erp-text)", margin: 0 }}>Cuentas por Pagar</h2>
-          <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Obligaciones con proveedores</p>
+          <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Obligaciones con proveedores y servicios</p>
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
@@ -659,7 +659,7 @@ export default function CuentasPagarClient() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid var(--erp-border)", textAlign: "left" }}>
-                {["Proveedor","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Tasa","Estado","Acciones"].map(h => (
+                {["Proveedor/Servicio","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Tasa","Estado","Acciones"].map(h => (
                   <th key={h} style={{ padding: "8px 10px", fontWeight: 700, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -868,7 +868,7 @@ export default function CuentasPagarClient() {
             {editError && <p style={{ margin: "0 0 12px", color: "#EF4444", fontSize: 13 }}>{editError}</p>}
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {([
-                { label: "Proveedor *", key: "proveedor", type: "text" },
+                { label: "Proveedor / Servicio *", key: "proveedor", type: "text" },
                 { label: "RIF", key: "proveedorRif", type: "text" },
                 { label: "Nº Factura", key: "numeroFactura", type: "text" },
                 { label: "Descripción", key: "descripcion", type: "text" },
