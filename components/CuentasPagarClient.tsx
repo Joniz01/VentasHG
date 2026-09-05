@@ -372,7 +372,7 @@ export default function CuentasPagarClient() {
   const [loading, setLoading] = useState(true);
 
   // filtros
-  const [filtroEstado, setFiltroEstado] = useState<"" | "PENDIENTE" | "PENDIENTE_PARCIAL" | "PAGADO">("");
+  const [filtroEstado, setFiltroEstado] = useState<"PENDIENTE" | "PENDIENTE_PARCIAL">("PENDIENTE");
   const [filtroProveedor, setFiltroProveedor] = useState("");
 
   // filtro por fecha de vencimiento
@@ -713,7 +713,7 @@ export default function CuentasPagarClient() {
         {/* Fila 2: Estado + separador + Vencimiento */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 2 }}>Estado:</span>
-          {(["", "PENDIENTE", "PENDIENTE_PARCIAL", "PAGADO"] as const).map(e => {
+          {(["PENDIENTE", "PENDIENTE_PARCIAL"] as const).map(e => {
             const active = filtroEstado === e;
             return (
               <button key={e} onClick={() => { setFiltroEstado(e); setPage(1); }}
@@ -721,7 +721,7 @@ export default function CuentasPagarClient() {
                   border: `1px solid ${active ? "#B45309" : "var(--erp-border)"}`,
                   background: active ? "rgba(180,83,9,0.10)" : "transparent",
                   color: active ? "#B45309" : "var(--erp-text-2)" }}>
-                {e === "" ? "Todos" : e === "PENDIENTE" ? "Pendiente" : e === "PENDIENTE_PARCIAL" ? "Pend. Parcial" : "Pagado"}
+                {e === "PENDIENTE" ? "Por Pagar" : "Pend. Parcial"}
               </button>
             );
           })}
