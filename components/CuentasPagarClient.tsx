@@ -678,7 +678,7 @@ export default function CuentasPagarClient() {
         />
       </div>
 
-      {/* Tabla */}
+      {/* Grid estilo inventario */}
       {loading ? (
         <p style={{ color: "var(--erp-text-3)", textAlign: "center", padding: "2rem 0" }}>Cargando…</p>
       ) : items.length === 0 ? (
@@ -687,11 +687,23 @@ export default function CuentasPagarClient() {
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid var(--erp-border)", textAlign: "left" }}>
-                {["Proveedor/Servicio","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Pagado USD","Saldo USD","Tasa","Estado","Acciones"].map(h => (
-                  <th key={h} style={{ padding: "8px 10px", fontWeight: 700, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{h}</th>
+              <tr style={{ borderBottom: "1.5px solid var(--erp-border)" }}>
+                {[
+                  { label: "Proveedor / Servicio", align: "left"  },
+                  { label: "Vencimiento",           align: "left"  },
+                  { label: "Monto Bs",              align: "right" },
+                  { label: "Monto USD",             align: "right" },
+                  { label: "Estado",                align: "center"},
+                  { label: "Acciones",              align: "right" },
+                ].map(h => (
+                  <th key={h.label} style={{
+                    padding: "10px 14px", fontSize: 11, fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: "0.07em",
+                    color: "var(--erp-text-3)", textAlign: h.align as React.CSSProperties["textAlign"],
+                    whiteSpace: "nowrap",
+                  }}>{h.label}</th>
                 ))}
               </tr>
             </thead>
@@ -703,14 +715,16 @@ export default function CuentasPagarClient() {
                 const prev = idx > 0 ? sorted[idx - 1] : null;
                 const showSeccionServicios = cp.recurrente && !prev?.recurrente;
                 const showSeccionGastos = !cp.recurrente && (idx === 0 || prev?.recurrente);
-                const NCOLS = 11;
+                const NCOLS = 6;
                 const secStyle: React.CSSProperties = {
-                  padding: "5px 10px", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                  padding: "5px 14px", fontSize: 10, fontWeight: 700, letterSpacing: "0.09em",
                   textTransform: "uppercase", color: "var(--erp-text-3)",
                   background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)",
+                  borderTop: idx > 0 ? "1px solid var(--erp-border)" : undefined,
                 };
                 const est = ESTADO_STYLE[cp.estado] ?? ESTADO_STYLE.PENDIENTE;
                 const esElim = eliminandoId === cp.id;
+                const vencidoYPendiente = esPendiente(cp) && cp.fechaVencimiento < HOY;
                 return (
                   <React.Fragment key={cp.id}>
                   {showSeccionServicios && (
@@ -719,56 +733,80 @@ export default function CuentasPagarClient() {
                   {showSeccionGastos && (
                     <tr><td colSpan={NCOLS} style={secStyle}>📋 Gastos Ocasionales</td></tr>
                   )}
-                  <tr style={{ borderBottom: "1px solid var(--erp-border)", background: esElim ? "rgba(239,68,68,0.06)" : undefined }}>
-                    <td style={{ padding: "10px 10px" }}>
-                      <div style={{ fontWeight: 600, color: "var(--erp-text)", display: "flex", alignItems: "center", gap: 6 }}>
+                  <tr style={{
+                    borderBottom: "1px solid var(--erp-border)",
+                    background: esElim ? "rgba(239,68,68,0.05)" : undefined,
+                  }}>
+                    {/* Proveedor */}
+                    <td style={{ padding: "12px 14px" }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: "var(--erp-text)", marginBottom: 2 }}>
                         {cp.proveedor}
+                      </div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                         {cp.recurrente && (
-                          <span title={`Recurrente ${cp.frecuencia ?? ""}`} style={{ fontSize: 11, background: "rgba(37,99,235,0.10)", color: "#2563EB", borderRadius: 10, padding: "1px 7px", fontWeight: 600 }}>
+                          <span style={{ fontSize: 10, background: "rgba(37,99,235,0.10)", color: "#2563EB", borderRadius: 6, padding: "1px 6px", fontWeight: 700, letterSpacing: "0.03em" }}>
                             🔁 {cp.frecuencia}
                           </span>
                         )}
+                        {cp.proveedorRif && (
+                          <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{cp.proveedorRif}</span>
+                        )}
+                        {cp.descripcion && (
+                          <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>· {cp.descripcion}</span>
+                        )}
+                        {cp.numeroFactura && (
+                          <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>Nº {cp.numeroFactura}</span>
+                        )}
                       </div>
-                      {cp.proveedorRif && <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{cp.proveedorRif}</div>}
-                      {cp.descripcion && <div style={{ fontSize: 11, color: "var(--erp-text-3)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cp.descripcion}</div>}
                     </td>
-                    <td style={{ padding: "10px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{cp.numeroFactura ?? "—"}</td>
-                    <td style={{ padding: "10px", whiteSpace: "nowrap" }}>{fmtFecha(cp.fechaEmision)}</td>
-                    <td style={{ padding: "10px", whiteSpace: "nowrap", color: esPendiente(cp) && cp.fechaVencimiento < HOY ? "#EF4444" : "var(--erp-text)" }}>
-                      {fmtFecha(cp.fechaVencimiento)}
+
+                    {/* Vencimiento */}
+                    <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: vencidoYPendiente ? "#EF4444" : "var(--erp-text)" }}>
+                        {fmtFecha(cp.fechaVencimiento)}
+                      </div>
+                      {vencidoYPendiente && (
+                        <div style={{ fontSize: 10, color: "#EF4444", fontWeight: 700, marginTop: 1 }}>Vencido</div>
+                      )}
+                      {!vencidoYPendiente && (
+                        <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }}>{fmtFecha(cp.fechaEmision)}</div>
+                      )}
                     </td>
-                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      {cp.montoOriginalBs ? (
-                        <>
-                          <span style={{ color: "var(--erp-text)" }}>{BS(cp.montoBs)}</span>
-                          <span style={{ fontSize: 11, color: "var(--erp-text-3)", display: "block" }}>orig. {BS(cp.montoOriginalBs)}</span>
-                        </>
-                      ) : BS(cp.montoBs)}
+
+                    {/* Monto Bs */}
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>{BS(cp.montoBs)}</div>
+                      {cp.montoOriginalBs && cp.montoOriginalBs !== cp.montoBs && (
+                        <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }}>orig. {BS(cp.montoOriginalBs)}</div>
+                      )}
                     </td>
-                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: "var(--erp-text)" }}>
-                      ${USD(cp.montoUsd)}
+
+                    {/* Monto USD */}
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--erp-text)" }}>${USD(cp.montoUsd)}</div>
+                      {cp.estado === "PENDIENTE_PARCIAL" && cp.montoOriginalBs && cp.tasaDia > 0 && (
+                        <div style={{ fontSize: 11, color: "#059669", fontWeight: 700, marginTop: 1 }}>
+                          +${USD((cp.montoOriginalBs / cp.tasaDia) - cp.montoUsd)} pagado
+                        </div>
+                      )}
+                      {cp.tasaDia > 0 && (
+                        <div style={{ fontSize: 10, color: "var(--erp-text-3)", marginTop: 1 }}>
+                          tasa {cp.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 })}
+                        </div>
+                      )}
                     </td>
-                    {/* Pagado USD: original USD - saldo USD */}
-                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      {cp.estado === "PENDIENTE_PARCIAL" && cp.montoOriginalBs && cp.tasaDia > 0
-                        ? <span style={{ color: "#059669", fontWeight: 700 }}>${USD((cp.montoOriginalBs / cp.tasaDia) - cp.montoUsd)}</span>
-                        : <span style={{ color: "var(--erp-text-3)" }}>—</span>}
+
+                    {/* Estado */}
+                    <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                      <span style={{ padding: "4px 12px", borderRadius: 99, background: est.bg, color: est.text, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>
+                        {est.label}
+                      </span>
                     </td>
-                    {/* Saldo USD: monto restante en USD */}
-                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      {cp.estado === "PENDIENTE_PARCIAL"
-                        ? <span style={{ color: "#D97706", fontWeight: 700 }}>${USD(cp.montoUsd)}</span>
-                        : <span style={{ color: "var(--erp-text-3)" }}>—</span>}
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--erp-text-3)", fontSize: 12, whiteSpace: "nowrap" }}>
-                      {cp.tasaDia > 0 ? cp.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 }) : "—"}
-                    </td>
-                    <td style={{ padding: "10px" }}>
-                      <span style={{ padding: "3px 10px", borderRadius: 20, background: est.bg, color: est.text, fontWeight: 700, fontSize: 12 }}>{est.label}</span>
-                    </td>
-                    <td style={{ padding: "10px" }}>
+
+                    {/* Acciones */}
+                    <td style={{ padding: "12px 14px" }}>
                       {esElim ? (
-                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
                           <span style={{ fontSize: 12, color: "#EF4444" }}>¿Eliminar?</span>
                           <button onClick={() => handleEliminar(cp.id)} disabled={eliminando}
                             style={{ padding: "3px 10px", borderRadius: 6, background: "#EF4444", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
@@ -778,7 +816,7 @@ export default function CuentasPagarClient() {
                             style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 12 }}>No</button>
                         </div>
                       ) : (
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
                           {esPendiente(cp) && (
                             <button
                               onClick={() => {
@@ -786,19 +824,18 @@ export default function CuentasPagarClient() {
                                 setTipoPago("total"); setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
                                 setFechaPago(""); setTasaPago(null); setTasaPagoInput(""); setTasaPagoEditable(false);
                               }}
-                              style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(5,150,105,0.10)", color: "#059669", border: "1px solid #059669", fontSize: 12, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
-                              ✓ Registrar Pago
+                              style={{ padding: "5px 12px", borderRadius: 8, background: "#059669", color: "#fff", border: "none", fontSize: 12, cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap" }}>
+                              ✓ Pagar
                             </button>
                           )}
-                          <button
-                            onClick={() => abrirEditar(cp)}
-                            style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(99,102,241,0.08)", color: "#6366F1", border: "1px solid #6366F1", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+                          <button onClick={() => abrirEditar(cp)}
+                            style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", fontSize: 13, cursor: "pointer" }}>
                             ✏️
                           </button>
                           {(cp.estado === "PENDIENTE_PARCIAL" || cp.estado === "PAGADO") && (
                             revirtiendoId === cp.id ? (
                               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                                <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>¿Revertir último abono?</span>
+                                <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>¿Revertir?</span>
                                 <button onClick={() => handleRevertir(cp.id)} disabled={revirtiendo}
                                   style={{ padding: "3px 8px", borderRadius: 6, background: "#D97706", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
                                   {revirtiendo ? "…" : "Sí"}
@@ -807,17 +844,15 @@ export default function CuentasPagarClient() {
                                   style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 11 }}>No</button>
                               </div>
                             ) : (
-                              <button onClick={() => setRevirtiendoId(cp.id)}
-                                title="Revertir último abono"
-                                style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(217,119,6,0.08)", color: "#D97706", border: "1px solid #D97706", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+                              <button onClick={() => setRevirtiendoId(cp.id)} title="Revertir último abono"
+                                style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "#D97706", border: "1px solid #D97706", fontSize: 13, cursor: "pointer" }}>
                                 ↩
                               </button>
                             )
                           )}
                           {cp.estado !== "PENDIENTE_PARCIAL" && (
-                            <button
-                              onClick={() => setEliminandoId(cp.id)}
-                              style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "1px solid #EF4444", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+                            <button onClick={() => setEliminandoId(cp.id)}
+                              style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "var(--erp-text-3)", border: "1px solid var(--erp-border)", fontSize: 13, cursor: "pointer" }}>
                               🗑
                             </button>
                           )}
