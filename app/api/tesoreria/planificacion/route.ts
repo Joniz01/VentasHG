@@ -192,6 +192,36 @@ export async function GET(request: NextRequest) {
     cpRows = r.rows;
   } catch { /* tabla cuentas_pagar aún no existe */ }
 
+  // ── Query compras a crédito con vencimiento ───────────────────────────────
+  let compraRows: RawItem[] = [];
+  try {
+    const r = await pool.query<RawItem>(
+      `SELECT
+        'COMP' || c.id                                                             AS id,
+        'compra'                                                                   AS tipo,
+        c.proveedor_nombre || COALESCE(' · Fact. ' || c.numero_factura, '')       AS descripcion,
+        c.fecha_vencimiento_pago                                                   AS fecha_vencimiento,
+        COALESCE(SUM(ci.subtotal_bs), 0)                                           AS monto_bs,
+        c.tasa_dia                                                                 AS tasa_dia,
+        c.numero_factura                                                            AS referencia,
+        NULL::text                                                                  AS monto_original_bs,
+        NULL::text                                                                  AS estado_raw,
+        CASE WHEN c.tasa_dia > 0
+          THEN (COALESCE(SUM(ci.subtotal_bs), 0) / c.tasa_dia)::text
+          ELSE '0'
+        END                                                                         AS monto_usd
+       FROM compras c
+       LEFT JOIN compra_items ci ON ci.compra_id = c.id
+       WHERE c.estado = 'ACTIVA'
+         AND c.fecha_vencimiento_pago IS NOT NULL
+         AND c.fecha_vencimiento_pago BETWEEN $1 AND $2
+       GROUP BY c.id, c.proveedor_nombre, c.numero_factura, c.tasa_dia, c.fecha_vencimiento_pago
+       ORDER BY c.fecha_vencimiento_pago ASC`,
+      [desde, hasta]
+    );
+    compraRows = r.rows;
+  } catch { /* compras o compra_items no disponible */ }
+
   // ── Nóminas automáticas estimadas (sin período generado) dentro de la ventana ─
   type EstimadaRow = { nomina_id: number; nombre: string; fecha_pago: string; total_usd: number };
   let nominasEstimadas: EstimadaRow[] = [];
@@ -355,7 +385,7 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Merge + enrich ─────────────────────────────────────────────────────────
-  const allRaw = [...nominaRows, ...gastoRows, ...cpRows];
+  const allRaw = [...nominaRows, ...gastoRows, ...cpRows, ...compraRows];
 
   type Item = {
     id: string; tipo: string; descripcion: string;
@@ -413,6 +443,7 @@ export async function GET(request: NextRequest) {
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const proveedoresUsd = cpRows.reduce((s, r) => s + (r.monto_usd != null ? Number(r.monto_usd) : (Number(r.tasa_dia) > 0 ? Number(r.monto_bs) / Number(r.tasa_dia) : 0)), 0);
+  const comprasUsd = compraRows.reduce((s, r) => s + (r.monto_usd != null ? Number(r.monto_usd) : (Number(r.tasa_dia) > 0 ? Number(r.monto_bs) / Number(r.tasa_dia) : 0)), 0);
 
   const vencidoUsd = items.filter((i) => i.estado === "vencido").reduce((s, i) => s + i.montoUsd, 0);
   const estaSemanaUsd = items
@@ -439,7 +470,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
-    kpis: { vencidoUsd, estaSemanaUsd, proximaSemanaUsd, esteMesUsd, pagadoUsd, proveedoresUsd },
+    kpis: { vencidoUsd, estaSemanaUsd, proximaSemanaUsd, esteMesUsd, pagadoUsd, proveedoresUsd, comprasUsd },
     items,
     semanas,
     hoy,

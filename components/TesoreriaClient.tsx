@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type ItemEstado = "vencido" | "pendiente" | "pendiente_parcial" | "programado" | "pagado";
-type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor";
+type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor" | "compra";
 
 type PagoHistorial = {
   id: number;
@@ -30,12 +30,12 @@ type ObligacionItem = {
   historialPagos?: PagoHistorial[];
 };
 
-type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes" | "proveedores";
+type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes" | "proveedores" | "compras";
 
 type Semana = { lunes: string; domingo: string; totalUsd: number; tipos: string[] };
 
 type PlanificacionData = {
-  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number; proveedoresUsd?: number };
+  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number; proveedoresUsd?: number; comprasUsd?: number };
   items: ObligacionItem[];
   semanas: Semana[];
   hoy: string;
@@ -74,6 +74,7 @@ const TIPO_COLOR: Record<ItemTipo, { text: string; bg: string; label: string }> 
   "gasto-fijo":{ text: "#0891B2", bg: "#E0F2FE", label: "Gasto Fijo" },
   gasto:       { text: "#B45309", bg: "#FEF3C7", label: "Gasto" },
   proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Proveedor" },
+  compra:      { text: "#0F5FA6", bg: "#DDEEFF", label: "Compra Créd." },
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ function sourceUrl(item: ObligacionItem): string | null {
   if (item.id.startsWith("CP")) return "/cuentas-por-pagar";
   if (item.id.startsWith("NE")) return "/nomina"; // estimated → config nomina
   if (item.id.startsWith("N")) return "/nomina";  // period → gestión pagos
+  if (item.id.startsWith("COMP")) return "/compras";
   return null;
 }
 
@@ -281,6 +283,7 @@ export default function TesoreriaClient() {
     if (drillKey === "prox_4sem") return items.filter((i) => i.estado !== "vencido" && i.estado !== "pagado");
     if (drillKey === "pagado_mes") return items.filter((i) => i.estado === "pagado");
     if (drillKey === "proveedores") return items.filter((i) => i.id.startsWith("CP"));
+    if (drillKey === "compras") return items.filter((i) => i.id.startsWith("COMP"));
     return null;
   })();
 
@@ -370,6 +373,9 @@ export default function TesoreriaClient() {
         {(kpis.proveedoresUsd ?? 0) > 0 && (
           <KpiCard label="Proveedores y Servicios" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores y servicios" active={drillKey === "proveedores"} onClick={() => setDrillKey(drillKey === "proveedores" ? null : "proveedores")} />
         )}
+        {(kpis.comprasUsd ?? 0) > 0 && (
+          <KpiCard label="Compras a Crédito" valueUsd={kpis.comprasUsd ?? 0} color="#0F5FA6" subLabel="Compras con vencimiento próximo" active={drillKey === "compras"} onClick={() => setDrillKey(drillKey === "compras" ? null : "compras")} />
+        )}
       </div>
 
       {/* ── Drill breadcrumb ───────────────────────────────────────────── */}
@@ -415,10 +421,10 @@ export default function TesoreriaClient() {
             const color = isThisWeek ? "#D97706" : "#2563EB";
             const barHeight = Math.max(40, (sem.totalUsd / maxSem) * 120);
             const TIPO_LABELS: Record<string, string> = {
-              nomina: "NÓM", "gasto-fijo": "FIJO", gasto: "GASTO", proveedor: "PROV",
+              nomina: "NÓM", "gasto-fijo": "FIJO", gasto: "GASTO", proveedor: "PROV", compra: "COMP",
             };
             const TIPO_BG: Record<string, string> = {
-              nomina: "#7C3AED", "gasto-fijo": "#0891B2", gasto: "#B45309", proveedor: "#374151",
+              nomina: "#7C3AED", "gasto-fijo": "#0891B2", gasto: "#B45309", proveedor: "#374151", compra: "#0F5FA6",
             };
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
