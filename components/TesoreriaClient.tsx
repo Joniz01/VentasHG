@@ -187,6 +187,27 @@ export default function TesoreriaClient() {
   const [filtro, setFiltro] = useState<FiltroEstado>("todos");
   const [pagando, setPagando] = useState<string | null>(null);
   const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
+  // Filtros de categoría (multi-select, todos activos por defecto)
+  type CatKey = "nomina" | "servicios" | "compras" | "gastos";
+  const [catFiltros, setCatFiltros] = useState<Set<CatKey>>(new Set(["nomina", "servicios", "compras", "gastos"]));
+  function toggleCat(cat: CatKey) {
+    setCatFiltros(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) { if (next.size > 1) next.delete(cat); } // mínimo 1 activo
+      else next.add(cat);
+      return next;
+    });
+  }
+  function catTipos(cat: CatKey): ItemTipo[] {
+    if (cat === "nomina")    return ["nomina"];
+    if (cat === "servicios") return ["proveedor"];
+    if (cat === "compras")   return ["compra"];
+    if (cat === "gastos")    return ["gasto", "gasto-fijo"];
+    return [];
+  }
+  const activeTipos = new Set<ItemTipo>(
+    (["nomina", "servicios", "compras", "gastos"] as CatKey[]).flatMap(c => catFiltros.has(c) ? catTipos(c) : [])
+  );
 
   // Pago modal state
   const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
@@ -287,7 +308,8 @@ export default function TesoreriaClient() {
     return null;
   })();
 
-  const displayItems = drillItems ?? items;
+  // Aplicar filtro de categoría
+  const displayItems = (drillItems ?? items).filter((i) => activeTipos.has(i.tipo));
 
   // Filter + counts — pendiente_parcial cuenta junto a pendiente
   const counts: Record<FiltroEstado, number> = {
@@ -378,6 +400,47 @@ export default function TesoreriaClient() {
           <KpiCard label="Compras a Crédito" valueUsd={kpis.comprasUsd ?? 0} color="#0F5FA6" subLabel="Compras con vencimiento próximo" active={drillKey === "compras"} onClick={() => setDrillKey(drillKey === "compras" ? null : "compras")} />
         )}
       </div>
+
+      {/* ── Filtros de Categoría ───────────────────────────────────────── */}
+      {(() => {
+        const CATS: { key: CatKey; label: string; emoji: string; color: string; border: string }[] = [
+          { key: "nomina",    label: "Nómina",    emoji: "💰", color: "#059669", border: "#059669" },
+          { key: "servicios", label: "Servicios", emoji: "🔧", color: "#B45309", border: "#B45309" },
+          { key: "compras",   label: "Compras",   emoji: "🛒", color: "#0F5FA6", border: "#0F5FA6" },
+          { key: "gastos",    label: "Gastos",    emoji: "📋", color: "#6B7280", border: "#6B7280" },
+        ];
+        return (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Categoría:</span>
+            {CATS.map(({ key, label, emoji, color, border }) => {
+              const active = catFiltros.has(key);
+              return (
+                <button
+                  key={key}
+                  onClick={() => toggleCat(key)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 99,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    border: `1.5px solid ${border}`,
+                    background: active ? color : "transparent",
+                    color: active ? "#fff" : color,
+                    transition: "all 0.15s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <span>{emoji}</span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ── Drill breadcrumb ───────────────────────────────────────────── */}
       {drillKey && (
