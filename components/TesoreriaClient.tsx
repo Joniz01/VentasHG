@@ -73,7 +73,7 @@ const TIPO_COLOR: Record<ItemTipo, { text: string; bg: string; label: string }> 
   nomina:      { text: "#7C3AED", bg: "#EDE9FE", label: "Nómina" },
   "gasto-fijo":{ text: "#0891B2", bg: "#E0F2FE", label: "Gasto Fijo" },
   gasto:       { text: "#B45309", bg: "#FEF3C7", label: "Gasto" },
-  proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Proveedor" },
+  proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Servicio" },
   compra:      { text: "#0F5FA6", bg: "#DDEEFF", label: "Compra Créd." },
 };
 
