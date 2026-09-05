@@ -547,24 +547,20 @@ export default function CuentasPagarClient() {
     const t = Number(val);
     setTasaPago(t > 0 ? t : null);
     if (t > 0) {
-      const rawBs = Number(montoParcialBs.replace(/,/g, ""));
-      if (rawBs) setMontoParcialUsd((rawBs / t).toFixed(2));
+      if (montoParcialBs) setMontoParcialUsd((Number(montoParcialBs) / t).toFixed(2));
     }
   }
 
   // Conversión bidireccional en modal de pago parcial
-  // montoParcialBs almacena el número raw (sin comas); se formatea solo al mostrar
   function handleParcialBs(val: string) {
-    const raw = val.replace(/,/g, "");
-    setMontoParcialBs(raw);
+    setMontoParcialBs(val);
     const t = tasaPago ?? pagoModal?.tasaDia;
-    if (t && t > 0 && raw) setMontoParcialUsd((Number(raw) / t).toFixed(2));
+    if (t && t > 0 && val) setMontoParcialUsd((Number(val) / t).toFixed(2));
   }
   function handleParcialUsd(val: string) {
-    const raw = val.replace(/[$,]/g, "");
-    setMontoParcialUsd(raw);
+    setMontoParcialUsd(val);
     const t = tasaPago ?? pagoModal?.tasaDia;
-    if (t && t > 0 && raw) setMontoParcialBs((Number(raw) * t).toFixed(2));
+    if (t && t > 0 && val) setMontoParcialBs((Number(val) * t).toFixed(2));
   }
 
   async function handlePagar() {
@@ -831,8 +827,8 @@ export default function CuentasPagarClient() {
             <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--erp-text-2)" }}>
               {pagoModal.proveedor}
               {pagoModal.montoUsd > 0 && <strong> · ${USD(pagoModal.montoUsd)} USD</strong>}
-              {(tasaPago ?? pagoModal.tasaDia) > 0 && (
-                <span style={{ color: "var(--erp-text-3)" }}> · Tasa {(tasaPago ?? pagoModal.tasaDia).toLocaleString("es-VE", { maximumFractionDigits: 2 })} Bs/$</span>
+              {tasaPago != null && tasaPago > 0 && (
+                <span style={{ color: "var(--erp-text-3)" }}> · Tasa {tasaPago.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} Bs/$</span>
               )}
             </p>
 
@@ -882,25 +878,13 @@ export default function CuentasPagarClient() {
                 )}
                 {/* Conversión bidireccional en modal */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <CampoForm label="Monto a abonar (Bs)">
-                    <input
-                      type="text" inputMode="decimal" style={inputStyle}
-                      value={montoParcialBs ? Number(montoParcialBs).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""}
-                      onChange={e => handleParcialBs(e.target.value)}
-                      placeholder={`Máx. ${BS(pagoModal.montoBs)}`}
-                    />
+                  <CampoForm label="Abonar (Bs)">
+                    <input type="number" min="0" step="0.01" style={inputStyle} value={montoParcialBs}
+                      onChange={e => handleParcialBs(e.target.value)} placeholder={`Máx. ${BS(pagoModal.montoBs)}`} />
                   </CampoForm>
-                  <CampoForm label="Equivalente USD">
-                    <div style={{ ...inputStyle, display: "flex", alignItems: "center", padding: "0 10px" }}>
-                      <span style={{ color: "var(--erp-text-2)", marginRight: 2, fontSize: 14 }}>$</span>
-                      <input
-                        type="text" inputMode="decimal"
-                        style={{ border: "none", background: "transparent", outline: "none", flex: 1, color: "var(--erp-text)", fontSize: 14, padding: 0 }}
-                        value={montoParcialUsd ? Number(montoParcialUsd).toFixed(2) : ""}
-                        onChange={e => handleParcialUsd(e.target.value)}
-                        placeholder="0.00"
-                      />
-                    </div>
+                  <CampoForm label="Equiv. USD ($)">
+                    <input type="number" min="0" step="0.01" style={inputStyle} value={montoParcialUsd}
+                      onChange={e => handleParcialUsd(e.target.value)} placeholder="0.00" />
                   </CampoForm>
                 </div>
                 {montoParcialUsd && pagoModal.montoUsd > 0 && (
