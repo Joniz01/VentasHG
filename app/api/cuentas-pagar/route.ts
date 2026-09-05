@@ -41,13 +41,51 @@ function mapCP(r: Record<string, unknown>) {
     recurrente: Boolean(r.recurrente),
     frecuencia: r.frecuencia ?? null,
     proximoVencimiento: r.proximo_vencimiento ? toDateStr(r.proximo_vencimiento) : null,
+    tipo: (r.tipo as string) ?? "gasto",
     createdAt: r.created_at,
   };
+}
+
+async function syncCompras(): Promise<void> {
+  await pool.query(`
+    INSERT INTO cuentas_pagar
+      (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision,
+       fecha_vencimiento, monto_bs, monto_usd, tasa_dia, estado, recurrente, tipo, created_by)
+    SELECT
+      c.proveedor_nombre,
+      c.proveedor_rif,
+      COALESCE(c.numero_factura, 'COMPRA-' || c.id),
+      'Compra a crédito' || CASE WHEN c.observaciones IS NOT NULL THEN ' — ' || c.observaciones ELSE '' END,
+      c.fecha,
+      COALESCE(c.fecha_vencimiento_pago, c.fecha),
+      COALESCE(SUM(ci.subtotal_bs), 0),
+      CASE WHEN c.tasa_dia > 0
+        THEN ROUND(COALESCE(SUM(ci.subtotal_bs), 0) / c.tasa_dia, 2)
+        ELSE 0 END,
+      c.tasa_dia,
+      'PENDIENTE',
+      false,
+      'compra',
+      c.created_by
+    FROM compras c
+    LEFT JOIN compra_items ci ON ci.compra_id = c.id
+    WHERE c.estado = 'ACTIVA'
+      AND NOT EXISTS (
+        SELECT 1 FROM cuentas_pagar cp
+        WHERE cp.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id)
+          AND cp.tipo = 'compra'
+      )
+    GROUP BY c.id, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
+             c.observaciones, c.fecha, c.fecha_vencimiento_pago, c.tasa_dia, c.created_by
+  `);
 }
 
 export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  // Sincronizar compras activas que aún no tienen registro en CxP
+  try { await syncCompras(); } catch { /* no bloquear si falla el sync */ }
 
   const { searchParams } = new URL(request.url);
   const estado = searchParams.get("estado");

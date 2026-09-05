@@ -26,6 +26,7 @@ type CuentaPagar = {
   recurrente: boolean;
   frecuencia: string | null;
   proximoVencimiento: string | null;
+  tipo: string;
 };
 
 type OcrData = {
@@ -656,11 +657,29 @@ export default function CuentasPagarClient() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--erp-text)", margin: 0 }}>Cuentas por Pagar</h2>
           <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Panel consolidado — Servicios · Compras a crédito · Gastos ocasionales</p>
         </div>
+        {(() => {
+          const pendientes = items.filter(cp => cp.estado === "PENDIENTE" || cp.estado === "PENDIENTE_PARCIAL");
+          const totalBs  = pendientes.reduce((s, cp) => s + cp.montoBs, 0);
+          const totalUsd = pendientes.reduce((s, cp) => s + cp.montoUsd, 0);
+          if (pendientes.length === 0) return null;
+          return (
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "8px 16px", textAlign: "right" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--erp-text-3)", marginBottom: 2 }}>Total pendiente Bs</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#B45309", fontVariantNumeric: "tabular-nums" }}>{BS(totalBs)}</div>
+              </div>
+              <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "8px 16px", textAlign: "right" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--erp-text-3)", marginBottom: 2 }}>Total pendiente USD</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>${USD(totalUsd)}</div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Panel de filtros compacto */}
@@ -770,12 +789,22 @@ export default function CuentasPagarClient() {
               {(() => {
                 let rowNum = 0;
                 return [...items]
-                .filter(cp => cp.recurrente ? secFiltros.has("servicios") : secFiltros.has("ocasionales"))
-                .sort((a, b) => (b.recurrente ? 1 : 0) - (a.recurrente ? 1 : 0))
+                .filter(cp => {
+                  if (cp.recurrente) return secFiltros.has("servicios");
+                  if (cp.tipo === "compra") return secFiltros.has("compras");
+                  return secFiltros.has("ocasionales");
+                })
+                .sort((a, b) => {
+                  const orden = (cp: CuentaPagar) => cp.recurrente ? 0 : cp.tipo === "compra" ? 2 : 1;
+                  return orden(a) - orden(b);
+                })
                 .map((cp, idx, sorted) => {
                 const prev = idx > 0 ? sorted[idx - 1] : null;
-                const showSeccionServicios = cp.recurrente && !prev?.recurrente;
-                const showSeccionGastos = !cp.recurrente && (idx === 0 || prev?.recurrente);
+                const secActual = cp.recurrente ? "servicios" : cp.tipo === "compra" ? "compras" : "ocasionales";
+                const secPrev   = prev ? (prev.recurrente ? "servicios" : prev.tipo === "compra" ? "compras" : "ocasionales") : null;
+                const showSeccionServicios  = secActual === "servicios"  && secPrev !== "servicios";
+                const showSeccionGastos     = secActual === "ocasionales" && secPrev !== "ocasionales";
+                const showSeccionCompras    = secActual === "compras"    && secPrev !== "compras";
                 const NCOLS = 6;
                 const secStyle: React.CSSProperties = {
                   padding: "5px 14px", fontSize: 10, fontWeight: 700, letterSpacing: "0.09em",
@@ -794,6 +823,9 @@ export default function CuentasPagarClient() {
                   )}
                   {showSeccionGastos && (
                     <tr><td colSpan={NCOLS} style={secStyle}>📋 Gastos Ocasionales</td></tr>
+                  )}
+                  {showSeccionCompras && (
+                    <tr><td colSpan={NCOLS} style={secStyle}>🛒 Compras a Crédito</td></tr>
                   )}
                   <tr style={{
                     borderBottom: "1px solid var(--erp-border)",
