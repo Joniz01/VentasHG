@@ -310,6 +310,7 @@ export default function TesoreriaClient() {
     prox_4sem: "Próximas 4 Semanas",
     pagado_mes: "Pagado · Mes",
     proveedores: "Proveedores",
+    compras: "Compras a Crédito",
   };
 
   // Timeline scale
