@@ -862,6 +862,7 @@ export type NominaPago = {
   empleadoId: number;
   empleadoNombre: string;
   salarioBaseBs: number;
+  salarioBaseUsd: number;
   incidencias: NominaIncidencia[];
   totalIncidenciasBs: number;
   totalBs: number;

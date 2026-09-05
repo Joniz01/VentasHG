@@ -285,7 +285,7 @@ function FormularioCP({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-        <CampoForm label="Proveedor *">
+        <CampoForm label="Proveedor / Servicio *">
           <input style={inputStyle} value={form.proveedor} onChange={e => setForm(p => ({ ...p, proveedor: e.target.value }))} placeholder="Nombre del proveedor" />
         </CampoForm>
         <CampoForm label="RIF">
@@ -393,6 +393,26 @@ export default function CuentasPagarClient() {
   const [tasaPagoEditable, setTasaPagoEditable] = useState(false);
   const [tasaPagoInput, setTasaPagoInput] = useState("");
   const [buscandoTasa, setBuscandoTasa] = useState(false);
+
+  // Auto-init: cuando se abre el modal, carga la fecha y tasa de hoy
+  useEffect(() => {
+    if (pagoModal) {
+      const hoy = new Date().toISOString().slice(0, 10);
+      setTipoPago("total");
+      setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
+      handleFechaPagoModal(hoy);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagoModal]);
+
+  // Pre-llenar montos en modo Parcial cuando la tasa esté disponible
+  useEffect(() => {
+    if (tipoPago === "parcial" && tasaPago != null && pagoModal && !montoParcialBs && !montoParcialUsd) {
+      setMontoParcialUsd(pagoModal.montoUsd.toFixed(2));
+      setMontoParcialBs((pagoModal.montoUsd * tasaPago).toFixed(2));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoPago, tasaPago]);
 
   // eliminación inline
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
@@ -502,17 +522,28 @@ export default function CuentasPagarClient() {
     return null;
   }
 
-  // Fecha de pago → busca tasa histórica
+  // Fecha de pago → busca tasa histórica; si no hay, consulta la tasa BCV vigente (live)
   async function handleFechaPagoModal(fecha: string) {
     setFechaPago(fecha);
     if (!fecha) { setTasaPago(null); setTasaPagoEditable(false); setTasaPagoInput(""); return; }
     setBuscandoTasa(true);
-    const tasa = await buscarTasaPorFecha(fecha);
+    const tasaHistorial = await buscarTasaPorFecha(fecha);
+    let tasaFinal = tasaHistorial;
+    if (!tasaFinal) {
+      // Sin historial para esa fecha: consultar tasa BCV vigente (live)
+      try {
+        const r = await fetch("/api/tasa-bcv");
+        if (r.ok) {
+          const j = await r.json();
+          if (j.tasa) tasaFinal = Number(j.tasa);
+        }
+      } catch { /* sin conexión */ }
+    }
     setBuscandoTasa(false);
-    if (tasa) {
-      setTasaPago(tasa);
-      setTasaPagoInput(String(tasa));
-      setTasaPagoEditable(false);
+    if (tasaFinal && tasaFinal > 0) {
+      setTasaPago(tasaFinal);
+      setTasaPagoInput(String(tasaFinal));
+      setTasaPagoEditable(true);
     } else {
       setTasaPago(null);
       setTasaPagoInput("");
@@ -525,15 +556,17 @@ export default function CuentasPagarClient() {
     const t = Number(val);
     setTasaPago(t > 0 ? t : null);
     if (t > 0) {
-      if (montoParcialBs) setMontoParcialUsd((Number(montoParcialBs) / t).toFixed(4));
+      if (montoParcialBs) setMontoParcialUsd((Number(montoParcialBs) / t).toFixed(2));
     }
   }
 
   // Conversión bidireccional en modal de pago parcial
+  // montoParcialBs guarda el número raw (sin comas); la vista lo formatea
   function handleParcialBs(val: string) {
-    setMontoParcialBs(val);
+    const raw = val.replace(/,/g, "");  // strip separadores al escribir
+    setMontoParcialBs(raw);
     const t = tasaPago ?? pagoModal?.tasaDia;
-    if (t && t > 0 && val) setMontoParcialUsd((Number(val) / t).toFixed(4));
+    if (t && t > 0 && raw) setMontoParcialUsd((Number(raw) / t).toFixed(2));
   }
   function handleParcialUsd(val: string) {
     setMontoParcialUsd(val);
@@ -547,7 +580,11 @@ export default function CuentasPagarClient() {
     try {
       const body =
         tipoPago === "total"
-          ? { accion: "pagar" }
+          ? {
+              accion: "pagar",
+              fechaPago: fechaPago || undefined,
+              tasaDia: (tasaPago ?? pagoModal.tasaDia) || undefined,
+            }
           : {
               accion: "pago_parcial",
               montoPagadoBs: Number(montoParcialBs) || 0,
@@ -613,7 +650,7 @@ export default function CuentasPagarClient() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--erp-text)", margin: 0 }}>Cuentas por Pagar</h2>
-          <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Obligaciones con proveedores</p>
+          <p style={{ fontSize: 13, color: "var(--erp-text-2)", margin: "2px 0 0" }}>Obligaciones con proveedores y servicios</p>
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
@@ -659,7 +696,7 @@ export default function CuentasPagarClient() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid var(--erp-border)", textAlign: "left" }}>
-                {["Proveedor","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Tasa","Estado","Acciones"].map(h => (
+                {["Proveedor/Servicio","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Pagado USD","Saldo USD","Tasa","Estado","Acciones"].map(h => (
                   <th key={h} style={{ padding: "8px 10px", fontWeight: 700, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -697,6 +734,18 @@ export default function CuentasPagarClient() {
                     </td>
                     <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: "var(--erp-text)" }}>
                       ${USD(cp.montoUsd)}
+                    </td>
+                    {/* Pagado USD: original USD - saldo USD */}
+                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {cp.estado === "PENDIENTE_PARCIAL" && cp.montoOriginalBs && cp.tasaDia > 0
+                        ? <span style={{ color: "#059669", fontWeight: 700 }}>${USD((cp.montoOriginalBs / cp.tasaDia) - cp.montoUsd)}</span>
+                        : <span style={{ color: "var(--erp-text-3)" }}>—</span>}
+                    </td>
+                    {/* Saldo USD: monto restante en USD */}
+                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {cp.estado === "PENDIENTE_PARCIAL"
+                        ? <span style={{ color: "#D97706", fontWeight: 700 }}>${USD(cp.montoUsd)}</span>
+                        : <span style={{ color: "var(--erp-text-3)" }}>—</span>}
                     </td>
                     <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--erp-text-3)", fontSize: 12, whiteSpace: "nowrap" }}>
                       {cp.tasaDia > 0 ? cp.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 }) : "—"}
@@ -787,8 +836,11 @@ export default function CuentasPagarClient() {
           <div style={{ background: "var(--erp-surface)", borderRadius: 16, padding: 28, width: 440, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
             <h3 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 800, color: "var(--erp-text)" }}>Registrar Pago</h3>
             <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--erp-text-2)" }}>
-              {pagoModal.proveedor} · <strong>${USD(pagoModal.montoUsd)}</strong> USD
-              {pagoModal.tasaDia > 0 && <span style={{ color: "var(--erp-text-3)" }}> · Tasa {pagoModal.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 })} Bs/$</span>}
+              {pagoModal.proveedor}
+              {pagoModal.montoUsd > 0 && <strong> · ${USD(pagoModal.montoUsd)} USD</strong>}
+              {tasaPago != null && tasaPago > 0 && (
+                <span style={{ color: "var(--erp-text-3)" }}> · Tasa {tasaPago.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} Bs/$</span>
+              )}
             </p>
 
             {/* Toggle tipo pago */}
@@ -801,41 +853,59 @@ export default function CuentasPagarClient() {
               ))}
             </div>
 
+            {/* Fecha + Tasa — compartido entre ambos modos */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              <CampoForm label="📅 Fecha de pago">
+                <input type="date" style={inputStyle} value={fechaPago} onChange={e => handleFechaPagoModal(e.target.value)} />
+              </CampoForm>
+              <CampoForm label={tasaPagoEditable ? "Tasa Bs/$ (editar)" : "Tasa Bs/$"}>
+                <input
+                  type="number" min="0" step="0.01"
+                  style={{ ...inputStyle, background: tasaPagoEditable ? undefined : "var(--erp-bg)", color: tasaPagoEditable ? undefined : "var(--erp-text-3)" }}
+                  value={buscandoTasa ? "" : tasaPagoInput}
+                  placeholder={buscandoTasa ? "Buscando…" : tasaPagoEditable ? "Ingresa la tasa" : "—"}
+                  readOnly={!tasaPagoEditable}
+                  onChange={e => tasaPagoEditable && handleTasaPagoInput(e.target.value)}
+                />
+              </CampoForm>
+            </div>
+            {fechaPago && !buscandoTasa && tasaPago == null && (
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#D97706" }}>⚠ Sin tasa disponible — ingresa la tasa manualmente.</p>
+            )}
+
+            {tipoPago === "total" && tasaPago != null && (
+              <div style={{ background: "rgba(5,150,105,0.08)", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 13, color: "#059669", fontWeight: 600 }}>
+                Pago total: <strong>${USD(pagoModal.montoUsd)}</strong> USD · {BS(pagoModal.montoBs)} Bs
+              </div>
+            )}
+
             {tipoPago === "parcial" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+                {/* Referencia: total actual en USD a tasa de hoy */}
+                {tasaPago != null && (
+                  <div style={{ background: "rgba(107,114,128,0.08)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--erp-text-2)" }}>
+                    Total pendiente: <strong>${USD(pagoModal.montoUsd)}</strong> USD · {BS(pagoModal.montoBs)} Bs
+                  </div>
+                )}
                 {/* Conversión bidireccional en modal */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <CampoForm label="Monto a abonar (Bs)">
-                    <input type="number" min="0" step="0.01" style={inputStyle} value={montoParcialBs}
-                      onChange={e => handleParcialBs(e.target.value)} placeholder={`Máx. ${BS(pagoModal.montoBs)}`} />
+                  <CampoForm label="Abonar (Bs)">
+                    <input
+                      type="text" inputMode="decimal" style={inputStyle}
+                      value={montoParcialBs !== "" ? Number(montoParcialBs).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""}
+                      onChange={e => handleParcialBs(e.target.value)}
+                      placeholder={`Máx. ${BS(pagoModal.montoBs)}`}
+                    />
                   </CampoForm>
-                  <CampoForm label="Equivalente USD">
-                    <input type="number" min="0" step="0.0001" style={inputStyle} value={montoParcialUsd}
-                      onChange={e => handleParcialUsd(e.target.value)} placeholder="0.0000" />
+                  <CampoForm label="Equiv. USD ($)">
+                    <input type="text" inputMode="decimal" style={inputStyle} value={montoParcialUsd}
+                      onChange={e => handleParcialUsd(e.target.value)} placeholder="0.00" />
                   </CampoForm>
                 </div>
                 {montoParcialUsd && pagoModal.montoUsd > 0 && (
                   <p style={{ margin: 0, fontSize: 12, color: "var(--erp-text-3)" }}>
-                    Restante: ${USD(Math.max(0, pagoModal.montoUsd - (Number(montoParcialUsd) || 0)))} USD
+                    Restante: <strong>${USD(Math.max(0, pagoModal.montoUsd - (Number(montoParcialUsd) || 0)))}</strong> USD
                   </p>
-                )}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <CampoForm label="Fecha de pago">
-                    <input type="date" style={inputStyle} value={fechaPago} onChange={e => handleFechaPagoModal(e.target.value)} />
-                  </CampoForm>
-                  <CampoForm label={tasaPagoEditable ? "Tasa Bs/$ (manual)" : "Tasa Bs/$"}>
-                    <input
-                      type="number" min="0" step="0.01"
-                      style={{ ...inputStyle, background: tasaPagoEditable ? undefined : "var(--erp-bg)", color: tasaPagoEditable ? undefined : "var(--erp-text-3)" }}
-                      value={buscandoTasa ? "" : tasaPagoInput}
-                      placeholder={buscandoTasa ? "Buscando…" : tasaPagoEditable ? "Ingresa la tasa" : "—"}
-                      readOnly={!tasaPagoEditable}
-                      onChange={e => tasaPagoEditable && handleTasaPagoInput(e.target.value)}
-                    />
-                  </CampoForm>
-                </div>
-                {!tasaPagoEditable && fechaPago && !buscandoTasa && tasaPago == null && (
-                  <p style={{ margin: 0, fontSize: 12, color: "#D97706" }}>Sin tasa registrada — ingresa la tasa manualmente.</p>
                 )}
                 <CampoForm label="Nueva fecha de vencimiento">
                   <input type="date" style={inputStyle} value={nuevaFechVenc} onChange={e => setNuevaFechVenc(e.target.value)} />
@@ -868,7 +938,7 @@ export default function CuentasPagarClient() {
             {editError && <p style={{ margin: "0 0 12px", color: "#EF4444", fontSize: 13 }}>{editError}</p>}
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {([
-                { label: "Proveedor *", key: "proveedor", type: "text" },
+                { label: "Proveedor / Servicio *", key: "proveedor", type: "text" },
                 { label: "RIF", key: "proveedorRif", type: "text" },
                 { label: "Nº Factura", key: "numeroFactura", type: "text" },
                 { label: "Descripción", key: "descripcion", type: "text" },

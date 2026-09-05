@@ -85,14 +85,15 @@ export async function GET(request: NextRequest) {
     cogsVentaRows= Object.entries(vtMap).map(([mes, v]) => ({ mes, total_usd: String(v) }));
   } catch { /* skip */ }
 
-  // ── Nómina pagada por mes ────────────────────────────────────────
+  // ── Nómina pagada por mes (en USD directo desde empleados) ──────
+  // Usa salario_base_usd del empleado para evitar distorsión por conversión Bs→USD
   let nominaRows: { mes: string; total_usd: string }[] = [];
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
       `SELECT TO_CHAR(np.pagado_at, 'YYYY-MM') AS mes,
-              COALESCE(SUM(np.salario_base_bs / NULLIF(pn.tasa_dia, 0)), 0) AS total_usd
+              COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
        FROM nomina_pagos np
-       JOIN periodos_nomina pn ON pn.id = np.periodo_id
+       JOIN empleados e ON e.id = np.empleado_id
        WHERE np.estado = 'PAGADO'
          AND TO_CHAR(np.pagado_at, 'YYYY-MM') = ANY($1::text[])
        GROUP BY mes
@@ -102,22 +103,55 @@ export async function GET(request: NextRequest) {
     nominaRows = r.rows;
   } catch { /* skip */ }
 
-  // ── Gastos operativos (recurrentes) por mes ─────────────────────
-  let opexRows: { mes: string; total_usd: string }[] = [];
+  // ── Gastos operativos por mes: gastos pagados + pagos CxP ───────
+  const opexMap2: Record<string, number> = {};
+
+  // 1) Tabla gastos (todos los pagados, no solo recurrentes)
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
       `SELECT TO_CHAR(fecha, 'YYYY-MM') AS mes,
               COALESCE(SUM(monto_bs / NULLIF(tasa_dia, 0)), 0) AS total_usd
        FROM gastos
        WHERE estado = 'PAGADO'
-         AND recurrente = true
          AND TO_CHAR(fecha, 'YYYY-MM') = ANY($1::text[])
-       GROUP BY mes
-       ORDER BY mes`,
+       GROUP BY mes`,
       [meses]
     );
-    opexRows = r.rows;
+    for (const row of r.rows) opexMap2[row.mes] = (opexMap2[row.mes] ?? 0) + Number(row.total_usd);
   } catch { /* skip */ }
+
+  // 2) Abonos parciales y finales registrados en historial de CxP
+  try {
+    const r = await pool.query<{ mes: string; total_usd: string }>(
+      `SELECT TO_CHAR(fecha_pago, 'YYYY-MM') AS mes,
+              COALESCE(SUM(monto_usd), 0) AS total_usd
+       FROM cuentas_pagar_historial
+       WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = ANY($1::text[])
+       GROUP BY mes`,
+      [meses]
+    );
+    for (const row of r.rows) opexMap2[row.mes] = (opexMap2[row.mes] ?? 0) + Number(row.total_usd);
+  } catch { /* tabla historial no disponible */ }
+
+  // 3) Pagos de CxP hechos de una sola vez (sin historial)
+  try {
+    const r = await pool.query<{ mes: string; total_usd: string }>(
+      `SELECT TO_CHAR(cp.pagado_at, 'YYYY-MM') AS mes,
+              COALESCE(SUM(cp.monto_usd), 0) AS total_usd
+       FROM cuentas_pagar cp
+       WHERE cp.estado = 'PAGADO'
+         AND cp.pagado_at IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM cuentas_pagar_historial cph WHERE cph.cuenta_pagar_id = cp.id
+         )
+         AND TO_CHAR(cp.pagado_at, 'YYYY-MM') = ANY($1::text[])
+       GROUP BY mes`,
+      [meses]
+    );
+    for (const row of r.rows) opexMap2[row.mes] = (opexMap2[row.mes] ?? 0) + Number(row.total_usd);
+  } catch { /* skip */ }
+
+  const opexRows: { mes: string; total_usd: string }[] = Object.entries(opexMap2).map(([mes, v]) => ({ mes, total_usd: String(v) }));
 
   // ── Cortesías/salidas gratuitas por mes (tabla salidas_gratuitas) ──
   let cortesiasRows: { mes: string; total_usd: string }[] = [];

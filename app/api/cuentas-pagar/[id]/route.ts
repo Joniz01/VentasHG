@@ -58,9 +58,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
       const cp = cpRead.rows[0];
 
+      const tasaDiaPago = Number(body.tasaDia) || null;
+      const fechaPagoParam = body.fechaPago ?? null;
       await client.query(
-        `UPDATE cuentas_pagar SET estado = 'PAGADO', pagado_at = NOW(), comprobante_url = COALESCE($2, comprobante_url) WHERE id = $1`,
-        [id, body.comprobanteUrl ?? null]
+        `UPDATE cuentas_pagar
+         SET estado = 'PAGADO',
+             pagado_at = COALESCE($2::date, NOW()),
+             tasa_dia = COALESCE($3, tasa_dia),
+             comprobante_url = COALESCE($4, comprobante_url)
+         WHERE id = $1`,
+        [id, fechaPagoParam, tasaDiaPago, body.comprobanteUrl ?? null]
       );
 
       // Si es recurrente, generar el siguiente período automáticamente

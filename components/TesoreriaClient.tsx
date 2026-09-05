@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type ItemEstado = "vencido" | "pendiente" | "pendiente_parcial" | "programado" | "pagado";
-type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor";
+type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor" | "compra";
 
 type PagoHistorial = {
   id: number;
@@ -30,12 +30,12 @@ type ObligacionItem = {
   historialPagos?: PagoHistorial[];
 };
 
-type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes" | "proveedores";
+type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes" | "proveedores" | "compras";
 
 type Semana = { lunes: string; domingo: string; totalUsd: number; tipos: string[] };
 
 type PlanificacionData = {
-  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number; proveedoresUsd?: number };
+  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number; proveedoresUsd?: number; comprasUsd?: number };
   items: ObligacionItem[];
   semanas: Semana[];
   hoy: string;
@@ -73,7 +73,8 @@ const TIPO_COLOR: Record<ItemTipo, { text: string; bg: string; label: string }> 
   nomina:      { text: "#7C3AED", bg: "#EDE9FE", label: "Nómina" },
   "gasto-fijo":{ text: "#0891B2", bg: "#E0F2FE", label: "Gasto Fijo" },
   gasto:       { text: "#B45309", bg: "#FEF3C7", label: "Gasto" },
-  proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Proveedor" },
+  proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Servicio" },
+  compra:      { text: "#0F5FA6", bg: "#DDEEFF", label: "Compra Créd." },
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ function sourceUrl(item: ObligacionItem): string | null {
   if (item.id.startsWith("CP")) return "/cuentas-por-pagar";
   if (item.id.startsWith("NE")) return "/nomina"; // estimated → config nomina
   if (item.id.startsWith("N")) return "/nomina";  // period → gestión pagos
+  if (item.id.startsWith("COMP")) return "/compras";
   return null;
 }
 
@@ -185,6 +187,27 @@ export default function TesoreriaClient() {
   const [filtro, setFiltro] = useState<FiltroEstado>("todos");
   const [pagando, setPagando] = useState<string | null>(null);
   const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
+  // Filtros de categoría (multi-select, todos activos por defecto)
+  type CatKey = "nomina" | "servicios" | "compras" | "gastos";
+  const [catFiltros, setCatFiltros] = useState<Set<CatKey>>(new Set(["nomina", "servicios", "compras", "gastos"]));
+  function toggleCat(cat: CatKey) {
+    setCatFiltros(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) { if (next.size > 1) next.delete(cat); } // mínimo 1 activo
+      else next.add(cat);
+      return next;
+    });
+  }
+  function catTipos(cat: CatKey): ItemTipo[] {
+    if (cat === "nomina")    return ["nomina"];
+    if (cat === "servicios") return ["proveedor"];
+    if (cat === "compras")   return ["compra"];
+    if (cat === "gastos")    return ["gasto", "gasto-fijo"];
+    return [];
+  }
+  const activeTipos = new Set<ItemTipo>(
+    (["nomina", "servicios", "compras", "gastos"] as CatKey[]).flatMap(c => catFiltros.has(c) ? catTipos(c) : [])
+  );
 
   // Pago modal state
   const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
@@ -281,10 +304,12 @@ export default function TesoreriaClient() {
     if (drillKey === "prox_4sem") return items.filter((i) => i.estado !== "vencido" && i.estado !== "pagado");
     if (drillKey === "pagado_mes") return items.filter((i) => i.estado === "pagado");
     if (drillKey === "proveedores") return items.filter((i) => i.id.startsWith("CP"));
+    if (drillKey === "compras") return items.filter((i) => i.id.startsWith("COMP"));
     return null;
   })();
 
-  const displayItems = drillItems ?? items;
+  // Aplicar filtro de categoría
+  const displayItems = (drillItems ?? items).filter((i) => activeTipos.has(i.tipo));
 
   // Filter + counts — pendiente_parcial cuenta junto a pendiente
   const counts: Record<FiltroEstado, number> = {
@@ -307,6 +332,7 @@ export default function TesoreriaClient() {
     prox_4sem: "Próximas 4 Semanas",
     pagado_mes: "Pagado · Mes",
     proveedores: "Proveedores",
+    compras: "Compras a Crédito",
   };
 
   // Timeline scale
@@ -368,9 +394,53 @@ export default function TesoreriaClient() {
         <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" active={drillKey === "prox_4sem"}     onClick={() => setDrillKey(drillKey === "prox_4sem" ? null : "prox_4sem")} />
         <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" active={drillKey === "pagado_mes"}    onClick={() => setDrillKey(drillKey === "pagado_mes" ? null : "pagado_mes")} />
         {(kpis.proveedoresUsd ?? 0) > 0 && (
-          <KpiCard label="Proveedores" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores" active={drillKey === "proveedores"} onClick={() => setDrillKey(drillKey === "proveedores" ? null : "proveedores")} />
+          <KpiCard label="Proveedores y Servicios" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores y servicios" active={drillKey === "proveedores"} onClick={() => setDrillKey(drillKey === "proveedores" ? null : "proveedores")} />
+        )}
+        {(kpis.comprasUsd ?? 0) > 0 && (
+          <KpiCard label="Compras a Crédito" valueUsd={kpis.comprasUsd ?? 0} color="#0F5FA6" subLabel="Compras con vencimiento próximo" active={drillKey === "compras"} onClick={() => setDrillKey(drillKey === "compras" ? null : "compras")} />
         )}
       </div>
+
+      {/* ── Filtros de Categoría ───────────────────────────────────────── */}
+      {(() => {
+        const CATS: { key: CatKey; label: string; emoji: string; color: string; border: string }[] = [
+          { key: "nomina",    label: "Nómina",    emoji: "💰", color: "#059669", border: "#059669" },
+          { key: "servicios", label: "Servicios", emoji: "🔧", color: "#B45309", border: "#B45309" },
+          { key: "compras",   label: "Compras",   emoji: "🛒", color: "#0F5FA6", border: "#0F5FA6" },
+          { key: "gastos",    label: "Gastos",    emoji: "📋", color: "#6B7280", border: "#6B7280" },
+        ];
+        return (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Categoría:</span>
+            {CATS.map(({ key, label, emoji, color, border }) => {
+              const active = catFiltros.has(key);
+              return (
+                <button
+                  key={key}
+                  onClick={() => toggleCat(key)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 99,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    border: `1.5px solid ${border}`,
+                    background: active ? color : "transparent",
+                    color: active ? "#fff" : color,
+                    transition: "all 0.15s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <span>{emoji}</span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ── Drill breadcrumb ───────────────────────────────────────────── */}
       {drillKey && (
@@ -415,10 +485,10 @@ export default function TesoreriaClient() {
             const color = isThisWeek ? "#D97706" : "#2563EB";
             const barHeight = Math.max(40, (sem.totalUsd / maxSem) * 120);
             const TIPO_LABELS: Record<string, string> = {
-              nomina: "NÓM", "gasto-fijo": "FIJO", gasto: "GASTO", proveedor: "PROV",
+              nomina: "NÓM", "gasto-fijo": "FIJO", gasto: "GASTO", proveedor: "PROV", compra: "COMP",
             };
             const TIPO_BG: Record<string, string> = {
-              nomina: "#7C3AED", "gasto-fijo": "#0891B2", gasto: "#B45309", proveedor: "#374151",
+              nomina: "#7C3AED", "gasto-fijo": "#0891B2", gasto: "#B45309", proveedor: "#374151", compra: "#0F5FA6",
             };
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>

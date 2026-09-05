@@ -63,6 +63,9 @@ type RentabilidadData = {
 
 type IATipo = "rentabilidad" | "caja" | "eficiencia" | "asesor";
 
+type DrillRow = { fecha: string; concepto: string; montoUsd: number; fuente: string };
+type DrillState = { tipo: string; label: string } | null;
+
 type ChatMsg = { role: "user" | "ia"; text: string; ts: string };
 
 const TOGGLE_OPTS = [
@@ -129,6 +132,25 @@ export default function AnalisisFinancieroClient() {
   const [data, setData] = useState<RentabilidadData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Drill-down modal
+  const [drill, setDrill] = useState<DrillState>(null);
+  const [drillRows, setDrillRows] = useState<DrillRow[]>([]);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [drillTotal, setDrillTotal] = useState(0);
+
+  async function openDrill(tipo: string, label: string) {
+    setDrill({ tipo, label });
+    setDrillRows([]);
+    setDrillLoading(true);
+    try {
+      const r = await fetch(`/api/analisis-financiero/detalle?tipo=${tipo}&mes=${mes}`);
+      const d = await r.json();
+      setDrillRows(d.items ?? []);
+      setDrillTotal(d.total ?? 0);
+    } catch { /* skip */ }
+    finally { setDrillLoading(false); }
+  }
 
   // IA panel open/close
   const [iaSeccionAbierta, setIaSeccionAbierta] = useState(false);
@@ -460,16 +482,16 @@ export default function AnalisisFinancieroClient() {
   const wfRows = [
     { label: "Ingresos por Ventas", bold: true, color: "#3FB950", amount: actual.ingresos, pct: 100, indent: false },
     ...(actual.cogs > 0 ? [
-      { label: "Compras (total)", bold: false, color: "#F85149", amount: -actual.cogs, pct: actual.ingresos > 0 ? actual.cogs / actual.ingresos * 100 : 0, indent: true },
+      { label: "Compras (total)", bold: false, color: "#F85149", amount: -actual.cogs, pct: actual.ingresos > 0 ? actual.cogs / actual.ingresos * 100 : 0, indent: true, drillTipo: "cogs" },
       ...(actual.cogsMp > 0 ? [{ label: "↳ Materia Prima", bold: false, color: "#F85149", amount: -actual.cogsMp, pct: actual.ingresos > 0 ? actual.cogsMp / actual.ingresos * 100 : 0, indent: true, sub: true }] : []),
       ...(actual.cogsVenta > 0 ? [{ label: "↳ Para Venta / Reventa", bold: false, color: "#F85149", amount: -actual.cogsVenta, pct: actual.ingresos > 0 ? actual.cogsVenta / actual.ingresos * 100 : 0, indent: true, sub: true }] : []),
     ] : [
       { label: "Compras / Materia Prima", bold: false, color: "#F85149", amount: 0, pct: 0, indent: true },
     ]),
     { label: "Ganancia Bruta", bold: true, color: "#58A6FF", amount: actual.gananciaBruta, pct: actual.margenBruto, indent: false, divider: true },
-    { label: "Nómina (salarios)", bold: false, color: "#D29922", amount: -actual.nomina, pct: actual.ingresos > 0 ? actual.nomina / actual.ingresos * 100 : 0, indent: true },
-    { label: "Gastos Operativos", bold: false, color: "#BC8CFF", amount: -actual.opex, pct: actual.ingresos > 0 ? actual.opex / actual.ingresos * 100 : 0, indent: true },
-    { label: "Cortesías", bold: false, color: "#00B4D8", amount: -actual.cortesias, pct: actual.ingresos > 0 ? actual.cortesias / actual.ingresos * 100 : 0, indent: true },
+    { label: "Nómina (salarios)", bold: false, color: "#D29922", amount: -actual.nomina, pct: actual.ingresos > 0 ? actual.nomina / actual.ingresos * 100 : 0, indent: true, drillTipo: "nomina" },
+    { label: "Gastos Operativos", bold: false, color: "#BC8CFF", amount: -actual.opex, pct: actual.ingresos > 0 ? actual.opex / actual.ingresos * 100 : 0, indent: true, drillTipo: "opex" },
+    { label: "Cortesías", bold: false, color: "#00B4D8", amount: -actual.cortesias, pct: actual.ingresos > 0 ? actual.cortesias / actual.ingresos * 100 : 0, indent: true, drillTipo: "cortesias" },
     { label: "Utilidad Operativa", bold: true, color: "#3FB950", amount: actual.utilidad, pct: actual.margenNeto, indent: false, divider: true, highlight: true },
   ];
 
@@ -576,10 +598,19 @@ export default function AnalisisFinancieroClient() {
           <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--erp-text-3)", marginBottom: 16 }}>
             Estado de Resultados · Cascada P&L
           </p>
-          {wfRows.map((row, i) => (
+          {wfRows.map((row, i) => {
+            const drillTipo = (row as {drillTipo?: string}).drillTipo;
+            const clickable = !!drillTipo;
+            return (
             <div key={i}>
               {row.divider && <div style={{ height: 1, background: "var(--erp-border)", margin: "8px 0" }} />}
-              <div className="af-wf-row">
+              <div
+                className="af-wf-row"
+                onClick={clickable ? () => openDrill(drillTipo!, row.label) : undefined}
+                style={{ cursor: clickable ? "pointer" : undefined, borderRadius: clickable ? 6 : undefined, transition: clickable ? "background .15s" : undefined }}
+                onMouseEnter={clickable ? (e) => { (e.currentTarget as HTMLElement).style.background = "var(--erp-surface-2)"; } : undefined}
+                onMouseLeave={clickable ? (e) => { (e.currentTarget as HTMLElement).style.background = ""; } : undefined}
+              >
                 <p style={{
                   fontSize: (row as {sub?: boolean}).sub ? 11 : row.bold ? 13 : 12,
                   fontWeight: row.bold ? 700 : 400,
@@ -588,7 +619,7 @@ export default function AnalisisFinancieroClient() {
                   margin: 0,
                   opacity: (row as {sub?: boolean}).sub ? 0.8 : 1,
                 }}>
-                  {row.label}
+                  {row.label}{clickable && <span style={{ fontSize: 9, marginLeft: 5, opacity: 0.45 }}>▶</span>}
                 </p>
                 <div style={{ height: 22, background: "var(--erp-surface-2)", borderRadius: 4, overflow: "hidden", border: row.highlight ? `1px solid ${row.color}40` : "none" }}>
                   <div style={{
@@ -613,7 +644,8 @@ export default function AnalisisFinancieroClient() {
                 </p>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Right column */}
@@ -1196,6 +1228,72 @@ export default function AnalisisFinancieroClient() {
           .af-pl-row  > *:nth-child(6) { display: none; }
         }
       `}</style>
+
+      {/* ── Drill-down Modal ── */}
+      {drill && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 9000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setDrill(null)}
+        >
+          <div
+            style={{ background: "var(--erp-surface)", borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 640, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--erp-border)", flexShrink: 0 }}>
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--erp-text-3)", margin: 0 }}>Detalle · {data.mesLabel}</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "var(--erp-text)", margin: "2px 0 0" }}>{drill.label}</p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                {!drillLoading && <span style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: "#F85149" }}>−{usd(drillTotal)}</span>}
+                <button onClick={() => setDrill(null)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "var(--erp-text-3)", padding: "4px 8px" }}>✕</button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {drillLoading ? (
+                <p style={{ textAlign: "center", padding: 32, color: "var(--erp-text-3)", fontSize: 13 }}>Cargando…</p>
+              ) : drillRows.length === 0 ? (
+                <p style={{ textAlign: "center", padding: 32, color: "var(--erp-text-3)", fontSize: 13 }}>Sin registros para este mes</p>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "var(--erp-surface-2)" }}>
+                      <th style={{ padding: "8px 16px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", textAlign: "left" }}>Fecha</th>
+                      <th style={{ padding: "8px 16px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", textAlign: "left" }}>Concepto</th>
+                      <th style={{ padding: "8px 16px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", textAlign: "left" }}>Fuente</th>
+                      <th style={{ padding: "8px 16px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--erp-text-3)", textAlign: "right" }}>Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drillRows.map((row, i) => (
+                      <tr key={i} style={{ borderTop: "1px solid var(--erp-border)" }}>
+                        <td style={{ padding: "10px 16px", fontSize: 12, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{row.fecha}</td>
+                        <td style={{ padding: "10px 16px", fontSize: 12, color: "var(--erp-text)" }}>{row.concepto}</td>
+                        <td style={{ padding: "10px 16px", fontSize: 11, color: "var(--erp-text-3)" }}>
+                          <span style={{ background: "var(--erp-surface-2)", padding: "2px 7px", borderRadius: 4 }}>{row.fuente}</span>
+                        </td>
+                        <td style={{ padding: "10px 16px", fontSize: 12, fontFamily: "monospace", fontWeight: 600, color: "#F85149", textAlign: "right" }}>{usd(row.montoUsd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer total */}
+            {!drillLoading && drillRows.length > 0 && (
+              <div style={{ borderTop: "1px solid var(--erp-border)", padding: "12px 20px", display: "flex", justifyContent: "space-between", flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>{drillRows.length} registros</span>
+                <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#F85149" }}>Total: −{usd(drillTotal)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
