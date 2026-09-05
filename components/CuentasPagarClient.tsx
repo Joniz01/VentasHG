@@ -663,85 +663,78 @@ export default function CuentasPagarClient() {
         </div>
       </div>
 
-      {/* Chips de sección */}
-      {(() => {
-        const SECS: { key: SecKey; label: string; color: string }[] = [
-          { key: "servicios",  label: "🔧 Servicios",   color: "#374151" },
-          { key: "ocasionales",label: "📋 Ocasionales", color: "#B45309" },
-          { key: "compras",    label: "🛒 Compras",     color: "#0F5FA6" },
-        ];
-        return (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Sección:</span>
-            {SECS.map(({ key, label, color }) => {
-              const active = secFiltros.has(key);
-              return (
-                <button key={key} type="button" onClick={() => toggleSec(key)}
-                  style={{
-                    padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", border: `1.5px solid ${color}`,
-                    background: active ? color : "transparent",
-                    color: active ? "#fff" : color,
-                    transition: "all 0.15s",
-                  }}>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Filtros estado + proveedor */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        {(["", "PENDIENTE", "PENDIENTE_PARCIAL", "PAGADO"] as const).map(e => (
-          <button key={e} onClick={() => { setFiltroEstado(e); setPage(1); }}
-            style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${filtroEstado === e ? "#B45309" : "var(--erp-border)"}`, background: filtroEstado === e ? "rgba(180,83,9,0.10)" : "var(--erp-surface)", color: filtroEstado === e ? "#B45309" : "var(--erp-text-2)", fontSize: 13, cursor: "pointer", fontWeight: filtroEstado === e ? 700 : 400 }}>
-            {e === "" ? "Todos" : e === "PENDIENTE" ? "Pendiente" : e === "PENDIENTE_PARCIAL" ? "Pend. Parcial" : "Pagado"}
-          </button>
-        ))}
-        <input
-          placeholder="Buscar proveedor…"
-          value={filtroProveedor}
-          onChange={e => { setFiltroProveedor(e.target.value); setPage(1); }}
-          style={{ ...inputStyle, width: 200, flex: "0 0 auto" }}
-        />
-      </div>
-
-      {/* Filtros de fecha vencimiento */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Vencimiento:</span>
-        {([
-          { key: "" as FiltroFecha,            label: "Todos"          },
-          { key: "esta_semana" as FiltroFecha, label: "Esta semana"    },
-          { key: "prox_semana" as FiltroFecha, label: "Próx. semana"   },
-          { key: "rango" as FiltroFecha,       label: "Rango de fecha" },
-        ]).map(({ key, label }) => {
-          const active = filtroFecha === key;
-          return (
-            <button key={key || "todos"} onClick={() => { setFiltroFecha(key); setPage(1); }}
-              style={{
-                padding: "5px 14px", borderRadius: 20, fontSize: 13, cursor: "pointer",
-                border: `1px solid ${active ? "#0F5FA6" : "var(--erp-border)"}`,
-                background: active ? "rgba(15,95,166,0.10)" : "var(--erp-surface)",
-                color: active ? "#0F5FA6" : "var(--erp-text-2)",
-                fontWeight: active ? 700 : 400,
-              }}>
-              {label}
-            </button>
-          );
-        })}
-        {filtroFecha === "rango" && (
-          <>
-            <input type="date" value={filtroDesde}
-              onChange={e => { setFiltroDesde(e.target.value); setPage(1); }}
-              style={{ ...inputStyle, width: 140, flex: "0 0 auto" }} />
-            <span style={{ fontSize: 13, color: "var(--erp-text-3)" }}>—</span>
-            <input type="date" value={filtroHasta}
-              onChange={e => { setFiltroHasta(e.target.value); setPage(1); }}
-              style={{ ...inputStyle, width: 140, flex: "0 0 auto" }} />
-          </>
-        )}
+      {/* Panel de filtros compacto */}
+      <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+        {/* Fila 1: Sección + buscador */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 2 }}>Sección:</span>
+          {(["servicios", "ocasionales", "compras"] as SecKey[]).map(key => {
+            const labels: Record<SecKey, string> = { servicios: "🔧 Servicios", ocasionales: "📋 Ocasionales", compras: "🛒 Compras" };
+            const active = secFiltros.has(key);
+            return (
+              <button key={key} type="button" onClick={() => toggleSec(key)}
+                style={{
+                  padding: "4px 11px", borderRadius: 99, fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", border: `1.5px solid ${active ? "#059669" : "var(--erp-border)"}`,
+                  background: active ? "#059669" : "transparent",
+                  color: active ? "#fff" : "var(--erp-text-2)",
+                  transition: "all 0.12s",
+                }}>
+                {labels[key]}
+              </button>
+            );
+          })}
+          <input
+            placeholder="Buscar proveedor…"
+            value={filtroProveedor}
+            onChange={e => { setFiltroProveedor(e.target.value); setPage(1); }}
+            style={{ ...inputStyle, width: 180, flex: "0 0 auto", marginLeft: "auto" }}
+          />
+        </div>
+        {/* Fila 2: Estado + separador + Vencimiento */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 2 }}>Estado:</span>
+          {(["", "PENDIENTE", "PENDIENTE_PARCIAL", "PAGADO"] as const).map(e => {
+            const active = filtroEstado === e;
+            return (
+              <button key={e} onClick={() => { setFiltroEstado(e); setPage(1); }}
+                style={{ padding: "4px 11px", borderRadius: 99, fontSize: 12, fontWeight: active ? 700 : 400, cursor: "pointer",
+                  border: `1px solid ${active ? "#B45309" : "var(--erp-border)"}`,
+                  background: active ? "rgba(180,83,9,0.10)" : "transparent",
+                  color: active ? "#B45309" : "var(--erp-text-2)" }}>
+                {e === "" ? "Todos" : e === "PENDIENTE" ? "Pendiente" : e === "PENDIENTE_PARCIAL" ? "Pend. Parcial" : "Pagado"}
+              </button>
+            );
+          })}
+          <div style={{ width: 1, height: 16, background: "var(--erp-border)", margin: "0 4px", flexShrink: 0 }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 2 }}>Vencimiento:</span>
+          {([
+            { key: "" as FiltroFecha, label: "Todos" },
+            { key: "esta_semana" as FiltroFecha, label: "Esta semana" },
+            { key: "prox_semana" as FiltroFecha, label: "Próx. semana" },
+            { key: "rango" as FiltroFecha, label: "Rango" },
+          ]).map(({ key, label }) => {
+            const active = filtroFecha === key;
+            return (
+              <button key={key || "todos"} onClick={() => { setFiltroFecha(key); setPage(1); }}
+                style={{ padding: "4px 11px", borderRadius: 99, fontSize: 12, fontWeight: active ? 700 : 400, cursor: "pointer",
+                  border: `1px solid ${active ? "#0F5FA6" : "var(--erp-border)"}`,
+                  background: active ? "rgba(15,95,166,0.10)" : "transparent",
+                  color: active ? "#0F5FA6" : "var(--erp-text-2)" }}>
+                {label}
+              </button>
+            );
+          })}
+          {filtroFecha === "rango" && (
+            <>
+              <input type="date" value={filtroDesde} onChange={e => { setFiltroDesde(e.target.value); setPage(1); }}
+                style={{ ...inputStyle, width: 136, flex: "0 0 auto" }} />
+              <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>—</span>
+              <input type="date" value={filtroHasta} onChange={e => { setFiltroHasta(e.target.value); setPage(1); }}
+                style={{ ...inputStyle, width: 136, flex: "0 0 auto" }} />
+            </>
+          )}
+        </div>
       </div>
 
       {/* Grid estilo inventario */}
@@ -765,7 +758,7 @@ export default function CuentasPagarClient() {
                   { label: "Acciones",              align: "right" },
                 ].map(h => (
                   <th key={h.label} style={{
-                    padding: "10px 14px", fontSize: 11, fontWeight: 700,
+                    padding: "8px 14px", fontSize: 11, fontWeight: 700,
                     textTransform: "uppercase", letterSpacing: "0.07em",
                     color: "var(--erp-text-3)", textAlign: h.align as React.CSSProperties["textAlign"],
                     whiteSpace: "nowrap",
@@ -807,73 +800,59 @@ export default function CuentasPagarClient() {
                     background: esElim ? "rgba(239,68,68,0.05)" : zebraBase,
                   }}>
                     {/* Proveedor */}
-                    <td style={{ padding: "12px 14px" }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: "var(--erp-text)", marginBottom: 2 }}>
+                    <td style={{ padding: "7px 14px" }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--erp-text)" }}>
                         {cp.proveedor}
-                      </div>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                         {cp.recurrente && (
-                          <span style={{ fontSize: 10, background: "rgba(37,99,235,0.10)", color: "#2563EB", borderRadius: 6, padding: "1px 6px", fontWeight: 700, letterSpacing: "0.03em" }}>
-                            🔁 {cp.frecuencia}
+                          <span style={{ fontSize: 9, background: "rgba(37,99,235,0.10)", color: "#2563EB", borderRadius: 4, padding: "1px 5px", fontWeight: 800, letterSpacing: "0.04em", marginLeft: 6, verticalAlign: "middle" }}>
+                            {cp.frecuencia}
                           </span>
-                        )}
-                        {cp.proveedorRif && (
-                          <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{cp.proveedorRif}</span>
-                        )}
-                        {cp.descripcion && (
-                          <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>· {cp.descripcion}</span>
-                        )}
-                        {cp.numeroFactura && (
-                          <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>Nº {cp.numeroFactura}</span>
                         )}
                       </div>
                     </td>
 
                     {/* Vencimiento */}
-                    <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "7px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: vencidoYPendiente ? "#EF4444" : "var(--erp-text)" }}>
                         {fmtFecha(cp.fechaVencimiento)}
                       </div>
                       {vencidoYPendiente && (
-                        <div style={{ fontSize: 10, color: "#EF4444", fontWeight: 700, marginTop: 1 }}>Vencido</div>
-                      )}
-                      {!vencidoYPendiente && (
-                        <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }}>{fmtFecha(cp.fechaEmision)}</div>
+                        <div style={{ fontSize: 10, color: "#EF4444", fontWeight: 700 }}>Vencido</div>
                       )}
                     </td>
 
                     {/* Monto Bs */}
-                    <td style={{ padding: "12px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>{BS(cp.montoBs)}</div>
                       {cp.montoOriginalBs && cp.montoOriginalBs !== cp.montoBs && (
-                        <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }}>orig. {BS(cp.montoOriginalBs)}</div>
+                        <div style={{ fontSize: 10, color: "var(--erp-text-3)" }}>orig. {BS(cp.montoOriginalBs)}</div>
                       )}
                     </td>
 
                     {/* Monto USD */}
-                    <td style={{ padding: "12px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--erp-text)" }}>${USD(cp.montoUsd)}</div>
+                    <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)" }}>${USD(cp.montoUsd)}</div>
                       {cp.estado === "PENDIENTE_PARCIAL" && cp.montoOriginalBs && cp.tasaDia > 0 && (
-                        <div style={{ fontSize: 11, color: "#059669", fontWeight: 700, marginTop: 1 }}>
+                        <div style={{ fontSize: 10, color: "#059669", fontWeight: 700 }}>
                           +${USD((cp.montoOriginalBs / cp.tasaDia) - cp.montoUsd)} pagado
                         </div>
                       )}
                       {cp.tasaDia > 0 && (
-                        <div style={{ fontSize: 10, color: "var(--erp-text-3)", marginTop: 1 }}>
+                        <div style={{ fontSize: 10, color: "var(--erp-text-3)" }}>
                           tasa {cp.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 })}
                         </div>
                       )}
                     </td>
 
                     {/* Estado */}
-                    <td style={{ padding: "12px 14px", textAlign: "center" }}>
-                      <span style={{ padding: "4px 12px", borderRadius: 99, background: est.bg, color: est.text, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "7px 14px", textAlign: "center" }}>
+                      <span style={{ padding: "3px 10px", borderRadius: 99, background: est.bg, color: est.text, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>
                         {est.label}
                       </span>
                     </td>
 
                     {/* Acciones */}
-                    <td style={{ padding: "12px 14px" }}>
+                    <td style={{ padding: "7px 14px" }}>
                       {esElim ? (
                         <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
                           <span style={{ fontSize: 12, color: "#EF4444" }}>¿Eliminar?</span>
