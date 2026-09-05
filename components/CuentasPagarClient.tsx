@@ -659,7 +659,7 @@ export default function CuentasPagarClient() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid var(--erp-border)", textAlign: "left" }}>
-                {["Proveedor/Servicio","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Tasa","Estado","Acciones"].map(h => (
+                {["Proveedor/Servicio","Nº Factura","Emisión","Vencimiento","Monto Bs","Monto USD","Pagado USD","Saldo USD","Tasa","Estado","Acciones"].map(h => (
                   <th key={h} style={{ padding: "8px 10px", fontWeight: 700, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -697,6 +697,18 @@ export default function CuentasPagarClient() {
                     </td>
                     <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: "var(--erp-text)" }}>
                       ${USD(cp.montoUsd)}
+                    </td>
+                    {/* Pagado USD */}
+                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {cp.estado === "PENDIENTE_PARCIAL" && cp.montoPagadoBs > 0
+                        ? <span style={{ color: "#059669", fontWeight: 700 }}>${USD(cp.tasaDia > 0 ? cp.montoPagadoBs / cp.tasaDia : 0)}</span>
+                        : <span style={{ color: "var(--erp-text-3)" }}>—</span>}
+                    </td>
+                    {/* Saldo USD */}
+                    <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {cp.estado === "PENDIENTE_PARCIAL"
+                        ? <span style={{ color: "#D97706", fontWeight: 700 }}>${USD(cp.montoUsd)}</span>
+                        : <span style={{ color: "var(--erp-text-3)" }}>—</span>}
                     </td>
                     <td style={{ padding: "10px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--erp-text-3)", fontSize: 12, whiteSpace: "nowrap" }}>
                       {cp.tasaDia > 0 ? cp.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 }) : "—"}
