@@ -374,6 +374,18 @@ export default function CuentasPagarClient() {
   const [filtroEstado, setFiltroEstado] = useState<"" | "PENDIENTE" | "PENDIENTE_PARCIAL" | "PAGADO">("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
 
+  // filtro por sección
+  type SecKey = "servicios" | "ocasionales" | "compras";
+  const [secFiltros, setSecFiltros] = useState<Set<SecKey>>(new Set(["servicios", "ocasionales", "compras"]));
+  function toggleSec(s: SecKey) {
+    setSecFiltros(prev => {
+      const next = new Set(prev);
+      if (next.has(s)) { if (next.size > 1) next.delete(s); }
+      else next.add(s);
+      return next;
+    });
+  }
+
   // modal pago
   type PagoModal = { id: number; montoBs: number; montoUsd: number; tasaDia: number; proveedor: string };
   const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
@@ -621,6 +633,35 @@ export default function CuentasPagarClient() {
         </div>
       </div>
 
+      {/* Chips de sección */}
+      {(() => {
+        const SECS: { key: SecKey; label: string; color: string }[] = [
+          { key: "servicios",  label: "🔧 Servicios",   color: "#374151" },
+          { key: "ocasionales",label: "📋 Ocasionales", color: "#B45309" },
+          { key: "compras",    label: "🛒 Compras",     color: "#0F5FA6" },
+        ];
+        return (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Sección:</span>
+            {SECS.map(({ key, label, color }) => {
+              const active = secFiltros.has(key);
+              return (
+                <button key={key} type="button" onClick={() => toggleSec(key)}
+                  style={{
+                    padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", border: `1.5px solid ${color}`,
+                    background: active ? color : "transparent",
+                    color: active ? "#fff" : color,
+                    transition: "all 0.15s",
+                  }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* Filtros */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {(["", "PENDIENTE", "PENDIENTE_PARCIAL", "PAGADO"] as const).map(e => (
@@ -656,6 +697,7 @@ export default function CuentasPagarClient() {
             </thead>
             <tbody>
               {[...items]
+                .filter(cp => cp.recurrente ? secFiltros.has("servicios") : secFiltros.has("ocasionales"))
                 .sort((a, b) => (b.recurrente ? 1 : 0) - (a.recurrente ? 1 : 0))
                 .map((cp, idx, sorted) => {
                 const prev = idx > 0 ? sorted[idx - 1] : null;
