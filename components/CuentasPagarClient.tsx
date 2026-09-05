@@ -374,6 +374,32 @@ export default function CuentasPagarClient() {
   const [filtroEstado, setFiltroEstado] = useState<"" | "PENDIENTE" | "PENDIENTE_PARCIAL" | "PAGADO">("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
 
+  // filtro por fecha de vencimiento
+  type FiltroFecha = "" | "esta_semana" | "prox_semana" | "rango";
+  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>("");
+  const [filtroDesde, setFiltroDesde] = useState("");
+  const [filtroHasta, setFiltroHasta] = useState("");
+
+  function getRangoFecha(filtro: FiltroFecha): { desde: string; hasta: string } | null {
+    const hoy = new Date();
+    const dow = hoy.getDay(); // 0=dom
+    const lunesOffset = dow === 0 ? -6 : 1 - dow;
+    if (filtro === "esta_semana") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset);
+      const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+      return { desde: lunes.toISOString().slice(0, 10), hasta: domingo.toISOString().slice(0, 10) };
+    }
+    if (filtro === "prox_semana") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset + 7);
+      const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+      return { desde: lunes.toISOString().slice(0, 10), hasta: domingo.toISOString().slice(0, 10) };
+    }
+    if (filtro === "rango") {
+      return { desde: filtroDesde, hasta: filtroHasta };
+    }
+    return null;
+  }
+
   // filtro por sección
   type SecKey = "servicios" | "ocasionales" | "compras";
   const [secFiltros, setSecFiltros] = useState<Set<SecKey>>(new Set(["servicios", "ocasionales", "compras"]));
@@ -490,6 +516,9 @@ export default function CuentasPagarClient() {
       p.set("pageSize", String(PAGE_SIZE));
       if (filtroEstado) p.set("estado", filtroEstado);
       if (filtroProveedor.trim()) p.set("proveedor", filtroProveedor.trim());
+      const rango = getRangoFecha(filtroFecha);
+      if (rango?.desde) p.set("desde", rango.desde);
+      if (rango?.hasta) p.set("hasta", rango.hasta);
       const r = await fetch(`/api/cuentas-pagar?${p}`);
       const j = await r.json();
       setItems((j.items ?? []) as CuentaPagar[]);
@@ -497,7 +526,8 @@ export default function CuentasPagarClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, filtroEstado, filtroProveedor]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filtroEstado, filtroProveedor, filtroFecha, filtroDesde, filtroHasta]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -662,7 +692,7 @@ export default function CuentasPagarClient() {
         );
       })()}
 
-      {/* Filtros */}
+      {/* Filtros estado + proveedor */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {(["", "PENDIENTE", "PENDIENTE_PARCIAL", "PAGADO"] as const).map(e => (
           <button key={e} onClick={() => { setFiltroEstado(e); setPage(1); }}
@@ -676,6 +706,42 @@ export default function CuentasPagarClient() {
           onChange={e => { setFiltroProveedor(e.target.value); setPage(1); }}
           style={{ ...inputStyle, width: 200, flex: "0 0 auto" }}
         />
+      </div>
+
+      {/* Filtros de fecha vencimiento */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Vencimiento:</span>
+        {([
+          { key: "" as FiltroFecha,            label: "Todos"          },
+          { key: "esta_semana" as FiltroFecha, label: "Esta semana"    },
+          { key: "prox_semana" as FiltroFecha, label: "Próx. semana"   },
+          { key: "rango" as FiltroFecha,       label: "Rango de fecha" },
+        ]).map(({ key, label }) => {
+          const active = filtroFecha === key;
+          return (
+            <button key={key || "todos"} onClick={() => { setFiltroFecha(key); setPage(1); }}
+              style={{
+                padding: "5px 14px", borderRadius: 20, fontSize: 13, cursor: "pointer",
+                border: `1px solid ${active ? "#0F5FA6" : "var(--erp-border)"}`,
+                background: active ? "rgba(15,95,166,0.10)" : "var(--erp-surface)",
+                color: active ? "#0F5FA6" : "var(--erp-text-2)",
+                fontWeight: active ? 700 : 400,
+              }}>
+              {label}
+            </button>
+          );
+        })}
+        {filtroFecha === "rango" && (
+          <>
+            <input type="date" value={filtroDesde}
+              onChange={e => { setFiltroDesde(e.target.value); setPage(1); }}
+              style={{ ...inputStyle, width: 140, flex: "0 0 auto" }} />
+            <span style={{ fontSize: 13, color: "var(--erp-text-3)" }}>—</span>
+            <input type="date" value={filtroHasta}
+              onChange={e => { setFiltroHasta(e.target.value); setPage(1); }}
+              style={{ ...inputStyle, width: 140, flex: "0 0 auto" }} />
+          </>
+        )}
       </div>
 
       {/* Grid estilo inventario */}
