@@ -85,14 +85,15 @@ export async function GET(request: NextRequest) {
     cogsVentaRows= Object.entries(vtMap).map(([mes, v]) => ({ mes, total_usd: String(v) }));
   } catch { /* skip */ }
 
-  // ── Nómina pagada por mes ────────────────────────────────────────
+  // ── Nómina pagada por mes (en USD directo desde empleados) ──────
+  // Usa salario_base_usd del empleado para evitar distorsión por conversión Bs→USD
   let nominaRows: { mes: string; total_usd: string }[] = [];
   try {
     const r = await pool.query<{ mes: string; total_usd: string }>(
       `SELECT TO_CHAR(np.pagado_at, 'YYYY-MM') AS mes,
-              COALESCE(SUM(np.salario_base_bs / NULLIF(pn.tasa_dia, 0)), 0) AS total_usd
+              COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
        FROM nomina_pagos np
-       JOIN periodos_nomina pn ON pn.id = np.periodo_id
+       JOIN empleados e ON e.id = np.empleado_id
        WHERE np.estado = 'PAGADO'
          AND TO_CHAR(np.pagado_at, 'YYYY-MM') = ANY($1::text[])
        GROUP BY mes
