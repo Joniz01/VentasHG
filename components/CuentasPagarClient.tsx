@@ -394,6 +394,16 @@ export default function CuentasPagarClient() {
   const [tasaPagoInput, setTasaPagoInput] = useState("");
   const [buscandoTasa, setBuscandoTasa] = useState(false);
 
+  // Auto-init: cuando se abre el modal, carga la fecha y tasa de hoy
+  useEffect(() => {
+    if (pagoModal) {
+      setTipoPago("total");
+      setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
+      handleFechaPagoModal(HOY);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagoModal]);
+
   // eliminación inline
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
   const [eliminando, setEliminando] = useState(false);
@@ -547,7 +557,11 @@ export default function CuentasPagarClient() {
     try {
       const body =
         tipoPago === "total"
-          ? { accion: "pagar" }
+          ? {
+              accion: "pagar",
+              fechaPago: fechaPago || undefined,
+              tasaDia: tasaPago ?? pagoModal.tasaDia || undefined,
+            }
           : {
               accion: "pago_parcial",
               montoPagadoBs: Number(montoParcialBs) || 0,
@@ -799,8 +813,10 @@ export default function CuentasPagarClient() {
           <div style={{ background: "var(--erp-surface)", borderRadius: 16, padding: 28, width: 440, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
             <h3 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 800, color: "var(--erp-text)" }}>Registrar Pago</h3>
             <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--erp-text-2)" }}>
-              {pagoModal.proveedor} · <strong>${USD(pagoModal.montoUsd)}</strong> USD
-              {pagoModal.tasaDia > 0 && <span style={{ color: "var(--erp-text-3)" }}> · Tasa {pagoModal.tasaDia.toLocaleString("es-VE", { maximumFractionDigits: 2 })} Bs/$</span>}
+              {pagoModal.proveedor}
+              {(tasaPago ?? pagoModal.tasaDia) > 0 && (
+                <span style={{ color: "var(--erp-text-3)" }}> · Tasa {(tasaPago ?? pagoModal.tasaDia).toLocaleString("es-VE", { maximumFractionDigits: 2 })} Bs/$</span>
+              )}
             </p>
 
             {/* Toggle tipo pago */}
@@ -813,8 +829,40 @@ export default function CuentasPagarClient() {
               ))}
             </div>
 
+            {/* Fecha + Tasa — compartido entre ambos modos */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              <CampoForm label="📅 Fecha de pago">
+                <input type="date" style={inputStyle} value={fechaPago} onChange={e => handleFechaPagoModal(e.target.value)} />
+              </CampoForm>
+              <CampoForm label={tasaPagoEditable ? "Tasa Bs/$ (editar)" : "Tasa Bs/$"}>
+                <input
+                  type="number" min="0" step="0.01"
+                  style={{ ...inputStyle, background: tasaPagoEditable ? undefined : "var(--erp-bg)", color: tasaPagoEditable ? undefined : "var(--erp-text-3)" }}
+                  value={buscandoTasa ? "" : tasaPagoInput}
+                  placeholder={buscandoTasa ? "Buscando…" : tasaPagoEditable ? "Ingresa la tasa" : "—"}
+                  readOnly={!tasaPagoEditable}
+                  onChange={e => tasaPagoEditable && handleTasaPagoInput(e.target.value)}
+                />
+              </CampoForm>
+            </div>
+            {!tasaPagoEditable && fechaPago && !buscandoTasa && tasaPago == null && (
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#D97706" }}>⚠ Sin tasa registrada para esta fecha — ingresa la tasa manualmente.</p>
+            )}
+
+            {tipoPago === "total" && tasaPago != null && (
+              <div style={{ background: "rgba(5,150,105,0.08)", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 13, color: "#059669", fontWeight: 600 }}>
+                Pago total: <strong>${USD(pagoModal.montoUsd)}</strong> USD · {BS(pagoModal.montoBs)} Bs
+              </div>
+            )}
+
             {tipoPago === "parcial" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+                {/* Referencia: total actual en USD a tasa de hoy */}
+                {tasaPago != null && (
+                  <div style={{ background: "rgba(107,114,128,0.08)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--erp-text-2)" }}>
+                    Total pendiente: <strong>${USD(pagoModal.montoUsd)}</strong> USD · {BS(pagoModal.montoBs)} Bs
+                  </div>
+                )}
                 {/* Conversión bidireccional en modal */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <CampoForm label="Monto a abonar (Bs)">
@@ -830,24 +878,6 @@ export default function CuentasPagarClient() {
                   <p style={{ margin: 0, fontSize: 12, color: "var(--erp-text-3)" }}>
                     Restante: ${USD(Math.max(0, pagoModal.montoUsd - (Number(montoParcialUsd) || 0)))} USD
                   </p>
-                )}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <CampoForm label="Fecha de pago">
-                    <input type="date" style={inputStyle} value={fechaPago} onChange={e => handleFechaPagoModal(e.target.value)} />
-                  </CampoForm>
-                  <CampoForm label={tasaPagoEditable ? "Tasa Bs/$ (manual)" : "Tasa Bs/$"}>
-                    <input
-                      type="number" min="0" step="0.01"
-                      style={{ ...inputStyle, background: tasaPagoEditable ? undefined : "var(--erp-bg)", color: tasaPagoEditable ? undefined : "var(--erp-text-3)" }}
-                      value={buscandoTasa ? "" : tasaPagoInput}
-                      placeholder={buscandoTasa ? "Buscando…" : tasaPagoEditable ? "Ingresa la tasa" : "—"}
-                      readOnly={!tasaPagoEditable}
-                      onChange={e => tasaPagoEditable && handleTasaPagoInput(e.target.value)}
-                    />
-                  </CampoForm>
-                </div>
-                {!tasaPagoEditable && fechaPago && !buscandoTasa && tasaPago == null && (
-                  <p style={{ margin: 0, fontSize: 12, color: "#D97706" }}>Sin tasa registrada — ingresa la tasa manualmente.</p>
                 )}
                 <CampoForm label="Nueva fecha de vencimiento">
                   <input type="date" style={inputStyle} value={nuevaFechVenc} onChange={e => setNuevaFechVenc(e.target.value)} />
