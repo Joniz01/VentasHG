@@ -708,7 +708,9 @@ export default function CuentasPagarClient() {
               </tr>
             </thead>
             <tbody>
-              {[...items]
+              {(() => {
+                let rowNum = 0;
+                return [...items]
                 .filter(cp => cp.recurrente ? secFiltros.has("servicios") : secFiltros.has("ocasionales"))
                 .sort((a, b) => (b.recurrente ? 1 : 0) - (a.recurrente ? 1 : 0))
                 .map((cp, idx, sorted) => {
@@ -725,6 +727,7 @@ export default function CuentasPagarClient() {
                 const est = ESTADO_STYLE[cp.estado] ?? ESTADO_STYLE.PENDIENTE;
                 const esElim = eliminandoId === cp.id;
                 const vencidoYPendiente = esPendiente(cp) && cp.fechaVencimiento < HOY;
+                const zebraBase = (rowNum++ % 2 === 0) ? "#ffffff" : "#f9fafb";
                 return (
                   <React.Fragment key={cp.id}>
                   {showSeccionServicios && (
@@ -735,7 +738,7 @@ export default function CuentasPagarClient() {
                   )}
                   <tr style={{
                     borderBottom: "1px solid var(--erp-border)",
-                    background: esElim ? "rgba(239,68,68,0.05)" : undefined,
+                    background: esElim ? "rgba(239,68,68,0.05)" : zebraBase,
                   }}>
                     {/* Proveedor */}
                     <td style={{ padding: "12px 14px" }}>
@@ -862,7 +865,8 @@ export default function CuentasPagarClient() {
                   </tr>
                   </React.Fragment>
                 );
-              })}
+              });
+              })()}
             </tbody>
           </table>
         </div>
