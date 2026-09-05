@@ -560,7 +560,7 @@ export default function CuentasPagarClient() {
           ? {
               accion: "pagar",
               fechaPago: fechaPago || undefined,
-              tasaDia: tasaPago ?? pagoModal.tasaDia || undefined,
+              tasaDia: (tasaPago ?? pagoModal.tasaDia) || undefined,
             }
           : {
               accion: "pago_parcial",
