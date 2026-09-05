@@ -404,6 +404,15 @@ export default function CuentasPagarClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagoModal]);
 
+  // Pre-llenar montos en modo Parcial cuando la tasa esté disponible
+  useEffect(() => {
+    if (tipoPago === "parcial" && tasaPago != null && pagoModal && !montoParcialBs && !montoParcialUsd) {
+      setMontoParcialUsd(pagoModal.montoUsd.toFixed(4));
+      setMontoParcialBs((pagoModal.montoUsd * tasaPago).toFixed(2));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoPago, tasaPago]);
+
   // eliminación inline
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
   const [eliminando, setEliminando] = useState(false);
@@ -512,17 +521,19 @@ export default function CuentasPagarClient() {
     return null;
   }
 
-  // Fecha de pago → busca tasa histórica
+  // Fecha de pago → busca tasa histórica; si no hay, usa la tasa del registro como fallback
   async function handleFechaPagoModal(fecha: string) {
     setFechaPago(fecha);
     if (!fecha) { setTasaPago(null); setTasaPagoEditable(false); setTasaPagoInput(""); return; }
     setBuscandoTasa(true);
-    const tasa = await buscarTasaPorFecha(fecha);
+    const tasaHistorial = await buscarTasaPorFecha(fecha);
     setBuscandoTasa(false);
-    if (tasa) {
-      setTasaPago(tasa);
-      setTasaPagoInput(String(tasa));
-      setTasaPagoEditable(false);
+    const tasaFallback = pagoModal?.tasaDia ?? null;
+    const tasaFinal = tasaHistorial ?? (tasaFallback && tasaFallback > 0 ? tasaFallback : null);
+    if (tasaFinal) {
+      setTasaPago(tasaFinal);
+      setTasaPagoInput(String(tasaFinal));
+      setTasaPagoEditable(true);  // siempre editable para permitir ajuste
     } else {
       setTasaPago(null);
       setTasaPagoInput("");
@@ -814,6 +825,7 @@ export default function CuentasPagarClient() {
             <h3 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 800, color: "var(--erp-text)" }}>Registrar Pago</h3>
             <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--erp-text-2)" }}>
               {pagoModal.proveedor}
+              {pagoModal.montoUsd > 0 && <strong> · ${USD(pagoModal.montoUsd)} USD</strong>}
               {(tasaPago ?? pagoModal.tasaDia) > 0 && (
                 <span style={{ color: "var(--erp-text-3)" }}> · Tasa {(tasaPago ?? pagoModal.tasaDia).toLocaleString("es-VE", { maximumFractionDigits: 2 })} Bs/$</span>
               )}
@@ -845,8 +857,8 @@ export default function CuentasPagarClient() {
                 />
               </CampoForm>
             </div>
-            {!tasaPagoEditable && fechaPago && !buscandoTasa && tasaPago == null && (
-              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#D97706" }}>⚠ Sin tasa registrada para esta fecha — ingresa la tasa manualmente.</p>
+            {fechaPago && !buscandoTasa && tasaPago == null && (
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#D97706" }}>⚠ Sin tasa disponible — ingresa la tasa manualmente.</p>
             )}
 
             {tipoPago === "total" && tasaPago != null && (
