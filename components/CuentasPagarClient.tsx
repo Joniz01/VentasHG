@@ -522,19 +522,28 @@ export default function CuentasPagarClient() {
     return null;
   }
 
-  // Fecha de pago → busca tasa histórica; si no hay, usa la tasa del registro como fallback
+  // Fecha de pago → busca tasa histórica; si no hay, consulta la tasa BCV vigente (live)
   async function handleFechaPagoModal(fecha: string) {
     setFechaPago(fecha);
     if (!fecha) { setTasaPago(null); setTasaPagoEditable(false); setTasaPagoInput(""); return; }
     setBuscandoTasa(true);
     const tasaHistorial = await buscarTasaPorFecha(fecha);
+    let tasaFinal = tasaHistorial;
+    if (!tasaFinal) {
+      // Sin historial para esa fecha: consultar tasa BCV vigente (live)
+      try {
+        const r = await fetch("/api/tasa-bcv");
+        if (r.ok) {
+          const j = await r.json();
+          if (j.tasa) tasaFinal = Number(j.tasa);
+        }
+      } catch { /* sin conexión */ }
+    }
     setBuscandoTasa(false);
-    const tasaFallback = pagoModal?.tasaDia ?? null;
-    const tasaFinal = tasaHistorial ?? (tasaFallback && tasaFallback > 0 ? tasaFallback : null);
-    if (tasaFinal) {
+    if (tasaFinal && tasaFinal > 0) {
       setTasaPago(tasaFinal);
       setTasaPagoInput(String(tasaFinal));
-      setTasaPagoEditable(true);  // siempre editable para permitir ajuste
+      setTasaPagoEditable(true);
     } else {
       setTasaPago(null);
       setTasaPagoInput("");
@@ -552,10 +561,12 @@ export default function CuentasPagarClient() {
   }
 
   // Conversión bidireccional en modal de pago parcial
+  // montoParcialBs guarda el número raw (sin comas); la vista lo formatea
   function handleParcialBs(val: string) {
-    setMontoParcialBs(val);
+    const raw = val.replace(/,/g, "");  // strip separadores al escribir
+    setMontoParcialBs(raw);
     const t = tasaPago ?? pagoModal?.tasaDia;
-    if (t && t > 0 && val) setMontoParcialUsd((Number(val) / t).toFixed(2));
+    if (t && t > 0 && raw) setMontoParcialUsd((Number(raw) / t).toFixed(2));
   }
   function handleParcialUsd(val: string) {
     setMontoParcialUsd(val);
@@ -879,11 +890,15 @@ export default function CuentasPagarClient() {
                 {/* Conversión bidireccional en modal */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <CampoForm label="Abonar (Bs)">
-                    <input type="number" min="0" step="0.01" style={inputStyle} value={montoParcialBs}
-                      onChange={e => handleParcialBs(e.target.value)} placeholder={`Máx. ${BS(pagoModal.montoBs)}`} />
+                    <input
+                      type="text" inputMode="decimal" style={inputStyle}
+                      value={montoParcialBs !== "" ? Number(montoParcialBs).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""}
+                      onChange={e => handleParcialBs(e.target.value)}
+                      placeholder={`Máx. ${BS(pagoModal.montoBs)}`}
+                    />
                   </CampoForm>
                   <CampoForm label="Equiv. USD ($)">
-                    <input type="number" min="0" step="0.01" style={inputStyle} value={montoParcialUsd}
+                    <input type="text" inputMode="decimal" style={inputStyle} value={montoParcialUsd}
                       onChange={e => handleParcialUsd(e.target.value)} placeholder="0.00" />
                   </CampoForm>
                 </div>
