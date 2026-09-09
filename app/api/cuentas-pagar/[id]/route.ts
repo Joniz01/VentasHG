@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // Leer antes de marcar pagado para saber si es recurrente
       const cpRead = await client.query(
         `SELECT proveedor, proveedor_rif, numero_factura, descripcion, fecha_vencimiento,
-                monto_bs, monto_usd, tasa_dia, notas, recurrente, frecuencia, created_by
+                monto_bs, monto_usd, monto_original_bs, tasa_dia, notas, recurrente, frecuencia, created_by
          FROM cuentas_pagar WHERE id = $1`,
         [id]
       );
@@ -84,7 +84,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
            VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
           [
             cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
-            nuevoVenc, cp.monto_bs, cp.monto_usd, cp.tasa_dia, cp.notas,
+            nuevoVenc, cp.monto_original_bs ?? cp.monto_bs, cp.monto_usd, cp.tasa_dia, cp.notas,
             cp.frecuencia, nuevoProxVenc, cp.created_by,
           ]
         );
