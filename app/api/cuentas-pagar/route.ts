@@ -93,6 +93,8 @@ export async function GET(request: NextRequest) {
   const desde = searchParams.get("desde");
   const hasta = searchParams.get("hasta");
   const soloRecurrente = searchParams.get("recurrente");
+  const pagadoDesde = searchParams.get("pagadoDesde");
+  const pagadoHasta = searchParams.get("pagadoHasta");
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
 
@@ -105,6 +107,8 @@ export async function GET(request: NextRequest) {
   if (hasta) { params.push(hasta); conditions.push(`cp.fecha_vencimiento <= $${params.length}`); }
   if (soloRecurrente === "true") { conditions.push(`cp.recurrente = TRUE`); }
   else if (soloRecurrente === "false") { conditions.push(`cp.recurrente = FALSE`); }
+  if (pagadoDesde) { params.push(pagadoDesde); conditions.push(`cp.pagado_at::date >= $${params.length}`); }
+  if (pagadoHasta) { params.push(pagadoHasta); conditions.push(`cp.pagado_at::date <= $${params.length}`); }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 

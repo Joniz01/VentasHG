@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
         SELECT
           'CP' || cp.id AS id,
           CASE WHEN cp.tipo = 'compra' THEN 'compra' ELSE 'proveedor' END AS tipo,
-          cp.proveedor || COALESCE(' · Fact. ' || cp.numero_factura, '') AS descripcion,
+          cp.proveedor
+            || COALESCE(' · Fact. ' || cp.numero_factura, '')
+            || ' · Emis. ' || TO_CHAR(cp.fecha_emision, 'DD/MM/YYYY') AS descripcion,
           cp.pagado_at::date AS fecha_pago,
           COALESCE(cp.monto_original_bs, cp.monto_bs) AS monto_bs,
           cp.tasa_dia,

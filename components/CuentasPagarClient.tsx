@@ -371,6 +371,18 @@ export default function CuentasPagarClient() {
   const PAGE_SIZE = 20;
   const [loading, setLoading] = useState(true);
 
+  // ── Tab principal ──────────────────────────────────────────────────────────
+  type TabCxP = "pendientes" | "pagados";
+  const [tabCxP, setTabCxP] = useState<TabCxP>("pendientes");
+
+  // ── Estado pagados ─────────────────────────────────────────────────────────
+  type PagadosPeriodo = "esta_semana" | "sem_anterior" | "mes_actual" | "rango";
+  const [pagadosPeriodo, setPagadosPeriodo] = useState<PagadosPeriodo>("mes_actual");
+  const [pagadosDesde, setPagadosDesde] = useState("");
+  const [pagadosHasta, setPagadosHasta] = useState("");
+  const [itemsPagados, setItemsPagados] = useState<CuentaPagar[]>([]);
+  const [loadingPagados, setLoadingPagados] = useState(false);
+
   // filtros
   const [filtroEstado, setFiltroEstado] = useState<"PENDIENTE" | "PENDIENTE_PARCIAL">("PENDIENTE");
   const [filtroProveedor, setFiltroProveedor] = useState("");
@@ -532,6 +544,37 @@ export default function CuentasPagarClient() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  const cargarPagados = useCallback(async () => {
+    const hoy = new Date();
+    const dow = hoy.getDay();
+    const lunesOffset = dow === 0 ? -6 : 1 - dow;
+    let desde = "", hasta = "";
+    if (pagadosPeriodo === "esta_semana") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset);
+      const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+      desde = lunes.toISOString().slice(0, 10); hasta = dom.toISOString().slice(0, 10);
+    } else if (pagadosPeriodo === "sem_anterior") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset - 7);
+      const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+      desde = lunes.toISOString().slice(0, 10); hasta = dom.toISOString().slice(0, 10);
+    } else if (pagadosPeriodo === "mes_actual") {
+      desde = hoy.toISOString().slice(0, 8) + "01";
+      hasta = hoy.toISOString().slice(0, 10);
+    } else {
+      desde = pagadosDesde; hasta = pagadosHasta;
+    }
+    if (!desde || !hasta) return;
+    setLoadingPagados(true);
+    try {
+      const p = new URLSearchParams({ estado: "PAGADO", pagadoDesde: desde, pagadoHasta: hasta, pageSize: "100" });
+      const r = await fetch(`/api/cuentas-pagar?${p}`);
+      if (r.ok) { const j = await r.json(); setItemsPagados(j.items ?? []); }
+    } finally { setLoadingPagados(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagadosPeriodo, pagadosDesde, pagadosHasta]);
+
+  useEffect(() => { if (tabCxP === "pagados") cargarPagados(); }, [tabCxP, cargarPagados]);
+
   // Fecha de pago → busca tasa histórica; si no hay, consulta la tasa BCV vigente (live)
   async function handleFechaPagoModal(fecha: string) {
     setFechaPago(fecha);
@@ -682,7 +725,147 @@ export default function CuentasPagarClient() {
         })()}
       </div>
 
-      {/* Panel de filtros compacto */}
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--erp-border)" }}>
+        {([["pendientes", "📋 Por Pagar"], ["pagados", "✅ Pagados"]] as [TabCxP, string][]).map(([key, label]) => (
+          <button key={key} onClick={() => setTabCxP(key)}
+            style={{
+              padding: "8px 18px", fontSize: 13, fontWeight: tabCxP === key ? 700 : 500,
+              cursor: "pointer", border: "none", background: "transparent",
+              color: tabCxP === key ? "#059669" : "var(--erp-text-2)",
+              borderBottom: tabCxP === key ? "2px solid #059669" : "2px solid transparent",
+              marginBottom: -2, transition: "all 0.15s",
+            }}
+          >{label}</button>
+        ))}
+      </div>
+
+      {/* Panel de pagados */}
+      {tabCxP === "pagados" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Filtro período */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Período de pago:</span>
+            {([
+              ["esta_semana", "Esta semana"],
+              ["sem_anterior", "Sem. anterior"],
+              ["mes_actual", "Mes actual"],
+              ["rango", "Rango"],
+            ] as [PagadosPeriodo, string][]).map(([key, label]) => {
+              const active = pagadosPeriodo === key;
+              return (
+                <button key={key} onClick={() => setPagadosPeriodo(key)}
+                  style={{
+                    padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: active ? 700 : 500,
+                    cursor: "pointer", border: `1.5px solid ${active ? "#059669" : "var(--erp-border)"}`,
+                    background: active ? "#059669" : "transparent",
+                    color: active ? "#fff" : "var(--erp-text-2)", transition: "all 0.15s",
+                  }}
+                >{label}</button>
+              );
+            })}
+            {pagadosPeriodo === "rango" && (
+              <>
+                <input type="date" value={pagadosDesde} onChange={e => setPagadosDesde(e.target.value)}
+                  style={{ ...inputStyle, width: 136 }} />
+                <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>—</span>
+                <input type="date" value={pagadosHasta} onChange={e => setPagadosHasta(e.target.value)}
+                  style={{ ...inputStyle, width: 136 }} />
+                <button onClick={cargarPagados}
+                  style={{ padding: "4px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1.5px solid #059669", background: "#059669", color: "#fff" }}>
+                  Buscar
+                </button>
+              </>
+            )}
+          </div>
+          {/* Tabla pagados */}
+          <div style={{ overflowX: "auto" }}>
+            {loadingPagados ? (
+              <p style={{ color: "var(--erp-text-3)", textAlign: "center", padding: "2rem 0" }}>Cargando…</p>
+            ) : itemsPagados.length === 0 ? (
+              <div style={{ padding: "2.5rem", textAlign: "center", color: "var(--erp-text-3)", border: "1px dashed var(--erp-border)", borderRadius: 12, fontSize: 14 }}>
+                No hay pagos registrados en este período.
+              </div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1.5px solid var(--erp-border)" }}>
+                    {[
+                      { label: "Proveedor / Servicio", align: "left" },
+                      { label: "Emisión",              align: "left" },
+                      { label: "Fecha Pago",           align: "left" },
+                      { label: "Monto Bs",             align: "right" },
+                      { label: "Monto USD",            align: "right" },
+                      { label: "Acciones",             align: "right" },
+                    ].map(h => (
+                      <th key={h.label} style={{ padding: "8px 14px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--erp-text-3)", textAlign: h.align as React.CSSProperties["textAlign"], whiteSpace: "nowrap" }}>{h.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsPagados.map((cp, idx) => {
+                    const zebraBase = idx % 2 === 0 ? "#ffffff" : "#f9fafb";
+                    return (
+                      <tr key={cp.id} style={{ borderBottom: "1px solid var(--erp-border)", background: zebraBase, borderLeft: "3px solid #059669" }}>
+                        <td style={{ padding: "7px 14px" }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--erp-text)" }}>
+                            {cp.proveedor}
+                            {cp.numeroFactura && <span style={{ fontSize: 11, color: "var(--erp-text-3)", fontWeight: 400, marginLeft: 6 }}>· {cp.numeroFactura}</span>}
+                          </div>
+                          {cp.descripcion && <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{cp.descripcion}</div>}
+                        </td>
+                        <td style={{ padding: "7px 14px", fontSize: 12, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{fmtFecha(cp.fechaEmision)}</td>
+                        <td style={{ padding: "7px 14px", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>✓ {cp.pagadoAt ? fmtFecha(cp.pagadoAt.slice(0, 10)) : "—"}</span>
+                        </td>
+                        <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 600, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
+                          {cp.montoOriginalBs ? BS(cp.montoOriginalBs) : "—"}
+                        </td>
+                        <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 700, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
+                          {cp.montoOriginalBs && cp.tasaDia > 0 ? `$${USD(cp.montoOriginalBs / cp.tasaDia)}` : "—"}
+                        </td>
+                        <td style={{ padding: "7px 14px", textAlign: "right" }}>
+                          {revirtiendoId === cp.id ? (
+                            <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "flex-end" }}>
+                              <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>¿Revertir?</span>
+                              <button onClick={() => handleRevertir(cp.id)} disabled={revirtiendo}
+                                style={{ padding: "3px 8px", borderRadius: 6, background: "#D97706", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
+                                {revirtiendo ? "…" : "Sí"}
+                              </button>
+                              <button onClick={() => setRevirtiendoId(null)}
+                                style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text)", cursor: "pointer", fontSize: 11 }}>No</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setRevirtiendoId(cp.id)} title="Revertir pago"
+                              style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "#D97706", border: "1px solid #D97706", fontSize: 13, cursor: "pointer" }}>
+                              ↩ Revertir
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "1.5px solid var(--erp-border)", background: "var(--erp-bg)" }}>
+                    <td colSpan={3} style={{ padding: "8px 14px", fontSize: 11, color: "var(--erp-text-3)" }}>{itemsPagados.length} pago{itemsPagados.length !== 1 ? "s" : ""}</td>
+                    <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
+                      {BS(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalBs ?? 0), 0))}
+                    </td>
+                    <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
+                      ${USD(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalBs && cp.tasaDia > 0 ? cp.montoOriginalBs / cp.tasaDia : 0), 0))}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Panel de filtros + tabla operativa (solo tab pendientes) */}
+      {tabCxP === "pendientes" && <>
       <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
         {/* Fila 1: Sección + buscador */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
@@ -959,6 +1142,7 @@ export default function CuentasPagarClient() {
             style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", cursor: "pointer", color: "var(--erp-text)" }}>Sig. →</button>
         </div>
       )}
+      </> /* fin pendientes */}
 
       {/* Modal Pago */}
       {pagoModal && (
