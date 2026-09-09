@@ -819,10 +819,10 @@ export default function CuentasPagarClient() {
                           <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>✓ {cp.pagadoAt ? fmtFecha(cp.pagadoAt.slice(0, 10)) : "—"}</span>
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 600, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
-                          {cp.montoOriginalBs ? BS(cp.montoOriginalBs) : "—"}
+                          {(() => { const m = cp.montoOriginalBs ?? cp.montoBs; return m > 0 ? BS(m) : "—"; })()}
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 700, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
-                          {cp.montoOriginalBs && cp.tasaDia > 0 ? `$${USD(cp.montoOriginalBs / cp.tasaDia)}` : "—"}
+                          {(() => { const m = cp.montoOriginalBs ?? cp.montoBs; return m > 0 && cp.tasaDia > 0 ? `$${USD(m / cp.tasaDia)}` : "—"; })()}
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right" }}>
                           {revirtiendoId === cp.id ? (
@@ -850,10 +850,10 @@ export default function CuentasPagarClient() {
                   <tr style={{ borderTop: "1.5px solid var(--erp-border)", background: "var(--erp-bg)" }}>
                     <td colSpan={3} style={{ padding: "8px 14px", fontSize: 11, color: "var(--erp-text-3)" }}>{itemsPagados.length} pago{itemsPagados.length !== 1 ? "s" : ""}</td>
                     <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
-                      {BS(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalBs ?? 0), 0))}
+                      {BS(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalBs ?? cp.montoBs), 0))}
                     </td>
                     <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
-                      ${USD(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalBs && cp.tasaDia > 0 ? cp.montoOriginalBs / cp.tasaDia : 0), 0))}
+                      ${USD(itemsPagados.reduce((s, cp) => { const m = cp.montoOriginalBs ?? cp.montoBs; return s + (m > 0 && cp.tasaDia > 0 ? m / cp.tasaDia : 0); }, 0))}
                     </td>
                     <td />
                   </tr>
