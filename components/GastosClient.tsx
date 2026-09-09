@@ -200,6 +200,50 @@ export default function GastosClient() {
   const [savingRec, setSavingRec] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
 
+  const [editRecModal, setEditRecModal] = useState<CxPRecurrente | null>(null);
+  const [editRecForm, setEditRecForm] = useState({ ...EMPTY_REC_FORM });
+  const [savingEditRec, setSavingEditRec] = useState(false);
+  const [editRecError, setEditRecError] = useState<string | null>(null);
+
+  function abrirEditarRec(rec: CxPRecurrente) {
+    setEditRecModal(rec);
+    setEditRecForm({
+      proveedor: rec.proveedor,
+      montoUsd: rec.montoUsd > 0 ? String(rec.montoUsd) : "",
+      frecuencia: rec.frecuencia ?? "MENSUAL",
+      fechaVencimiento: rec.fechaVencimiento,
+      descripcion: rec.descripcion ?? "",
+    });
+    setEditRecError(null);
+  }
+
+  async function handleGuardarEditRec() {
+    if (!editRecModal) return;
+    if (!editRecForm.proveedor.trim()) { setEditRecError("El nombre es obligatorio"); return; }
+    if (!editRecForm.fechaVencimiento) { setEditRecError("Indica el vencimiento"); return; }
+    setEditRecError(null);
+    setSavingEditRec(true);
+    try {
+      const montoUsd = Number(editRecForm.montoUsd) || 0;
+      const r = await fetch(`/api/cuentas-pagar/${editRecModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proveedor: editRecForm.proveedor.trim(),
+          descripcion: editRecForm.descripcion?.trim() || undefined,
+          fechaVencimiento: editRecForm.fechaVencimiento,
+          montoUsd,
+          montoBs: montoUsd,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setEditRecError(j.error ?? "Error al guardar"); return; }
+      setEditRecModal(null);
+      fetchRecurrentes();
+    } catch { setEditRecError("Error de conexión"); }
+    finally { setSavingEditRec(false); }
+  }
+
   async function fetchRecurrentes() {
     setLoadingRec(true);
     try {
@@ -1467,22 +1511,76 @@ export default function GastosClient() {
                       )}
                     </div>
                   </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    {rec.montoUsd > 0 && (
-                      <div style={{ fontWeight: 800, fontSize: 14, color: "var(--erp-text)" }}>
-                        ${formatMonto(rec.montoUsd)}
-                      </div>
-                    )}
-                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700,
-                      background: rec.estado === "PENDIENTE" ? "rgba(217,119,6,0.10)" : "rgba(5,150,105,0.10)",
-                      color: rec.estado === "PENDIENTE" ? "#D97706" : "#059669" }}>
-                      {rec.estado === "PENDIENTE" ? "En período" : rec.estado}
-                    </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <div style={{ textAlign: "right" }}>
+                      {rec.montoUsd > 0 && (
+                        <div style={{ fontWeight: 800, fontSize: 14, color: "var(--erp-text)" }}>
+                          ${formatMonto(rec.montoUsd)}
+                        </div>
+                      )}
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700,
+                        background: rec.estado === "PENDIENTE" ? "rgba(217,119,6,0.10)" : "rgba(5,150,105,0.10)",
+                        color: rec.estado === "PENDIENTE" ? "#D97706" : "#059669" }}>
+                        {rec.estado === "PENDIENTE" ? "En período" : rec.estado}
+                      </span>
+                    </div>
+                    <button type="button" onClick={() => abrirEditarRec(rec)}
+                      style={{ padding: "5px 10px", borderRadius: 8, background: "transparent",
+                        color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", fontSize: 13, cursor: "pointer" }}>
+                      ✏️
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Editar Recurrente */}
+      {editRecModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setEditRecModal(null)}>
+          <div style={{ background: "var(--erp-surface)", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}
+            onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 800, color: "var(--erp-text)" }}>Editar Servicio Recurrente</h3>
+            {editRecError && <p style={{ margin: "0 0 12px", color: "#EF4444", fontSize: 13 }}>{editRecError}</p>}
+            {([
+              { label: "Proveedor / Servicio", key: "proveedor", type: "text" },
+              { label: "Monto USD", key: "montoUsd", type: "number" },
+              { label: "Próximo vencimiento", key: "fechaVencimiento", type: "date" },
+              { label: "Descripción", key: "descripcion", type: "text" },
+            ] as { label: string; key: keyof typeof editRecForm; type: string }[]).map(({ label, key, type }) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--erp-text-2)", display: "block", marginBottom: 4 }}>{label}</label>
+                <input type={type} value={String(editRecForm[key] ?? "")}
+                  onChange={e => setEditRecForm(p => ({ ...p, [key]: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "var(--erp-bg)", color: "var(--erp-text)", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--erp-text-2)", display: "block", marginBottom: 4 }}>Frecuencia</label>
+              <select value={editRecForm.frecuencia} onChange={e => setEditRecForm(p => ({ ...p, frecuencia: e.target.value }))}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "var(--erp-bg)", color: "var(--erp-text)", fontSize: 14 }}>
+                <option value="MENSUAL">Mensual</option>
+                <option value="QUINCENAL">Quincenal</option>
+                <option value="SEMANAL">Semanal</option>
+              </select>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--erp-text-3)", marginBottom: 16 }}>
+              ℹ️ Solo actualiza el período actual. El siguiente período se generará con estos valores al pagar.
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setEditRecModal(null)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text-2)", fontSize: 14, cursor: "pointer" }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleGuardarEditRec} disabled={savingEditRec}
+                style={{ padding: "8px 20px", borderRadius: 8, background: "#D97706", color: "#fff", border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                {savingEditRec ? "Guardando…" : "Guardar"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

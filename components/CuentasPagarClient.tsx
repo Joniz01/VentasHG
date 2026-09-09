@@ -1091,10 +1091,20 @@ export default function CuentasPagarClient() {
                               ✓ Pagar
                             </button>
                           )}
-                          <button onClick={() => abrirEditar(cp)}
-                            style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", fontSize: 13, cursor: "pointer" }}>
-                            ✏️
-                          </button>
+                          {cp.tipo === "compra" ? (
+                            <a href="/compras" style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "var(--erp-text-3)", border: "1px solid var(--erp-border)", fontSize: 11, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" }}>
+                              → Compras
+                            </a>
+                          ) : cp.recurrente ? (
+                            <a href="/gastos" style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "var(--erp-text-3)", border: "1px solid var(--erp-border)", fontSize: 11, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" }}>
+                              → Gastos
+                            </a>
+                          ) : (
+                            <button onClick={() => abrirEditar(cp)}
+                              style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", fontSize: 13, cursor: "pointer" }}>
+                              ✏️
+                            </button>
+                          )}
                           {(cp.estado === "PENDIENTE_PARCIAL" || cp.estado === "PAGADO") && (
                             revirtiendoId === cp.id ? (
                               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
