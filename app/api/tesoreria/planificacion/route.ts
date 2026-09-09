@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
     const r = await pool.query<RawItem>(
       `SELECT
         'CP' || cp.id                                                              AS id,
-        'proveedor'                                                                AS tipo,
+        CASE WHEN cp.tipo = 'compra' THEN 'compra' ELSE 'proveedor' END           AS tipo,
         cp.proveedor || COALESCE(' · Fact. ' || cp.numero_factura, '')            AS descripcion,
         LEAST(cp.fecha_emision, cp.fecha_vencimiento)                              AS fecha_vencimiento,
         cp.monto_bs                                                                AS monto_bs,
