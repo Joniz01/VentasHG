@@ -48,6 +48,47 @@ export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  // ── Modo historial: devuelve items pagados en un rango de fechas ───────────
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("historial") === "true") {
+    const hDesde = searchParams.get("desde");
+    const hHasta = searchParams.get("hasta");
+    if (!hDesde || !hHasta) return NextResponse.json({ items: [] });
+    try {
+      const result = await pool.query(`
+        SELECT
+          'CP' || cp.id AS id,
+          CASE WHEN cp.tipo = 'compra' THEN 'compra' ELSE 'proveedor' END AS tipo,
+          cp.proveedor || COALESCE(' · Fact. ' || cp.numero_factura, '') AS descripcion,
+          cp.pagado_at::date AS fecha_pago,
+          COALESCE(cp.monto_original_bs, cp.monto_bs) AS monto_bs,
+          cp.tasa_dia,
+          cp.numero_factura AS referencia,
+          CASE WHEN cp.tasa_dia > 0
+            THEN ROUND(COALESCE(cp.monto_original_bs, cp.monto_bs) / cp.tasa_dia, 2)
+            ELSE 0 END AS monto_usd
+        FROM cuentas_pagar cp
+        WHERE cp.estado = 'PAGADO'
+          AND cp.pagado_at::date BETWEEN $1 AND $2
+        ORDER BY cp.pagado_at DESC
+      `, [hDesde, hHasta]);
+      return NextResponse.json({
+        items: result.rows.map(r => ({
+          id: String(r.id),
+          tipo: String(r.tipo),
+          descripcion: String(r.descripcion),
+          fechaPago: toDate(r.fecha_pago),
+          montoBs: Number(r.monto_bs),
+          montoUsd: Number(r.monto_usd),
+          referencia: r.referencia ? String(r.referencia) : null,
+        }))
+      });
+    } catch (err) {
+      const detalle = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: "Error al obtener historial", detalle }, { status: 500 });
+    }
+  }
+
   const hoy = hoyCaracas();
   const lunes = lunesDeHoy(hoy);
   const domingo = addDays(lunes, 6);

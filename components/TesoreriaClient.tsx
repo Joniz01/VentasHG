@@ -219,6 +219,18 @@ export default function TesoreriaClient() {
   const [eliminandoConfirm, setEliminandoConfirm] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
 
+  // ── Historial tab ──────────────────────────────────────────────────────────
+  type TabKey = "planificacion" | "historial";
+  type HistorialPeriodo = "esta_semana" | "sem_anterior" | "rango";
+  type HistorialItem = { id: string; tipo: string; descripcion: string; fechaPago: string; montoBs: number; montoUsd: number; referencia: string | null };
+
+  const [tab, setTab] = useState<TabKey>("planificacion");
+  const [historialPeriodo, setHistorialPeriodo] = useState<HistorialPeriodo>("esta_semana");
+  const [historialDesde, setHistorialDesde] = useState("");
+  const [historialHasta, setHistorialHasta] = useState("");
+  const [historialItems, setHistorialItems] = useState<HistorialItem[]>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
@@ -230,6 +242,34 @@ export default function TesoreriaClient() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  const cargarHistorial = useCallback(async () => {
+    const hoy = new Date();
+    const dow = hoy.getDay();
+    const lunesOffset = dow === 0 ? -6 : 1 - dow;
+    let desde = "", hasta = "";
+    if (historialPeriodo === "esta_semana") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset);
+      const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+      desde = lunes.toISOString().slice(0, 10); hasta = dom.toISOString().slice(0, 10);
+    } else if (historialPeriodo === "sem_anterior") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset - 7);
+      const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+      desde = lunes.toISOString().slice(0, 10); hasta = dom.toISOString().slice(0, 10);
+    } else {
+      desde = historialDesde; hasta = historialHasta;
+    }
+    if (!desde || !hasta) return;
+    setCargandoHistorial(true);
+    try {
+      const p = new URLSearchParams({ historial: "true", desde, hasta });
+      const res = await fetch(`/api/tesoreria/planificacion?${p}`);
+      if (res.ok) { const j = await res.json(); setHistorialItems(j.items ?? []); }
+    } finally { setCargandoHistorial(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historialPeriodo, historialDesde, historialHasta]);
+
+  useEffect(() => { if (tab === "historial") cargarHistorial(); }, [tab, cargarHistorial]);
 
   const abrirPagoModal = (item: ObligacionItem) => {
     if (!item.id.startsWith("G")) return;
@@ -385,6 +425,112 @@ export default function TesoreriaClient() {
           }
         }
       `}</style>
+
+      {/* ── Tabs ───────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--erp-border)" }}>
+        {([["planificacion", "📅 Planificación de Pagos"], ["historial", "🗂 Historial de Pagos"]] as [TabKey, string][]).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            style={{
+              padding: "9px 18px", fontSize: 13, fontWeight: tab === key ? 700 : 500,
+              cursor: "pointer", border: "none", background: "transparent",
+              color: tab === key ? "#059669" : "var(--erp-text-2)",
+              borderBottom: tab === key ? "2px solid #059669" : "2px solid transparent",
+              marginBottom: -2, transition: "all 0.15s",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Historial Panel ────────────────────────────────────────────── */}
+      {tab === "historial" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Period filter */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Período:</span>
+            {([["esta_semana", "Esta Semana"], ["sem_anterior", "Sem. Anterior"], ["rango", "Rango"]] as [HistorialPeriodo, string][]).map(([key, label]) => {
+              const active = historialPeriodo === key;
+              return (
+                <button key={key} onClick={() => setHistorialPeriodo(key)}
+                  style={{
+                    padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: active ? 700 : 500,
+                    cursor: "pointer", border: `1.5px solid ${active ? "#059669" : "var(--erp-border)"}`,
+                    background: active ? "#059669" : "transparent",
+                    color: active ? "#fff" : "var(--erp-text-2)", transition: "all 0.15s",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {historialPeriodo === "rango" && (
+              <>
+                <input type="date" value={historialDesde} onChange={e => setHistorialDesde(e.target.value)}
+                  style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12, border: "1.5px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} />
+                <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>hasta</span>
+                <input type="date" value={historialHasta} onChange={e => setHistorialHasta(e.target.value)}
+                  style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12, border: "1.5px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} />
+                <button onClick={cargarHistorial}
+                  style={{ padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1.5px solid #059669", background: "#059669", color: "#fff" }}>
+                  Buscar
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Historial table */}
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 110px 90px 110px", padding: "10px 16px", borderBottom: "1px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))" }}>
+              {["Descripción", "Tipo", "Fecha Pago", "USD", "Bs."].map((h, i) => (
+                <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
+              ))}
+            </div>
+            {cargandoHistorial ? (
+              <div style={{ padding: "2rem", textAlign: "center", fontSize: 13, color: "var(--erp-text-3)" }}>Cargando historial…</div>
+            ) : historialItems.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", fontSize: 13, color: "var(--erp-text-3)" }}>No hay pagos registrados en este período.</div>
+            ) : (
+              <>
+                {historialItems.map((item, idx) => {
+                  const tc = TIPO_COLOR[item.tipo as ItemTipo] ?? TIPO_COLOR.proveedor;
+                  return (
+                    <div key={item.id}
+                      style={{
+                        display: "grid", gridTemplateColumns: "1fr 100px 110px 90px 110px",
+                        padding: "10px 16px", alignItems: "center",
+                        borderBottom: idx < historialItems.length - 1 ? "1px solid var(--erp-border)" : "none",
+                        background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
+                        borderLeft: "3px solid #059669",
+                      }}
+                    >
+                      <div>
+                        <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--erp-text)", margin: 0 }}>{item.descripcion}</p>
+                        {item.referencia && <p style={{ fontSize: 11, color: "var(--erp-text-3)", margin: 0 }}>Ref: {item.referencia}</p>}
+                      </div>
+                      <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", background: tc.bg, color: tc.text }}>
+                        {tc.label.toUpperCase()}
+                      </span>
+                      <span style={{ fontSize: 12, color: "#059669", fontWeight: 600 }}>✓ {fmtFecha(item.fechaPago)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>${USD(item.montoUsd)}</span>
+                      <span style={{ fontSize: 11, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>Bs.{BS(item.montoBs)}</span>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, padding: "10px 16px", borderTop: "1px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))" }}>
+                  <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{historialItems.length} pago{historialItems.length !== 1 ? "s" : ""}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
+                    Total: ${USD(historialItems.reduce((s, i) => s + i.montoUsd, 0))}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Planificación ──────────────────────────────────────────────── */}
+      {tab === "planificacion" && (<>
 
       {/* ── KPI Strip ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -780,6 +926,8 @@ export default function TesoreriaClient() {
           </div>
         )}
       </div>
+
+      </>)} {/* fin planificacion */}
 
       {/* ── Modal de pago ──────────────────────────────────────────────── */}
       {pagoModal && (
