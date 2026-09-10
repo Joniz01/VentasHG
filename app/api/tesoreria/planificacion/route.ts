@@ -293,7 +293,7 @@ export async function GET(request: NextRequest) {
          AND NOT EXISTS (
            SELECT 1 FROM cuentas_pagar cp2
            WHERE cp2.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id::text)
-             AND cp2.tipo = 'compra' AND cp2.estado = 'PAGADO'
+             AND cp2.tipo = 'compra'
          )
        GROUP BY c.id, c.proveedor_nombre, c.numero_factura, c.tasa_dia, c.fecha_vencimiento_pago
        ORDER BY c.fecha_vencimiento_pago ASC`,
