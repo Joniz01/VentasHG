@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
     const hHasta = searchParams.get("hasta");
     if (!hDesde || !hHasta) return NextResponse.json({ items: [] });
     try {
-      const result = await pool.query(`
+      // ── Pagos de cuentas_pagar ──────────────────────────────────────────────
+      const cpResult = await pool.query(`
         SELECT
           'CP' || cp.id AS id,
           CASE WHEN cp.tipo = 'compra' THEN 'compra' ELSE 'proveedor' END AS tipo,
@@ -72,17 +73,50 @@ export async function GET(request: NextRequest) {
           AND cp.pagado_at::date BETWEEN $1 AND $2
         ORDER BY cp.pagado_at DESC
       `, [hDesde, hHasta]);
-      return NextResponse.json({
-        items: result.rows.map(r => ({
-          id: String(r.id),
-          tipo: String(r.tipo),
-          descripcion: String(r.descripcion),
-          fechaPago: toDate(r.fecha_pago),
-          montoBs: Number(r.monto_bs),
-          montoUsd: Number(r.monto_usd),
-          referencia: r.referencia ? String(r.referencia) : null,
-        }))
-      });
+
+      // ── Pagos de nómina (períodos completamente pagados en el rango) ────────
+      type NominaHistRow = { id: string; descripcion: string; fecha_pago: unknown; monto_bs: string; monto_usd: string };
+      let nominaItems: NominaHistRow[] = [];
+      try {
+        const nResult = await pool.query<NominaHistRow>(`
+          SELECT
+            'N' || pn.id AS id,
+            n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
+            MAX(np.pagado_at)::date AS fecha_pago,
+            COALESCE(SUM(e.salario_base_usd * pn.tasa_dia), 0) AS monto_bs,
+            COALESCE(SUM(e.salario_base_usd), 0) AS monto_usd
+          FROM periodos_nomina pn
+          JOIN nominas n ON n.id = pn.nomina_id
+          JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PAGADO'
+          JOIN empleados e ON e.id = np.empleado_id
+          GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
+          HAVING MAX(np.pagado_at)::date BETWEEN $1 AND $2
+          ORDER BY MAX(np.pagado_at) DESC
+        `, [hDesde, hHasta]);
+        nominaItems = nResult.rows;
+      } catch { /* tabla nomina_pagos no disponible — skip */ }
+
+      const cpItems = cpResult.rows.map(r => ({
+        id: String(r.id),
+        tipo: String(r.tipo),
+        descripcion: String(r.descripcion),
+        fechaPago: toDate(r.fecha_pago),
+        montoBs: Number(r.monto_bs),
+        montoUsd: Number(r.monto_usd),
+        referencia: r.referencia ? String(r.referencia) : null,
+      }));
+      const nomItems = nominaItems.map(r => ({
+        id: String(r.id),
+        tipo: "nomina",
+        descripcion: String(r.descripcion),
+        fechaPago: toDate(r.fecha_pago),
+        montoBs: Number(r.monto_bs),
+        montoUsd: Number(r.monto_usd),
+        referencia: null,
+      }));
+      const allItems = [...cpItems, ...nomItems].sort((a, b) => b.fechaPago.localeCompare(a.fechaPago));
+
+      return NextResponse.json({ items: allItems });
     } catch (err) {
       const detalle = err instanceof Error ? err.message : String(err);
       return NextResponse.json({ error: "Error al obtener historial", detalle }, { status: 500 });
