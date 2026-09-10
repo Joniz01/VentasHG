@@ -389,7 +389,7 @@ export default function CuentasPagarClient() {
 
   // filtro por fecha de vencimiento
   type FiltroFecha = "" | "esta_semana" | "prox_semana" | "rango";
-  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>("");
+  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>("esta_semana");
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
 
@@ -898,13 +898,19 @@ export default function CuentasPagarClient() {
           <span style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 2 }}>Estado:</span>
           {(["PENDIENTE", "PENDIENTE_PARCIAL"] as const).map(e => {
             const active = filtroEstado === e;
+            const countParcial = e === "PENDIENTE_PARCIAL" ? items.filter(cp => cp.estado === "PENDIENTE_PARCIAL").length : 0;
             return (
               <button key={e} onClick={() => { setFiltroEstado(e); setPage(1); }}
-                style={{ padding: "4px 11px", borderRadius: 99, fontSize: 12, fontWeight: active ? 700 : 400, cursor: "pointer",
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 11px", borderRadius: 99, fontSize: 12, fontWeight: active ? 700 : 400, cursor: "pointer",
                   border: `1px solid ${active ? "#B45309" : "var(--erp-border)"}`,
                   background: active ? "rgba(180,83,9,0.10)" : "transparent",
                   color: active ? "#B45309" : "var(--erp-text-2)" }}>
                 {e === "PENDIENTE" ? "Por Pagar" : "Pend. Parcial"}
+                {e === "PENDIENTE_PARCIAL" && countParcial > 0 && (
+                  <span style={{ fontSize: 10, fontWeight: 800, background: "rgba(180,83,9,0.15)", color: "#B45309", borderRadius: 99, padding: "1px 6px", lineHeight: 1.4 }}>
+                    {countParcial}
+                  </span>
+                )}
               </button>
             );
           })}
