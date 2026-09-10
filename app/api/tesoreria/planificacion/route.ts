@@ -621,12 +621,11 @@ export async function PATCH(request: NextRequest) {
         const pagadoBs = tasaDia > 0 ? montoPagadoUsd * tasaDia : montoPagadoUsd;
         const restanteBs = Number(row.monto_bs) - pagadoBs;
         if (restanteBs <= 0.01) {
-          await client.query(`UPDATE cuentas_pagar SET estado='PAGADO', pagado_at=NOW(), monto_bs=0, monto_usd=0, monto_original_bs=$2 WHERE id=$1`, [cpId, montoOriginalBs]);
+          await client.query(`UPDATE cuentas_pagar SET estado='PAGADO', pagado_at=NOW(), monto_bs=0, monto_original_bs=$2 WHERE id=$1`, [cpId, montoOriginalBs]);
         } else {
-          const restanteUsd = tasaDia > 0 ? restanteBs / tasaDia : 0;
           await client.query(
-            `UPDATE cuentas_pagar SET estado='PENDIENTE_PARCIAL', fecha_vencimiento=COALESCE($2::date, fecha_vencimiento), monto_bs=$3, monto_usd=$4, monto_original_bs=$5 WHERE id=$1`,
-            [cpId, nuevaFecha || null, restanteBs, restanteUsd, montoOriginalBs]
+            `UPDATE cuentas_pagar SET estado='PENDIENTE_PARCIAL', fecha_vencimiento=COALESCE($2::date, fecha_vencimiento), monto_bs=$3, monto_original_bs=$4 WHERE id=$1`,
+            [cpId, nuevaFecha || null, restanteBs, montoOriginalBs]
           );
         }
         await client.query(`INSERT INTO cuentas_pagar_historial (cuenta_pagar_id, fecha_pago, monto_bs, monto_usd, tasa_dia, nota) VALUES ($1, NOW()::date, $2, $3, $4, $5)`, [cpId, pagadoBs, montoPagadoUsd, tasaDia, nota ?? null]);

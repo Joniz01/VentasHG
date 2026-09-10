@@ -117,14 +117,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2::numeric,
-             monto_usd = GREATEST(monto_usd - $3::numeric, 0),
-             monto_original_bs = COALESCE($4::numeric, monto_original_bs),
-             monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $5::numeric,
+             monto_original_bs = COALESCE($3::numeric, monto_original_bs),
+             monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $4::numeric,
              estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
-             fecha_vencimiento = COALESCE($6::date, fecha_vencimiento),
+             fecha_vencimiento = COALESCE($5::date, fecha_vencimiento),
              pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
            WHERE id = $1`,
-          [id, restanteBs, montoPagadoUsd, montoOriginalBs, montoPagadoBs, nuevaFechVenc]
+          [id, restanteBs, montoOriginalBs, montoPagadoBs, nuevaFechVenc]
         );
         await client.query("RELEASE SAVEPOINT sp_update");
       } catch {
@@ -133,12 +132,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2::numeric,
-             monto_usd = GREATEST(monto_usd - $3::numeric, 0),
              estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
-             fecha_vencimiento = COALESCE($4::date, fecha_vencimiento),
+             fecha_vencimiento = COALESCE($3::date, fecha_vencimiento),
              pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
            WHERE id = $1`,
-          [id, restanteBs, montoPagadoUsd, nuevaFechVenc]
+          [id, restanteBs, nuevaFechVenc]
         );
       }
 

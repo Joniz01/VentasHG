@@ -822,7 +822,7 @@ export default function CuentasPagarClient() {
                           {(() => { const m = cp.montoOriginalBs ?? cp.montoBs; return m > 0 ? BS(m) : "—"; })()}
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 700, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
-                          {(() => { const m = cp.montoOriginalBs ?? cp.montoBs; return m > 0 && cp.tasaDia > 0 ? `$${USD(m / cp.tasaDia)}` : "—"; })()}
+                          {cp.montoUsd > 0 ? `$${USD(cp.montoUsd)}` : "—"}
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right" }}>
                           {revirtiendoId === cp.id ? (
@@ -853,7 +853,7 @@ export default function CuentasPagarClient() {
                       {BS(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalBs ?? cp.montoBs), 0))}
                     </td>
                     <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
-                      ${USD(itemsPagados.reduce((s, cp) => { const m = cp.montoOriginalBs ?? cp.montoBs; return s + (m > 0 && cp.tasaDia > 0 ? m / cp.tasaDia : 0); }, 0))}
+                      ${USD(itemsPagados.reduce((s, cp) => s + cp.montoUsd, 0))}
                     </td>
                     <td />
                   </tr>
