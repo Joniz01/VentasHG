@@ -187,13 +187,14 @@ export default function TesoreriaClient() {
   const [filtro, setFiltro] = useState<FiltroEstado>("pendiente");
   const [pagando, setPagando] = useState<string | null>(null);
   const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
-  // Filtros de categoría (multi-select, todos activos por defecto)
+  // Filtros de categoría (set vacío = "Todos"; al seleccionar específicos se acumulan)
   type CatKey = "nomina" | "servicios" | "compras" | "gastos";
-  const [catFiltros, setCatFiltros] = useState<Set<CatKey>>(new Set(["nomina", "servicios", "compras", "gastos"]));
+  const [catFiltros, setCatFiltros] = useState<Set<CatKey>>(new Set());
+  function toggleTodos() { setCatFiltros(new Set()); }
   function toggleCat(cat: CatKey) {
     setCatFiltros(prev => {
       const next = new Set(prev);
-      if (next.has(cat)) { if (next.size > 1) next.delete(cat); } // mínimo 1 activo
+      if (next.has(cat)) { next.delete(cat); }
       else next.add(cat);
       return next;
     });
@@ -205,8 +206,11 @@ export default function TesoreriaClient() {
     if (cat === "gastos")    return ["gasto", "gasto-fijo"];
     return [];
   }
+  const isTodos = catFiltros.size === 0;
   const activeTipos = new Set<ItemTipo>(
-    (["nomina", "servicios", "compras", "gastos"] as CatKey[]).flatMap(c => catFiltros.has(c) ? catTipos(c) : [])
+    isTodos
+      ? (["nomina", "servicios", "compras", "gastos"] as CatKey[]).flatMap(c => catTipos(c))
+      : (["nomina", "servicios", "compras", "gastos"] as CatKey[]).flatMap(c => catFiltros.has(c) ? catTipos(c) : [])
   );
 
   // Pago modal state
@@ -556,8 +560,25 @@ export default function TesoreriaClient() {
           { key: "gastos",    label: "Gastos",    emoji: "📋", color: "#6B7280", border: "#6B7280" },
         ];
         return (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Categoría:</span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginRight: 2 }}>Categoría:</span>
+            {/* Todos */}
+            <button
+              onClick={toggleTodos}
+              style={{
+                padding: "5px 14px",
+                borderRadius: 99,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                border: `1.5px solid ${isTodos ? "#374151" : "#D1D5DB"}`,
+                background: isTodos ? "#374151" : "transparent",
+                color: isTodos ? "#fff" : "var(--erp-text-2)",
+                transition: "all 0.15s",
+              }}
+            >
+              Todos
+            </button>
             {CATS.map(({ key, label, emoji, color, border }) => {
               const active = catFiltros.has(key);
               return (
@@ -568,11 +589,11 @@ export default function TesoreriaClient() {
                     padding: "5px 12px",
                     borderRadius: 99,
                     fontSize: 12,
-                    fontWeight: 700,
+                    fontWeight: 600,
                     cursor: "pointer",
-                    border: `1.5px solid ${border}`,
+                    border: `1.5px solid ${active ? border : "#D1D5DB"}`,
                     background: active ? color : "transparent",
-                    color: active ? "#fff" : color,
+                    color: active ? "#fff" : "var(--erp-text-2)",
                     transition: "all 0.15s",
                     display: "flex",
                     alignItems: "center",
