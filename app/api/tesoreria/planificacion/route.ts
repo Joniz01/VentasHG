@@ -251,7 +251,7 @@ export async function GET(request: NextRequest) {
         'CP' || cp.id                                                              AS id,
         CASE WHEN cp.tipo = 'compra' THEN 'compra' ELSE 'proveedor' END           AS tipo,
         cp.proveedor || COALESCE(' · Fact. ' || cp.numero_factura, '')            AS descripcion,
-        LEAST(cp.fecha_emision, cp.fecha_vencimiento)                              AS fecha_vencimiento,
+        cp.fecha_vencimiento                                                       AS fecha_vencimiento,
         cp.monto_bs                                                                AS monto_bs,
         cp.tasa_dia                                                                AS tasa_dia,
         cp.numero_factura                                                          AS referencia,
@@ -260,8 +260,8 @@ export async function GET(request: NextRequest) {
         cp.monto_usd::text                                                         AS monto_usd
       FROM cuentas_pagar cp
       WHERE cp.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
-        AND LEAST(cp.fecha_emision, cp.fecha_vencimiento) BETWEEN $1 AND $2
-      ORDER BY LEAST(cp.fecha_emision, cp.fecha_vencimiento) ASC`,
+        AND cp.fecha_vencimiento BETWEEN $1 AND $2
+      ORDER BY cp.fecha_vencimiento ASC`,
       [desde, hasta]
     );
     cpRows = r.rows;
@@ -290,6 +290,11 @@ export async function GET(request: NextRequest) {
        WHERE c.estado = 'ACTIVA'
          AND c.fecha_vencimiento_pago IS NOT NULL
          AND c.fecha_vencimiento_pago BETWEEN $1 AND $2
+         AND NOT EXISTS (
+           SELECT 1 FROM cuentas_pagar cp2
+           WHERE cp2.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id::text)
+             AND cp2.tipo = 'compra' AND cp2.estado = 'PAGADO'
+         )
        GROUP BY c.id, c.proveedor_nombre, c.numero_factura, c.tasa_dia, c.fecha_vencimiento_pago
        ORDER BY c.fecha_vencimiento_pago ASC`,
       [desde, hasta]
@@ -323,8 +328,8 @@ export async function GET(request: NextRequest) {
              SELECT 1 FROM periodos_nomina pn
              WHERE pn.nomina_id = f.nomina_id
                AND pn.fecha_hasta BETWEEN
-                 date_trunc('week', f.fecha_pago)::date
-                 AND (date_trunc('week', f.fecha_pago) + INTERVAL '6 days')::date
+                 (f.fecha_pago - INTERVAL '6 days')::date
+                 AND f.fecha_pago
            )
        )
        SELECT f.nomina_id, f.nombre, f.fecha_pago,
