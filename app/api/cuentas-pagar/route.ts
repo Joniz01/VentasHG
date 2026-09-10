@@ -72,6 +72,7 @@ async function syncCompras(): Promise<void> {
     FROM compras c
     LEFT JOIN compra_items ci ON ci.compra_id = c.id
     WHERE c.estado = 'ACTIVA'
+      AND c.fecha_vencimiento_pago IS NOT NULL
       AND NOT EXISTS (
         SELECT 1 FROM cuentas_pagar cp
         WHERE cp.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id)
