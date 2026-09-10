@@ -128,7 +128,49 @@ export async function GET(request: NextRequest) {
       listParams
     );
 
-    return NextResponse.json({ items: result.rows.map(mapCP), total, page, pageSize });
+    const items = result.rows.map(mapCP);
+
+    // Incluir nóminas pagadas cuando se está filtrando por rango de pago (tab Pagados)
+    if (pagadoDesde && pagadoHasta) {
+      try {
+        const nResult = await pool.query(
+          `SELECT
+             'N' || pn.id AS id,
+             n.nombre AS proveedor,
+             NULL AS proveedor_rif,
+             NULL AS numero_factura,
+             n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
+             pn.fecha_desde AS fecha_emision,
+             pn.fecha_hasta AS fecha_vencimiento,
+             COALESCE(SUM(e.salario_base_usd * pn.tasa_dia), 0) AS monto_bs,
+             COALESCE(SUM(e.salario_base_usd), 0) AS monto_usd,
+             COALESCE(SUM(e.salario_base_usd), 0) AS monto_original_usd,
+             pn.tasa_dia,
+             'PAGADO' AS estado,
+             NULL AS monto_original_bs,
+             0 AS monto_pagado_bs,
+             MAX(np.pagado_at) AS pagado_at,
+             NULL AS comprobante_url,
+             NULL AS notas,
+             false AS recurrente,
+             NULL AS frecuencia,
+             NULL AS proximo_vencimiento,
+             'nomina' AS tipo,
+             NULL AS created_at
+           FROM periodos_nomina pn
+           JOIN nominas n ON n.id = pn.nomina_id
+           JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PAGADO'
+           JOIN empleados e ON e.id = np.empleado_id
+           GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
+           HAVING MAX(np.pagado_at)::date BETWEEN $1 AND $2
+           ORDER BY MAX(np.pagado_at) DESC`,
+          [pagadoDesde, pagadoHasta]
+        );
+        for (const r of nResult.rows) items.push(mapCP(r as Record<string, unknown>));
+      } catch { /* tabla nomina_pagos no disponible — skip */ }
+    }
+
+    return NextResponse.json({ items, total, page, pageSize });
   } catch (err) {
     const detalle = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: "Error al obtener cuentas por pagar", detalle }, { status: 500 });

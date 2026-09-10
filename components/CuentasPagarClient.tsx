@@ -826,7 +826,7 @@ export default function CuentasPagarClient() {
                           {(cp.montoOriginalUsd ?? cp.montoUsd) > 0 ? `$${USD(cp.montoOriginalUsd ?? cp.montoUsd)}` : "—"}
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right" }}>
-                          {revirtiendoId === cp.id ? (
+                          {cp.tipo === "nomina" ? null : revirtiendoId === cp.id ? (
                             <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "flex-end" }}>
                               <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>¿Revertir?</span>
                               <button onClick={() => handleRevertir(cp.id)} disabled={revirtiendo}
