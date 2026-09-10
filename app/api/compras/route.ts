@@ -28,11 +28,14 @@ export async function GET(request: NextRequest) {
       result = await pool.query(
         `SELECT c.id, c.fecha, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
                 c.tasa_dia, c.estado, c.created_at, c.tipo_uso, c.fecha_vencimiento_pago,
-                COALESCE(SUM(ci.subtotal_bs),0) AS total_bs
+                COALESCE(SUM(ci.subtotal_bs),0) AS total_bs,
+                cp.estado AS estado_pago
          FROM compras c
          LEFT JOIN compra_items ci ON ci.compra_id = c.id
+         LEFT JOIN cuentas_pagar cp ON cp.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id)
+           AND cp.tipo = 'compra'
          ${where}
-         GROUP BY c.id
+         GROUP BY c.id, cp.estado
          ORDER BY c.fecha DESC, c.id DESC`,
         params
       );
@@ -41,11 +44,14 @@ export async function GET(request: NextRequest) {
       result = await pool.query(
         `SELECT c.id, c.fecha, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
                 c.tasa_dia, c.estado, c.created_at, c.fecha_vencimiento_pago,
-                COALESCE(SUM(ci.subtotal_bs),0) AS total_bs
+                COALESCE(SUM(ci.subtotal_bs),0) AS total_bs,
+                cp.estado AS estado_pago
          FROM compras c
          LEFT JOIN compra_items ci ON ci.compra_id = c.id
+         LEFT JOIN cuentas_pagar cp ON cp.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id)
+           AND cp.tipo = 'compra'
          ${where}
-         GROUP BY c.id
+         GROUP BY c.id, cp.estado
          ORDER BY c.fecha DESC, c.id DESC`,
         params
       );
@@ -67,6 +73,7 @@ export async function GET(request: NextRequest) {
             ? r.fecha_vencimiento_pago.toISOString().slice(0, 10)
             : String(r.fecha_vencimiento_pago).slice(0, 10))
         : null,
+      estadoPago: r.estado_pago ?? null,
       createdAt: r.created_at,
     }));
 

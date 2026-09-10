@@ -8,6 +8,7 @@ type Factura = {
   id: number; fecha: string; proveedorNombre: string; proveedorRif: string | null;
   numeroFactura: string | null; tasaDia: number; estado: string; tipoUso: "VENTA" | "MATERIA_PRIMA";
   totalBs: number; totalUsd: number; fechaVencimientoPago: string | null;
+  estadoPago: string | null;
 };
 
 type DetalleItem = {
@@ -212,14 +213,14 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
           <table style={{ minWidth: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--erp-bg)" }}>
-                {["#", "Fecha", "Proveedor", "Factura", "Total Bs", "Total $", "Vence", "Estado", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: h === "Total Bs" || h === "Total $" ? "right" : h === "Estado" ? "center" : "left", color: "var(--erp-text-2)", fontWeight: 600, borderBottom: "1px solid var(--erp-border)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
+                {["#", "Fecha", "Proveedor", "Factura", "Total Bs", "Total $", "Vence", "Pago", "Estado", ""].map((h) => (
+                  <th key={h} style={{ padding: "10px 14px", textAlign: h === "Total Bs" || h === "Total $" ? "right" : h === "Estado" || h === "Pago" ? "center" : "left", color: "var(--erp-text-2)", fontWeight: 600, borderBottom: "1px solid var(--erp-border)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={9} style={{ padding: 32, textAlign: "center", color: "var(--erp-text-3)" }}>Cargando...</td></tr>}
-              {!loading && facturas.length === 0 && <tr><td colSpan={9} style={{ padding: 32, textAlign: "center", color: "var(--erp-text-3)" }}>No hay facturas registradas</td></tr>}
+              {loading && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "var(--erp-text-3)" }}>Cargando...</td></tr>}
+              {!loading && facturas.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "var(--erp-text-3)" }}>No hay facturas registradas</td></tr>}
               {!loading && facturas.map((f, idx) => (
                 <tr key={f.id} style={{ borderBottom: idx < facturas.length - 1 ? "1px solid var(--erp-border)" : "none", opacity: f.estado === "ANULADA" ? 0.5 : 1 }}>
                   <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--erp-primary)" }}>#{f.id}</td>
@@ -230,6 +231,20 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                   <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--erp-text-2)" }}>${f.totalUsd.toFixed(2)}</td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap", color: f.fechaVencimientoPago && f.fechaVencimientoPago < new Date().toISOString().slice(0, 10) ? "#EF4444" : "var(--erp-text-2)", fontWeight: f.fechaVencimientoPago ? 600 : 400 }}>
                     {f.fechaVencimientoPago ? formatFecha(f.fechaVencimientoPago) : "—"}
+                  </td>
+                  <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                    {(() => {
+                      const ep = f.estadoPago;
+                      if (!ep) return <span style={{ color: "var(--erp-text-3)", fontSize: 12 }}>—</span>;
+                      const isVencida = ep === "PENDIENTE" && f.fechaVencimientoPago && f.fechaVencimientoPago < new Date().toISOString().slice(0, 10);
+                      const cfg: Record<string, { label: string; bg: string; color: string }> = {
+                        PAGADO:           { label: "Pagada",   bg: "rgba(5,150,105,0.10)",  color: "#059669" },
+                        PENDIENTE:        { label: isVencida ? "Vencida" : "Pendiente", bg: isVencida ? "rgba(239,68,68,0.10)" : "rgba(217,119,6,0.10)", color: isVencida ? "#EF4444" : "#D97706" },
+                        PENDIENTE_PARCIAL:{ label: "Parcial",  bg: "rgba(99,102,241,0.10)", color: "#6366F1" },
+                      };
+                      const c = cfg[ep] ?? { label: ep, bg: "rgba(107,114,128,0.10)", color: "#6B7280" };
+                      return <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700, background: c.bg, color: c.color, whiteSpace: "nowrap" }}>{c.label}</span>;
+                    })()}
                   </td>
                   <td style={{ padding: "10px 14px", textAlign: "center" }}>
                     <span style={{ background: f.estado === "ACTIVA" ? "#DCFCE7" : "#FEF2F2", color: f.estado === "ACTIVA" ? "#166534" : "#B91C1C", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>{f.estado}</span>
