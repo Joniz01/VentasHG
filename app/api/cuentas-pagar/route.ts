@@ -21,6 +21,7 @@ function mapCP(r: Record<string, unknown>) {
   const montoBs = Number(r.monto_bs);
   const montoUsd = Number(r.monto_usd);
   const tasaDia = Number(r.tasa_dia);
+  const montoOriginalUsd = r.monto_original_usd != null ? Number(r.monto_original_usd) : null;
   return {
     id: r.id,
     proveedor: r.proveedor,
@@ -31,6 +32,7 @@ function mapCP(r: Record<string, unknown>) {
     fechaVencimiento: toDateStr(r.fecha_vencimiento),
     montoBs,
     montoUsd,
+    montoOriginalUsd,
     tasaDia,
     estado: r.estado,
     montoOriginalBs: r.monto_original_bs ? Number(r.monto_original_bs) : null,
@@ -168,31 +170,61 @@ export async function POST(request: NextRequest) {
     ? calcularProximoVencimiento(body.fechaVencimiento, frecuencia)
     : null;
 
+  const montoUsdFinal = Number(body.montoUsd) || 0;
   try {
-    const result = await pool.query(
-      `INSERT INTO cuentas_pagar
-        (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
-         monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-       RETURNING id`,
-      [
-        body.proveedor.trim(),
-        body.proveedorRif?.trim() || null,
-        body.numeroFactura?.trim() || null,
-        body.descripcion?.trim() || null,
-        body.fechaEmision,
-        body.fechaVencimiento,
-        Number(body.montoBs) || 0,
-        Number(body.montoUsd) || 0,
-        Number(body.tasaDia) || 0,
-        body.estado || "PENDIENTE",
-        body.notas?.trim() || null,
-        recurrente,
-        frecuencia,
-        proximoVencimiento,
-        sesion.id,
-      ]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO cuentas_pagar
+          (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+           monto_bs, monto_usd, monto_original_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15)
+         RETURNING id`,
+        [
+          body.proveedor.trim(),
+          body.proveedorRif?.trim() || null,
+          body.numeroFactura?.trim() || null,
+          body.descripcion?.trim() || null,
+          body.fechaEmision,
+          body.fechaVencimiento,
+          Number(body.montoBs) || 0,
+          montoUsdFinal,
+          Number(body.tasaDia) || 0,
+          body.estado || "PENDIENTE",
+          body.notas?.trim() || null,
+          recurrente,
+          frecuencia,
+          proximoVencimiento,
+          sesion.id,
+        ]
+      );
+    } catch {
+      // monto_original_usd pendiente de migración — insertar sin ella
+      result = await pool.query(
+        `INSERT INTO cuentas_pagar
+          (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+           monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         RETURNING id`,
+        [
+          body.proveedor.trim(),
+          body.proveedorRif?.trim() || null,
+          body.numeroFactura?.trim() || null,
+          body.descripcion?.trim() || null,
+          body.fechaEmision,
+          body.fechaVencimiento,
+          Number(body.montoBs) || 0,
+          montoUsdFinal,
+          Number(body.tasaDia) || 0,
+          body.estado || "PENDIENTE",
+          body.notas?.trim() || null,
+          recurrente,
+          frecuencia,
+          proximoVencimiento,
+          sesion.id,
+        ]
+      );
+    }
     return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
   } catch (err) {
     const detalle = err instanceof Error ? err.message : String(err);

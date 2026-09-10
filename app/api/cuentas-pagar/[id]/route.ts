@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // Leer antes de marcar pagado para saber si es recurrente
       const cpRead = await client.query(
         `SELECT proveedor, proveedor_rif, numero_factura, descripcion, fecha_vencimiento,
-                monto_bs, monto_usd, monto_original_bs, tasa_dia, notas, recurrente, frecuencia, created_by
+                monto_bs, monto_usd, monto_original_usd, monto_original_bs, tasa_dia, notas, recurrente, frecuencia, created_by
          FROM cuentas_pagar WHERE id = $1`,
         [id]
       );
@@ -60,14 +60,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const tasaDiaPago = Number(body.tasaDia) || null;
       const fechaPagoParam = body.fechaPago ?? null;
+      // No actualizar tasa_dia si el registro ya tuvo abono parcial (monto_original_bs set)
+      // — cambiar tasa en ese punto rompe el ratio monto_original_bs/tasa_dia
+      const debeActualizarTasa = !cp?.monto_original_bs;
       await client.query(
         `UPDATE cuentas_pagar
          SET estado = 'PAGADO',
              pagado_at = COALESCE($2::date, NOW()),
-             tasa_dia = COALESCE($3, tasa_dia),
+             tasa_dia = CASE WHEN $3 IS NOT NULL AND $5 THEN $3 ELSE tasa_dia END,
              comprobante_url = COALESCE($4, comprobante_url)
          WHERE id = $1`,
-        [id, fechaPagoParam, tasaDiaPago, body.comprobanteUrl ?? null]
+        [id, fechaPagoParam, tasaDiaPago, body.comprobanteUrl ?? null, debeActualizarTasa]
       );
 
       // Si es recurrente, generar el siguiente período automáticamente
@@ -77,21 +80,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           : String(cp.fecha_vencimiento).slice(0, 10);
         const nuevoVenc = calcularProximoVencimiento(baseVenc, String(cp.frecuencia));
         const nuevoProxVenc = calcularProximoVencimiento(nuevoVenc, String(cp.frecuencia));
-        await client.query(
-          `INSERT INTO cuentas_pagar
-            (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
-             monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
-           VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
-          [
-            cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
-            nuevoVenc, cp.monto_original_bs ?? cp.monto_bs, cp.monto_usd, cp.tasa_dia, cp.notas,
-            cp.frecuencia, nuevoProxVenc, cp.created_by,
-          ]
-        );
+        const montoUsdOriginal = cp.monto_original_usd ?? cp.monto_usd;
+        try {
+          await client.query(
+            `INSERT INTO cuentas_pagar
+              (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+               monto_bs, monto_usd, monto_original_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+             VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
+            [
+              cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
+              nuevoVenc, cp.monto_original_bs ?? cp.monto_bs, montoUsdOriginal, cp.tasa_dia, cp.notas,
+              cp.frecuencia, nuevoProxVenc, cp.created_by,
+            ]
+          );
+        } catch {
+          // monto_original_usd pendiente de migración
+          await client.query(
+            `INSERT INTO cuentas_pagar
+              (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+               monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+             VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
+            [
+              cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
+              nuevoVenc, cp.monto_original_bs ?? cp.monto_bs, montoUsdOriginal, cp.tasa_dia, cp.notas,
+              cp.frecuencia, nuevoProxVenc, cp.created_by,
+            ]
+          );
+        }
       }
 
     } else if (body.accion === "pago_parcial") {
-      const cpResult = await client.query(`SELECT monto_bs, monto_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`, [id]);
+      const cpResult = await client.query(`SELECT monto_bs, monto_usd, monto_original_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`, [id]);
       if (!cpResult.rows.length) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
@@ -99,6 +118,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const cp = cpResult.rows[0];
       const montoBsActual = Number(cp.monto_bs);
       const montoOriginalBs = cp.monto_original_bs ? Number(cp.monto_original_bs) : montoBsActual;
+      // monto_original_usd: se guarda solo la primera vez (COALESCE preserva el valor si ya existe)
+      const montoOriginalUsdGuardar = cp.monto_original_usd != null ? Number(cp.monto_original_usd) : Number(cp.monto_usd);
       const montoPagadoBs = Number(body.montoPagadoBs) || 0;
       const montoPagadoUsd = Number(body.montoPagadoUsd) || 0;
       const tasaDia = Number(body.tasaDia) || 0;
@@ -117,26 +138,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2::numeric,
-             monto_original_bs = COALESCE($3::numeric, monto_original_bs),
+             monto_original_bs = COALESCE(monto_original_bs, $3::numeric),
+             monto_original_usd = COALESCE(monto_original_usd, $4::numeric),
+             monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $5::numeric,
+             estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
+             fecha_vencimiento = COALESCE($6::date, fecha_vencimiento),
+             pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
+           WHERE id = $1`,
+          [id, restanteBs, montoOriginalBs, montoOriginalUsdGuardar, montoPagadoBs, nuevaFechVenc]
+        );
+        await client.query("RELEASE SAVEPOINT sp_update");
+      } catch {
+        // monto_original_usd pendiente de migración — rollback al savepoint y fallback
+        await client.query("ROLLBACK TO SAVEPOINT sp_update");
+        await client.query(
+          `UPDATE cuentas_pagar SET
+             monto_bs = $2::numeric,
+             monto_original_bs = COALESCE(monto_original_bs, $3::numeric),
              monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $4::numeric,
              estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
              fecha_vencimiento = COALESCE($5::date, fecha_vencimiento),
              pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
            WHERE id = $1`,
           [id, restanteBs, montoOriginalBs, montoPagadoBs, nuevaFechVenc]
-        );
-        await client.query("RELEASE SAVEPOINT sp_update");
-      } catch {
-        // Columnas opcionales no existen — rollback al savepoint y fallback
-        await client.query("ROLLBACK TO SAVEPOINT sp_update");
-        await client.query(
-          `UPDATE cuentas_pagar SET
-             monto_bs = $2::numeric,
-             estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
-             fecha_vencimiento = COALESCE($3::date, fecha_vencimiento),
-             pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
-           WHERE id = $1`,
-          [id, restanteBs, nuevaFechVenc]
         );
       }
 

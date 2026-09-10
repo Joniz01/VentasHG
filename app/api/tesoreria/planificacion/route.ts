@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
           COALESCE(cp.monto_original_bs, cp.monto_bs) AS monto_bs,
           cp.tasa_dia,
           cp.numero_factura AS referencia,
-          cp.monto_usd
+          COALESCE(cp.monto_original_usd, cp.monto_usd) AS monto_usd
         FROM cuentas_pagar cp
         WHERE cp.estado = 'PAGADO'
           AND cp.pagado_at::date BETWEEN $1 AND $2

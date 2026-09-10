@@ -16,6 +16,7 @@ type CuentaPagar = {
   fechaVencimiento: string;
   montoBs: number;
   montoUsd: number;
+  montoOriginalUsd: number | null;
   tasaDia: number;
   estado: EstadoCP;
   montoOriginalBs: number | null;
@@ -822,7 +823,7 @@ export default function CuentasPagarClient() {
                           {(() => { const m = cp.montoOriginalBs ?? cp.montoBs; return m > 0 ? BS(m) : "—"; })()}
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 700, color: "var(--erp-text)", whiteSpace: "nowrap" }}>
-                          {cp.montoUsd > 0 ? `$${USD(cp.montoUsd)}` : "—"}
+                          {(cp.montoOriginalUsd ?? cp.montoUsd) > 0 ? `$${USD(cp.montoOriginalUsd ?? cp.montoUsd)}` : "—"}
                         </td>
                         <td style={{ padding: "7px 14px", textAlign: "right" }}>
                           {revirtiendoId === cp.id ? (
@@ -853,7 +854,7 @@ export default function CuentasPagarClient() {
                       {BS(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalBs ?? cp.montoBs), 0))}
                     </td>
                     <td style={{ padding: "8px 14px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
-                      ${USD(itemsPagados.reduce((s, cp) => s + cp.montoUsd, 0))}
+                      ${USD(itemsPagados.reduce((s, cp) => s + (cp.montoOriginalUsd ?? cp.montoUsd), 0))}
                     </td>
                     <td />
                   </tr>
