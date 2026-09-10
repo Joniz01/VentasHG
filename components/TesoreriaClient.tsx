@@ -105,10 +105,10 @@ function KpiCard({
         outline: "none",
       }}
     >
-      <p style={{ fontSize: 11, fontWeight: 600, color: active ? color : "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
         {label} {active && "↓"}
       </p>
-      <p style={{ fontSize: 22, fontWeight: 800, color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
+      <p style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
         ${USD(valueUsd)}
       </p>
       {subLabel && (
