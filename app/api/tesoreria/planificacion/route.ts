@@ -66,9 +66,7 @@ export async function GET(request: NextRequest) {
           COALESCE(cp.monto_original_bs, cp.monto_bs) AS monto_bs,
           cp.tasa_dia,
           cp.numero_factura AS referencia,
-          CASE WHEN cp.tasa_dia > 0
-            THEN ROUND(COALESCE(cp.monto_original_bs, cp.monto_bs) / cp.tasa_dia, 2)
-            ELSE 0 END AS monto_usd
+          cp.monto_usd
         FROM cuentas_pagar cp
         WHERE cp.estado = 'PAGADO'
           AND cp.pagado_at::date BETWEEN $1 AND $2
@@ -442,7 +440,7 @@ export async function GET(request: NextRequest) {
     const montoBs = Number(r.monto_bs);
     const tasaDia = Number(r.tasa_dia);
     const montoUsd = r.monto_usd != null ? Number(r.monto_usd) : (tasaDia > 0 ? montoBs / tasaDia : 0);
-    const montoOriginalUsd = r.monto_original_bs != null && tasaDia > 0 ? Number(r.monto_original_bs) / tasaDia : undefined;
+    const montoOriginalUsd = undefined;
     const fechaVenc = toDate(r.fecha_vencimiento);
     const esParcial = r.estado_raw === "PENDIENTE_PARCIAL";
     let estado: Item["estado"];
