@@ -184,7 +184,7 @@ export default function TesoreriaClient() {
   const router = useRouter();
   const [data, setData] = useState<PlanificacionData | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [filtro, setFiltro] = useState<FiltroEstado>("todos");
+  const [filtro, setFiltro] = useState<FiltroEstado>("pendiente");
   const [pagando, setPagando] = useState<string | null>(null);
   const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
   // Filtros de categoría (multi-select, todos activos por defecto)
