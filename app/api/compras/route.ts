@@ -62,7 +62,11 @@ export async function GET(request: NextRequest) {
       tipoUso: r.tipo_uso ?? "VENTA",
       totalBs: Number(r.total_bs),
       totalUsd: r.tasa_dia > 0 ? Number(r.total_bs) / Number(r.tasa_dia) : 0,
-      fechaVencimientoPago: r.fecha_vencimiento_pago ? String(r.fecha_vencimiento_pago).slice(0, 10) : null,
+      fechaVencimientoPago: r.fecha_vencimiento_pago
+        ? (r.fecha_vencimiento_pago instanceof Date
+            ? r.fecha_vencimiento_pago.toISOString().slice(0, 10)
+            : String(r.fecha_vencimiento_pago).slice(0, 10))
+        : null,
       createdAt: r.created_at,
     }));
 

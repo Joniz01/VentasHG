@@ -47,7 +47,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       numeroFactura: c.numero_factura, observaciones: c.observaciones,
       tasaDia: Number(c.tasa_dia), estado: c.estado, anuladaAt: c.anulada_at,
       tipoUso: c.tipo_uso ?? "VENTA",
-      fechaVencimientoPago: c.fecha_vencimiento_pago ? String(c.fecha_vencimiento_pago).slice(0, 10) : null,
+      fechaVencimientoPago: c.fecha_vencimiento_pago
+        ? (c.fecha_vencimiento_pago instanceof Date
+            ? c.fecha_vencimiento_pago.toISOString().slice(0, 10)
+            : String(c.fecha_vencimiento_pago).slice(0, 10))
+        : null,
       imagenFactura: c.imagen_factura, createdAt: c.created_at,
       items: iResult.rows.map((r) => ({
         id: r.id, productoId: r.producto_id, nombreProducto: r.nombre_producto,
