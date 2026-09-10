@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     try {
       result = await pool.query(
         `SELECT c.id, c.fecha, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
-                c.tasa_dia, c.estado, c.created_at, c.tipo_uso,
+                c.tasa_dia, c.estado, c.created_at, c.tipo_uso, c.fecha_vencimiento_pago,
                 COALESCE(SUM(ci.subtotal_bs),0) AS total_bs
          FROM compras c
          LEFT JOIN compra_items ci ON ci.compra_id = c.id
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       // columna tipo_uso pendiente de migración 053
       result = await pool.query(
         `SELECT c.id, c.fecha, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
-                c.tasa_dia, c.estado, c.created_at,
+                c.tasa_dia, c.estado, c.created_at, c.fecha_vencimiento_pago,
                 COALESCE(SUM(ci.subtotal_bs),0) AS total_bs
          FROM compras c
          LEFT JOIN compra_items ci ON ci.compra_id = c.id
@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
       tipoUso: r.tipo_uso ?? "VENTA",
       totalBs: Number(r.total_bs),
       totalUsd: r.tasa_dia > 0 ? Number(r.total_bs) / Number(r.tasa_dia) : 0,
+      fechaVencimientoPago: r.fecha_vencimiento_pago ? String(r.fecha_vencimiento_pago).slice(0, 10) : null,
       createdAt: r.created_at,
     }));
 
