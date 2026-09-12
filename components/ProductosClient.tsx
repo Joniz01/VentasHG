@@ -165,11 +165,9 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     loadProductos();
     loadCategorias();
     loadKpis();
-    if (grupoFiltro === "MATERIA_PRIMA") {
-      fetch("/api/tasa-bcv").then(r => r.ok ? r.json() : null).then(d => {
-        if (d?.tasa) setTasaHoy(Number(d.tasa));
-      }).catch(() => {});
-    }
+    fetch("/api/tasa-bcv").then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.tasa) setTasaHoy(Number(d.tasa));
+    }).catch(() => {});
   }, []);
 
   async function loadProvRelaciones(productoId: number) {
@@ -202,10 +200,8 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       rendimiento: String(e.rendimiento),
       prioridad: e.prioridad,
     })));
-    if (grupoFiltro === "MATERIA_PRIMA") {
-      setProvRelaciones([]);
-      loadProvRelaciones(producto.id);
-    }
+    setProvRelaciones([]);
+    loadProvRelaciones(producto.id);
     setShowForm(true);
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
@@ -592,16 +588,12 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>
                 Costo
-                {grupoFiltro === "MATERIA_PRIMA" && (
-                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>USD</span>
-                )}
+                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>USD</span>
               </label>
               <div style={{ position: "relative" }}>
-                {grupoFiltro === "MATERIA_PRIMA" && (
-                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
-                )}
+                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
                 <input
-                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: grupoFiltro === "MATERIA_PRIMA" ? 22 : 10, fontSize: 13, width: "100%", boxSizing: "border-box" }}
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }}
                   type="number"
                   step="0.01"
                   min="0"
@@ -610,7 +602,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                   placeholder="0.00"
                 />
               </div>
-              {grupoFiltro === "MATERIA_PRIMA" && tasaHoy && Number(form.costo) > 0 && (
+              {tasaHoy && Number(form.costo) > 0 && (
                 <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3, display: "flex", alignItems: "center", gap: 6 }}>
                   <span>≈</span>
                   <strong style={{ color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>
@@ -622,9 +614,14 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
             </div>
             {grupoFiltro !== "MATERIA_PRIMA" && (
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Precio de venta</label>
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>
+                  Precio de venta
+                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dcfce7", color: "#166534", borderRadius: 99, padding: "1px 7px" }}>USD</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
                 <input
-                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }}
                   type="number"
                   step="0.01"
                   min="0"
@@ -632,6 +629,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                   onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
                   placeholder="0.00"
                 />
+                </div>
               </div>
             )}
             <div className="flex flex-col gap-1">
@@ -819,8 +817,8 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               </div>
             )}
 
-            {/* ── Proveedores — historial de compras (solo Materia Prima en edición) ── */}
-            {grupoFiltro === "MATERIA_PRIMA" && editingId && (
+            {/* ── Proveedores — historial de compras ── */}
+            {editingId && (
               <div className="prod-form-full">
                 <div style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "12px 14px" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>
