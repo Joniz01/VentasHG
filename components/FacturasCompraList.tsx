@@ -35,6 +35,8 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
   const [estadoFiltro, setEstadoFiltro] = useState<"TODAS" | "ACTIVA" | "ANULADA">("ACTIVA");
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [anulando, setAnulando] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
 
   async function loadFacturas(estadoOverride?: "TODAS" | "ACTIVA" | "ANULADA") {
     setLoading(true); setError(null);
@@ -49,6 +51,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setFacturas(data.items ?? []);
+      setPage(1);
     } catch (err) { setError(err instanceof Error ? err.message : "Error"); }
     finally { setLoading(false); }
   }
@@ -91,9 +94,8 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
 
   const kpiPorVencer = facturas.filter((f) => {
     if (f.estado !== "ACTIVA") return false;
-    const fObj = f as Factura & { fecha_vencimiento_pago?: string };
-    if (!fObj.fecha_vencimiento_pago) return false;
-    const venc = new Date(fObj.fecha_vencimiento_pago);
+    if (!f.fechaVencimientoPago) return false;
+    const venc = new Date(`${f.fechaVencimientoPago}T00:00:00`);
     return venc >= now && venc <= sevenDaysLater;
   }).length;
 
@@ -221,8 +223,8 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
             <tbody>
               {loading && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "var(--erp-text-3)" }}>Cargando...</td></tr>}
               {!loading && facturas.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "var(--erp-text-3)" }}>No hay facturas registradas</td></tr>}
-              {!loading && facturas.map((f, idx) => (
-                <tr key={f.id} style={{ borderBottom: idx < facturas.length - 1 ? "1px solid var(--erp-border)" : "none", opacity: f.estado === "ANULADA" ? 0.5 : 1 }}>
+              {!loading && facturas.slice((page - 1) * pageSize, page * pageSize).map((f, idx, arr) => (
+                <tr key={f.id} style={{ borderBottom: idx < arr.length - 1 ? "1px solid var(--erp-border)" : "none", opacity: f.estado === "ANULADA" ? 0.5 : 1 }}>
                   <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--erp-primary)" }}>#{f.id}</td>
                   <td style={{ padding: "10px 14px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{formatFecha(f.fecha)}</td>
                   <td style={{ padding: "10px 14px", fontWeight: 500, color: "var(--erp-text)" }}>{f.proveedorNombre}</td>
@@ -230,7 +232,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                   <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--erp-text)" }}>Bs {f.totalBs.toFixed(2)}</td>
                   <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--erp-text-2)" }}>${f.totalUsd.toFixed(2)}</td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap", color: f.fechaVencimientoPago && f.fechaVencimientoPago < new Date().toISOString().slice(0, 10) ? "#EF4444" : "var(--erp-text-2)", fontWeight: f.fechaVencimientoPago ? 600 : 400 }}>
-                    {f.fechaVencimientoPago ? formatFecha(f.fechaVencimientoPago) : "—"}
+                    {f.fechaVencimientoPago ? formatFecha(f.fechaVencimientoPago) : formatFecha(f.fecha)}
                   </td>
                   <td style={{ padding: "10px 14px", textAlign: "center" }}>
                     {(() => {
@@ -271,6 +273,28 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
           </table>
         </div>
       </div>
+
+      {/* Paginación */}
+      {facturas.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: "var(--erp-text-2)" }}>Filas por página:</span>
+            {[10, 15, 25, 50].map((n) => (
+              <button key={n} type="button" onClick={() => { setPageSize(n); setPage(1); }}
+                style={{ background: pageSize === n ? "var(--erp-primary)" : "var(--erp-surface)", color: pageSize === n ? "#fff" : "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "3px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                {n}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--erp-text-2)" }}>
+            <span>{((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, facturas.length)} de {facturas.length}</span>
+            <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "3px 10px", fontSize: 12, cursor: page === 1 ? "default" : "pointer", opacity: page === 1 ? 0.4 : 1 }}>‹</button>
+            <button type="button" onClick={() => setPage(p => Math.min(Math.ceil(facturas.length / pageSize), p + 1))} disabled={page >= Math.ceil(facturas.length / pageSize)}
+              style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "3px 10px", fontSize: 12, cursor: page >= Math.ceil(facturas.length / pageSize) ? "default" : "pointer", opacity: page >= Math.ceil(facturas.length / pageSize) ? 0.4 : 1 }}>›</button>
+          </div>
+        </div>
+      )}
 
       {/* Modal detalle */}
       {detalle && (
