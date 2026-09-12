@@ -1642,9 +1642,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           {modoEntrega === "DELIVERY" && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Delivery</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${totales.costoDeliveryUsd.toFixed(2)}</span></div>}
                           <div className="flex justify-between col-span-2 border-t pt-1.5" style={{ borderColor: "var(--erp-border)" }}>
                             <span className="font-semibold" style={{ color: "var(--erp-text)" }}>Total a pagar</span>
-                            <span className="font-bold tabular-nums" style={{ color: "var(--erp-primary)" }}>${totales.totalAPagarUsd.toFixed(2)} · {totales.totalAPagarBs.toFixed(2)} Bs</span>
+                            <span className="font-bold tabular-nums" style={{ color: "var(--erp-primary)" }}>${totales.totalAPagarUsd.toFixed(2)} · {fmtBs(totales.totalAPagarBs)} Bs</span>
                           </div>
-                          {!tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Total pagado</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${pagadoUsd.toFixed(2)} · {pagadoBs.toFixed(2)} Bs</span></div>}
+                          {!tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Total pagado</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${pagadoUsd.toFixed(2)} · {fmtBs(pagadoBs)} Bs</span></div>}
                           {tieneCashea && <div className="flex justify-between col-span-2"><span className="text-yellow-700">CxC Cashea</span><span className="font-semibold text-yellow-700 tabular-nums">${casheaFinanciadoUsd.toFixed(2)}</span></div>}
                           {tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "#007e33" }}>CxC Yummy</span><span className="font-semibold tabular-nums" style={{ color: "#007e33" }}>${totalBase.toFixed(2)}</span></div>}
                         </div>
@@ -2599,46 +2599,46 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
             <div className="grid grid-cols-1 gap-2 rounded-md bg-white p-3 text-sm sm:grid-cols-2">
               <div>
                 <span className="font-medium text-zinc-600">Total venta: </span>
-                {totales.ventaTotalBs.toFixed(2)} Bs{" "}
+                {fmtBs(totales.ventaTotalBs)} Bs{" "}
                 <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
               </div>
               {totales.descuento > 0 && (
                 <div>
                   <span className="font-medium text-green-700">Con descuento ({totales.descuento}%): </span>
-                  {totales.ventaTotalConDescuentoBs.toFixed(2)} Bs{" "}
+                  {fmtBs(totales.ventaTotalConDescuentoBs)} Bs{" "}
                   <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span>
                 </div>
               )}
               {modoEntrega === "DELIVERY" && (
                 <div>
                   <span className="font-medium text-zinc-600">Costo delivery: </span>
-                  {totales.costoDeliveryBs.toFixed(2)} Bs{" "}
+                  {fmtBs(totales.costoDeliveryBs)} Bs{" "}
                   <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span>
                 </div>
               )}
               <div>
                 <span className="font-medium text-zinc-600">Total a pagar: </span>
-                {totales.totalAPagarBs.toFixed(2)} Bs{" "}
+                {fmtBs(totales.totalAPagarBs)} Bs{" "}
                 <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span>
               </div>
               {!tieneYummy && (
                 <div>
                   <span className="font-medium text-zinc-600">Total pagado: </span>
-                  {pagadoBs.toFixed(2)} Bs{" "}
+                  {fmtBs(pagadoBs)} Bs{" "}
                   <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span>
                 </div>
               )}
               {tieneCashea && (
                 <div className="sm:col-span-2">
                   <span className="font-medium text-yellow-700">CxC Cashea: </span>
-                  <span className="font-semibold text-yellow-800">{(casheaFinanciadoUsd * tasa).toFixed(2)} Bs</span>{" "}
+                  <span className="font-semibold text-yellow-800">{fmtBs(casheaFinanciadoUsd * tasa)} Bs</span>{" "}
                   <span className="text-zinc-500">(${casheaFinanciadoUsd.toFixed(2)})</span>
                 </div>
               )}
               {tieneYummy && (
                 <div className="sm:col-span-2">
                   <span className="font-medium" style={{ color: "#007e33" }}>CxC Yummy: </span>
-                  <span className="font-semibold" style={{ color: "#007e33" }}>{(totalBase * tasa).toFixed(2)} Bs</span>{" "}
+                  <span className="font-semibold" style={{ color: "#007e33" }}>{fmtBs(totalBase * tasa)} Bs</span>{" "}
                   <span className="text-zinc-500">(${totalBase.toFixed(2)})</span>
                 </div>
               )}
@@ -2886,7 +2886,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                             />
                             {Number(casheaConfirm.tasa) > 0 && (
                               <p className="text-xs font-medium text-zinc-700">
-                                = Bs {(cd.montoFinanciado * Number(casheaConfirm.tasa)).toFixed(2)}
+                                = Bs {fmtBs(cd.montoFinanciado * Number(casheaConfirm.tasa))}
                               </p>
                             )}
                             <label className="text-xs text-zinc-500">¿Cuándo entró el dinero?</label>
