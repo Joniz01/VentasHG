@@ -58,7 +58,8 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Inventario",
     items: [
-      { href: "/productos",          icon: "📦", label: "Productos",                permiso: "productos" },
+      { href: "/productos",          icon: "🛒", label: "Productos de Venta",        permiso: "productos" },
+      { href: "/insumos",            icon: "🧱", label: "Insumos / Materia Prima",   permiso: "productos" },
       { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
       { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
       { href: "/inventario/conteos",       icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },

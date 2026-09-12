@@ -42,12 +42,12 @@ type ProductosKpis = {
   margenPromedio: number;
 };
 
-export default function ProductosClient() {
+export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoProducto }) {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({ ...EMPTY_FORM, grupo: grupoFiltro ?? "PARA_LA_VENTA" as GrupoProducto });
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
   const [nuevaCategoriaOrden, setNuevaCategoriaOrden] = useState("99");
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -68,11 +68,15 @@ export default function ProductosClient() {
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [formEmpaques, setFormEmpaques] = useState<EmpaqueFormRow[]>([]);
+  const [grupoDropdownId, setGrupoDropdownId] = useState<number | null>(null);
 
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
   const productosOrdenados = useMemo(() => {
     let list = [...productos];
+    if (grupoFiltro) {
+      list = list.filter((p) => (p.grupo ?? "PARA_LA_VENTA") === grupoFiltro);
+    }
     if (searchNombre.trim()) {
       const q = searchNombre.trim().toLowerCase();
       list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q));
@@ -180,7 +184,7 @@ export default function ProductosClient() {
 
   function cancelEdit() {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, grupo: grupoFiltro ?? "PARA_LA_VENTA" });
     setFormEmpaques([]);
     setNuevaCategoriaNombre("");
     setNuevaCategoriaOrden("99");
@@ -304,6 +308,32 @@ export default function ProductosClient() {
     }
   }
 
+  async function handleCambiarGrupo(producto: Producto, nuevoGrupo: GrupoProducto) {
+    setGrupoDropdownId(null);
+    try {
+      const res = await fetch(`/api/productos/${producto.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: producto.nombre,
+          descripcion: producto.descripcion ?? null,
+          costo: producto.costo,
+          precioVenta: producto.precioVenta,
+          activo: true,
+          categoriaId: producto.categoriaId ?? null,
+          tipoProducto: producto.tipoProducto,
+          variadaRaciones: producto.variadaRaciones ?? 0,
+          stockMinimo: producto.stockMinimo ?? 0,
+          unidadMedida: producto.unidadMedida ?? "unidad",
+          alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
+          alertaOutstockMotivo: producto.alertaOutstockMotivo ?? null,
+          grupo: nuevoGrupo,
+        }),
+      });
+      if (res.ok) await loadProductos();
+    } catch { /* ignore */ }
+  }
+
   const kpiCards = [
     {
       label: "Productos Activos",
@@ -347,7 +377,9 @@ export default function ProductosClient() {
     <div className="flex flex-col gap-4" style={{ color: "var(--erp-text)" }}>
       {/* Header: título + botón Crear */}
       <div className="prod-header">
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Productos</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>
+          {grupoFiltro === "MATERIA_PRIMA" ? "Insumos / Materia Prima" : grupoFiltro === "PARA_LA_VENTA" ? "Productos de Venta" : "Productos"}
+        </h2>
         <div className="prod-header-btns">
           <button
             type="button"
@@ -870,13 +902,51 @@ export default function ProductosClient() {
                       <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.categoriaNombre ?? "-"}</td>
                       <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
                       <td className="prod-col-grupo" style={{ padding: "8px 12px" }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 99,
-                          background: producto.grupo === "PARA_LA_VENTA" ? "#dcfce7" : producto.grupo === "MATERIA_PRIMA" ? "#fef9c3" : "#ede9fe",
-                          color: producto.grupo === "PARA_LA_VENTA" ? "#166534" : producto.grupo === "MATERIA_PRIMA" ? "#854d0e" : "#5b21b6",
-                        }}>
-                          {GRUPO_PRODUCTO_LABELS[producto.grupo ?? "PARA_LA_VENTA"]}
-                        </span>
+                        <div style={{ position: "relative", display: "inline-block" }}>
+                          <button
+                            type="button"
+                            onClick={() => setGrupoDropdownId(grupoDropdownId === producto.id ? null : producto.id)}
+                            style={{
+                              fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 99, border: "none", cursor: "pointer",
+                              background: producto.grupo === "PARA_LA_VENTA" ? "#dcfce7" : producto.grupo === "MATERIA_PRIMA" ? "#fef9c3" : "#ede9fe",
+                              color: producto.grupo === "PARA_LA_VENTA" ? "#166534" : producto.grupo === "MATERIA_PRIMA" ? "#854d0e" : "#5b21b6",
+                            }}
+                            title="Cambiar grupo"
+                          >
+                            {GRUPO_PRODUCTO_LABELS[producto.grupo ?? "PARA_LA_VENTA"]} ▾
+                          </button>
+                          {grupoDropdownId === producto.id && (
+                            <div style={{
+                              position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30,
+                              background: "var(--erp-surface)", border: "1px solid var(--erp-border)",
+                              borderRadius: 8, minWidth: 160, boxShadow: "0 4px 16px rgba(0,0,0,0.18)", overflow: "hidden",
+                            }}>
+                              <div style={{ padding: "5px 10px 4px", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--erp-text-3)", borderBottom: "1px solid var(--erp-border)" }}>Cambiar grupo</div>
+                              {GRUPOS_PRODUCTO.filter(g => g !== "SERVICIO").map(g => (
+                                <button
+                                  key={g}
+                                  type="button"
+                                  onClick={() => handleCambiarGrupo(producto, g)}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                                    padding: "8px 12px", border: "none", background: "transparent",
+                                    fontSize: 12, fontWeight: 500, color: "var(--erp-text)", cursor: "pointer",
+                                    textAlign: "left",
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = "var(--erp-bg)")}
+                                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <span style={{
+                                    width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                                    background: g === "PARA_LA_VENTA" ? "#16a34a" : "#ea580c",
+                                  }} />
+                                  {GRUPO_PRODUCTO_LABELS[g]}
+                                  {(producto.grupo ?? "PARA_LA_VENTA") === g && <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--erp-text-3)" }}>✓ actual</span>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toFixed(2)}</td>
                       <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
