@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
-// "categorias" fue renombrada a "familias" en la migración.
-// Este endpoint mantiene compatibilidad con el resto del código existente
-// y además sirve a la UI nueva que usa familias.
-
 export async function GET() {
   let result;
   try {
     result = await pool.query(
-      `SELECT id, nombre, COALESCE(orden, 99) AS orden FROM familias ORDER BY COALESCE(orden, 99) ASC, nombre ASC`
+      `SELECT id, nombre, COALESCE(orden, 99) AS orden FROM categorias ORDER BY COALESCE(orden, 99) ASC, nombre ASC`
     );
   } catch {
     result = await pool.query(
-      `SELECT id, nombre, 99 AS orden FROM familias ORDER BY nombre ASC`
+      `SELECT id, nombre, 99 AS orden FROM categorias ORDER BY nombre ASC`
     );
   }
 
@@ -28,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   if (!nombre || typeof nombre !== "string" || !nombre.trim()) {
     return NextResponse.json(
-      { error: "El nombre de la familia es obligatorio" },
+      { error: "El nombre de la categoría es obligatorio" },
       { status: 400 }
     );
   }
@@ -38,7 +34,7 @@ export async function POST(request: NextRequest) {
   let row;
   try {
     const result = await pool.query(
-      `INSERT INTO familias (nombre, orden)
+      `INSERT INTO categorias (nombre, orden)
        VALUES ($1, $2)
        ON CONFLICT (nombre) DO UPDATE SET nombre = EXCLUDED.nombre, orden = EXCLUDED.orden
        RETURNING id, nombre, orden`,
@@ -47,7 +43,7 @@ export async function POST(request: NextRequest) {
     row = result.rows[0];
   } catch {
     const result = await pool.query(
-      `INSERT INTO familias (nombre)
+      `INSERT INTO categorias (nombre)
        VALUES ($1)
        ON CONFLICT (nombre) DO UPDATE SET nombre = EXCLUDED.nombre
        RETURNING id, nombre, 99 AS orden`,
