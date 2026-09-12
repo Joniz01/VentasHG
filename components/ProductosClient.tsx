@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, useRef, FormEvent } from "react";
 import Paginador from "@/components/Paginador";
 import type { Categoria, EmpaqueProducto, GrupoProducto, Producto, TipoProducto } from "@/lib/types";
 import { GRUPOS_PRODUCTO, GRUPO_PRODUCTO_LABELS, TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
@@ -78,6 +78,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     ultimoPrecioBs: number | null;
   };
   const [provRelaciones, setProvRelaciones] = useState<ProveedorHistorial[]>([]);
+  const formRef = useRef<HTMLDivElement>(null);
 
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
@@ -206,6 +207,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       loadProvRelaciones(producto.id);
     }
     setShowForm(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
   function cancelEdit() {
@@ -509,6 +511,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       {/* Formulario Crear / Editar — colapsable */}
       {showForm && (
         <div
+          ref={formRef}
           style={{
             background: "var(--erp-surface)",
             border: "1px solid var(--erp-border)",
@@ -587,16 +590,35 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               )}
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Costo</label>
-              <input
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.costo}
-                onChange={(e) => setForm({ ...form, costo: e.target.value })}
-                placeholder="0.00"
-              />
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>
+                Costo
+                {grupoFiltro === "MATERIA_PRIMA" && (
+                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>USD</span>
+                )}
+              </label>
+              <div style={{ position: "relative" }}>
+                {grupoFiltro === "MATERIA_PRIMA" && (
+                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
+                )}
+                <input
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: grupoFiltro === "MATERIA_PRIMA" ? 22 : 10, fontSize: 13, width: "100%", boxSizing: "border-box" }}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.costo}
+                  onChange={(e) => setForm({ ...form, costo: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              {grupoFiltro === "MATERIA_PRIMA" && tasaHoy && Number(form.costo) > 0 && (
+                <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>≈</span>
+                  <strong style={{ color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>
+                    Bs {(Number(form.costo) * tasaHoy).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </strong>
+                  <span style={{ color: "var(--erp-text-3)" }}>· tasa {tasaHoy.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
             </div>
             {grupoFiltro !== "MATERIA_PRIMA" && (
               <div className="flex flex-col gap-1">
