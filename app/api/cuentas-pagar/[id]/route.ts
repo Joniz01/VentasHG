@@ -182,8 +182,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         [id]
       );
       if (!histResult.rows.length) {
-        await client.query("ROLLBACK");
-        return NextResponse.json({ error: "No hay abonos registrados para revertir" }, { status: 400 });
+        // Sin historial de parciales → fue un pago total directo; revertir estado
+        const cpRead2 = await client.query(
+          `SELECT estado, monto_bs, monto_usd, monto_original_bs, monto_original_usd FROM cuentas_pagar WHERE id = $1 FOR UPDATE`,
+          [id]
+        );
+        if (!cpRead2.rows.length) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
+        }
+        const cp2 = cpRead2.rows[0];
+        // Restaurar montos originales si existen (en caso de que pagar hubiera modificado algo)
+        const restoreBs = cp2.monto_original_bs ? Number(cp2.monto_original_bs) : Number(cp2.monto_bs);
+        const restoreUsd = cp2.monto_original_usd ? Number(cp2.monto_original_usd) : Number(cp2.monto_usd);
+        await client.query(
+          `UPDATE cuentas_pagar SET
+             estado = 'PENDIENTE',
+             pagado_at = NULL,
+             monto_bs = $2::numeric,
+             monto_usd = $3::numeric,
+             monto_original_bs = NULL,
+             monto_pagado_bs = 0
+           WHERE id = $1`,
+          [id, restoreBs, restoreUsd]
+        );
+        await client.query("COMMIT");
+        return NextResponse.json({ ok: true });
       }
       const abono = histResult.rows[0];
       const abonoMontoBs = Number(abono.monto_bs);
