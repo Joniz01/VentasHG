@@ -67,7 +67,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         `UPDATE cuentas_pagar
          SET estado = 'PAGADO',
              pagado_at = COALESCE($2::date, NOW()),
-             tasa_dia = CASE WHEN $3 IS NOT NULL AND $5 THEN $3 ELSE tasa_dia END,
+             tasa_dia = CASE WHEN $3::numeric IS NOT NULL AND $5::boolean THEN $3::numeric ELSE tasa_dia END,
              comprobante_url = COALESCE($4, comprobante_url)
          WHERE id = $1`,
         [id, fechaPagoParam, tasaDiaPago, body.comprobanteUrl ?? null, debeActualizarTasa]

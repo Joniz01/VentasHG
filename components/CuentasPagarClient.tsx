@@ -1209,7 +1209,7 @@ export default function CuentasPagarClient() {
 
             {tipoPago === "total" && tasaPago != null && (
               <div style={{ background: "rgba(5,150,105,0.08)", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 13, color: "#059669", fontWeight: 600 }}>
-                Pago total: <strong>${USD(pagoModal.montoUsd)}</strong> USD · {BS(pagoModal.montoBs)} Bs
+                Pago total: <strong>${USD(pagoModal.montoUsd)}</strong> USD · {BS(pagoModal.montoUsd * tasaPago)} Bs
               </div>
             )}
 
