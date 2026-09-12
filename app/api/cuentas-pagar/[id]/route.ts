@@ -42,6 +42,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     montoUsd?: number;
     notas?: string;
     estado?: string;
+    cuotas?: { fecha: string; montoUsd: number }[] | null;
   };
 
   const client = await pool.connect();
@@ -261,6 +262,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (body.montoUsd !== undefined) add("monto_usd", Number(body.montoUsd));
       if (body.notas !== undefined) add("notas", body.notas?.trim() || null);
       if (body.estado !== undefined) add("estado", body.estado);
+      if (body.cuotas !== undefined) add("cuotas", body.cuotas === null || body.cuotas?.length === 0 ? null : JSON.stringify(body.cuotas));
       if (sets.length) await client.query(`UPDATE cuentas_pagar SET ${sets.join(", ")} WHERE id = $1`, vals);
     }
 

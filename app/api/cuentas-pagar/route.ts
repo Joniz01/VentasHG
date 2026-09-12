@@ -43,6 +43,7 @@ function mapCP(r: Record<string, unknown>) {
     recurrente: Boolean(r.recurrente),
     frecuencia: r.frecuencia ?? null,
     proximoVencimiento: r.proximo_vencimiento ? toDateStr(r.proximo_vencimiento) : null,
+    cuotas: (r.cuotas as { fecha: string; montoUsd: number }[] | null) ?? null,
     tipo: (r.tipo as string) ?? "gasto",
     createdAt: r.created_at,
   };
