@@ -81,6 +81,11 @@ function formatMonto(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const fmtBs = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const parseBs = (val: string) =>
+  Number(String(val).replace(/\./g, "").replace(",", ".")) || 0;
+
 const ESTADO_COLORES: Record<EstadoGasto, string> = {
   PENDIENTE: "#a16207",
   APROBADO: "#1d4ed8",
@@ -92,7 +97,7 @@ function StatTile({ label, value, valueBs, color }: { label: string; value: numb
     <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
       <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
       <div className="text-xl font-extrabold" style={{ color }}>${formatMonto(value)}</div>
-      <div className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs{formatMonto(valueBs)}</div>
+      <div className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs{fmtBs(valueBs)}</div>
     </div>
   );
 }
@@ -169,9 +174,10 @@ export default function GastosClient() {
         if (data?.tasa) {
           setForm((p) => ({ ...p, tasaDia: String(data.tasa) }));
           setTasaBcvFecha(data.fecha);
-        } else if (form.fecha !== today()) {
-          // No hay tasa guardada para esa fecha pasada: dejar vacío en vez de
-          // arrastrar la tasa de otra fecha (ej. la del día actual).
+        } else if (form.fecha === today()) {
+          handleConsultarTasaBcv();
+        } else {
+          // No hay tasa guardada para esa fecha pasada: dejar vacío
           setForm((p) => ({ ...p, tasaDia: "" }));
           setTasaBcvFecha(null);
         }
@@ -312,12 +318,13 @@ export default function GastosClient() {
   // Recalcula Monto $ cuando cambia la tasa o el Monto Bs (ej. tasa cargada después de
   // escribir el monto, o Monto Bs completado por el OCR / la tabla de ítems)
   useEffect(() => {
+    if (montoUsdFocus) return; // no sobreescribir mientras el usuario está escribiendo
     const tasa = Number(form.tasaDia) || 0;
-    const bs = Number(form.montoBs) || 0;
+    const bs = parseBs(form.montoBs);
     const usd = tasa > 0 && bs > 0 ? (bs / tasa).toFixed(2) : "";
     setForm((p) => (p.montoUsd === usd ? p : { ...p, montoUsd: usd }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.tasaDia, form.montoBs]);
+  }, [form.tasaDia, form.montoBs, montoUsdFocus]);
 
   function updateFacturaItem(key: number, cambios: Partial<FacturaItem>) {
     setFacturaItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...cambios } : it)));
@@ -543,16 +550,16 @@ export default function GastosClient() {
   }
 
   function updateMontoBs(bsVal: string) {
-    const bs = Number(bsVal) || 0;
+    const bs = parseBs(bsVal);
     const tasa = Number(form.tasaDia) || 0;
     const usd = tasa > 0 ? (bs / tasa).toFixed(2) : "";
     setForm((p) => ({ ...p, montoBs: bsVal, montoUsd: usd }));
   }
 
   function updateMontoUsd(usdVal: string) {
-    const usd = Number(usdVal) || 0;
+    const usd = Number(usdVal.replace(/,/g, "")) || 0;
     const tasa = Number(form.tasaDia) || 0;
-    const bs = tasa > 0 ? (usd * tasa).toFixed(2) : "";
+    const bs = tasa > 0 ? fmtBs(usd * tasa) : "";
     setForm((p) => ({ ...p, montoUsd: usdVal, montoBs: bs }));
   }
 
@@ -603,7 +610,7 @@ export default function GastosClient() {
         locacionId: form.locacionId ? Number(form.locacionId) : null,
         centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
         fecha: form.fecha,
-        montoBs: Number(form.montoBs) || 0,
+        montoBs: parseBs(form.montoBs),
         tasaDia: Number(form.tasaDia) || 0,
         estado: form.estado,
         recurrente: form.recurrente,
@@ -963,7 +970,7 @@ export default function GastosClient() {
                   )}
                   <div className="text-right">
                     <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total Bs</div>
-                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{formatMonto(totalFacturaBs)}</div>
+                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{fmtBs(totalFacturaBs)}</div>
                   </div>
                 </div>
               )}
@@ -1170,10 +1177,10 @@ export default function GastosClient() {
                 inputMode="decimal"
                 className="rounded-md border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--erp-border)" }}
-                value={montoBsFocus ? form.montoBs : (form.montoBs ? formatMonto(Number(form.montoBs) || 0) : "")}
+                value={montoBsFocus ? form.montoBs : (form.montoBs ? fmtBs(parseBs(form.montoBs)) : "")}
                 onFocus={() => setMontoBsFocus(true)}
                 onBlur={() => setMontoBsFocus(false)}
-                onChange={(e) => updateMontoBs(e.target.value.replace(/,/g, ""))}
+                onChange={(e) => updateMontoBs(e.target.value)}
                 required
               />
             </div>
@@ -1363,7 +1370,7 @@ export default function GastosClient() {
                     <td className="px-3 py-2">{g.tipo === "FIJO" ? "Fijo" : "Ocasional"}</td>
                     <td className="px-3 py-2">{g.descripcion}</td>
                     <td className="px-3 py-2">{g.locacionNombre ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">Bs{formatMonto(g.montoBs)}</td>
+                    <td className="px-3 py-2 text-right">Bs{fmtBs(g.montoBs)}</td>
                     <td className="px-3 py-2 text-right">${formatMonto(g.montoUsd)}</td>
                     <td className="px-3 py-2">
                       <select
