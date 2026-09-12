@@ -235,7 +235,12 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                   <td style={{ padding: "10px 14px", textAlign: "center" }}>
                     {(() => {
                       const ep = f.estadoPago;
-                      if (!ep) return <span style={{ color: "var(--erp-text-3)", fontSize: 12 }}>—</span>;
+                      if (!ep) {
+                        if (!f.fechaVencimientoPago) {
+                          return <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700, background: "rgba(5,150,105,0.10)", color: "#059669", whiteSpace: "nowrap" }}>Contado</span>;
+                        }
+                        return <span style={{ color: "var(--erp-text-3)", fontSize: 12 }}>—</span>;
+                      }
                       const isVencida = ep === "PENDIENTE" && f.fechaVencimientoPago && f.fechaVencimientoPago < new Date().toISOString().slice(0, 10);
                       const cfg: Record<string, { label: string; bg: string; color: string }> = {
                         PAGADO:           { label: "Pagada",   bg: "rgba(5,150,105,0.10)",  color: "#059669" },
