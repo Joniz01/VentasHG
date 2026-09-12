@@ -661,6 +661,7 @@ export default function CuentasPagarClient() {
         setMontoParcialBs(""); setMontoParcialUsd(""); setNuevaFechVenc(""); setNotaPago("");
         setFechaPago(""); setTasaPago(null); setTasaPagoInput(""); setTasaPagoEditable(false);
         cargar();
+        cargarPagados();
       } else {
         const j = await r.json();
         alert((j.error ?? "Error al registrar pago") + (j.detalle ? `\n\n${j.detalle}` : ""));
