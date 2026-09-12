@@ -71,6 +71,18 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [tasaHoy, setTasaHoy] = useState<number | null>(null);
   const [grupoDropdownId, setGrupoDropdownId] = useState<number | null>(null);
 
+  // Proveedores del insumo
+  type ProveedorRelacion = {
+    id: number; proveedorId: number; proveedorNombre: string; proveedorRif: string;
+    precioRefUsd: number | null; tiempoEntregaDias: number; esPrincipal: boolean; notas: string;
+  };
+  const [provRelaciones, setProvRelaciones] = useState<ProveedorRelacion[]>([]);
+  const [provSearch, setProvSearch] = useState("");
+  const [provSearchResults, setProvSearchResults] = useState<{ id: number; nombre: string; rifCi: string }[]>([]);
+  const [provSearchOpen, setProvSearchOpen] = useState(false);
+  const [provForm, setProvForm] = useState({ proveedorId: 0, proveedorNombre: "", precioRefUsd: "", tiempoEntregaDias: "0", esPrincipal: false, notas: "" });
+  const [provSaving, setProvSaving] = useState(false);
+
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
   const productosOrdenados = useMemo(() => {
@@ -163,6 +175,13 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     }
   }, []);
 
+  async function loadProvRelaciones(productoId: number) {
+    try {
+      const r = await fetch(`/api/productos/${productoId}/proveedores`);
+      if (r.ok) { const d = await r.json(); setProvRelaciones(d.items ?? []); }
+    } catch { /* ignore */ }
+  }
+
   function startEdit(producto: Producto) {
     setEditingId(producto.id);
     setForm({
@@ -186,6 +205,11 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       rendimiento: String(e.rendimiento),
       prioridad: e.prioridad,
     })));
+    if (grupoFiltro === "MATERIA_PRIMA") {
+      setProvRelaciones([]);
+      setProvForm({ proveedorId: 0, proveedorNombre: "", precioRefUsd: "", tiempoEntregaDias: "0", esPrincipal: false, notas: "" });
+      loadProvRelaciones(producto.id);
+    }
     setShowForm(true);
   }
 
@@ -193,9 +217,58 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     setEditingId(null);
     setForm({ ...EMPTY_FORM, grupo: grupoFiltro ?? "PARA_LA_VENTA" });
     setFormEmpaques([]);
+    setProvRelaciones([]);
     setNuevaCategoriaNombre("");
     setNuevaCategoriaOrden("99");
     setShowForm(false);
+  }
+
+  async function buscarProveedores(q: string) {
+    if (!q.trim()) { setProvSearchResults([]); setProvSearchOpen(false); return; }
+    try {
+      const r = await fetch(`/api/proveedores?q=${encodeURIComponent(q)}`);
+      if (r.ok) { const d = await r.json(); setProvSearchResults(d.items ?? []); setProvSearchOpen(true); }
+    } catch { /* ignore */ }
+  }
+
+  async function agregarProveedor() {
+    if (!editingId || !provForm.proveedorId) return;
+    setProvSaving(true);
+    try {
+      const r = await fetch(`/api/productos/${editingId}/proveedores`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proveedorId: provForm.proveedorId,
+          precioRefUsd: provForm.precioRefUsd ? Number(provForm.precioRefUsd) : null,
+          tiempoEntregaDias: Number(provForm.tiempoEntregaDias) || 0,
+          esPrincipal: provForm.esPrincipal,
+          notas: provForm.notas,
+        }),
+      });
+      if (r.ok) {
+        await loadProvRelaciones(editingId);
+        setProvForm({ proveedorId: 0, proveedorNombre: "", precioRefUsd: "", tiempoEntregaDias: "0", esPrincipal: false, notas: "" });
+        setProvSearch("");
+        setProvSearchOpen(false);
+      }
+    } finally { setProvSaving(false); }
+  }
+
+  async function quitarProveedor(proveedorId: number) {
+    if (!editingId) return;
+    await fetch(`/api/productos/${editingId}/proveedores?proveedorId=${proveedorId}`, { method: "DELETE" });
+    await loadProvRelaciones(editingId);
+  }
+
+  async function togglePrincipal(rel: { id: number; proveedorId: number; precioRefUsd: number | null; tiempoEntregaDias: number; esPrincipal: boolean; notas: string }) {
+    if (!editingId) return;
+    await fetch(`/api/productos/${editingId}/proveedores`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...rel, esPrincipal: !rel.esPrincipal }),
+    });
+    await loadProvRelaciones(editingId);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -772,6 +845,154 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                       + Agregar empaque
                     </button>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Proveedores (solo Materia Prima en edición) ── */}
+            {grupoFiltro === "MATERIA_PRIMA" && editingId && (
+              <div className="prod-form-full">
+                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>
+                    🏭 Proveedores
+                  </div>
+
+                  {/* Lista de proveedores vinculados */}
+                  {provRelaciones.length > 0 && (
+                    <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                      {provRelaciones.map((rel) => (
+                        <div key={rel.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--erp-bg)", borderRadius: 6, border: "1px solid var(--erp-border)" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>{rel.proveedorNombre}</span>
+                              {rel.proveedorRif && <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{rel.proveedorRif}</span>}
+                              {rel.esPrincipal && (
+                                <span style={{ fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>Principal</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                              {rel.precioRefUsd != null && <span>Precio ref: <strong>${rel.precioRefUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>}
+                              {rel.tiempoEntregaDias > 0 && <span>Entrega: <strong>{rel.tiempoEntregaDias}d</strong></span>}
+                              {rel.notas && <span>{rel.notas}</span>}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            title={rel.esPrincipal ? "Quitar principal" : "Marcar como principal"}
+                            onClick={() => togglePrincipal(rel)}
+                            style={{ background: "transparent", border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 7px", fontSize: 11, cursor: "pointer", color: rel.esPrincipal ? "#1d4ed8" : "var(--erp-text-3)", fontWeight: rel.esPrincipal ? 700 : 400 }}
+                          >★</button>
+                          <button
+                            type="button"
+                            onClick={() => quitarProveedor(rel.proveedorId)}
+                            style={{ background: "transparent", border: "1px solid #fca5a5", borderRadius: 4, padding: "3px 7px", fontSize: 11, cursor: "pointer", color: "#dc2626" }}
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Agregar proveedor */}
+                  <div style={{ borderTop: provRelaciones.length > 0 ? "1px solid var(--erp-border)" : "none", paddingTop: provRelaciones.length > 0 ? 10 : 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>
+                      {provRelaciones.length === 0 ? "Agregar primer proveedor" : "+ Agregar proveedor"}
+                    </div>
+
+                    {/* Buscador */}
+                    <div style={{ position: "relative", marginBottom: 8 }}>
+                      <input
+                        type="text"
+                        placeholder="Buscar proveedor por nombre o RIF…"
+                        value={provForm.proveedorId ? provForm.proveedorNombre : provSearch}
+                        onChange={(e) => {
+                          if (provForm.proveedorId) {
+                            setProvForm({ ...provForm, proveedorId: 0, proveedorNombre: "" });
+                          }
+                          setProvSearch(e.target.value);
+                          buscarProveedores(e.target.value);
+                        }}
+                        style={{ width: "100%", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, boxSizing: "border-box" }}
+                      />
+                      {provSearchOpen && provSearchResults.length > 0 && !provForm.proveedorId && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 30, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.15)", maxHeight: 200, overflowY: "auto" }}>
+                          {provSearchResults.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setProvForm({ ...provForm, proveedorId: p.id, proveedorNombre: p.nombre });
+                                setProvSearch(p.nombre);
+                                setProvSearchOpen(false);
+                              }}
+                              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", fontSize: 13, cursor: "pointer", color: "var(--erp-text)" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--erp-bg)")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <span style={{ fontWeight: 600 }}>{p.nombre}</span>
+                              {p.rifCi && <span style={{ fontSize: 11, color: "var(--erp-text-3)", marginLeft: 8 }}>{p.rifCi}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {provForm.proveedorId > 0 && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Precio ref. $</div>
+                          <input
+                            type="number" step="0.01" min="0"
+                            placeholder="0.00"
+                            value={provForm.precioRefUsd}
+                            onChange={(e) => setProvForm({ ...provForm, precioRefUsd: e.target.value })}
+                            style={{ width: "100%", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, boxSizing: "border-box" }}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Entrega (días)</div>
+                          <input
+                            type="number" step="1" min="0"
+                            placeholder="0"
+                            value={provForm.tiempoEntregaDias}
+                            onChange={(e) => setProvForm({ ...provForm, tiempoEntregaDias: e.target.value })}
+                            style={{ width: "100%", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, boxSizing: "border-box" }}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Notas</div>
+                          <input
+                            type="text"
+                            placeholder="Opcional"
+                            value={provForm.notas}
+                            onChange={(e) => setProvForm({ ...provForm, notas: e.target.value })}
+                            style={{ width: "100%", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, boxSizing: "border-box" }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {provForm.proveedorId > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", color: "var(--erp-text-2)" }}>
+                          <input
+                            type="checkbox"
+                            checked={provForm.esPrincipal}
+                            onChange={(e) => setProvForm({ ...provForm, esPrincipal: e.target.checked })}
+                            style={{ width: 14, height: 14 }}
+                          />
+                          Proveedor principal
+                        </label>
+                        <button
+                          type="button"
+                          disabled={provSaving}
+                          onClick={agregarProveedor}
+                          style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: provSaving ? 0.5 : 1 }}
+                        >
+                          {provSaving ? "Guardando…" : "Agregar"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
