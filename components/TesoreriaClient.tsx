@@ -539,16 +539,16 @@ export default function TesoreriaClient() {
 
       {/* ── KPI Strip ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-        <KpiCard label="Próxima Semana" valueUsd={kpis.proximaSemanaUsd} color="#7C3AED" subLabel={`${fmtFecha(lunesProx)} – ${fmtFecha(domingoProx)}`} active={drillKey === "proxima_semana"} onClick={() => setDrillKey(drillKey === "proxima_semana" ? null : "proxima_semana")} />
-        <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" active={drillKey === "vencido"}       onClick={() => setDrillKey(drillKey === "vencido" ? null : "vencido")} />
-        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} active={drillKey === "esta_semana"} onClick={() => setDrillKey(drillKey === "esta_semana" ? null : "esta_semana")} />
-        <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" active={drillKey === "prox_4sem"}     onClick={() => setDrillKey(drillKey === "prox_4sem" ? null : "prox_4sem")} />
-        <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" active={drillKey === "pagado_mes"}    onClick={() => setDrillKey(drillKey === "pagado_mes" ? null : "pagado_mes")} />
+        <KpiCard label="Próxima Semana" valueUsd={kpis.proximaSemanaUsd} color="#7C3AED" subLabel={`${fmtFecha(lunesProx)} – ${fmtFecha(domingoProx)}`} active={drillKey === "proxima_semana"} onClick={() => { setDrillKey(drillKey === "proxima_semana" ? null : "proxima_semana"); setFiltro("todos"); }} />
+        <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" active={drillKey === "vencido"}       onClick={() => { setDrillKey(drillKey === "vencido" ? null : "vencido"); setFiltro("todos"); }} />
+        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} active={drillKey === "esta_semana"} onClick={() => { setDrillKey(drillKey === "esta_semana" ? null : "esta_semana"); setFiltro("todos"); }} />
+        <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" active={drillKey === "prox_4sem"}     onClick={() => { setDrillKey(drillKey === "prox_4sem" ? null : "prox_4sem"); setFiltro("todos"); }} />
+        <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" active={drillKey === "pagado_mes"}    onClick={() => { setDrillKey(drillKey === "pagado_mes" ? null : "pagado_mes"); setFiltro("todos"); }} />
         {(kpis.proveedoresUsd ?? 0) > 0 && (
-          <KpiCard label="Proveedores y Servicios" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores y servicios" active={drillKey === "proveedores"} onClick={() => setDrillKey(drillKey === "proveedores" ? null : "proveedores")} />
+          <KpiCard label="Proveedores y Servicios" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores y servicios" active={drillKey === "proveedores"} onClick={() => { setDrillKey(drillKey === "proveedores" ? null : "proveedores"); setFiltro("todos"); }} />
         )}
         {(kpis.comprasUsd ?? 0) > 0 && (
-          <KpiCard label="Compras a Crédito" valueUsd={kpis.comprasUsd ?? 0} color="#0F5FA6" subLabel="Compras con vencimiento próximo" active={drillKey === "compras"} onClick={() => setDrillKey(drillKey === "compras" ? null : "compras")} />
+          <KpiCard label="Compras a Crédito" valueUsd={kpis.comprasUsd ?? 0} color="#0F5FA6" subLabel="Compras con vencimiento próximo" active={drillKey === "compras"} onClick={() => { setDrillKey(drillKey === "compras" ? null : "compras"); setFiltro("todos"); }} />
         )}
       </div>
 
