@@ -78,11 +78,6 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     ultimoPrecioBs: number | null;
   };
   const [provRelaciones, setProvRelaciones] = useState<ProveedorHistorial[]>([]);
-  const [provSearch] = useState("");
-  const [provSearchResults] = useState<{ id: number; nombre: string; rifCi: string }[]>([]);
-  const [provSearchOpen] = useState(false);
-  const [provForm] = useState({ proveedorId: 0, proveedorNombre: "", precioRefUsd: "", tiempoEntregaDias: "0", esPrincipal: false, notas: "" });
-  const [provSaving] = useState(false);
 
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
@@ -208,7 +203,6 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     })));
     if (grupoFiltro === "MATERIA_PRIMA") {
       setProvRelaciones([]);
-      setProvForm({ proveedorId: 0, proveedorNombre: "", precioRefUsd: "", tiempoEntregaDias: "0", esPrincipal: false, notas: "" });
       loadProvRelaciones(producto.id);
     }
     setShowForm(true);
