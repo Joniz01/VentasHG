@@ -140,7 +140,8 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   async function loadKpis() {
     try {
       setKpisLoading(true);
-      const res = await fetch("/api/productos/kpis");
+      const url = grupoFiltro ? `/api/productos/kpis?grupo=${grupoFiltro}` : "/api/productos/kpis";
+      const res = await fetch(url);
       const data = await res.json();
       setKpis(data);
     } catch {
@@ -336,7 +337,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
 
   const kpiCards = [
     {
-      label: "Productos Activos",
+      label: grupoFiltro === "MATERIA_PRIMA" ? "Insumos Registrados" : "Productos Activos",
       value: kpisLoading ? "…" : String(kpis?.totalActivos ?? 0),
       sub: "en catálogo",
       color: "var(--erp-text)",
@@ -348,12 +349,12 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       color: "#059669",
     },
     {
-      label: "Sin Stock",
+      label: grupoFiltro === "MATERIA_PRIMA" ? "Insumos Sin Stock" : "Sin Stock",
       value: kpisLoading ? "…" : String(kpis?.sinStock ?? 0),
-      sub: "productos en 0 unidades",
+      sub: "en 0 unidades",
       color: (kpis?.sinStock ?? 0) > 0 ? "#dc2626" : "var(--erp-text)",
     },
-    {
+    ...(grupoFiltro === "MATERIA_PRIMA" ? [] : [{
       label: "Unidades Vendidas Hoy",
       value: kpisLoading ? "…" : String(kpis?.unidadesHoy ?? 0),
       sub: "total unidades del día",
@@ -370,7 +371,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       value: kpisLoading ? "…" : `${(kpis?.margenPromedio ?? 0).toFixed(1)}%`,
       sub: "sobre precio de venta",
       color: "#d97706",
-    },
+    }]),
   ];
 
   return (
