@@ -971,7 +971,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                           )}
                         </div>
                       </td>}
-                      <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toFixed(2)}</td>
+                      <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       {grupoFiltro === "MATERIA_PRIMA" ? (
                         <>
                           <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
