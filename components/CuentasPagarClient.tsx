@@ -689,7 +689,7 @@ export default function CuentasPagarClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accion: "revertir_ultimo_abono" }),
       });
-      if (r.ok) { setRevirtiendoId(null); cargar(); }
+      if (r.ok) { setRevirtiendoId(null); if (tabCxP === "pagados") cargarPagados(); else cargar(); }
       else { const j = await r.json(); alert((j.error ?? "Error al revertir") + (j.detalle ? `\n\n${j.detalle}` : "")); }
     } finally {
       setRevirtiendo(false);
@@ -732,7 +732,7 @@ export default function CuentasPagarClient() {
       {/* Tabs */}
       <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--erp-border)" }}>
         {([["pendientes", "📋 Por Pagar"], ["pagados", "✅ Pagados"]] as [TabCxP, string][]).map(([key, label]) => (
-          <button key={key} onClick={() => setTabCxP(key)}
+          <button key={key} onClick={() => { setTabCxP(key); if (key === "pagados") cargarPagados(); else cargar(); }}
             style={{
               padding: "8px 18px", fontSize: 13, fontWeight: tabCxP === key ? 700 : 500,
               cursor: "pointer", border: "none", background: "transparent",
