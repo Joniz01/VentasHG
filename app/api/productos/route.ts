@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     result = await pool.query(
       `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
               p.categoria_id, c.nombre AS categoria_nombre,
+              p.linea_id, l.nombre AS linea_nombre,
               p.tipo_producto, p.stock_actual, p.variada_raciones,
               COALESCE(p.stock_minimo, 0) AS stock_minimo,
               COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
@@ -32,19 +33,21 @@ export async function GET(request: NextRequest) {
               p.alerta_outstock_motivo,
               COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo
        FROM productos p
-       LEFT JOIN categorias c ON c.id = p.categoria_id
+       LEFT JOIN familias c ON c.id = p.categoria_id
+       LEFT JOIN lineas l ON l.id = p.linea_id
        ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`
     );
   } catch {
     result = await pool.query(
       `SELECT p.id, p.nombre, p.descripcion, p.costo, p.precio_venta, p.activo, p.created_at,
               p.categoria_id, c.nombre AS categoria_nombre,
+              NULL AS linea_id, NULL AS linea_nombre,
               p.tipo_producto, p.stock_actual, p.variada_raciones,
               0 AS stock_minimo, 'unidad' AS unidad_medida,
               FALSE AS alerta_outstock_desactivada, NULL AS alerta_outstock_motivo,
               'PARA_LA_VENTA' AS grupo
        FROM productos p
-       LEFT JOIN categorias c ON c.id = p.categoria_id
+       LEFT JOIN familias c ON c.id = p.categoria_id
        ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC`
     );
   }
@@ -99,6 +102,8 @@ export async function GET(request: NextRequest) {
     activo: row.activo,
     categoriaId: row.categoria_id,
     categoriaNombre: row.categoria_nombre,
+    lineaId: row.linea_id ?? null,
+    lineaNombre: row.linea_nombre ?? null,
     tipoProducto: row.tipo_producto,
     stockActual: Number(row.stock_actual),
     stockMinimo: Number(row.stock_minimo),
@@ -143,7 +148,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { nombre, descripcion, costo, precioVenta, categoriaId, tipoProducto, variadaRaciones } = body;
+  const { nombre, descripcion, costo, precioVenta, categoriaId, lineaId, tipoProducto, variadaRaciones } = body;
 
   if (!nombre || typeof nombre !== "string") {
     return NextResponse.json(
@@ -179,13 +184,14 @@ export async function POST(request: NextRequest) {
   }
 
   const categoriaIdNum = categoriaId ? Number(categoriaId) : null;
+  const lineaIdNum = lineaId ? Number(lineaId) : null;
   const variadaRacionesNum = Number(variadaRaciones) || 0;
 
   const result = await pool.query(
-    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id, tipo_producto, variada_raciones)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at, tipo_producto, stock_actual, variada_raciones`,
-    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum, tipoProducto || "NORMAL", variadaRacionesNum]
+    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id, linea_id, tipo_producto, variada_raciones)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at, tipo_producto, stock_actual, variada_raciones`,
+    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum, lineaIdNum, tipoProducto || "NORMAL", variadaRacionesNum]
   );
 
   const row = result.rows[0];
@@ -193,10 +199,19 @@ export async function POST(request: NextRequest) {
   let categoriaNombre: string | null = null;
   if (row.categoria_id) {
     const categoriaResult = await pool.query(
-      `SELECT nombre FROM categorias WHERE id = $1`,
+      `SELECT nombre FROM familias WHERE id = $1`,
       [row.categoria_id]
     );
     categoriaNombre = categoriaResult.rows[0]?.nombre ?? null;
+  }
+
+  let lineaNombre: string | null = null;
+  if (row.linea_id) {
+    const lineaResult = await pool.query(
+      `SELECT nombre FROM lineas WHERE id = $1`,
+      [row.linea_id]
+    );
+    lineaNombre = lineaResult.rows[0]?.nombre ?? null;
   }
 
   return NextResponse.json(
@@ -209,6 +224,8 @@ export async function POST(request: NextRequest) {
       activo: row.activo,
       categoriaId: row.categoria_id,
       categoriaNombre,
+      lineaId: row.linea_id ?? null,
+      lineaNombre,
       tipoProducto: row.tipo_producto,
       stockActual: Number(row.stock_actual),
       stockMinimo: 0,

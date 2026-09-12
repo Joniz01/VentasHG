@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState, useRef, FormEvent } from "react";
 import Paginador from "@/components/Paginador";
-import type { Categoria, EmpaqueProducto, GrupoProducto, Producto, TipoProducto } from "@/lib/types";
+import type { Categoria, EmpaqueProducto, Familia, GrupoProducto, Linea, Producto, TipoProducto } from "@/lib/types";
 import { GRUPOS_PRODUCTO, GRUPO_PRODUCTO_LABELS, TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
 
 type EmpaqueFormRow = {
@@ -23,6 +23,7 @@ const EMPTY_FORM = {
   costo: "",
   precioVenta: "",
   categoriaId: "",
+  lineaId: "",
   tipoProducto: "NORMAL" as TipoProducto,
   variadaRaciones: "3",
   stockMinimo: "0",
@@ -45,6 +46,8 @@ type ProductosKpis = {
 export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoProducto }) {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [familias, setFamilias] = useState<Familia[]>([]);
+  const [lineas, setLineas] = useState<Linea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM, grupo: grupoFiltro ?? "PARA_LA_VENTA" as GrupoProducto });
@@ -89,7 +92,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     }
     if (searchNombre.trim()) {
       const q = searchNombre.trim().toLowerCase();
-      list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q));
+      list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q) || (p.lineaNombre ?? "").toLowerCase().includes(q));
     }
     if (filterCategoriaId === "__sin__") {
       list = list.filter((p) => !p.categoriaId);
@@ -119,9 +122,19 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       const res = await fetch("/api/categorias");
       const data = await res.json();
       setCategorias(data);
+      setFamilias(data);
     } catch {
       setError("No se pudieron cargar las categorías");
     }
+  }
+
+  async function loadLineas(familiaId?: number) {
+    try {
+      const url = familiaId ? `/api/lineas?familiaId=${familiaId}` : "/api/lineas";
+      const res = await fetch(url);
+      const data = await res.json();
+      setLineas(data);
+    } catch { /* ignore */ }
   }
 
   async function handleCrearCategoriaStandalone() {
@@ -164,6 +177,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   useEffect(() => {
     loadProductos();
     loadCategorias();
+    loadLineas();
     loadKpis();
     fetch("/api/tasa-bcv").then(r => r.ok ? r.json() : null).then(d => {
       if (d?.tasa) setTasaHoy(Number(d.tasa));
@@ -185,6 +199,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       costo: String(producto.costo),
       precioVenta: String(producto.precioVenta),
       categoriaId: producto.categoriaId ? String(producto.categoriaId) : "",
+      lineaId: producto.lineaId ? String(producto.lineaId) : "",
       tipoProducto: producto.tipoProducto,
       variadaRaciones: String(producto.variadaRaciones || 3),
       stockMinimo: String(producto.stockMinimo ?? 0),
@@ -255,6 +270,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         precioVenta: Number(form.precioVenta) || 0,
         activo: true,
         categoriaId: categoriaId || null,
+        lineaId: form.lineaId || null,
         tipoProducto: form.tipoProducto,
         variadaRaciones: form.tipoProducto === "VARIADA" ? Number(form.variadaRaciones) || 0 : 0,
         stockMinimo: Number(form.stockMinimo) || 0,
@@ -439,20 +455,20 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               cursor: "pointer",
             }}
           >
-            {showCategoriaForm ? "✕ Cerrar" : "+ Crear Categoría"}
+            {showCategoriaForm ? "✕ Cerrar" : "+ Crear Familia"}
           </button>
         </div>
       </div>
 
       {showCategoriaForm && (
         <div style={{ background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-primary)" }}>Nueva categoría</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-primary)" }}>Nueva familia</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
               style={{ flex: 1, minWidth: 180, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
               value={catStandaloneNombre}
               onChange={(e) => setCatStandaloneNombre(e.target.value)}
-              placeholder="Nombre de la categoría"
+              placeholder="Nombre de la familia (ej: Panadería & Masas)"
               autoFocus
             />
             <input
@@ -551,19 +567,23 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Categoría</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Familia</label>
               <select
                 style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 value={form.categoriaId}
-                onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
+                onChange={(e) => {
+                  const newFamiliaId = e.target.value;
+                  setForm({ ...form, categoriaId: newFamiliaId, lineaId: "" });
+                  if (newFamiliaId && newFamiliaId !== NUEVA_CATEGORIA) {
+                    loadLineas(Number(newFamiliaId));
+                  }
+                }}
               >
-                <option value="">Sin categoría</option>
-                {categorias.map((categoria) => (
-                  <option key={categoria.id} value={categoria.id}>
-                    {categoria.nombre}
-                  </option>
+                <option value="">Sin familia</option>
+                {familias.map((f) => (
+                  <option key={f.id} value={f.id}>{f.nombre}</option>
                 ))}
-                <option value={NUEVA_CATEGORIA}>+ Nueva categoría...</option>
+                <option value={NUEVA_CATEGORIA}>+ Nueva familia...</option>
               </select>
               {form.categoriaId === NUEVA_CATEGORIA && (
                 <div className="flex gap-2">
@@ -571,7 +591,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                     style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                     value={nuevaCategoriaNombre}
                     onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
-                    placeholder="Nombre de la nueva categoría"
+                    placeholder="Nombre de la nueva familia"
                   />
                   <input
                     type="number"
@@ -585,6 +605,21 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                 </div>
               )}
             </div>
+            {form.categoriaId && form.categoriaId !== NUEVA_CATEGORIA && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Línea</label>
+                <select
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  value={form.lineaId}
+                  onChange={(e) => setForm({ ...form, lineaId: e.target.value })}
+                >
+                  <option value="">Sin línea</option>
+                  {lineas.filter(l => String(l.familiaId) === form.categoriaId).map((l) => (
+                    <option key={l.id} value={l.id}>{l.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>
                 Costo
@@ -935,16 +970,16 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
             />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Categoría</label>
+            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Familia</label>
             <select
               style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
               value={filterCategoriaId}
               onChange={(e) => { setFilterCategoriaId(e.target.value); setPagina(1); }}
             >
               <option value="">Todas</option>
-              <option value="__sin__">Sin categoría</option>
-              {categorias.map((c) => (
-                <option key={c.id} value={String(c.id)}>{c.nombre}</option>
+              <option value="__sin__">Sin familia</option>
+              {familias.map((f) => (
+                <option key={f.id} value={String(f.id)}>{f.nombre}</option>
               ))}
             </select>
           </div>
@@ -979,7 +1014,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
             <thead>
               <tr style={{ background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)" }}>
                 <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Nombre</th>
-                <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Categoría</th>
+                <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Familia / Línea</th>
                 <th className="prod-col-tipo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Tipo</th>
                 {grupoFiltro !== "MATERIA_PRIMA" && (
                   <th className="prod-col-grupo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Grupo</th>
@@ -1031,7 +1066,12 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                           {producto.categoriaNombre ?? ""}{producto.categoriaNombre ? " · " : ""}{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}
                         </div>
                       </td>
-                      <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.categoriaNombre ?? "-"}</td>
+                      <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>
+                        <div>{producto.categoriaNombre ?? "-"}</div>
+                        {producto.lineaNombre && (
+                          <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }}>{producto.lineaNombre}</div>
+                        )}
+                      </td>
                       <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
                       {grupoFiltro !== "MATERIA_PRIMA" && <td className="prod-col-grupo" style={{ padding: "8px 12px" }}>
                         <div style={{ position: "relative", display: "inline-block" }}>
