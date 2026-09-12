@@ -66,6 +66,12 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [catStandaloneOrden, setCatStandaloneOrden] = useState("99");
   const [catStandaloneSaving, setCatStandaloneSaving] = useState(false);
   const [catStandaloneError, setCatStandaloneError] = useState<string | null>(null);
+  const [showLineaForm, setShowLineaForm] = useState(false);
+  const [lineaStandaloneFamiliaId, setLineaStandaloneFamiliaId] = useState("");
+  const [lineaStandaloneNombre, setLineaStandaloneNombre] = useState("");
+  const [lineaStandaloneSaving, setLineaStandaloneSaving] = useState(false);
+  const [lineaStandaloneError, setLineaStandaloneError] = useState<string | null>(null);
+  const [lineaStandaloneOk, setLineaStandaloneOk] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(15);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
@@ -157,6 +163,29 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       setCatStandaloneError(err instanceof Error ? err.message : "Error al crear la categoría");
     } finally {
       setCatStandaloneSaving(false);
+    }
+  }
+
+  async function handleCrearLineaStandalone() {
+    if (!lineaStandaloneNombre.trim() || !lineaStandaloneFamiliaId) return;
+    setLineaStandaloneSaving(true);
+    setLineaStandaloneError(null);
+    setLineaStandaloneOk(null);
+    try {
+      const res = await fetch("/api/lineas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: lineaStandaloneNombre.trim(), familiaId: Number(lineaStandaloneFamiliaId) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al crear la línea");
+      await loadLineas();
+      setLineaStandaloneOk(`Línea "${data.nombre}" creada correctamente`);
+      setLineaStandaloneNombre("");
+    } catch (err) {
+      setLineaStandaloneError(err instanceof Error ? err.message : "Error al crear la línea");
+    } finally {
+      setLineaStandaloneSaving(false);
     }
   }
 
@@ -457,6 +486,22 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
           >
             {showCategoriaForm ? "✕ Cerrar" : "+ Crear Familia"}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowLineaForm((v) => !v)}
+            style={{
+              background: showLineaForm ? "var(--erp-accent)" : "var(--erp-surface)",
+              color: showLineaForm ? "#fff" : "var(--erp-text)",
+              border: "1px solid var(--erp-border)",
+              borderRadius: 6,
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {showLineaForm ? "✕ Cerrar" : "+ Crear Línea"}
+          </button>
         </div>
       </div>
 
@@ -490,6 +535,46 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
             </button>
           </div>
           {catStandaloneError && <div style={{ fontSize: 12, color: "#B91C1C" }}>{catStandaloneError}</div>}
+        </div>
+      )}
+
+      {showLineaForm && (
+        <div style={{ background: "color-mix(in srgb, var(--erp-accent) 8%, var(--erp-surface))", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-accent)" }}>Nueva línea</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 200px" }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Familia</label>
+              <select
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                value={lineaStandaloneFamiliaId}
+                onChange={(e) => setLineaStandaloneFamiliaId(e.target.value)}
+              >
+                <option value="">— seleccionar familia —</option>
+                {familias.map((f) => (
+                  <option key={f.id} value={f.id}>{f.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 160 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Nombre de la línea</label>
+              <input
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                value={lineaStandaloneNombre}
+                onChange={(e) => { setLineaStandaloneNombre(e.target.value); setLineaStandaloneOk(null); }}
+                placeholder="Ej: Línea Premium"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleCrearLineaStandalone}
+              disabled={lineaStandaloneSaving || !lineaStandaloneNombre.trim() || !lineaStandaloneFamiliaId}
+              style={{ background: "var(--erp-accent)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: lineaStandaloneSaving || !lineaStandaloneNombre.trim() || !lineaStandaloneFamiliaId ? 0.6 : 1, alignSelf: "flex-end" }}
+            >
+              {lineaStandaloneSaving ? "Guardando..." : "Guardar"}
+            </button>
+          </div>
+          {lineaStandaloneError && <div style={{ fontSize: 12, color: "#B91C1C" }}>{lineaStandaloneError}</div>}
+          {lineaStandaloneOk && <div style={{ fontSize: 12, color: "#059669", fontWeight: 600 }}>✓ {lineaStandaloneOk}</div>}
         </div>
       )}
 
