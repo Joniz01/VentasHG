@@ -904,7 +904,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
     const validPagos = pagos
       .map((p, index) => ({
         metodo: p.metodo,
-        monto: p.montoAuto ? totales.montoSugerido(index) : Number(p.monto) || 0,
+        monto: p.montoAuto ? totales.montoSugerido(index) : Number(String(p.monto).replace(/\./g, "").replace(",", ".")) || 0,
       }))
       .filter((p): p is { metodo: MetodoPago; monto: number } => !!p.metodo && p.monto > 0);
 
@@ -1121,21 +1121,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     const usd = Number(e.target.value);
                     const tasa = Number(tasaDelDia) || 0;
                     const bsEl = document.getElementById("conversor-bs") as HTMLInputElement | null;
-                    if (bsEl) bsEl.value = usd > 0 && tasa > 0 ? (usd * tasa).toFixed(2) : "";
+                    if (bsEl) bsEl.value = usd > 0 && tasa > 0 ? fmtBs(usd * tasa) : "";
                   }}
                 />
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>=</span>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="w-20 bg-transparent text-sm font-bold outline-none"
+                  type="text"
+                  className="w-24 bg-transparent text-sm font-bold outline-none"
                   style={{ color: "var(--erp-text-2)" }}
-                  placeholder="0.00"
+                  placeholder="0,00"
                   id="conversor-bs"
                   onChange={(e) => {
-                    const bs = Number(e.target.value);
+                    const raw = e.target.value.replace(/\./g, "").replace(",", ".");
+                    const bs = Number(raw);
                     const tasa = Number(tasaDelDia) || 0;
                     const usdEl = document.getElementById("conversor-usd") as HTMLInputElement | null;
                     if (usdEl) usdEl.value = bs > 0 && tasa > 0 ? (bs / tasa).toFixed(2) : "";
@@ -1504,15 +1503,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                   {METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]) ? "Monto ($)" : "Monto (Bs)"}
                                 </span>
                                 <input
-                                  type="number" step="0.01" min="0"
+                                  type="text"
                                   className="w-32 rounded-md border px-3 py-2 text-sm"
-                                  value={pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
+                                  value={pago.montoAuto ? (pago.metodo ? (METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]) ? totales.montoSugerido(index).toFixed(2) : fmtBs(totales.montoSugerido(index))) : "") : pago.monto}
                                   onChange={(e) => updatePago(index, { monto: e.target.value, montoAuto: false })}
                                   placeholder="Monto"
                                 />
                               </div>
                               {(() => {
-                                const montoRaw = pago.montoAuto ? totales.montoSugerido(index) : Number(pago.monto) || 0;
+                                const montoRaw = pago.montoAuto ? totales.montoSugerido(index) : Number(String(pago.monto).replace(/\./g, "").replace(",", ".")) || 0;
                                 const tasa = Number(tasaDelDia) || 0;
                                 const esUsd = METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]);
                                 if (!montoRaw || !tasa) return null;
