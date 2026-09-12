@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { formatFecha } from "@/lib/pedidos";
 import FacturaCompraForm from "./FacturaCompraForm";
 
+const fmtBs = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 type Factura = {
   id: number; fecha: string; proveedorNombre: string; proveedorRif: string | null;
   numeroFactura: string | null; tasaDia: number; estado: string; tipoUso: "VENTA" | "MATERIA_PRIMA";
@@ -160,7 +163,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
       {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         {[
-          { label: "Total mes actual (Bs)", value: `Bs ${kpiTotalBs.toFixed(2)}`, color: "var(--erp-primary)" },
+          { label: "Total mes actual (Bs)", value: `Bs ${fmtBs(kpiTotalBs)}`, color: "var(--erp-primary)" },
           { label: "Total mes actual ($)", value: `$${kpiTotalUsd.toFixed(2)}`, color: "var(--erp-primary)" },
           { label: "Facturas este mes", value: String(kpiCount), color: "var(--erp-text)" },
           { label: "Por vencer (7 días)", value: String(kpiPorVencer), color: kpiPorVencer > 0 ? "#B45309" : "var(--erp-text)" },
@@ -229,7 +232,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                   <td style={{ padding: "10px 14px", color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>{formatFecha(f.fecha)}</td>
                   <td style={{ padding: "10px 14px", fontWeight: 500, color: "var(--erp-text)" }}>{f.proveedorNombre}</td>
                   <td style={{ padding: "10px 14px", color: "var(--erp-text-2)" }}>{f.numeroFactura ?? "-"}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--erp-text)" }}>Bs {f.totalBs.toFixed(2)}</td>
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--erp-text)" }}>Bs {fmtBs(f.totalBs)}</td>
                   <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--erp-text-2)" }}>${f.totalUsd.toFixed(2)}</td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap", color: f.fechaVencimientoPago && f.fechaVencimientoPago < new Date().toISOString().slice(0, 10) ? "#EF4444" : "var(--erp-text-2)", fontWeight: f.fechaVencimientoPago ? 600 : 400 }}>
                     {f.fechaVencimientoPago ? formatFecha(f.fechaVencimientoPago) : formatFecha(f.fecha)}
@@ -341,7 +344,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                     <tr key={it.id} style={{ borderTop: "1px solid var(--erp-border)" }}>
                       <td style={{ padding: "8px 10px", color: "var(--erp-text)" }}>{it.nombreProducto}</td>
                       <td style={{ padding: "8px 10px", textAlign: "center", color: "var(--erp-text-2)" }}>{it.cantidad}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", color: "var(--erp-text-2)" }}>{it.costoUnitBs.toFixed(2)}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", color: "var(--erp-text-2)" }}>{fmtBs(it.costoUnitBs)}</td>
                       <td style={{ padding: "8px 10px", textAlign: "center" }}>
                         <span style={{
                           background: it.tipoUso === "MATERIA_PRIMA" ? "#FEF3C7" : "#DCFCE7",
@@ -351,7 +354,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
                           {it.tipoUso === "MATERIA_PRIMA" ? "M.P." : "Venta"}
                         </span>
                       </td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "var(--erp-text)" }}>{it.subtotalBs.toFixed(2)}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "var(--erp-text)" }}>{fmtBs(it.subtotalBs)}</td>
                     </tr>
                   ))}
                 </tbody>

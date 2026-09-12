@@ -24,6 +24,9 @@ import {
   type Venta,
 } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+
+const fmtBs = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
@@ -2825,17 +2828,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   </td>
                   <td className="px-4 py-2 text-zinc-600">
                     {venta.pagos
-                      .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${p.monto.toFixed(2)}`)
+                      .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${METODOS_PAGO_USD.includes(p.metodo) ? p.monto.toFixed(2) : fmtBs(p.monto)}`)
                       .join(", ") || "-"}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {usdToBs(ventaTotalUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
+                    {fmtBs(usdToBs(ventaTotalUsd, venta.tasaDelDia))} Bs{" "}
                     <span className="text-zinc-500">(${ventaTotalUsd.toFixed(2)})</span>
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     {costoDeliveryUsd > 0 ? (
                       <>
-                        {usdToBs(costoDeliveryUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
+                        {fmtBs(usdToBs(costoDeliveryUsd, venta.tasaDelDia))} Bs{" "}
                         <span className="text-zinc-500">(${costoDeliveryUsd.toFixed(2)})</span>
                       </>
                     ) : (
@@ -2843,7 +2846,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     )}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {totalPagadoEnBs.toFixed(2)} Bs{" "}
+                    {fmtBs(totalPagadoEnBs)} Bs{" "}
                     <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
                   </td>
                   <td className="px-4 py-2">
