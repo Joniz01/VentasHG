@@ -577,43 +577,57 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                 placeholder="0.00"
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Precio de venta</label>
-              <input
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.precioVenta}
-                onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
+            {grupoFiltro !== "MATERIA_PRIMA" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Precio de venta</label>
+                <input
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.precioVenta}
+                  onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producto</label>
-              <select
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                value={form.tipoProducto}
-                onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}
-              >
-                {TIPOS_PRODUCTO.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {TIPO_PRODUCTO_LABELS[tipo]}
-                  </option>
-                ))}
-              </select>
+              {grupoFiltro === "MATERIA_PRIMA" ? (
+                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>
+                  Normal (con inventario)
+                </div>
+              ) : (
+                <select
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  value={form.tipoProducto}
+                  onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}
+                >
+                  {TIPOS_PRODUCTO.map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {TIPO_PRODUCTO_LABELS[tipo]}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Grupo</label>
-              <select
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                value={form.grupo}
-                onChange={(e) => setForm({ ...form, grupo: e.target.value as GrupoProducto })}
-              >
-                {GRUPOS_PRODUCTO.map((g) => (
-                  <option key={g} value={g}>{GRUPO_PRODUCTO_LABELS[g]}</option>
-                ))}
-              </select>
+              {grupoFiltro === "MATERIA_PRIMA" ? (
+                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>
+                  Materia Prima
+                </div>
+              ) : (
+                <select
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  value={form.grupo}
+                  onChange={(e) => setForm({ ...form, grupo: e.target.value as GrupoProducto })}
+                >
+                  {GRUPOS_PRODUCTO.map((g) => (
+                    <option key={g} value={g}>{GRUPO_PRODUCTO_LABELS[g]}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {form.tipoProducto === "VARIADA" && (
@@ -684,7 +698,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               </div>
             )}
             {/* ── Empaque & Rendimiento ── */}
-            {form.tipoProducto === "NORMAL" && (
+            {form.tipoProducto === "NORMAL" && grupoFiltro !== "MATERIA_PRIMA" && (
               <div className="prod-form-full">
                 <div style={{ border: "2px dashed var(--erp-accent)", borderRadius: 8, padding: "12px 14px", background: "color-mix(in srgb, var(--erp-accent) 4%, var(--erp-surface))" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -997,15 +1011,17 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                       )}
                       <td style={{ padding: "8px 12px", textAlign: "right" }}>
                         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 4 }}>
-                          <button
-                            onClick={() => {
-                              setExpandedId(expandedId === producto.id && expandedPanel === "extras" ? null : producto.id);
-                              setExpandedPanel("extras");
-                            }}
-                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
-                          >
-                            Extras
-                          </button>
+                          {grupoFiltro !== "MATERIA_PRIMA" && (
+                            <button
+                              onClick={() => {
+                                setExpandedId(expandedId === producto.id && expandedPanel === "extras" ? null : producto.id);
+                                setExpandedPanel("extras");
+                              }}
+                              style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
+                            >
+                              Extras
+                            </button>
+                          )}
                           {producto.tipoProducto === "COMBO" && (
                             <button
                               onClick={() => {
