@@ -2,6 +2,9 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 
+const fmtBs = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 type RifTipo = "J" | "V" | "E" | "G";
 
 type ItemLine = {
@@ -616,7 +619,7 @@ export default function FacturaCompraForm({
             </div>
           </td>
           <td style={{ padding: "5px 12px", textAlign: "right", fontWeight: 700, fontSize: 13, fontVariantNumeric: "tabular-nums", color: "var(--erp-text)", whiteSpace: "nowrap" }}>
-            {((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0)).toFixed(2)}
+            {fmtBs((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0))}
           </td>
           <td style={{ padding: "5px 6px", textAlign: "center" }}>
             <button type="button" onClick={() => setItems(prev => prev.filter(x => x.key !== it.key))} disabled={items.length === 1}
@@ -696,7 +699,7 @@ export default function FacturaCompraForm({
           </button>
           <div style={{ marginTop: 12, borderTop: "1px solid var(--erp-border)", paddingTop: 12, display: "flex", justifyContent: "flex-end", gap: 24 }}>
             {tasa > 0 && <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total USD</div><div style={{ fontSize: 16, fontWeight: 800, color: "var(--erp-primary)", fontVariantNumeric: "tabular-nums" }}>${totalUsd.toFixed(2)}</div></div>}
-            <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total Bs</div><div style={{ fontSize: 18, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {totalBs.toFixed(2)}</div></div>
+            <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total Bs</div><div style={{ fontSize: 18, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {fmtBs(totalBs)}</div></div>
           </div>
         </div>
 
@@ -888,7 +891,7 @@ export default function FacturaCompraForm({
 
         {/* Totals */}
         <div style={{ padding: "12px 20px", background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 20, flexWrap: "wrap" }}>
-          {tasa > 0 && <div style={{ fontSize: 12, color: "var(--erp-text-3)" }}>Tasa BCV: <strong style={{ color: "var(--erp-text-2)" }}>Bs {tasa.toFixed(2)} / $</strong></div>}
+          {tasa > 0 && <div style={{ fontSize: 12, color: "var(--erp-text-3)" }}>Tasa BCV: <strong style={{ color: "var(--erp-text-2)" }}>Bs {fmtBs(tasa)} / $</strong></div>}
           {tasa > 0 && <div style={{ width: 1, height: 30, background: "var(--erp-border)" }} />}
           {tasa > 0 && (
             <div style={{ textAlign: "right" }}>
@@ -899,7 +902,7 @@ export default function FacturaCompraForm({
           <div style={{ width: 1, height: 30, background: "var(--erp-border)" }} />
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Bs</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {totalBs.toFixed(2)}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {fmtBs(totalBs)}</div>
           </div>
           {imagenBase64 && (
             <div style={{ width: "100%", textAlign: "right", fontSize: 11, color: "#B45309" }}>
