@@ -124,6 +124,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const montoPagadoUsd = Number(body.montoPagadoUsd) || 0;
       const tasaDia = Number(body.tasaDia) || 0;
       const restanteBs = montoBsActual - montoPagadoBs;
+      const montoUsdActual = Number(cp.monto_usd);
+      const restanteUsd = Math.max(0, montoUsdActual - montoPagadoUsd);
 
       if (restanteBs < 0) {
         await client.query("ROLLBACK");
@@ -138,6 +140,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2::numeric,
+             monto_usd = $7::numeric,
              monto_original_bs = COALESCE(monto_original_bs, $3::numeric),
              monto_original_usd = COALESCE(monto_original_usd, $4::numeric),
              monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $5::numeric,
@@ -145,7 +148,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
              fecha_vencimiento = COALESCE($6::date, fecha_vencimiento),
              pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
            WHERE id = $1`,
-          [id, restanteBs, montoOriginalBs, montoOriginalUsdGuardar, montoPagadoBs, nuevaFechVenc]
+          [id, restanteBs, montoOriginalBs, montoOriginalUsdGuardar, montoPagadoBs, nuevaFechVenc, restanteUsd]
         );
         await client.query("RELEASE SAVEPOINT sp_update");
       } catch {
@@ -154,13 +157,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2::numeric,
+             monto_usd = $6::numeric,
              monto_original_bs = COALESCE(monto_original_bs, $3::numeric),
              monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $4::numeric,
              estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
              fecha_vencimiento = COALESCE($5::date, fecha_vencimiento),
              pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
            WHERE id = $1`,
-          [id, restanteBs, montoOriginalBs, montoPagadoBs, nuevaFechVenc]
+          [id, restanteBs, montoOriginalBs, montoPagadoBs, nuevaFechVenc, restanteUsd]
         );
       }
 
@@ -215,13 +219,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       // Leer saldo actual
       const cpRead = await client.query(
-        `SELECT monto_bs, monto_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`,
+        `SELECT monto_bs, monto_usd, monto_original_bs, monto_original_usd FROM cuentas_pagar WHERE id = $1 FOR UPDATE`,
         [id]
       );
       const cp = cpRead.rows[0];
-      const nuevoMontoBs = Number(cp.monto_bs) + abonoMontoBs;
-      const nuevoMontoUsd = Number(cp.monto_usd) + abonoMontoUsd;
-      const originalBs = cp.monto_original_bs ? Number(cp.monto_original_bs) : nuevoMontoBs;
+      const originalBs = cp.monto_original_bs ? Number(cp.monto_original_bs) : Number(cp.monto_bs) + abonoMontoBs;
+      const originalUsd = cp.monto_original_usd ? Number(cp.monto_original_usd) : Number(cp.monto_usd) + abonoMontoUsd;
+      // Nunca superar el monto original
+      const nuevoMontoBs = Math.min(Number(cp.monto_bs) + abonoMontoBs, originalBs);
+      const nuevoMontoUsd = Math.min(Number(cp.monto_usd) + abonoMontoUsd, originalUsd);
 
       // Determinar nuevo estado
       const nuevoEstado = nuevoMontoBs >= originalBs * 0.999 ? "PENDIENTE" : "PENDIENTE_PARCIAL";
