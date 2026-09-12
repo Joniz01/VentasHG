@@ -42,6 +42,7 @@ type RawItem = {
   monto_usd?: string;
   monto_original_bs?: string;
   estado_raw?: string;
+  cuotas?: string; // JSONB serializado, solo en cpRows
 };
 
 export async function GET(request: NextRequest) {
@@ -257,14 +258,40 @@ export async function GET(request: NextRequest) {
         cp.numero_factura                                                          AS referencia,
         cp.monto_original_bs                                                       AS monto_original_bs,
         cp.estado                                                                  AS estado_raw,
-        cp.monto_usd::text                                                         AS monto_usd
+        cp.monto_usd::text                                                         AS monto_usd,
+        cp.cuotas::text                                                            AS cuotas
       FROM cuentas_pagar cp
       WHERE cp.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
         AND cp.fecha_vencimiento BETWEEN $1 AND $2
       ORDER BY cp.fecha_vencimiento ASC`,
       [desde, hasta]
     );
-    cpRows = r.rows;
+    // Expandir filas con cuotas programadas: reemplazar la fila padre por N filas (una por cuota)
+    const expanded: RawItem[] = [];
+    for (const row of r.rows) {
+      if (row.cuotas) {
+        try {
+          const cuotas = JSON.parse(row.cuotas) as { fecha: string; montoUsd: number }[];
+          if (cuotas.length > 0) {
+            const tasaDia = Number(row.tasa_dia);
+            cuotas.forEach((c, i) => {
+              const label = cuotas.length > 1 ? ` · Cuota ${i + 1}/${cuotas.length}` : "";
+              expanded.push({
+                ...row,
+                id: `${row.id}_C${i}`,
+                descripcion: row.descripcion + label,
+                fecha_vencimiento: c.fecha,
+                monto_usd: String(c.montoUsd),
+                monto_bs: String(tasaDia > 0 ? (c.montoUsd * tasaDia).toFixed(2) : c.montoUsd),
+              });
+            });
+            continue;
+          }
+        } catch { /* JSON inválido — usar fila tal cual */ }
+      }
+      expanded.push(row);
+    }
+    cpRows = expanded;
   } catch { /* tabla cuentas_pagar aún no existe */ }
 
   // ── Query compras a crédito con vencimiento ───────────────────────────────
