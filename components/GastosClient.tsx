@@ -1531,8 +1531,9 @@ export default function GastosClient() {
                     </button>
                     <button type="button" onClick={async () => {
                         if (!confirm(`¿Eliminar "${rec.proveedor}"? Los pagos ya registrados no se verán afectados.`)) return;
-                        const r = await fetch(`/api/gastos/${rec.id}`, { method: "DELETE" });
+                        const r = await fetch(`/api/cuentas-pagar/${rec.id}`, { method: "DELETE" });
                         if (r.ok) fetchRecurrentes();
+                        else { const d = await r.json().catch(() => ({})); alert(d.error ?? "No se pudo eliminar"); }
                       }}
                       style={{ padding: "5px 10px", borderRadius: 8, background: "transparent",
                         color: "#EF4444", border: "1px solid #EF4444", fontSize: 13, cursor: "pointer" }}>
