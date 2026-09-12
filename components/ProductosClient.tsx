@@ -68,6 +68,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [formEmpaques, setFormEmpaques] = useState<EmpaqueFormRow[]>([]);
+  const [tasaHoy, setTasaHoy] = useState<number | null>(null);
   const [grupoDropdownId, setGrupoDropdownId] = useState<number | null>(null);
 
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
@@ -155,6 +156,11 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     loadProductos();
     loadCategorias();
     loadKpis();
+    if (grupoFiltro === "MATERIA_PRIMA") {
+      fetch("/api/tasa-bcv").then(r => r.ok ? r.json() : null).then(d => {
+        if (d?.tasa) setTasaHoy(Number(d.tasa));
+      }).catch(() => {});
+    }
   }, []);
 
   function startEdit(producto: Producto) {
@@ -866,25 +872,41 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                 <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Nombre</th>
                 <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Categoría</th>
                 <th className="prod-col-tipo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Tipo</th>
-                <th className="prod-col-grupo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Grupo</th>
-                <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Costo</th>
-                <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Precio</th>
-                <th className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Margen</th>
-                <th className="prod-col-extras" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Extras</th>
+                {grupoFiltro !== "MATERIA_PRIMA" && (
+                  <th className="prod-col-grupo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Grupo</th>
+                )}
+                <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
+                  {grupoFiltro === "MATERIA_PRIMA" ? "Costo $" : "Costo"}
+                </th>
+                {grupoFiltro === "MATERIA_PRIMA" ? (
+                  <>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
+                      Costo Bs {tasaHoy ? <span style={{ fontSize: 10, fontWeight: 400 }}>(tasa {tasaHoy.toFixed(2)})</span> : ""}
+                    </th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Stock</th>
+                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Unidad</th>
+                  </>
+                ) : (
+                  <>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Precio</th>
+                    <th className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Margen</th>
+                    <th className="prod-col-extras" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Extras</th>
+                  </>
+                )}
                 <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                  <td colSpan={grupoFiltro === "MATERIA_PRIMA" ? 7 : 8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
                     Cargando...
                   </td>
                 </tr>
               )}
               {!loading && productos.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                  <td colSpan={grupoFiltro === "MATERIA_PRIMA" ? 7 : 8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
                     No hay productos registrados
                   </td>
                 </tr>
@@ -902,7 +924,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                       </td>
                       <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.categoriaNombre ?? "-"}</td>
                       <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
-                      <td className="prod-col-grupo" style={{ padding: "8px 12px" }}>
+                      {grupoFiltro !== "MATERIA_PRIMA" && <td className="prod-col-grupo" style={{ padding: "8px 12px" }}>
                         <div style={{ position: "relative", display: "inline-block" }}>
                           <button
                             type="button"
@@ -948,19 +970,31 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                             </div>
                           )}
                         </div>
-                      </td>
+                      </td>}
                       <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toFixed(2)}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
-                      <td className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {(producto.precioVenta - producto.costo).toFixed(2)}
-                      </td>
-                      <td className="prod-col-extras" style={{ padding: "8px 12px", color: "var(--erp-text-2)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {producto.extras.length === 0
-                          ? "-"
-                          : producto.extras
-                              .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
-                              .join(", ")}
-                      </td>
+                      {grupoFiltro === "MATERIA_PRIMA" ? (
+                        <>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                            {tasaHoy ? (producto.costo * tasaHoy).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                          </td>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.stockActual}</td>
+                          <td style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.unidadMedida ?? "—"}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
+                          <td className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                            {(producto.precioVenta - producto.costo).toFixed(2)}
+                          </td>
+                          <td className="prod-col-extras" style={{ padding: "8px 12px", color: "var(--erp-text-2)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {producto.extras.length === 0
+                              ? "-"
+                              : producto.extras
+                                  .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
+                                  .join(", ")}
+                          </td>
+                        </>
+                      )}
                       <td style={{ padding: "8px 12px", textAlign: "right" }}>
                         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 4 }}>
                           <button
@@ -1000,14 +1034,14 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                     </tr>
                     {expandedId === producto.id && expandedPanel === "extras" && (
                       <tr>
-                        <td colSpan={8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
+                        <td colSpan={grupoFiltro === "MATERIA_PRIMA" ? 7 : 8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
                           <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
                         </td>
                       </tr>
                     )}
                     {expandedId === producto.id && expandedPanel === "componentes" && (
                       <tr>
-                        <td colSpan={8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
+                        <td colSpan={grupoFiltro === "MATERIA_PRIMA" ? 7 : 8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
                           <ProductoComponentesPanel
                             producto={producto}
                             productos={productos}
