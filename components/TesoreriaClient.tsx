@@ -252,14 +252,15 @@ export default function TesoreriaClient() {
     const dow = hoy.getDay();
     const lunesOffset = dow === 0 ? -6 : 1 - dow;
     let desde = "", hasta = "";
+    const localStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     if (historialPeriodo === "esta_semana") {
       const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset);
       const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
-      desde = lunes.toISOString().slice(0, 10); hasta = dom.toISOString().slice(0, 10);
+      desde = localStr(lunes); hasta = localStr(dom);
     } else if (historialPeriodo === "sem_anterior") {
       const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset - 7);
       const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
-      desde = lunes.toISOString().slice(0, 10); hasta = dom.toISOString().slice(0, 10);
+      desde = localStr(lunes); hasta = localStr(dom);
     } else {
       desde = historialDesde; hasta = historialHasta;
     }

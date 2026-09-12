@@ -394,6 +394,9 @@ export default function CuentasPagarClient() {
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
 
+  function localDateStr(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
   function getRangoFecha(filtro: FiltroFecha): { desde: string; hasta: string } | null {
     const hoy = new Date();
     const dow = hoy.getDay(); // 0=dom
@@ -401,12 +404,12 @@ export default function CuentasPagarClient() {
     if (filtro === "esta_semana") {
       const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset);
       const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
-      return { desde: lunes.toISOString().slice(0, 10), hasta: domingo.toISOString().slice(0, 10) };
+      return { desde: localDateStr(lunes), hasta: localDateStr(domingo) };
     }
     if (filtro === "prox_semana") {
       const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset + 7);
       const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
-      return { desde: lunes.toISOString().slice(0, 10), hasta: domingo.toISOString().slice(0, 10) };
+      return { desde: localDateStr(lunes), hasta: localDateStr(domingo) };
     }
     if (filtro === "rango") {
       return { desde: filtroDesde, hasta: filtroHasta };
