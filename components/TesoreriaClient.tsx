@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type ItemEstado = "vencido" | "pendiente" | "pendiente_parcial" | "programado" | "pagado";
-type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor";
+type ItemTipo = "nomina" | "gasto" | "gasto-fijo" | "proveedor" | "compra";
 
 type PagoHistorial = {
   id: number;
@@ -30,12 +30,12 @@ type ObligacionItem = {
   historialPagos?: PagoHistorial[];
 };
 
-type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes" | "proveedores";
+type DrillKey = "proxima_semana" | "vencido" | "esta_semana" | "prox_4sem" | "pagado_mes" | "proveedores" | "compras";
 
 type Semana = { lunes: string; domingo: string; totalUsd: number; tipos: string[] };
 
 type PlanificacionData = {
-  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number; proveedoresUsd?: number };
+  kpis: { vencidoUsd: number; estaSemanaUsd: number; proximaSemanaUsd: number; esteMesUsd: number; pagadoUsd: number; proveedoresUsd?: number; comprasUsd?: number };
   items: ObligacionItem[];
   semanas: Semana[];
   hoy: string;
@@ -73,7 +73,8 @@ const TIPO_COLOR: Record<ItemTipo, { text: string; bg: string; label: string }> 
   nomina:      { text: "#7C3AED", bg: "#EDE9FE", label: "Nómina" },
   "gasto-fijo":{ text: "#0891B2", bg: "#E0F2FE", label: "Gasto Fijo" },
   gasto:       { text: "#B45309", bg: "#FEF3C7", label: "Gasto" },
-  proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Proveedor" },
+  proveedor:   { text: "#374151", bg: "#F3F4F6", label: "Servicio" },
+  compra:      { text: "#0F5FA6", bg: "#DDEEFF", label: "Compra Créd." },
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -104,10 +105,10 @@ function KpiCard({
         outline: "none",
       }}
     >
-      <p style={{ fontSize: 11, fontWeight: 600, color: active ? color : "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
         {label} {active && "↓"}
       </p>
-      <p style={{ fontSize: 22, fontWeight: 800, color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
+      <p style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>
         ${USD(valueUsd)}
       </p>
       {subLabel && (
@@ -122,6 +123,7 @@ function sourceUrl(item: ObligacionItem): string | null {
   if (item.id.startsWith("CP")) return "/cuentas-por-pagar";
   if (item.id.startsWith("NE")) return "/nomina"; // estimated → config nomina
   if (item.id.startsWith("N")) return "/nomina";  // period → gestión pagos
+  if (item.id.startsWith("COMP")) return "/compras";
   return null;
 }
 
@@ -182,9 +184,34 @@ export default function TesoreriaClient() {
   const router = useRouter();
   const [data, setData] = useState<PlanificacionData | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [filtro, setFiltro] = useState<FiltroEstado>("todos");
+  const [filtro, setFiltro] = useState<FiltroEstado>("pendiente");
   const [pagando, setPagando] = useState<string | null>(null);
   const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
+  // Filtros de categoría (set vacío = "Todos"; al seleccionar específicos se acumulan)
+  type CatKey = "nomina" | "servicios" | "compras" | "gastos";
+  const [catFiltros, setCatFiltros] = useState<Set<CatKey>>(new Set());
+  function toggleTodos() { setCatFiltros(new Set()); }
+  function toggleCat(cat: CatKey) {
+    setCatFiltros(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) { next.delete(cat); }
+      else next.add(cat);
+      return next;
+    });
+  }
+  function catTipos(cat: CatKey): ItemTipo[] {
+    if (cat === "nomina")    return ["nomina"];
+    if (cat === "servicios") return ["proveedor"];
+    if (cat === "compras")   return ["compra"];
+    if (cat === "gastos")    return ["gasto", "gasto-fijo"];
+    return [];
+  }
+  const isTodos = catFiltros.size === 0;
+  const activeTipos = new Set<ItemTipo>(
+    isTodos
+      ? (["nomina", "servicios", "compras", "gastos"] as CatKey[]).flatMap(c => catTipos(c))
+      : (["nomina", "servicios", "compras", "gastos"] as CatKey[]).flatMap(c => catFiltros.has(c) ? catTipos(c) : [])
+  );
 
   // Pago modal state
   const [pagoModal, setPagoModal] = useState<PagoModal | null>(null);
@@ -195,6 +222,18 @@ export default function TesoreriaClient() {
   const [expandedHistorial, setExpandedHistorial] = useState<string | null>(null);
   const [eliminandoConfirm, setEliminandoConfirm] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
+
+  // ── Historial tab ──────────────────────────────────────────────────────────
+  type TabKey = "planificacion" | "historial";
+  type HistorialPeriodo = "esta_semana" | "sem_anterior" | "rango";
+  type HistorialItem = { id: string; tipo: string; descripcion: string; fechaPago: string; montoBs: number; montoUsd: number; referencia: string | null };
+
+  const [tab, setTab] = useState<TabKey>("planificacion");
+  const [historialPeriodo, setHistorialPeriodo] = useState<HistorialPeriodo>("esta_semana");
+  const [historialDesde, setHistorialDesde] = useState("");
+  const [historialHasta, setHistorialHasta] = useState("");
+  const [historialItems, setHistorialItems] = useState<HistorialItem[]>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -207,6 +246,35 @@ export default function TesoreriaClient() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  const cargarHistorial = useCallback(async () => {
+    const hoy = new Date();
+    const dow = hoy.getDay();
+    const lunesOffset = dow === 0 ? -6 : 1 - dow;
+    let desde = "", hasta = "";
+    const localStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (historialPeriodo === "esta_semana") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset);
+      const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+      desde = localStr(lunes); hasta = localStr(dom);
+    } else if (historialPeriodo === "sem_anterior") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + lunesOffset - 7);
+      const dom = new Date(lunes); dom.setDate(lunes.getDate() + 6);
+      desde = localStr(lunes); hasta = localStr(dom);
+    } else {
+      desde = historialDesde; hasta = historialHasta;
+    }
+    if (!desde || !hasta) return;
+    setCargandoHistorial(true);
+    try {
+      const p = new URLSearchParams({ historial: "true", desde, hasta });
+      const res = await fetch(`/api/tesoreria/planificacion?${p}`);
+      if (res.ok) { const j = await res.json(); setHistorialItems(j.items ?? []); }
+    } finally { setCargandoHistorial(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historialPeriodo, historialDesde, historialHasta]);
+
+  useEffect(() => { if (tab === "historial") cargarHistorial(); }, [tab, cargarHistorial]);
 
   const abrirPagoModal = (item: ObligacionItem) => {
     if (!item.id.startsWith("G")) return;
@@ -281,10 +349,12 @@ export default function TesoreriaClient() {
     if (drillKey === "prox_4sem") return items.filter((i) => i.estado !== "vencido" && i.estado !== "pagado");
     if (drillKey === "pagado_mes") return items.filter((i) => i.estado === "pagado");
     if (drillKey === "proveedores") return items.filter((i) => i.id.startsWith("CP"));
+    if (drillKey === "compras") return items.filter((i) => i.id.startsWith("COMP"));
     return null;
   })();
 
-  const displayItems = drillItems ?? items;
+  // Aplicar filtro de categoría
+  const displayItems = (drillItems ?? items).filter((i) => activeTipos.has(i.tipo));
 
   // Filter + counts — pendiente_parcial cuenta junto a pendiente
   const counts: Record<FiltroEstado, number> = {
@@ -307,6 +377,7 @@ export default function TesoreriaClient() {
     prox_4sem: "Próximas 4 Semanas",
     pagado_mes: "Pagado · Mes",
     proveedores: "Proveedores",
+    compras: "Compras a Crédito",
   };
 
   // Timeline scale
@@ -360,17 +431,183 @@ export default function TesoreriaClient() {
         }
       `}</style>
 
+      {/* ── Tabs ───────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--erp-border)" }}>
+        {([["planificacion", "📅 Planificación de Pagos"], ["historial", "🗂 Historial de Pagos"]] as [TabKey, string][]).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            style={{
+              padding: "9px 18px", fontSize: 13, fontWeight: tab === key ? 700 : 500,
+              cursor: "pointer", border: "none", background: "transparent",
+              color: tab === key ? "#059669" : "var(--erp-text-2)",
+              borderBottom: tab === key ? "2px solid #059669" : "2px solid transparent",
+              marginBottom: -2, transition: "all 0.15s",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Historial Panel ────────────────────────────────────────────── */}
+      {tab === "historial" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Period filter */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Período:</span>
+            {([["esta_semana", "Esta Semana"], ["sem_anterior", "Sem. Anterior"], ["rango", "Rango"]] as [HistorialPeriodo, string][]).map(([key, label]) => {
+              const active = historialPeriodo === key;
+              return (
+                <button key={key} onClick={() => setHistorialPeriodo(key)}
+                  style={{
+                    padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: active ? 700 : 500,
+                    cursor: "pointer", border: `1.5px solid ${active ? "#059669" : "var(--erp-border)"}`,
+                    background: active ? "#059669" : "transparent",
+                    color: active ? "#fff" : "var(--erp-text-2)", transition: "all 0.15s",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {historialPeriodo === "rango" && (
+              <>
+                <input type="date" value={historialDesde} onChange={e => setHistorialDesde(e.target.value)}
+                  style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12, border: "1.5px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} />
+                <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>hasta</span>
+                <input type="date" value={historialHasta} onChange={e => setHistorialHasta(e.target.value)}
+                  style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12, border: "1.5px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} />
+                <button onClick={cargarHistorial}
+                  style={{ padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1.5px solid #059669", background: "#059669", color: "#fff" }}>
+                  Buscar
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Historial table */}
+          <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 110px 90px 110px", padding: "10px 16px", borderBottom: "1px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))" }}>
+              {["Descripción", "Tipo", "Fecha Pago", "USD", "Bs."].map((h, i) => (
+                <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
+              ))}
+            </div>
+            {cargandoHistorial ? (
+              <div style={{ padding: "2rem", textAlign: "center", fontSize: 13, color: "var(--erp-text-3)" }}>Cargando historial…</div>
+            ) : historialItems.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", fontSize: 13, color: "var(--erp-text-3)" }}>No hay pagos registrados en este período.</div>
+            ) : (
+              <>
+                {historialItems.map((item, idx) => {
+                  const tc = TIPO_COLOR[item.tipo as ItemTipo] ?? TIPO_COLOR.proveedor;
+                  return (
+                    <div key={item.id}
+                      style={{
+                        display: "grid", gridTemplateColumns: "1fr 100px 110px 90px 110px",
+                        padding: "10px 16px", alignItems: "center",
+                        borderBottom: idx < historialItems.length - 1 ? "1px solid var(--erp-border)" : "none",
+                        background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
+                        borderLeft: "3px solid #059669",
+                      }}
+                    >
+                      <div>
+                        <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--erp-text)", margin: 0 }}>{item.descripcion}</p>
+                        {item.referencia && <p style={{ fontSize: 11, color: "var(--erp-text-3)", margin: 0 }}>Ref: {item.referencia}</p>}
+                      </div>
+                      <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", background: tc.bg, color: tc.text }}>
+                        {tc.label.toUpperCase()}
+                      </span>
+                      <span style={{ fontSize: 12, color: "#059669", fontWeight: 600 }}>✓ {fmtFecha(item.fechaPago)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>${USD(item.montoUsd)}</span>
+                      <span style={{ fontSize: 11, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>Bs.{BS(item.montoBs)}</span>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, padding: "10px 16px", borderTop: "1px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))" }}>
+                  <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{historialItems.length} pago{historialItems.length !== 1 ? "s" : ""}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
+                    Total: ${USD(historialItems.reduce((s, i) => s + i.montoUsd, 0))}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Planificación ──────────────────────────────────────────────── */}
+      {tab === "planificacion" && (<>
+
       {/* ── KPI Strip ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-        <KpiCard label="Próxima Semana" valueUsd={kpis.proximaSemanaUsd} color="#7C3AED" subLabel={`${fmtFecha(lunesProx)} – ${fmtFecha(domingoProx)}`} active={drillKey === "proxima_semana"} onClick={() => setDrillKey(drillKey === "proxima_semana" ? null : "proxima_semana")} />
-        <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" active={drillKey === "vencido"}       onClick={() => setDrillKey(drillKey === "vencido" ? null : "vencido")} />
-        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} active={drillKey === "esta_semana"} onClick={() => setDrillKey(drillKey === "esta_semana" ? null : "esta_semana")} />
-        <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" active={drillKey === "prox_4sem"}     onClick={() => setDrillKey(drillKey === "prox_4sem" ? null : "prox_4sem")} />
-        <KpiCard label="Pagado · Mes" valueUsd={kpis.pagadoUsd}    color="#059669" subLabel="Mes en curso" active={drillKey === "pagado_mes"}    onClick={() => setDrillKey(drillKey === "pagado_mes" ? null : "pagado_mes")} />
+        <KpiCard label="Próxima Semana" valueUsd={kpis.proximaSemanaUsd} color="#7C3AED" subLabel={`${fmtFecha(lunesProx)} – ${fmtFecha(domingoProx)}`} active={drillKey === "proxima_semana"} onClick={() => { setDrillKey(drillKey === "proxima_semana" ? null : "proxima_semana"); setFiltro("todos"); }} />
+        <KpiCard label="Vencido"     valueUsd={kpis.vencidoUsd}    color="#EF4444" subLabel="Requiere atención inmediata" active={drillKey === "vencido"}       onClick={() => { setDrillKey(drillKey === "vencido" ? null : "vencido"); setFiltro("todos"); }} />
+        <KpiCard label="Esta Semana" valueUsd={kpis.estaSemanaUsd} color="#D97706" subLabel={`Semana en curso · ${fmtFecha(semLunes)} – ${fmtFecha(domingo)}`} active={drillKey === "esta_semana"} onClick={() => { setDrillKey(drillKey === "esta_semana" ? null : "esta_semana"); setFiltro("todos"); }} />
+        <KpiCard label="Próx. 4 Sem" valueUsd={kpis.esteMesUsd}   color="#2563EB" subLabel="Ventana de planificación" active={drillKey === "prox_4sem"}     onClick={() => { setDrillKey(drillKey === "prox_4sem" ? null : "prox_4sem"); setFiltro("todos"); }} />
         {(kpis.proveedoresUsd ?? 0) > 0 && (
-          <KpiCard label="Proveedores" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores" active={drillKey === "proveedores"} onClick={() => setDrillKey(drillKey === "proveedores" ? null : "proveedores")} />
+          <KpiCard label="Proveedores y Servicios" valueUsd={kpis.proveedoresUsd ?? 0} color="#374151" subLabel="CxP pendiente con proveedores y servicios" active={drillKey === "proveedores"} onClick={() => { setDrillKey(drillKey === "proveedores" ? null : "proveedores"); setFiltro("todos"); }} />
+        )}
+        {(kpis.comprasUsd ?? 0) > 0 && (
+          <KpiCard label="Compras a Crédito" valueUsd={kpis.comprasUsd ?? 0} color="#0F5FA6" subLabel="Compras con vencimiento próximo" active={drillKey === "compras"} onClick={() => { setDrillKey(drillKey === "compras" ? null : "compras"); setFiltro("todos"); }} />
         )}
       </div>
+
+      {/* ── Filtros de Categoría ───────────────────────────────────────── */}
+      {(() => {
+        const CATS: { key: CatKey; label: string; emoji: string; color: string; border: string }[] = [
+          { key: "nomina",    label: "Nómina",    emoji: "💰", color: "#059669", border: "#059669" },
+          { key: "servicios", label: "Servicios", emoji: "🔧", color: "#B45309", border: "#B45309" },
+          { key: "compras",   label: "Compras",   emoji: "🛒", color: "#0F5FA6", border: "#0F5FA6" },
+          { key: "gastos",    label: "Gastos",    emoji: "📋", color: "#6B7280", border: "#6B7280" },
+        ];
+        return (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginRight: 2 }}>Categoría:</span>
+            {/* Todos */}
+            <button
+              onClick={toggleTodos}
+              style={{
+                padding: "5px 14px",
+                borderRadius: 99,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                border: `1.5px solid ${isTodos ? "#374151" : "#D1D5DB"}`,
+                background: isTodos ? "#374151" : "transparent",
+                color: isTodos ? "#fff" : "var(--erp-text-2)",
+                transition: "all 0.15s",
+              }}
+            >
+              Todos
+            </button>
+            {CATS.map(({ key, label, emoji, color, border }) => {
+              const active = catFiltros.has(key);
+              return (
+                <button
+                  key={key}
+                  onClick={() => toggleCat(key)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 99,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: `1.5px solid ${active ? border : "#D1D5DB"}`,
+                    background: active ? color : "transparent",
+                    color: active ? "#fff" : "var(--erp-text-2)",
+                    transition: "all 0.15s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <span>{emoji}</span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ── Drill breadcrumb ───────────────────────────────────────────── */}
       {drillKey && (
@@ -415,10 +652,10 @@ export default function TesoreriaClient() {
             const color = isThisWeek ? "#D97706" : "#2563EB";
             const barHeight = Math.max(40, (sem.totalUsd / maxSem) * 120);
             const TIPO_LABELS: Record<string, string> = {
-              nomina: "NÓM", "gasto-fijo": "FIJO", gasto: "GASTO", proveedor: "PROV",
+              nomina: "NÓM", "gasto-fijo": "FIJO", gasto: "GASTO", proveedor: "PROV", compra: "COMP",
             };
             const TIPO_BG: Record<string, string> = {
-              nomina: "#7C3AED", "gasto-fijo": "#0891B2", gasto: "#B45309", proveedor: "#374151",
+              nomina: "#7C3AED", "gasto-fijo": "#0891B2", gasto: "#B45309", proveedor: "#374151", compra: "#0F5FA6",
             };
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -710,6 +947,8 @@ export default function TesoreriaClient() {
           </div>
         )}
       </div>
+
+      </>)} {/* fin planificacion */}
 
       {/* ── Modal de pago ──────────────────────────────────────────────── */}
       {pagoModal && (

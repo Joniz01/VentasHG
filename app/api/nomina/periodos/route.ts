@@ -5,6 +5,7 @@ import { generarPeriodoNomina } from "@/lib/nomina-periodos";
 import type { FrecuenciaIncidencia } from "@/lib/types";
 
 function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unknown>[], incidenciasRows: Record<string, unknown>[]) {
+  const tasaDia = Number(row.tasa_dia);
   const pagos = pagosRows
     .filter((p) => p.periodo_id === row.id)
     .map((p) => {
@@ -18,18 +19,21 @@ function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unkn
           montoBs: Number(i.monto_bs),
         }));
       const salarioBaseBs = Number(p.salario_base_bs);
+      // Usar salario en USD directamente para evitar distorsión por conversión de tasa
+      const salarioBaseUsd = Number(p.salario_base_usd) || (tasaDia > 0 ? salarioBaseBs / tasaDia : 0);
       const totalIncidenciasBs = incidencias.reduce((s, i) => s + i.montoBs, 0);
       const totalBs = salarioBaseBs + totalIncidenciasBs;
-      const tasaDia = Number(row.tasa_dia);
+      const incidenciasUsd = tasaDia > 0 ? totalIncidenciasBs / tasaDia : 0;
       return {
         id: p.id,
         empleadoId: p.empleado_id,
         empleadoNombre: p.empleado_nombre,
         salarioBaseBs,
+        salarioBaseUsd,
         incidencias,
         totalIncidenciasBs,
         totalBs,
-        totalUsd: tasaDia > 0 ? totalBs / tasaDia : 0,
+        totalUsd: salarioBaseUsd + incidenciasUsd,
         estado: p.estado,
         pagadoAt: p.pagado_at,
       };
@@ -83,7 +87,8 @@ export async function GET(request: NextRequest) {
 
     const pagosResult = periodoIds.length
       ? await pool.query(
-          `SELECT np.*, CONCAT(e.nombre, CASE WHEN e.apellido IS NOT NULL THEN ' ' || e.apellido ELSE '' END) AS empleado_nombre
+          `SELECT np.*, e.salario_base_usd,
+                  CONCAT(e.nombre, CASE WHEN e.apellido IS NOT NULL THEN ' ' || e.apellido ELSE '' END) AS empleado_nombre
            FROM nomina_pagos np
            JOIN empleados e ON e.id = np.empleado_id
            WHERE np.periodo_id = ANY($1::int[])

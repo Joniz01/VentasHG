@@ -42,11 +42,87 @@ type RawItem = {
   monto_usd?: string;
   monto_original_bs?: string;
   estado_raw?: string;
+  cuotas?: string; // JSONB serializado, solo en cpRows
 };
 
 export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  // ── Modo historial: devuelve items pagados en un rango de fechas ───────────
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("historial") === "true") {
+    const hDesde = searchParams.get("desde");
+    const hHasta = searchParams.get("hasta");
+    if (!hDesde || !hHasta) return NextResponse.json({ items: [] });
+    try {
+      // ── Pagos de cuentas_pagar ──────────────────────────────────────────────
+      const cpResult = await pool.query(`
+        SELECT
+          'CP' || cp.id AS id,
+          CASE WHEN cp.tipo = 'compra' THEN 'compra' ELSE 'proveedor' END AS tipo,
+          cp.proveedor
+            || COALESCE(' · Fact. ' || cp.numero_factura, '')
+            || ' · Emis. ' || TO_CHAR(cp.fecha_emision, 'DD/MM/YYYY') AS descripcion,
+          cp.pagado_at::date AS fecha_pago,
+          COALESCE(cp.monto_original_bs, cp.monto_bs) AS monto_bs,
+          cp.tasa_dia,
+          cp.numero_factura AS referencia,
+          COALESCE(cp.monto_original_usd, cp.monto_usd) AS monto_usd
+        FROM cuentas_pagar cp
+        WHERE cp.estado = 'PAGADO'
+          AND cp.pagado_at::date BETWEEN $1 AND $2
+        ORDER BY cp.pagado_at DESC
+      `, [hDesde, hHasta]);
+
+      // ── Pagos de nómina (períodos completamente pagados en el rango) ────────
+      type NominaHistRow = { id: string; descripcion: string; fecha_pago: unknown; monto_bs: string; monto_usd: string };
+      let nominaItems: NominaHistRow[] = [];
+      try {
+        const nResult = await pool.query<NominaHistRow>(`
+          SELECT
+            'N' || pn.id AS id,
+            n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
+            MAX(np.pagado_at)::date AS fecha_pago,
+            COALESCE(SUM(e.salario_base_usd * pn.tasa_dia), 0) AS monto_bs,
+            COALESCE(SUM(e.salario_base_usd), 0) AS monto_usd
+          FROM periodos_nomina pn
+          JOIN nominas n ON n.id = pn.nomina_id
+          JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PAGADO'
+          JOIN empleados e ON e.id = np.empleado_id
+          GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
+          HAVING MAX(np.pagado_at)::date BETWEEN $1 AND $2
+          ORDER BY MAX(np.pagado_at) DESC
+        `, [hDesde, hHasta]);
+        nominaItems = nResult.rows;
+      } catch { /* tabla nomina_pagos no disponible — skip */ }
+
+      const cpItems = cpResult.rows.map(r => ({
+        id: String(r.id),
+        tipo: String(r.tipo),
+        descripcion: String(r.descripcion),
+        fechaPago: toDate(r.fecha_pago),
+        montoBs: Number(r.monto_bs),
+        montoUsd: Number(r.monto_usd),
+        referencia: r.referencia ? String(r.referencia) : null,
+      }));
+      const nomItems = nominaItems.map(r => ({
+        id: String(r.id),
+        tipo: "nomina",
+        descripcion: String(r.descripcion),
+        fechaPago: toDate(r.fecha_pago),
+        montoBs: Number(r.monto_bs),
+        montoUsd: Number(r.monto_usd),
+        referencia: null,
+      }));
+      const allItems = [...cpItems, ...nomItems].sort((a, b) => b.fechaPago.localeCompare(a.fechaPago));
+
+      return NextResponse.json({ items: allItems });
+    } catch (err) {
+      const detalle = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: "Error al obtener historial", detalle }, { status: 500 });
+    }
+  }
 
   const hoy = hoyCaracas();
   const lunes = lunesDeHoy(hoy);
@@ -174,23 +250,84 @@ export async function GET(request: NextRequest) {
     const r = await pool.query<RawItem>(
       `SELECT
         'CP' || cp.id                                                              AS id,
-        'proveedor'                                                                AS tipo,
+        CASE WHEN cp.tipo = 'compra' THEN 'compra' ELSE 'proveedor' END           AS tipo,
         cp.proveedor || COALESCE(' · Fact. ' || cp.numero_factura, '')            AS descripcion,
-        LEAST(cp.fecha_emision, cp.fecha_vencimiento)                              AS fecha_vencimiento,
+        cp.fecha_vencimiento                                                       AS fecha_vencimiento,
         cp.monto_bs                                                                AS monto_bs,
         cp.tasa_dia                                                                AS tasa_dia,
         cp.numero_factura                                                          AS referencia,
         cp.monto_original_bs                                                       AS monto_original_bs,
         cp.estado                                                                  AS estado_raw,
-        cp.monto_usd::text                                                         AS monto_usd
+        cp.monto_usd::text                                                         AS monto_usd,
+        cp.cuotas::text                                                            AS cuotas
       FROM cuentas_pagar cp
       WHERE cp.estado IN ('PENDIENTE', 'PENDIENTE_PARCIAL')
-        AND LEAST(cp.fecha_emision, cp.fecha_vencimiento) BETWEEN $1 AND $2
-      ORDER BY LEAST(cp.fecha_emision, cp.fecha_vencimiento) ASC`,
+        AND cp.fecha_vencimiento BETWEEN $1 AND $2
+      ORDER BY cp.fecha_vencimiento ASC`,
       [desde, hasta]
     );
-    cpRows = r.rows;
+    // Expandir filas con cuotas programadas: reemplazar la fila padre por N filas (una por cuota)
+    const expanded: RawItem[] = [];
+    for (const row of r.rows) {
+      if (row.cuotas) {
+        try {
+          const cuotas = JSON.parse(row.cuotas) as { fecha: string; montoUsd: number }[];
+          if (cuotas.length > 0) {
+            const tasaDia = Number(row.tasa_dia);
+            cuotas.forEach((c, i) => {
+              const label = cuotas.length > 1 ? ` · Cuota ${i + 1}/${cuotas.length}` : "";
+              expanded.push({
+                ...row,
+                id: `${row.id}_C${i}`,
+                descripcion: row.descripcion + label,
+                fecha_vencimiento: c.fecha,
+                monto_usd: String(c.montoUsd),
+                monto_bs: String(tasaDia > 0 ? (c.montoUsd * tasaDia).toFixed(2) : c.montoUsd),
+              });
+            });
+            continue;
+          }
+        } catch { /* JSON inválido — usar fila tal cual */ }
+      }
+      expanded.push(row);
+    }
+    cpRows = expanded;
   } catch { /* tabla cuentas_pagar aún no existe */ }
+
+  // ── Query compras a crédito con vencimiento ───────────────────────────────
+  let compraRows: RawItem[] = [];
+  try {
+    const r = await pool.query<RawItem>(
+      `SELECT
+        'COMP' || c.id                                                             AS id,
+        'compra'                                                                   AS tipo,
+        c.proveedor_nombre || COALESCE(' · Fact. ' || c.numero_factura, '')       AS descripcion,
+        c.fecha_vencimiento_pago                                                   AS fecha_vencimiento,
+        COALESCE(SUM(ci.subtotal_bs), 0)                                           AS monto_bs,
+        c.tasa_dia                                                                 AS tasa_dia,
+        c.numero_factura                                                            AS referencia,
+        NULL::text                                                                  AS monto_original_bs,
+        NULL::text                                                                  AS estado_raw,
+        CASE WHEN c.tasa_dia > 0
+          THEN (COALESCE(SUM(ci.subtotal_bs), 0) / c.tasa_dia)::text
+          ELSE '0'
+        END                                                                         AS monto_usd
+       FROM compras c
+       LEFT JOIN compra_items ci ON ci.compra_id = c.id
+       WHERE c.estado = 'ACTIVA'
+         AND c.fecha_vencimiento_pago IS NOT NULL
+         AND c.fecha_vencimiento_pago BETWEEN $1 AND $2
+         AND NOT EXISTS (
+           SELECT 1 FROM cuentas_pagar cp2
+           WHERE cp2.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id::text)
+             AND cp2.tipo = 'compra'
+         )
+       GROUP BY c.id, c.proveedor_nombre, c.numero_factura, c.tasa_dia, c.fecha_vencimiento_pago
+       ORDER BY c.fecha_vencimiento_pago ASC`,
+      [desde, hasta]
+    );
+    compraRows = r.rows;
+  } catch { /* compras o compra_items no disponible */ }
 
   // ── Nóminas automáticas estimadas (sin período generado) dentro de la ventana ─
   type EstimadaRow = { nomina_id: number; nombre: string; fecha_pago: string; total_usd: number };
@@ -218,8 +355,8 @@ export async function GET(request: NextRequest) {
              SELECT 1 FROM periodos_nomina pn
              WHERE pn.nomina_id = f.nomina_id
                AND pn.fecha_hasta BETWEEN
-                 date_trunc('week', f.fecha_pago)::date
-                 AND (date_trunc('week', f.fecha_pago) + INTERVAL '6 days')::date
+                 (f.fecha_pago - INTERVAL '6 days')::date
+                 AND f.fecha_pago
            )
        )
        SELECT f.nomina_id, f.nombre, f.fecha_pago,
@@ -355,7 +492,7 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Merge + enrich ─────────────────────────────────────────────────────────
-  const allRaw = [...nominaRows, ...gastoRows, ...cpRows];
+  const allRaw = [...nominaRows, ...gastoRows, ...cpRows, ...compraRows];
 
   type Item = {
     id: string; tipo: string; descripcion: string;
@@ -369,7 +506,7 @@ export async function GET(request: NextRequest) {
     const montoBs = Number(r.monto_bs);
     const tasaDia = Number(r.tasa_dia);
     const montoUsd = r.monto_usd != null ? Number(r.monto_usd) : (tasaDia > 0 ? montoBs / tasaDia : 0);
-    const montoOriginalUsd = r.monto_original_bs != null && tasaDia > 0 ? Number(r.monto_original_bs) / tasaDia : undefined;
+    const montoOriginalUsd = undefined;
     const fechaVenc = toDate(r.fecha_vencimiento);
     const esParcial = r.estado_raw === "PENDIENTE_PARCIAL";
     let estado: Item["estado"];
@@ -413,6 +550,7 @@ export async function GET(request: NextRequest) {
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const proveedoresUsd = cpRows.reduce((s, r) => s + (r.monto_usd != null ? Number(r.monto_usd) : (Number(r.tasa_dia) > 0 ? Number(r.monto_bs) / Number(r.tasa_dia) : 0)), 0);
+  const comprasUsd = compraRows.reduce((s, r) => s + (r.monto_usd != null ? Number(r.monto_usd) : (Number(r.tasa_dia) > 0 ? Number(r.monto_bs) / Number(r.tasa_dia) : 0)), 0);
 
   const vencidoUsd = items.filter((i) => i.estado === "vencido").reduce((s, i) => s + i.montoUsd, 0);
   const estaSemanaUsd = items
@@ -439,7 +577,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
-    kpis: { vencidoUsd, estaSemanaUsd, proximaSemanaUsd, esteMesUsd, pagadoUsd, proveedoresUsd },
+    kpis: { vencidoUsd, estaSemanaUsd, proximaSemanaUsd, esteMesUsd, pagadoUsd, proveedoresUsd, comprasUsd },
     items,
     semanas,
     hoy,
@@ -549,12 +687,11 @@ export async function PATCH(request: NextRequest) {
         const pagadoBs = tasaDia > 0 ? montoPagadoUsd * tasaDia : montoPagadoUsd;
         const restanteBs = Number(row.monto_bs) - pagadoBs;
         if (restanteBs <= 0.01) {
-          await client.query(`UPDATE cuentas_pagar SET estado='PAGADO', pagado_at=NOW(), monto_bs=0, monto_usd=0, monto_original_bs=$2 WHERE id=$1`, [cpId, montoOriginalBs]);
+          await client.query(`UPDATE cuentas_pagar SET estado='PAGADO', pagado_at=NOW(), monto_bs=0, monto_original_bs=$2 WHERE id=$1`, [cpId, montoOriginalBs]);
         } else {
-          const restanteUsd = tasaDia > 0 ? restanteBs / tasaDia : 0;
           await client.query(
-            `UPDATE cuentas_pagar SET estado='PENDIENTE_PARCIAL', fecha_vencimiento=COALESCE($2::date, fecha_vencimiento), monto_bs=$3, monto_usd=$4, monto_original_bs=$5 WHERE id=$1`,
-            [cpId, nuevaFecha || null, restanteBs, restanteUsd, montoOriginalBs]
+            `UPDATE cuentas_pagar SET estado='PENDIENTE_PARCIAL', fecha_vencimiento=COALESCE($2::date, fecha_vencimiento), monto_bs=$3, monto_original_bs=$4 WHERE id=$1`,
+            [cpId, nuevaFecha || null, restanteBs, montoOriginalBs]
           );
         }
         await client.query(`INSERT INTO cuentas_pagar_historial (cuenta_pagar_id, fecha_pago, monto_bs, monto_usd, tasa_dia, nota) VALUES ($1, NOW()::date, $2, $3, $4, $5)`, [cpId, pagadoBs, montoPagadoUsd, tasaDia, nota ?? null]);

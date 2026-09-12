@@ -3,16 +3,16 @@ import { requirePermiso } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductosPage() {
+export default async function InsumosPage() {
   await requirePermiso("productos");
 
   return (
     <div>
-      <h2 className="mb-4 text-lg font-semibold">Productos de Venta</h2>
+      <h2 className="mb-4 text-lg font-semibold">Insumos / Materia Prima</h2>
       <p className="mb-4 text-sm text-zinc-600">
-        Catálogo de productos disponibles para la venta en el POS y facturas.
+        Insumos y materias primas utilizadas en la producción y fabricación.
       </p>
-      <ProductosClient grupoFiltro="PARA_LA_VENTA" />
+      <ProductosClient grupoFiltro="MATERIA_PRIMA" />
     </div>
   );
 }

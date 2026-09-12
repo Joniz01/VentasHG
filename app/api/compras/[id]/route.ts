@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       cResult = await pool.query(
         `SELECT c.id, c.fecha, c.proveedor_id, c.proveedor_nombre, c.proveedor_rif,
                 c.numero_factura, c.observaciones, c.tasa_dia, c.estado, c.anulada_at,
-                c.imagen_factura, c.created_at, c.tipo_uso
+                c.imagen_factura, c.created_at, c.tipo_uso, c.fecha_vencimiento_pago
          FROM compras c WHERE c.id = $1`, [id]
       );
     } catch {
@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       cResult = await pool.query(
         `SELECT c.id, c.fecha, c.proveedor_id, c.proveedor_nombre, c.proveedor_rif,
                 c.numero_factura, c.observaciones, c.tasa_dia, c.estado, c.anulada_at,
-                c.imagen_factura, c.created_at
+                c.imagen_factura, c.created_at, c.fecha_vencimiento_pago
          FROM compras c WHERE c.id = $1`, [id]
       );
     }
@@ -47,6 +47,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       numeroFactura: c.numero_factura, observaciones: c.observaciones,
       tasaDia: Number(c.tasa_dia), estado: c.estado, anuladaAt: c.anulada_at,
       tipoUso: c.tipo_uso ?? "VENTA",
+      fechaVencimientoPago: c.fecha_vencimiento_pago
+        ? (c.fecha_vencimiento_pago instanceof Date
+            ? c.fecha_vencimiento_pago.toISOString().slice(0, 10)
+            : String(c.fecha_vencimiento_pago).slice(0, 10))
+        : null,
       imagenFactura: c.imagen_factura, createdAt: c.created_at,
       items: iResult.rows.map((r) => ({
         id: r.id, productoId: r.producto_id, nombreProducto: r.nombre_producto,

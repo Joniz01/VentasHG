@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import React, { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ESTADOS_GASTO,
   ESTADO_GASTO_LABELS,
@@ -81,6 +81,11 @@ function formatMonto(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const fmtBs = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const parseBs = (val: string) =>
+  Number(String(val).replace(/\./g, "").replace(",", ".")) || 0;
+
 const ESTADO_COLORES: Record<EstadoGasto, string> = {
   PENDIENTE: "#a16207",
   APROBADO: "#1d4ed8",
@@ -92,7 +97,7 @@ function StatTile({ label, value, valueBs, color }: { label: string; value: numb
     <div className="rounded-xl border px-4 py-3 flex-1 min-w-[160px]" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
       <div className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>{label}</div>
       <div className="text-xl font-extrabold" style={{ color }}>${formatMonto(value)}</div>
-      <div className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs{formatMonto(valueBs)}</div>
+      <div className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs{fmtBs(valueBs)}</div>
     </div>
   );
 }
@@ -169,9 +174,10 @@ export default function GastosClient() {
         if (data?.tasa) {
           setForm((p) => ({ ...p, tasaDia: String(data.tasa) }));
           setTasaBcvFecha(data.fecha);
-        } else if (form.fecha !== today()) {
-          // No hay tasa guardada para esa fecha pasada: dejar vacío en vez de
-          // arrastrar la tasa de otra fecha (ej. la del día actual).
+        } else if (form.fecha === today()) {
+          handleConsultarTasaBcv();
+        } else {
+          // No hay tasa guardada para esa fecha pasada: dejar vacío
           setForm((p) => ({ ...p, tasaDia: "" }));
           setTasaBcvFecha(null);
         }
@@ -182,6 +188,122 @@ export default function GastosClient() {
   const [recordatorios, setRecordatorios] = useState<
     { id: number; proveedor: string; tipoGastoNombre: string; montoBs: number; proximoRecordatorio: string }[]
   >([]);
+
+  // ── Tab state ────────────────────────────────────────────────────────────
+  type TabKey = "ocasionales" | "recurrentes";
+  const [tab, setTab] = useState<TabKey>("ocasionales");
+
+  type CuotaProgramada = { fecha: string; montoUsd: string };
+  type CxPRecurrente = {
+    id: number; proveedor: string; frecuencia: string | null;
+    fechaVencimiento: string; montoUsd: number; montoBs: number; estado: string;
+    descripcion: string | null;
+    cuotas: { fecha: string; montoUsd: number }[] | null;
+  };
+  const EMPTY_REC_FORM = { proveedor: "", montoUsd: "", frecuencia: "MENSUAL", fechaVencimiento: "", descripcion: "" };
+  const [recurrentes, setRecurrentes] = useState<CxPRecurrente[]>([]);
+  const [loadingRec, setLoadingRec] = useState(false);
+  const [showFormRec, setShowFormRec] = useState(false);
+  const [recForm, setRecForm] = useState({ ...EMPTY_REC_FORM });
+  const [savingRec, setSavingRec] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+
+  const [editRecModal, setEditRecModal] = useState<CxPRecurrente | null>(null);
+  const [editRecForm, setEditRecForm] = useState({ ...EMPTY_REC_FORM });
+  const [savingEditRec, setSavingEditRec] = useState(false);
+  const [editRecError, setEditRecError] = useState<string | null>(null);
+  const [cuotasOpen, setCuotasOpen] = useState(false);
+  const [cuotasForm, setCuotasForm] = useState<CuotaProgramada[]>([]);
+
+  function abrirEditarRec(rec: CxPRecurrente) {
+    setEditRecModal(rec);
+    setEditRecForm({
+      proveedor: rec.proveedor,
+      montoUsd: rec.montoUsd > 0 ? String(rec.montoUsd) : "",
+      frecuencia: rec.frecuencia ?? "MENSUAL",
+      fechaVencimiento: rec.fechaVencimiento,
+      descripcion: rec.descripcion ?? "",
+    });
+    setEditRecError(null);
+    const existing = rec.cuotas ?? [];
+    setCuotasForm(existing.map(c => ({ fecha: c.fecha, montoUsd: String(c.montoUsd) })));
+    setCuotasOpen(existing.length > 0);
+  }
+
+  async function handleGuardarEditRec() {
+    if (!editRecModal) return;
+    if (!editRecForm.proveedor.trim()) { setEditRecError("El nombre es obligatorio"); return; }
+    if (!editRecForm.fechaVencimiento) { setEditRecError("Indica el vencimiento"); return; }
+    setEditRecError(null);
+    setSavingEditRec(true);
+    try {
+      const montoUsd = Number(editRecForm.montoUsd) || 0;
+      const cuotasValidas = cuotasForm.filter(c => c.fecha && Number(c.montoUsd) > 0)
+        .map(c => ({ fecha: c.fecha, montoUsd: Number(c.montoUsd) }));
+      const r = await fetch(`/api/cuentas-pagar/${editRecModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proveedor: editRecForm.proveedor.trim(),
+          descripcion: editRecForm.descripcion?.trim() || undefined,
+          fechaVencimiento: editRecForm.fechaVencimiento,
+          montoUsd,
+          montoBs: montoUsd,
+          cuotas: cuotasValidas.length > 0 ? cuotasValidas : null,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setEditRecError(j.error ?? "Error al guardar"); return; }
+      setEditRecModal(null);
+      fetchRecurrentes();
+    } catch { setEditRecError("Error de conexión"); }
+    finally { setSavingEditRec(false); }
+  }
+
+  async function fetchRecurrentes() {
+    setLoadingRec(true);
+    try {
+      const r = await fetch("/api/cuentas-pagar?recurrente=true&pageSize=100&estado=PENDIENTE");
+      const data = await r.json();
+      setRecurrentes(data.items ?? []);
+    } catch { /* ignore */ }
+    finally { setLoadingRec(false); }
+  }
+
+  useEffect(() => {
+    if (tab === "recurrentes") fetchRecurrentes();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  async function handleGuardarRec() {
+    if (!recForm.proveedor.trim()) { setRecError("El nombre del servicio es obligatorio"); return; }
+    if (!recForm.fechaVencimiento) { setRecError("Indica el próximo vencimiento"); return; }
+    setRecError(null);
+    setSavingRec(true);
+    try {
+      const r = await fetch("/api/cuentas-pagar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proveedor: recForm.proveedor.trim(),
+          descripcion: recForm.descripcion?.trim() || undefined,
+          fechaEmision: today(),
+          fechaVencimiento: recForm.fechaVencimiento,
+          montoUsd: Number(recForm.montoUsd) || 0,
+          montoBs: 0,
+          recurrente: true,
+          frecuencia: recForm.frecuencia,
+          estado: "PENDIENTE",
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setRecError(j.error ?? "Error al guardar"); return; }
+      setShowFormRec(false);
+      setRecForm({ ...EMPTY_REC_FORM });
+      fetchRecurrentes();
+    } catch { setRecError("Error de conexión"); }
+    finally { setSavingRec(false); }
+  }
 
   const totalFacturaBs = facturaItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
   const totalFacturaUsd = Number(form.tasaDia) > 0 ? totalFacturaBs / Number(form.tasaDia) : 0;
@@ -196,12 +318,13 @@ export default function GastosClient() {
   // Recalcula Monto $ cuando cambia la tasa o el Monto Bs (ej. tasa cargada después de
   // escribir el monto, o Monto Bs completado por el OCR / la tabla de ítems)
   useEffect(() => {
+    if (montoUsdFocus) return; // no sobreescribir mientras el usuario está escribiendo
     const tasa = Number(form.tasaDia) || 0;
-    const bs = Number(form.montoBs) || 0;
+    const bs = parseBs(form.montoBs);
     const usd = tasa > 0 && bs > 0 ? (bs / tasa).toFixed(2) : "";
     setForm((p) => (p.montoUsd === usd ? p : { ...p, montoUsd: usd }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.tasaDia, form.montoBs]);
+  }, [form.tasaDia, form.montoBs, montoUsdFocus]);
 
   function updateFacturaItem(key: number, cambios: Partial<FacturaItem>) {
     setFacturaItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...cambios } : it)));
@@ -427,16 +550,16 @@ export default function GastosClient() {
   }
 
   function updateMontoBs(bsVal: string) {
-    const bs = Number(bsVal) || 0;
+    const bs = parseBs(bsVal);
     const tasa = Number(form.tasaDia) || 0;
     const usd = tasa > 0 ? (bs / tasa).toFixed(2) : "";
     setForm((p) => ({ ...p, montoBs: bsVal, montoUsd: usd }));
   }
 
   function updateMontoUsd(usdVal: string) {
-    const usd = Number(usdVal) || 0;
+    const usd = Number(usdVal.replace(/,/g, "")) || 0;
     const tasa = Number(form.tasaDia) || 0;
-    const bs = tasa > 0 ? (usd * tasa).toFixed(2) : "";
+    const bs = tasa > 0 ? fmtBs(usd * tasa) : "";
     setForm((p) => ({ ...p, montoUsd: usdVal, montoBs: bs }));
   }
 
@@ -487,7 +610,7 @@ export default function GastosClient() {
         locacionId: form.locacionId ? Number(form.locacionId) : null,
         centroCostoId: form.centroCostoId ? Number(form.centroCostoId) : null,
         fecha: form.fecha,
-        montoBs: Number(form.montoBs) || 0,
+        montoBs: parseBs(form.montoBs),
         tasaDia: Number(form.tasaDia) || 0,
         estado: form.estado,
         recurrente: form.recurrente,
@@ -580,8 +703,34 @@ export default function GastosClient() {
 
   const totalPaginas = Math.max(1, Math.ceil(total / pageSize));
 
+  const recInputStyle: React.CSSProperties = {
+    padding: "7px 10px", borderRadius: 8, border: "1px solid var(--erp-border)",
+    background: "var(--erp-bg)", color: "var(--erp-text)", fontSize: 13, width: "100%",
+  };
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Tab nav */}
+      <div style={{ display: "flex", borderBottom: "1.5px solid var(--erp-border)", gap: 0, marginBottom: -4 }}>
+        {([
+          { key: "ocasionales" as TabKey, label: "Ocasionales" },
+          { key: "recurrentes" as TabKey, label: "🔁 Recurrentes" },
+        ]).map(t => (
+          <button key={t.key} type="button"
+            onClick={() => { setTab(t.key); setShowForm(false); setShowFormRec(false); }}
+            style={{
+              padding: "8px 18px", fontSize: 13, fontWeight: 700, background: "transparent",
+              border: "none", cursor: "pointer",
+              borderBottom: tab === t.key ? "2.5px solid var(--erp-accent)" : "2.5px solid transparent",
+              color: tab === t.key ? "var(--erp-accent)" : "var(--erp-text-3)",
+              marginBottom: -1.5,
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "ocasionales" && (<>
       {recordatorios.length > 0 && (
         <div
           className="rounded-lg border p-3 flex flex-col gap-2"
@@ -821,7 +970,7 @@ export default function GastosClient() {
                   )}
                   <div className="text-right">
                     <div className="text-[10px] font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Total Bs</div>
-                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{formatMonto(totalFacturaBs)}</div>
+                    <div className="text-base font-extrabold" style={{ color: "var(--erp-text)" }}>Bs{fmtBs(totalFacturaBs)}</div>
                   </div>
                 </div>
               )}
@@ -1028,10 +1177,10 @@ export default function GastosClient() {
                 inputMode="decimal"
                 className="rounded-md border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--erp-border)" }}
-                value={montoBsFocus ? form.montoBs : (form.montoBs ? formatMonto(Number(form.montoBs) || 0) : "")}
+                value={montoBsFocus ? form.montoBs : (form.montoBs ? fmtBs(parseBs(form.montoBs)) : "")}
                 onFocus={() => setMontoBsFocus(true)}
                 onBlur={() => setMontoBsFocus(false)}
-                onChange={(e) => updateMontoBs(e.target.value.replace(/,/g, ""))}
+                onChange={(e) => updateMontoBs(e.target.value)}
                 required
               />
             </div>
@@ -1221,7 +1370,7 @@ export default function GastosClient() {
                     <td className="px-3 py-2">{g.tipo === "FIJO" ? "Fijo" : "Ocasional"}</td>
                     <td className="px-3 py-2">{g.descripcion}</td>
                     <td className="px-3 py-2">{g.locacionNombre ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">Bs{formatMonto(g.montoBs)}</td>
+                    <td className="px-3 py-2 text-right">Bs{fmtBs(g.montoBs)}</td>
                     <td className="px-3 py-2 text-right">${formatMonto(g.montoUsd)}</td>
                     <td className="px-3 py-2">
                       <select
@@ -1278,6 +1427,303 @@ export default function GastosClient() {
           </div>
         </div>
       )}
+
+      </>)}
+
+      {tab === "recurrentes" && (
+        <div className="flex flex-col gap-4">
+          {/* Callout */}
+          <div style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#2563EB", lineHeight: 1.5 }}>
+            Los servicios configurados aquí aparecen en <strong>Cuentas por Pagar</strong> cuando entran en período de pago.
+            Los gastos ocasionales pendientes de pago también se consolidan allí.
+          </div>
+
+          {/* Botón + form */}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            {!showFormRec && (
+              <button type="button" onClick={() => setShowFormRec(true)}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+                style={{ background: "var(--erp-accent)" }}>
+                + Configurar Servicio
+              </button>
+            )}
+          </div>
+
+          {showFormRec && (
+            <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: "var(--erp-text)" }}>Nuevo Servicio Recurrente</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Nombre / Proveedor *</label>
+                  <input type="text" value={recForm.proveedor} placeholder="Ej: Alquiler local"
+                    onChange={e => setRecForm(p => ({ ...p, proveedor: e.target.value }))} style={recInputStyle} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Frecuencia</label>
+                  <select value={recForm.frecuencia} onChange={e => setRecForm(p => ({ ...p, frecuencia: e.target.value }))} style={recInputStyle}>
+                    {FRECUENCIAS_RECURRENCIA.map(f => (
+                      <option key={f} value={f}>{FRECUENCIA_RECURRENCIA_LABELS[f]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Monto USD (referencia)</label>
+                  <input type="number" min="0" step="0.01" value={recForm.montoUsd} placeholder="0.00"
+                    onChange={e => setRecForm(p => ({ ...p, montoUsd: e.target.value }))} style={recInputStyle} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Próximo vencimiento *</label>
+                  <input type="date" value={recForm.fechaVencimiento}
+                    onChange={e => setRecForm(p => ({ ...p, fechaVencimiento: e.target.value }))} style={recInputStyle} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
+                  <input type="text" value={recForm.descripcion} placeholder="Opcional"
+                    onChange={e => setRecForm(p => ({ ...p, descripcion: e.target.value }))} style={recInputStyle} />
+                </div>
+              </div>
+              {recError && <p style={{ color: "#EF4444", fontSize: 12, marginBottom: 8 }}>{recError}</p>}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button type="button" onClick={() => { setShowFormRec(false); setRecForm({ ...EMPTY_REC_FORM }); setRecError(null); }}
+                  style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", cursor: "pointer", fontSize: 13, color: "var(--erp-text)" }}>
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleGuardarRec} disabled={savingRec}
+                  style={{ padding: "7px 14px", borderRadius: 8, background: "var(--erp-accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                  {savingRec ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Lista */}
+          {loadingRec ? (
+            <p style={{ textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>Cargando…</p>
+          ) : recurrentes.length === 0 ? (
+            <div style={{ textAlign: "center", color: "var(--erp-text-3)", fontSize: 13, padding: "2.5rem 0",
+              border: "1px dashed var(--erp-border)", borderRadius: 12 }}>
+              Sin servicios recurrentes configurados.<br />
+              <span style={{ fontSize: 12 }}>Usa el botón + Configurar Servicio para agregar uno.</span>
+            </div>
+          ) : (
+            <div style={{ border: "1px solid var(--erp-border)", borderRadius: 12, overflow: "hidden", background: "var(--erp-surface)" }}>
+              {recurrentes.map((rec, idx) => (
+                <div key={rec.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+                  borderBottom: idx < recurrentes.length - 1 ? "1px solid var(--erp-border)" : undefined }}>
+                  <div style={{ fontSize: 18, width: 36, height: 36, borderRadius: 8, background: "var(--erp-bg)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🔧</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "var(--erp-text)" }}>{rec.proveedor}</div>
+                    {rec.descripcion && <div style={{ fontSize: 11, color: "var(--erp-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.descripcion}</div>}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, background: "var(--erp-bg)", border: "1px solid var(--erp-border)",
+                        borderRadius: 4, padding: "1px 6px", color: "var(--erp-text-3)", textTransform: "uppercase" }}>
+                        {FRECUENCIA_RECURRENCIA_LABELS[rec.frecuencia as FrecuenciaRecurrencia] ?? rec.frecuencia}
+                      </span>
+                      {rec.fechaVencimiento && (
+                        <span style={{ fontSize: 11, fontWeight: 600,
+                          color: rec.fechaVencimiento < today() ? "#EF4444" : "#D97706" }}>
+                          Vence {formatFechaCorta(rec.fechaVencimiento)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <div style={{ textAlign: "right" }}>
+                      {rec.montoUsd > 0 && (
+                        <div style={{ fontWeight: 800, fontSize: 14, color: "var(--erp-text)" }}>
+                          ${formatMonto(rec.montoUsd)}
+                        </div>
+                      )}
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700,
+                        background: rec.estado === "PENDIENTE" ? "rgba(217,119,6,0.10)" : "rgba(5,150,105,0.10)",
+                        color: rec.estado === "PENDIENTE" ? "#D97706" : "#059669" }}>
+                        {rec.estado === "PENDIENTE" ? "En período" : rec.estado}
+                      </span>
+                    </div>
+                    <button type="button" onClick={() => abrirEditarRec(rec)}
+                      style={{ padding: "5px 10px", borderRadius: 8, background: "transparent",
+                        color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", fontSize: 13, cursor: "pointer" }}>
+                      ✏️
+                    </button>
+                    <button type="button" onClick={async () => {
+                        if (!confirm(`¿Eliminar "${rec.proveedor}"? Los pagos ya registrados no se verán afectados.`)) return;
+                        const r = await fetch(`/api/cuentas-pagar/${rec.id}`, { method: "DELETE" });
+                        if (r.ok) fetchRecurrentes();
+                        else { const d = await r.json().catch(() => ({})); alert(d.error ?? "No se pudo eliminar"); }
+                      }}
+                      style={{ padding: "5px 10px", borderRadius: 8, background: "transparent",
+                        color: "#EF4444", border: "1px solid #EF4444", fontSize: 13, cursor: "pointer" }}>
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal Editar Recurrente */}
+      {editRecModal && (() => {
+        const montoTotal = Number(editRecForm.montoUsd) || 0;
+        const sumCuotas = cuotasForm.reduce((s, c) => s + (Number(c.montoUsd) || 0), 0);
+        const pct = montoTotal > 0 ? Math.min(100, (sumCuotas / montoTotal) * 100) : 0;
+        const barColor = sumCuotas > montoTotal ? "#EF4444" : Math.abs(sumCuotas - montoTotal) < 0.01 ? "#059669" : "#D97706";
+        const inputStyle: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "var(--erp-bg)", color: "var(--erp-text)", fontSize: 14, boxSizing: "border-box" };
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)", overflowY: "auto" }}
+            onClick={() => setEditRecModal(null)}>
+            <div style={{ background: "var(--erp-surface)", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}
+              onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div style={{ padding: "18px 24px 14px", borderBottom: "1px solid var(--erp-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "var(--erp-text)" }}>Editar Servicio Recurrente</h3>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "rgba(217,119,6,0.1)", color: "#D97706", border: "1px solid rgba(217,119,6,0.25)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {editRecForm.frecuencia === "SEMANAL" ? "Semanal" : editRecForm.frecuencia === "QUINCENAL" ? "Quincenal" : "Mensual"}
+                </span>
+              </div>
+
+              <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+                {editRecError && <p style={{ margin: 0, color: "#EF4444", fontSize: 13 }}>{editRecError}</p>}
+
+                {/* Base fields */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {([
+                    { label: "Proveedor / Servicio", key: "proveedor", type: "text" },
+                    { label: "Monto Total USD", key: "montoUsd", type: "number" },
+                  ] as { label: string; key: keyof typeof editRecForm; type: string }[]).map(({ label, key, type }) => (
+                    <div key={key}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</label>
+                      <input type={type} value={String(editRecForm[key] ?? "")}
+                        onChange={e => setEditRecForm(p => ({ ...p, [key]: e.target.value }))}
+                        style={inputStyle} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Próximo vencimiento</label>
+                    <input type="date" value={editRecForm.fechaVencimiento}
+                      onChange={e => setEditRecForm(p => ({ ...p, fechaVencimiento: e.target.value }))}
+                      style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Frecuencia</label>
+                    <select value={editRecForm.frecuencia} onChange={e => setEditRecForm(p => ({ ...p, frecuencia: e.target.value }))}
+                      style={inputStyle}>
+                      <option value="MENSUAL">Mensual</option>
+                      <option value="QUINCENAL">Quincenal</option>
+                      <option value="SEMANAL">Semanal</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Descripción</label>
+                  <input type="text" value={editRecForm.descripcion ?? ""}
+                    onChange={e => setEditRecForm(p => ({ ...p, descripcion: e.target.value }))}
+                    style={inputStyle} />
+                </div>
+
+                {/* Cuotas section */}
+                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 10, overflow: "hidden", background: "var(--erp-bg)" }}>
+                  {/* Toggle header */}
+                  <button type="button"
+                    onClick={() => {
+                      const next = !cuotasOpen;
+                      setCuotasOpen(next);
+                      if (next && cuotasForm.length === 0) setCuotasForm([{ fecha: "", montoUsd: "" }, { fecha: "", montoUsd: "" }]);
+                    }}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", background: "transparent", border: "none", cursor: "pointer", borderBottom: cuotasOpen ? "1px solid var(--erp-border)" : "none" }}>
+                    <div style={{ textAlign: "left" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)" }}>Plan de pagos parciales</div>
+                      <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>Fracciona el monto en fechas clave del período</div>
+                    </div>
+                    <svg style={{ flexShrink: 0, transform: cuotasOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", color: "var(--erp-text-3)" }} width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+
+                  {cuotasOpen && (
+                    <div>
+                      {/* Column headers */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 32px", gap: 6, padding: "5px 14px 3px", borderBottom: "1px solid var(--erp-border)" }}>
+                        {["Fecha de vencimiento", "Monto USD", ""].map((h, i) => (
+                          <span key={i} style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--erp-text-3)" }}>{h}</span>
+                        ))}
+                      </div>
+
+                      {/* Cuota rows */}
+                      {cuotasForm.map((c, i) => (
+                        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 120px 32px", gap: 6, alignItems: "center", padding: "8px 14px", borderBottom: i < cuotasForm.length - 1 ? "1px solid var(--erp-border)" : "none" }}>
+                          <input type="date" value={c.fecha}
+                            onChange={e => setCuotasForm(prev => prev.map((r, j) => j === i ? { ...r, fecha: e.target.value } : r))}
+                            style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
+                          <div style={{ position: "relative" }}>
+                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--erp-text-3)", fontSize: 12, pointerEvents: "none" }}>$</span>
+                            <input type="number" value={c.montoUsd} placeholder="0.00" min="0" step="0.01"
+                              onChange={e => setCuotasForm(prev => prev.map((r, j) => j === i ? { ...r, montoUsd: e.target.value } : r))}
+                              style={{ ...inputStyle, padding: "6px 8px 6px 18px", fontSize: 12 }} />
+                          </div>
+                          <button type="button" onClick={() => setCuotasForm(prev => prev.filter((_, j) => j !== i))}
+                            style={{ width: 32, height: 32, borderRadius: 7, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text-3)", cursor: "pointer", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            ×
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Footer */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", borderTop: cuotasForm.length > 0 ? "1px solid var(--erp-border)" : "none" }}>
+                        <button type="button" onClick={() => setCuotasForm(prev => [...prev, { fecha: "", montoUsd: "" }])}
+                          style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#D97706", background: "none", border: "none", cursor: "pointer", padding: "3px 0" }}>
+                          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="currentColor"/><path d="M7 4v6M4 7h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                          Agregar cuota
+                        </button>
+                        <div style={{ flex: 1 }} />
+                        {montoTotal > 0 && (
+                          <div style={{ minWidth: 150 }}>
+                            <div style={{ height: 4, borderRadius: 99, background: "var(--erp-border)", overflow: "hidden", marginBottom: 4 }}>
+                              <div style={{ height: "100%", borderRadius: 99, background: barColor, width: `${pct}%`, transition: "width 0.2s" }} />
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: barColor, fontVariantNumeric: "tabular-nums" }}>${sumCuotas.toFixed(2)} asignado</span>
+                              <span style={{ fontSize: 10, color: "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>de ${montoTotal.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info note */}
+                <div style={{ display: "flex", gap: 8, background: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.22)", borderRadius: 8, padding: "8px 11px" }}>
+                  <span style={{ flexShrink: 0, color: "#D97706", fontSize: 13 }}>ℹ</span>
+                  <span style={{ fontSize: 11.5, color: "var(--erp-text-2)", lineHeight: 1.5 }}>
+                    Las cuotas son <strong>recordatorios de vencimiento</strong>, no restricciones. Al pagar puedes abonar cualquier monto — parcial o total — contra el saldo pendiente de la cuenta.
+                  </span>
+                </div>
+
+                <p style={{ fontSize: 11, color: "var(--erp-text-3)", margin: 0 }}>
+                  Solo actualiza el período actual. El siguiente período se generará con estos valores al pagar.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: "14px 24px", borderTop: "1px solid var(--erp-border)", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button type="button" onClick={() => setEditRecModal(null)}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--erp-border)", background: "transparent", color: "var(--erp-text-2)", fontSize: 14, cursor: "pointer" }}>
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleGuardarEditRec} disabled={savingEditRec}
+                  style={{ padding: "8px 20px", borderRadius: 8, background: "#D97706", color: "#fff", border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                  {savingEditRec ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {imagenAmpliada && (
         <div

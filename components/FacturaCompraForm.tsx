@@ -2,6 +2,12 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 
+const fmtBs = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const parseBs = (val: string) =>
+  Number(String(val).replace(/\./g, "").replace(",", ".")) || 0;
+
 type RifTipo = "J" | "V" | "E" | "G";
 
 type ItemLine = {
@@ -159,15 +165,17 @@ export default function FacturaCompraForm({
     (async () => {
       try {
         const res = await fetch(`/api/tasa-bcv?fecha=${fecha}`);
-        if (!res.ok) return;
+        if (!res.ok) { handleConsultarTasaBcv(); return; }
         const data = await res.json();
         if (data?.tasa) { setTasaDia(String(data.tasa)); setTasaBcvFecha(data.fecha); }
-      } catch { /* ignore */ }
+        else { handleConsultarTasaBcv(); }
+      } catch { handleConsultarTasaBcv(); }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fecha, isEdit]);
 
   const tasa = Number(tasaDia) || 0;
-  const totalBs = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+  const totalBs = items.reduce((s, it) => s + (Number(it.cantidad) || 0) * parseBs(it.costoUnitBs), 0);
   const totalUsd = tasa > 0 ? totalBs / tasa : 0;
 
   // Ref con la tasa más reciente, para usar en callbacks con closures obsoletas (ej. OCR)
@@ -182,7 +190,7 @@ export default function FacturaCompraForm({
     setItems(prev => {
       let changed = false;
       const next = prev.map(it => {
-        const bs = Number(it.costoUnitBs) || 0;
+        const bs = parseBs(it.costoUnitBs);
         if (bs <= 0) return it;
         const usd = (bs / tasa).toFixed(4);
         if (it.costoUnitUsd === usd) return it;
@@ -250,14 +258,14 @@ export default function FacturaCompraForm({
   }
 
   function updateItemBs(key: number, bsVal: string) {
-    const bs = Number(bsVal) || 0;
+    const bs = parseBs(bsVal);
     const usd = tasa > 0 ? String((bs / tasa).toFixed(4)) : "";
     setItems(prev => prev.map(it => it.key === key ? { ...it, costoUnitBs: bsVal, costoUnitUsd: usd } : it));
   }
 
   function updateItemUsd(key: number, usdVal: string) {
     const usd = Number(usdVal) || 0;
-    const bs = tasa > 0 ? String((usd * tasa).toFixed(2)) : "";
+    const bs = tasa > 0 ? fmtBs(usd * tasa) : "";
     setItems(prev => prev.map(it => it.key === key ? { ...it, costoUnitUsd: usdVal, costoUnitBs: bs } : it));
   }
 
@@ -437,7 +445,7 @@ export default function FacturaCompraForm({
         try {
           const rp = await fetch("/api/productos", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ nombre: it.nombreProducto.trim(), costo: Number(it.costoUnitBs) || 0, precioVenta: it.paraVenta ? Number(it.costoUnitBs) || 0 : 0, categoriaId, tipoProducto: "NORMAL", stockActual: 0, stockMinimo: 0 }),
+            body: JSON.stringify({ nombre: it.nombreProducto.trim(), costo: parseBs(it.costoUnitBs), precioVenta: it.paraVenta ? parseBs(it.costoUnitBs) : 0, categoriaId, tipoProducto: "NORMAL", stockActual: 0, stockMinimo: 0 }),
           });
           const rd = await rp.json();
           if (rp.ok && rd.id) return { ...it, productoId: rd.id };
@@ -459,7 +467,7 @@ export default function FacturaCompraForm({
           fechaVencimientoPago: fechaVencimientoPago || null,
           imagenFactura: imagenBase64,
           tipoUso: tipoUsoFactura,
-          items: resolvedItems.map(it => ({ productoId: it.productoId, nombreProducto: it.nombreProducto.trim(), cantidad: Number(it.cantidad), costoUnitBs: Number(it.costoUnitBs), tipoUso: it.tipoUso })),
+          items: resolvedItems.map(it => ({ productoId: it.productoId, nombreProducto: it.nombreProducto.trim(), cantidad: Number(it.cantidad), costoUnitBs: parseBs(it.costoUnitBs), tipoUso: it.tipoUso })),
         }),
       });
       const data = await res.json();
@@ -589,8 +597,8 @@ export default function FacturaCompraForm({
           <td style={{ padding: "5px 6px", width: 160, minWidth: 140 }}>
             <div style={{ position: "relative" }}>
               <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", pointerEvents: "none" }}>Bs</span>
-              <input type="number" value={it.costoUnitBs} min="0" step="0.01" onChange={e => updateItemBs(it.key, e.target.value)}
-                placeholder="0.00" style={{ ...S, paddingLeft: 28, textAlign: "right", minWidth: 0 }} />
+              <input type="text" value={it.costoUnitBs} onChange={e => updateItemBs(it.key, e.target.value)}
+                placeholder="0,00" style={{ ...S, paddingLeft: 28, textAlign: "right", minWidth: 0 }} />
             </div>
           </td>
           <td style={{ padding: "5px 6px", width: 110 }}>
@@ -616,7 +624,7 @@ export default function FacturaCompraForm({
             </div>
           </td>
           <td style={{ padding: "5px 12px", textAlign: "right", fontWeight: 700, fontSize: 13, fontVariantNumeric: "tabular-nums", color: "var(--erp-text)", whiteSpace: "nowrap" }}>
-            {((Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0)).toFixed(2)}
+            {fmtBs((Number(it.cantidad) || 0) * parseBs(it.costoUnitBs))}
           </td>
           <td style={{ padding: "5px 6px", textAlign: "center" }}>
             <button type="button" onClick={() => setItems(prev => prev.filter(x => x.key !== it.key))} disabled={items.length === 1}
@@ -696,7 +704,7 @@ export default function FacturaCompraForm({
           </button>
           <div style={{ marginTop: 12, borderTop: "1px solid var(--erp-border)", paddingTop: 12, display: "flex", justifyContent: "flex-end", gap: 24 }}>
             {tasa > 0 && <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total USD</div><div style={{ fontSize: 16, fontWeight: 800, color: "var(--erp-primary)", fontVariantNumeric: "tabular-nums" }}>${totalUsd.toFixed(2)}</div></div>}
-            <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total Bs</div><div style={{ fontSize: 18, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {totalBs.toFixed(2)}</div></div>
+            <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase" }}>Total Bs</div><div style={{ fontSize: 18, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {fmtBs(totalBs)}</div></div>
           </div>
         </div>
 
@@ -888,7 +896,7 @@ export default function FacturaCompraForm({
 
         {/* Totals */}
         <div style={{ padding: "12px 20px", background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 20, flexWrap: "wrap" }}>
-          {tasa > 0 && <div style={{ fontSize: 12, color: "var(--erp-text-3)" }}>Tasa BCV: <strong style={{ color: "var(--erp-text-2)" }}>Bs {tasa.toFixed(2)} / $</strong></div>}
+          {tasa > 0 && <div style={{ fontSize: 12, color: "var(--erp-text-3)" }}>Tasa BCV: <strong style={{ color: "var(--erp-text-2)" }}>Bs {fmtBs(tasa)} / $</strong></div>}
           {tasa > 0 && <div style={{ width: 1, height: 30, background: "var(--erp-border)" }} />}
           {tasa > 0 && (
             <div style={{ textAlign: "right" }}>
@@ -899,7 +907,7 @@ export default function FacturaCompraForm({
           <div style={{ width: 1, height: 30, background: "var(--erp-border)" }} />
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 10, color: "var(--erp-text-3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Bs</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {totalBs.toFixed(2)}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>Bs {fmtBs(totalBs)}</div>
           </div>
           {imagenBase64 && (
             <div style={{ width: "100%", textAlign: "right", fontSize: 11, color: "#B45309" }}>
