@@ -10,26 +10,41 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const { id } = await params;
 
+  // Historial de proveedores reales a través de compras registradas
   const result = await pool.query(
-    `SELECT pp.id, pp.proveedor_id, p.nombre AS proveedor_nombre, p.rif_ci AS proveedor_rif,
-            pp.precio_ref_usd, pp.tiempo_entrega_dias, pp.es_principal, pp.notas, pp.created_at
-     FROM producto_proveedores pp
-     JOIN proveedores p ON p.id = pp.proveedor_id
-     WHERE pp.producto_id = $1
-     ORDER BY pp.es_principal DESC, p.nombre ASC`,
+    `SELECT
+       pr.id                              AS proveedor_id,
+       pr.nombre                          AS proveedor_nombre,
+       pr.rif_ci                          AS proveedor_rif,
+       pr.telefono                        AS proveedor_telefono,
+       COUNT(ci.id)::int                  AS veces_comprado,
+       MAX(c.fecha)                       AS ultima_compra,
+       (
+         SELECT ci2.costo_unit_bs
+         FROM compra_items ci2
+         JOIN compras c2 ON c2.id = ci2.compra_id
+         WHERE ci2.producto_id = $1 AND c2.proveedor_id = pr.id
+         ORDER BY c2.fecha DESC
+         LIMIT 1
+       )                                  AS ultimo_precio_bs
+     FROM compra_items ci
+     JOIN compras c  ON c.id  = ci.compra_id
+     JOIN proveedores pr ON pr.id = c.proveedor_id
+     WHERE ci.producto_id = $1
+     GROUP BY pr.id, pr.nombre, pr.rif_ci, pr.telefono
+     ORDER BY MAX(c.fecha) DESC`,
     [id]
   );
 
   return NextResponse.json({
     items: result.rows.map((r) => ({
-      id: r.id,
       proveedorId: r.proveedor_id,
       proveedorNombre: r.proveedor_nombre,
       proveedorRif: r.proveedor_rif ?? "",
-      precioRefUsd: r.precio_ref_usd ? Number(r.precio_ref_usd) : null,
-      tiempoEntregaDias: Number(r.tiempo_entrega_dias ?? 0),
-      esPrincipal: r.es_principal,
-      notas: r.notas ?? "",
+      proveedorTelefono: r.proveedor_telefono ?? "",
+      vecesComprado: r.veces_comprado,
+      ultimaCompra: r.ultima_compra,
+      ultimoPrecioBs: r.ultimo_precio_bs ? Number(r.ultimo_precio_bs) : null,
     })),
   });
 }
