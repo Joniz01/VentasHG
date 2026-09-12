@@ -1529,6 +1529,15 @@ export default function GastosClient() {
                         color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", fontSize: 13, cursor: "pointer" }}>
                       ✏️
                     </button>
+                    <button type="button" onClick={async () => {
+                        if (!confirm(`¿Eliminar "${rec.proveedor}"? Los pagos ya registrados no se verán afectados.`)) return;
+                        const r = await fetch(`/api/gastos/${rec.id}`, { method: "DELETE" });
+                        if (r.ok) fetchRecurrentes();
+                      }}
+                      style={{ padding: "5px 10px", borderRadius: 8, background: "transparent",
+                        color: "#EF4444", border: "1px solid #EF4444", fontSize: 13, cursor: "pointer" }}>
+                      🗑️
+                    </button>
                   </div>
                 </div>
               ))}
