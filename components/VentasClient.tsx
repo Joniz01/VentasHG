@@ -331,7 +331,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   async function loadData() {
     try {
       const [productosRes, ventasRes, motorizadosRes, promocionesRes] = await Promise.all([
-        fetch("/api/productos"),
+        fetch("/api/productos?grupo=PARA_LA_VENTA"),
         fetch("/api/ventas"),
         fetch("/api/motorizados"),
         fetch("/api/promociones"),

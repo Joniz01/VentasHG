@@ -7,19 +7,26 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get("q");
   const limit = Math.min(Number(searchParams.get("limit") ?? "200"), 200);
 
+  const grupo = searchParams.get("grupo");
+
   // Si viene ?q= devolver búsqueda rápida para autocomplete
   if (q) {
+    const grupoFilter = grupo ? ` AND COALESCE(p.grupo, 'PARA_LA_VENTA') = $3` : "";
+    const params: (string | number)[] = [`%${q}%`, limit];
+    if (grupo) params.push(grupo);
     const rows = await pool.query(
       `SELECT p.id, p.nombre, p.stock_actual
        FROM productos p
-       WHERE p.activo = TRUE AND lower(p.nombre) LIKE lower($1)
+       WHERE p.activo = TRUE AND lower(p.nombre) LIKE lower($1)${grupoFilter}
        ORDER BY p.nombre ASC LIMIT $2`,
-      [`%${q}%`, limit]
+      params
     );
     return NextResponse.json({ productos: rows.rows.map(r => ({ id: r.id, nombre: r.nombre, stockActual: Number(r.stock_actual) })) });
   }
 
   // Intenta ordenar por c.orden si existe; si no (migración pendiente), ordena por nombre
+  const GRUPOS_VALIDOS = ["PARA_LA_VENTA", "MATERIA_PRIMA", "SERVICIO"];
+  const grupoValido = grupo && GRUPOS_VALIDOS.includes(grupo) ? grupo : null;
   let result;
   try {
     result = await pool.query(
@@ -35,7 +42,9 @@ export async function GET(request: NextRequest) {
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        LEFT JOIN lineas l ON l.id = p.linea_id
-       ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`
+       ${grupoValido ? `WHERE p.activo = TRUE AND COALESCE(p.grupo, 'PARA_LA_VENTA') = $1` : ""}
+       ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`,
+      grupoValido ? [grupoValido] : []
     );
   } catch {
     result = await pool.query(
@@ -48,7 +57,9 @@ export async function GET(request: NextRequest) {
               'PARA_LA_VENTA' AS grupo
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
-       ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC`
+       ${grupoValido ? `WHERE p.activo = TRUE AND COALESCE(p.grupo, 'PARA_LA_VENTA') = $1` : ""}
+       ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC`,
+      grupoValido ? [grupoValido] : []
     );
   }
 
