@@ -189,16 +189,17 @@ export default function InventarioDashboardClient() {
   useEffect(() => {
     setLoadingResumen(true);
     fetch("/api/inventario/resumen")
-      .then(r => r.json())
-      .then(setResumen)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && !d.error) setResumen(d); })
+      .catch(() => {})
       .finally(() => setLoadingResumen(false));
 
     Promise.all([
-      fetch("/api/productos/kpis?grupo=PARA_LA_VENTA").then(r => r.json()),
-      fetch("/api/productos/kpis?grupo=MATERIA_PRIMA").then(r => r.json()),
+      fetch("/api/productos/kpis?grupo=PARA_LA_VENTA").then(r => r.ok ? r.json() : null),
+      fetch("/api/productos/kpis?grupo=MATERIA_PRIMA").then(r => r.ok ? r.json() : null),
     ]).then(([v, i]) => {
-      setKpisVenta(v);
-      setKpisInsumos(i);
+      if (v && !v.error) setKpisVenta(v);
+      if (i && !i.error) setKpisInsumos(i);
     }).catch(() => {});
   }, []);
 
@@ -206,8 +207,9 @@ export default function InventarioDashboardClient() {
     setLoadingLista(true);
     setBusqueda("");
     fetch(`/api/inventario/lista?filtro=${filtroParam}`)
-      .then(r => r.json())
-      .then(setProductos)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setProductos(Array.isArray(d) ? d : []))
+      .catch(() => setProductos([]))
       .finally(() => setLoadingLista(false));
   }, [filtroParam]);
 

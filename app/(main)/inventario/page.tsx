@@ -8,7 +8,7 @@ export default async function InventarioPage() {
   await requirePermiso("productos");
 
   return (
-    <Suspense>
+    <Suspense fallback={<div style={{ padding: 24, color: "var(--erp-text-3)", fontSize: 13 }}>Cargando inventario…</div>}>
       <InventarioDashboardClient />
     </Suspense>
   );
