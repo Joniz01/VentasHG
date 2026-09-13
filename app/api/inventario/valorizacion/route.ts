@@ -4,17 +4,36 @@ import { pool } from "@/lib/db";
 export async function GET() {
   try {
     // Tasa actual (más reciente)
-    const tasaRes = await pool.query(`
-      SELECT COALESCE(
-        (SELECT tasa FROM tasas_bcv_historico ORDER BY fecha DESC, id DESC LIMIT 1),
-        (SELECT tasa_dia FROM compras WHERE estado = 'ACTIVA' AND tasa_dia > 0 ORDER BY created_at DESC LIMIT 1),
-        1
-      ) AS tasa_actual
-    `);
-    const tasaActual = Number(tasaRes.rows[0].tasa_actual);
+    let tasaActual = 1;
+    try {
+      const tasaRes = await pool.query(`
+        SELECT COALESCE(
+          (SELECT tasa FROM tasas_bcv_historico ORDER BY fecha DESC, id DESC LIMIT 1),
+          (SELECT tasa_dia FROM compras WHERE estado = 'ACTIVA' AND tasa_dia > 0 ORDER BY created_at DESC LIMIT 1),
+          1
+        ) AS tasa_actual
+      `);
+      tasaActual = Number(tasaRes.rows[0].tasa_actual);
+    } catch {
+      const tasaRes = await pool.query(`
+        SELECT COALESCE(
+          (SELECT tasa_dia FROM compras WHERE estado = 'ACTIVA' AND tasa_dia > 0 ORDER BY created_at DESC LIMIT 1),
+          1
+        ) AS tasa_actual
+      `);
+      tasaActual = Number(tasaRes.rows[0].tasa_actual);
+    }
 
     // Costo promedio ponderado por producto (de compras activas)
     // CPP = SUM(cantidad * costo_unit_bs / tasa_dia) / SUM(cantidad) → costo en USD
+    // Try with tipo_uso filter first; fall back if column doesn't exist yet
+    let tipoUsoFilter = "AND COALESCE(ci.tipo_uso, 'INVENTARIO') != 'GASTO'";
+    try {
+      await pool.query("SELECT ci.tipo_uso FROM compra_items ci LIMIT 0");
+    } catch {
+      tipoUsoFilter = "";
+    }
+
     const result = await pool.query(`
       WITH costos AS (
         SELECT
@@ -32,7 +51,7 @@ export async function GET() {
         JOIN compras c ON c.id = ci.compra_id
         WHERE c.estado = 'ACTIVA'
           AND ci.producto_id IS NOT NULL
-          AND COALESCE(ci.tipo_uso, 'INVENTARIO') != 'GASTO'
+          ${tipoUsoFilter}
         GROUP BY ci.producto_id, ci.nombre_producto
       ),
       productos_stock AS (
