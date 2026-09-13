@@ -61,7 +61,6 @@ const GRUPOS: TileGroup[] = [
     tiles: [
       { href: "/inventario",               icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",           color: "#15803D", permiso: "productos" },
       { href: "/inventario/ajustes",       icon: "⚖️",  label: "Ajustes de Inventario",    sub: "Mermas, pérdidas y correcciones", color: "#B45309", permiso: "productos", new: true },
-      { href: "/inventario/recepciones",   icon: "📥", label: "Recepciones de Compra",    sub: "Entrada de mercancía por OC",     color: "#15803D", permiso: "compras",   new: true },
       { href: "/inventario/lotes",         icon: "🏷️", label: "Lotes & Vencimientos",     sub: "Trazabilidad y FIFO",             color: "#0891B2", permiso: "productos", new: true },
       { href: "/inventarios",              icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos",      color: "#1D4ED8", permiso: "productos" },
       { href: "/inventario/valorizacion",  icon: "💰", label: "Valorización",             sub: "Costo promedio del stock",        color: "#B45309", permiso: "reportes",  new: true },

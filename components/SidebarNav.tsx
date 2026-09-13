@@ -68,7 +68,6 @@ const GRUPOS: NavGroup[] = [
     items: [
       { href: "/inventario",              icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
       { href: "/inventario/ajustes",      icon: "⚖️",  label: "Ajustes de Inventario",   permiso: "productos" },
-      { href: "/inventario/recepciones",  icon: "📥", label: "Recepciones de Compra",    permiso: "compras" },
       { href: "/inventario/lotes",        icon: "🏷️", label: "Lotes & Vencimientos",     permiso: "productos" },
       { href: "/inventarios",             icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
       { href: "/inventario/valorizacion", icon: "💰", label: "Valorización",             permiso: "reportes" },
