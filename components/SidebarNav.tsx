@@ -58,15 +58,22 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Productos & Catálogo",
     items: [
-      { href: "/productos", icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
-      { href: "/insumos",   icon: "🧱", label: "Insumos / Materia Prima", permiso: "productos" },
+      { href: "/productos",     icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
+      { href: "/insumos",       icon: "🧱", label: "Insumos / Materia Prima", permiso: "productos" },
+      { href: "/productos/bom", icon: "📐", label: "Lista de Materiales",     permiso: "productos" },
     ],
   },
   {
     label: "Inventario",
     items: [
       { href: "/inventario",              icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
+      { href: "/inventario/ajustes",      icon: "⚖️",  label: "Ajustes de Inventario",   permiso: "productos" },
+      { href: "/inventario/recepciones",  icon: "📥", label: "Recepciones de Compra",    permiso: "compras" },
+      { href: "/inventario/lotes",        icon: "🏷️", label: "Lotes & Vencimientos",     permiso: "productos" },
       { href: "/inventarios",             icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
+      { href: "/inventario/valorizacion", icon: "💰", label: "Valorización",             permiso: "reportes" },
+      { href: "/inventario-disponible",   icon: "✅", label: "Inventario Disponible",    permiso: "productos" },
+      { href: "/inventario/reorden",      icon: "🔁", label: "Reglas de Reorden",        permiso: "productos" },
       { href: "/inventario/conteos",      icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
       { href: "/conteo",                  icon: "📱", label: "Conteo Físico",            permiso: "conteo" },
       { href: "/inventario/programacion", icon: "🗓️", label: "Programación de Conteos",  permiso: "programarConteo", badge: "programacion" },
@@ -75,8 +82,9 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Compras & Producción",
     items: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra",   permiso: "compras" },
-      { href: "/mrp",     icon: "⚙️",  label: "MRP · Planificación" },
+      { href: "/compras",    icon: "🛍️", label: "Órdenes de Compra",    permiso: "compras" },
+      { href: "/produccion", icon: "🏭", label: "Órdenes de Producción", permiso: "productos" },
+      { href: "/mrp",        icon: "⚙️",  label: "MRP · Planificación" },
     ],
   },
   {

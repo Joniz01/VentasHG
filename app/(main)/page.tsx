@@ -51,25 +51,33 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Productos & Catálogo",
     tiles: [
-      { href: "/productos", icon: "🛒", label: "Productos de Venta",      sub: "Catálogo de productos para vender", color: "#1D4ED8", permiso: "productos" },
-      { href: "/insumos",   icon: "🧱", label: "Insumos / Materia Prima", sub: "Insumos de producción",             color: "#92400e", permiso: "productos" },
+      { href: "/productos",     icon: "🛒", label: "Productos de Venta",      sub: "Catálogo de productos para vender", color: "#1D4ED8", permiso: "productos" },
+      { href: "/insumos",       icon: "🧱", label: "Insumos / Materia Prima", sub: "Insumos de producción",             color: "#92400e", permiso: "productos" },
+      { href: "/productos/bom", icon: "📐", label: "Lista de Materiales",     sub: "Recetas y BOMs de producción",      color: "#7C3AED", permiso: "productos", new: true },
     ],
   },
   {
     label: "Inventario",
     tiles: [
-      { href: "/inventario",              icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",          color: "#15803D", permiso: "productos", new: true },
-      { href: "/inventarios",             icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos",     color: "#1D4ED8", permiso: "productos" },
-      { href: "/inventario/conteos",      icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",       color: "#7C3AED", permiso: "autorizarConteo" },
-      { href: "/conteo",                  icon: "📱", label: "Conteo Físico",            sub: "Conteo desde dispositivo",       color: "#7C3AED", permiso: "conteo" },
-      { href: "/inventario/programacion", icon: "🗓️", label: "Programación de Conteos",  sub: "Alertas y calendarios de conteo", color: "#0891B2", permiso: "programarConteo" },
+      { href: "/inventario",               icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",           color: "#15803D", permiso: "productos" },
+      { href: "/inventario/ajustes",       icon: "⚖️",  label: "Ajustes de Inventario",    sub: "Mermas, pérdidas y correcciones", color: "#B45309", permiso: "productos", new: true },
+      { href: "/inventario/recepciones",   icon: "📥", label: "Recepciones de Compra",    sub: "Entrada de mercancía por OC",     color: "#15803D", permiso: "compras",   new: true },
+      { href: "/inventario/lotes",         icon: "🏷️", label: "Lotes & Vencimientos",     sub: "Trazabilidad y FIFO",             color: "#0891B2", permiso: "productos", new: true },
+      { href: "/inventarios",              icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos",      color: "#1D4ED8", permiso: "productos" },
+      { href: "/inventario/valorizacion",  icon: "💰", label: "Valorización",             sub: "Costo promedio del stock",        color: "#B45309", permiso: "reportes",  new: true },
+      { href: "/inventario-disponible",    icon: "✅", label: "Inventario Disponible",    sub: "Vista pública de existencias",    color: "#15803D", permiso: "productos" },
+      { href: "/inventario/reorden",       icon: "🔁", label: "Reglas de Reorden",        sub: "Puntos de reorden para MRP",      color: "#7C3AED", permiso: "productos", new: true },
+      { href: "/inventario/conteos",       icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",        color: "#7C3AED", permiso: "autorizarConteo" },
+      { href: "/conteo",                   icon: "📱", label: "Conteo Físico",            sub: "Conteo desde dispositivo",        color: "#7C3AED", permiso: "conteo" },
+      { href: "/inventario/programacion",  icon: "🗓️", label: "Programación de Conteos",  sub: "Alertas y calendarios de conteo", color: "#0891B2", permiso: "programarConteo" },
     ],
   },
   {
     label: "Compras & Producción",
     tiles: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra",   sub: "Facturas y proveedores",       color: "#15803D", permiso: "compras", new: true },
-      { href: "/mrp",     icon: "⚙️",  label: "MRP · Planificación", sub: "Requerimientos de materiales", color: "#9333EA", new: true },
+      { href: "/compras",    icon: "🛍️", label: "Órdenes de Compra",   sub: "Facturas y proveedores",       color: "#15803D", permiso: "compras", new: true },
+      { href: "/produccion", icon: "🏭", label: "Órdenes de Producción", sub: "Fabricación y transformación", color: "#B45309", permiso: "productos", new: true },
+      { href: "/mrp",        icon: "⚙️",  label: "MRP · Planificación", sub: "Requerimientos de materiales", color: "#9333EA", new: true },
     ],
   },
   {
