@@ -338,7 +338,7 @@ export async function GET(request: NextRequest) {
               ROUND((p.stock_actual * p.costo)::numeric, 2) AS valor,
               COALESCE(c.nombre, 'Sin categoría') AS categoria
        FROM productos p
-       LEFT JOIN categorias c ON c.id = p.categoria_id
+       LEFT JOIN familias c ON c.id = p.categoria_id
        WHERE p.activo = true AND p.tipo_producto = 'NORMAL'
        ORDER BY (p.stock_actual * p.costo) DESC
        LIMIT 20`

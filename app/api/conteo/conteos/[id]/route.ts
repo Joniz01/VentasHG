@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, { params }: Params) {
             u.nombre AS corregido_por, cii.corregido_at, cii.nota
      FROM conteo_inventario_items cii
      JOIN productos p ON p.id = cii.producto_id
-     LEFT JOIN categorias cat ON cat.id = p.categoria_id
+     LEFT JOIN familias cat ON cat.id = p.categoria_id
      LEFT JOIN usuarios u ON u.id = cii.corregido_por
      WHERE cii.conteo_id = $1
      ORDER BY cat.nombre ASC NULLS LAST, p.nombre ASC`,

@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     // Versión con columnas de array (categoria_ids, producto_ids)
     const result = await pool.query(
       `SELECT cp.*,
-              ARRAY(SELECT c.nombre FROM categorias c WHERE c.id = ANY(COALESCE(cp.categoria_ids, ARRAY[]::integer[]))) AS categoria_nombres,
+              ARRAY(SELECT c.nombre FROM familias c WHERE c.id = ANY(COALESCE(cp.categoria_ids, ARRAY[]::integer[]))) AS categoria_nombres,
               ARRAY(SELECT p.nombre FROM productos p WHERE p.id = ANY(COALESCE(cp.producto_ids, ARRAY[]::integer[]))) AS producto_nombres,
               ARRAY(SELECT u.nombre FROM usuarios u WHERE u.id = ANY(COALESCE(cp.usuarios_alerta, ARRAY[]::integer[]))) AS usuarios_nombres
        FROM conteo_programacion cp
