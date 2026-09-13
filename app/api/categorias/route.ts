@@ -9,25 +9,30 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const grupo = searchParams.get("grupo");
   const GRUPOS_VALIDOS = ["PARA_LA_VENTA", "MATERIA_PRIMA", "SERVICIO"];
-  const grupoValido = grupo && GRUPOS_VALIDOS.includes(grupo) ? grupo : null;
+  const todos = grupo === "TODOS";
+  const grupoValido = !todos && grupo && GRUPOS_VALIDOS.includes(grupo) ? grupo : null;
 
   let result;
   try {
     result = await pool.query(
-      `SELECT id, nombre, COALESCE(orden, 99) AS orden FROM familias
-       WHERE ($1::text IS NULL AND (grupo IS NULL OR grupo = 'PARA_LA_VENTA'))
-          OR ($1::text IS NOT NULL AND grupo = $1)
-       ORDER BY COALESCE(orden, 99) ASC, nombre ASC`,
-      [grupoValido]
+      todos
+        ? `SELECT id, nombre, COALESCE(orden, 99) AS orden, COALESCE(grupo, 'PARA_LA_VENTA') AS grupo
+           FROM familias ORDER BY COALESCE(orden, 99) ASC, nombre ASC`
+        : `SELECT id, nombre, COALESCE(orden, 99) AS orden, COALESCE(grupo, 'PARA_LA_VENTA') AS grupo
+           FROM familias
+           WHERE ($1::text IS NULL AND (grupo IS NULL OR grupo = 'PARA_LA_VENTA'))
+              OR ($1::text IS NOT NULL AND grupo = $1)
+           ORDER BY COALESCE(orden, 99) ASC, nombre ASC`,
+      todos ? [] : [grupoValido]
     );
   } catch {
     result = await pool.query(
-      `SELECT id, nombre, 99 AS orden FROM familias ORDER BY nombre ASC`
+      `SELECT id, nombre, 99 AS orden, 'PARA_LA_VENTA' AS grupo FROM familias ORDER BY nombre ASC`
     );
   }
 
   return NextResponse.json(
-    result.rows.map((row) => ({ id: row.id, nombre: row.nombre, orden: row.orden }))
+    result.rows.map((row) => ({ id: row.id, nombre: row.nombre, orden: row.orden, grupo: row.grupo }))
   );
 }
 

@@ -93,7 +93,8 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Admin & Configuración",
     items: [
-      { href: "/admin", icon: "🔧", label: "Configuración", rolReq: "ADMIN" },
+      { href: "/admin",          icon: "🔧", label: "Configuración",     rolReq: "ADMIN" },
+      { href: "/configuracion",  icon: "📐", label: "Maestros del Sistema", rolReq: "ADMIN" },
     ],
   },
 ];

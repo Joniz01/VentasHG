@@ -86,7 +86,8 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Admin & Configuración",
     tiles: [
-      { href: "/admin", icon: "🔧", label: "Configuración", sub: "Usuarios y config", color: "#475569", rolReq: "ADMIN" },
+      { href: "/admin",         icon: "🔧", label: "Configuración",        sub: "Usuarios y config",                 color: "#475569", rolReq: "ADMIN" },
+      { href: "/configuracion", icon: "📐", label: "Maestros del Sistema", sub: "Unidades, familias y líneas",        color: "#475569", rolReq: "ADMIN" },
     ],
   },
 ];
