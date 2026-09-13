@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState, useRef, FormEvent } from "react";
 import Paginador from "@/components/Paginador";
-import type { Categoria, EmpaqueProducto, Familia, GrupoProducto, Linea, Producto, TipoProducto } from "@/lib/types";
+import type { Categoria, EmpaqueProducto, Familia, GrupoProducto, Linea, Producto, TipoProducto, UnidadMedida } from "@/lib/types";
 import { GRUPOS_PRODUCTO, GRUPO_PRODUCTO_LABELS, TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
 
 type EmpaqueFormRow = {
@@ -28,6 +28,7 @@ const EMPTY_FORM = {
   variadaRaciones: "3",
   stockMinimo: "0",
   unidadMedida: "unidad",
+  unidadMedidaId: "",
   alertaOutstockDesactivada: false,
   alertaOutstockMotivo: "",
   grupo: "PARA_LA_VENTA" as GrupoProducto,
@@ -84,6 +85,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [formEmpaques, setFormEmpaques] = useState<EmpaqueFormRow[]>([]);
   const [tasaHoy, setTasaHoy] = useState<number | null>(null);
   const [grupoDropdownId, setGrupoDropdownId] = useState<number | null>(null);
+  const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
 
   // Proveedores del insumo (historial de compras)
   type ProveedorHistorial = {
@@ -253,10 +255,18 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     }
   }
 
+  async function loadUnidadesMedida() {
+    try {
+      const res = await fetch("/api/unidades-medida");
+      if (res.ok) setUnidadesMedida(await res.json());
+    } catch { /* ignore */ }
+  }
+
   useEffect(() => {
     loadProductos();
     loadCategorias();
     loadLineas();
+    loadUnidadesMedida();
     loadKpis();
     fetch("/api/tasa-bcv").then(r => r.ok ? r.json() : null).then(d => {
       if (d?.tasa) setTasaHoy(Number(d.tasa));
@@ -283,6 +293,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       variadaRaciones: String(producto.variadaRaciones || 3),
       stockMinimo: String(producto.stockMinimo ?? 0),
       unidadMedida: producto.unidadMedida ?? "unidad",
+      unidadMedidaId: producto.unidadMedidaId ? String(producto.unidadMedidaId) : "",
       alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
       alertaOutstockMotivo: producto.alertaOutstockMotivo ?? "",
       grupo: producto.grupo ?? "PARA_LA_VENTA",
@@ -358,6 +369,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         variadaRaciones: form.tipoProducto === "VARIADA" ? Number(form.variadaRaciones) || 0 : 0,
         stockMinimo: Number(form.stockMinimo) || 0,
         unidadMedida: form.unidadMedida.trim() || "unidad",
+        unidadMedidaId: form.unidadMedidaId ? Number(form.unidadMedidaId) : null,
         alertaOutstockDesactivada: form.alertaOutstockDesactivada,
         alertaOutstockMotivo: form.alertaOutstockDesactivada ? (form.alertaOutstockMotivo.trim() || null) : null,
         grupo: form.grupo,
@@ -923,12 +935,28 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Unidad de medida</label>
-                  <input
-                    style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                    value={form.unidadMedida}
-                    onChange={(e) => setForm({ ...form, unidadMedida: e.target.value })}
-                    placeholder="unidad, kg, lt…"
-                  />
+                  <select
+                    style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
+                    value={form.unidadMedidaId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const um = unidadesMedida.find(u => String(u.id) === id);
+                      setForm({ ...form, unidadMedidaId: id, unidadMedida: um?.abreviatura ?? "unidad" });
+                    }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {["UNIDAD", "MASA", "VOLUMEN", "LONGITUD"].map(tipo => {
+                      const opts = unidadesMedida.filter(u => u.tipo === tipo);
+                      if (!opts.length) return null;
+                      return (
+                        <optgroup key={tipo} label={tipo.charAt(0) + tipo.slice(1).toLowerCase()}>
+                          {opts.map(u => (
+                            <option key={u.id} value={String(u.id)}>{u.nombre} ({u.abreviatura})</option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
                 </div>
               </>
             )}
@@ -1325,7 +1353,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                             {tasaHoy ? (producto.costo * tasaHoy).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                           </td>
                           <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.stockActual}</td>
-                          <td style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.unidadMedida ?? "—"}</td>
+                          <td style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.unidadMedidaAbreviatura ?? producto.unidadMedida ?? "—"}</td>
                         </>
                       ) : (
                         <>

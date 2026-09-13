@@ -9,7 +9,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const body = await request.json();
   const {
     nombre, descripcion, costo, precioVenta, activo, categoriaId, lineaId, tipoProducto, variadaRaciones,
-    stockMinimo, unidadMedida, alertaOutstockDesactivada, alertaOutstockMotivo, grupo,
+    stockMinimo, unidadMedida, unidadMedidaId, alertaOutstockDesactivada, alertaOutstockMotivo, grupo,
   } = body;
 
   const costoNum = Number(costo);
@@ -31,6 +31,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const variadaRacionesNum = Number(variadaRaciones) || 0;
   const stockMinimoNum = Math.max(0, Number(stockMinimo) || 0);
   const unidadMedidaStr = typeof unidadMedida === "string" && unidadMedida.trim() ? unidadMedida.trim() : "unidad";
+  const unidadMedidaIdNum = unidadMedidaId ? Number(unidadMedidaId) : null;
   const outstockBool = Boolean(alertaOutstockDesactivada);
   const outstockMotivo = typeof alertaOutstockMotivo === "string" && alertaOutstockMotivo.trim() ? alertaOutstockMotivo.trim() : null;
   const grupoStr = ["PARA_LA_VENTA", "MATERIA_PRIMA", "SERVICIO"].includes(grupo) ? grupo : "PARA_LA_VENTA";
@@ -42,17 +43,17 @@ export async function PUT(request: NextRequest, { params }: Params) {
       `UPDATE productos
        SET nombre = $1, descripcion = $2, costo = $3, precio_venta = $4, activo = $5, categoria_id = $6,
            tipo_producto = $7, variada_raciones = $8,
-           stock_minimo = $9, unidad_medida = $10,
-           alerta_outstock_desactivada = $11, alerta_outstock_motivo = $12,
-           grupo = $13, linea_id = $14
-       WHERE id = $15
+           stock_minimo = $9, unidad_medida = $10, unidad_medida_id = $11,
+           alerta_outstock_desactivada = $12, alerta_outstock_motivo = $13,
+           grupo = $14, linea_id = $15
+       WHERE id = $16
        RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at,
                  tipo_producto, stock_actual, variada_raciones,
-                 stock_minimo, unidad_medida, alerta_outstock_desactivada, alerta_outstock_motivo,
+                 stock_minimo, unidad_medida, unidad_medida_id, alerta_outstock_desactivada, alerta_outstock_motivo,
                  COALESCE(grupo, 'PARA_LA_VENTA') AS grupo`,
       [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum,
        tipoProducto || "NORMAL", variadaRacionesNum,
-       stockMinimoNum, unidadMedidaStr, outstockBool, outstockMotivo, grupoStr, lineaIdNum, id]
+       stockMinimoNum, unidadMedidaStr, unidadMedidaIdNum, outstockBool, outstockMotivo, grupoStr, lineaIdNum, id]
     );
   } catch {
     result = await pool.query(
@@ -125,6 +126,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     stockActual: Number(row.stock_actual),
     stockMinimo: Number(row.stock_minimo ?? 0),
     unidadMedida: row.unidad_medida ?? "unidad",
+    unidadMedidaId: row.unidad_medida_id ?? null,
     alertaOutstockDesactivada: Boolean(row.alerta_outstock_desactivada),
     alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,

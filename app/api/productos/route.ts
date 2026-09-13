@@ -36,12 +36,14 @@ export async function GET(request: NextRequest) {
               p.tipo_producto, p.stock_actual, p.variada_raciones,
               COALESCE(p.stock_minimo, 0) AS stock_minimo,
               COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
+              p.unidad_medida_id, um.nombre AS unidad_medida_nombre, um.abreviatura AS unidad_medida_abreviatura,
               COALESCE(p.alerta_outstock_desactivada, FALSE) AS alerta_outstock_desactivada,
               p.alerta_outstock_motivo,
               COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        LEFT JOIN lineas l ON l.id = p.linea_id
+       LEFT JOIN unidades_medida um ON um.id = p.unidad_medida_id
        ${grupoValido ? `WHERE p.activo = TRUE AND COALESCE(p.grupo, 'PARA_LA_VENTA') = $1` : ""}
        ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`,
       grupoValido ? [grupoValido] : []
@@ -119,6 +121,9 @@ export async function GET(request: NextRequest) {
     stockActual: Number(row.stock_actual),
     stockMinimo: Number(row.stock_minimo),
     unidadMedida: row.unidad_medida ?? "unidad",
+    unidadMedidaId: row.unidad_medida_id ?? null,
+    unidadMedidaNombre: row.unidad_medida_nombre ?? null,
+    unidadMedidaAbreviatura: row.unidad_medida_abreviatura ?? null,
     alertaOutstockDesactivada: Boolean(row.alerta_outstock_desactivada),
     alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,

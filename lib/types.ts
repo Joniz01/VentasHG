@@ -81,6 +81,13 @@ export type Categoria = {
   nombre: string;
 };
 
+export type UnidadMedida = {
+  id: number;
+  nombre: string;
+  abreviatura: string;
+  tipo: "UNIDAD" | "MASA" | "VOLUMEN" | "LONGITUD";
+};
+
 export type Familia = {
   id: number;
   nombre: string;
@@ -203,6 +210,9 @@ export type Producto = {
   stockActual: number;
   stockMinimo: number;
   unidadMedida: string;
+  unidadMedidaId: number | null;
+  unidadMedidaNombre: string | null;
+  unidadMedidaAbreviatura: string | null;
   alertaOutstockDesactivada: boolean;
   alertaOutstockMotivo: string | null;
   variadaRaciones: number;
