@@ -57,7 +57,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedPanel, setExpandedPanel] = useState<"extras" | "componentes" | null>(null);
-  const [orden, setOrden] = useState<"nombre" | "categoria">("categoria");
+  const [orden] = useState<"nombre" | "categoria">("categoria");
   const [searchNombre, setSearchNombre] = useState("");
   const [filterCategoriaId, setFilterCategoriaId] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
@@ -115,7 +115,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     } else if (filterLineaId) {
       list = list.filter((p) => String(p.lineaId) === filterLineaId);
     }
-    if (orden === "nombre") {
+    if (searchNombre.trim() || orden === "nombre") {
       list.sort((a, b) => a.nombre.localeCompare(b.nombre));
     }
     return list;
@@ -1181,17 +1181,6 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               </select>
             </div>
           )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Ordenar por</label>
-            <select
-              style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
-              value={orden}
-              onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
-            >
-              <option value="nombre">Nombre</option>
-              <option value="categoria">Familia / Línea</option>
-            </select>
-          </div>
           {(searchNombre || filterCategoriaId || filterLineaId) && (
             <button
               type="button"
