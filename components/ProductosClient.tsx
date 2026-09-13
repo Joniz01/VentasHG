@@ -135,7 +135,10 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
 
   async function loadCategorias() {
     try {
-      const res = await fetch("/api/categorias");
+      const url = grupoFiltro === "MATERIA_PRIMA"
+        ? "/api/categorias?grupo=MATERIA_PRIMA"
+        : "/api/categorias";
+      const res = await fetch(url);
       const data = await res.json();
       setCategorias(data);
       setFamilias(data);
@@ -161,7 +164,11 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       const res = await fetch("/api/categorias", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: catStandaloneNombre.trim(), orden: Number(catStandaloneOrden) || 99 }),
+        body: JSON.stringify({
+          nombre: catStandaloneNombre.trim(),
+          orden: Number(catStandaloneOrden) || 99,
+          grupo: grupoFiltro === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "PARA_LA_VENTA",
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al crear la categoría");
@@ -324,7 +331,11 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         const catRes = await fetch("/api/categorias", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nombre: nuevaCategoriaNombre.trim(), orden: Number(nuevaCategoriaOrden) || 99 }),
+          body: JSON.stringify({
+            nombre: nuevaCategoriaNombre.trim(),
+            orden: Number(nuevaCategoriaOrden) || 99,
+            grupo: grupoFiltro === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "PARA_LA_VENTA",
+          }),
         });
         if (!catRes.ok) {
           const data = await catRes.json();
