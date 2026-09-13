@@ -70,7 +70,6 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [kpisLoading, setKpisLoading] = useState(true);
   const [formEmpaques, setFormEmpaques] = useState<EmpaqueFormRow[]>([]);
   const [tasaHoy, setTasaHoy] = useState<number | null>(null);
-  const [grupoDropdownId, setGrupoDropdownId] = useState<number | null>(null);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
 
   // Proveedores del insumo (historial de compras)
@@ -350,31 +349,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     }
   }
 
-  async function handleCambiarGrupo(producto: Producto, nuevoGrupo: GrupoProducto) {
-    setGrupoDropdownId(null);
-    try {
-      const res = await fetch(`/api/productos/${producto.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: producto.nombre,
-          descripcion: producto.descripcion ?? null,
-          costo: producto.costo,
-          precioVenta: producto.precioVenta,
-          activo: true,
-          categoriaId: producto.categoriaId ?? null,
-          tipoProducto: producto.tipoProducto,
-          variadaRaciones: producto.variadaRaciones ?? 0,
-          stockMinimo: producto.stockMinimo ?? 0,
-          unidadMedida: producto.unidadMedida ?? "unidad",
-          alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
-          alertaOutstockMotivo: producto.alertaOutstockMotivo ?? null,
-          grupo: nuevoGrupo,
-        }),
-      });
-      if (res.ok) await loadProductos();
-    } catch { /* ignore */ }
-  }
+
 
   const kpiCards = [
     {
@@ -959,9 +934,6 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                 <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Nombre</th>
                 <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Familia / Línea</th>
                 <th className="prod-col-tipo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Tipo</th>
-                {grupoFiltro !== "MATERIA_PRIMA" && (
-                  <th className="prod-col-grupo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Grupo</th>
-                )}
                 <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
                   {grupoFiltro === "MATERIA_PRIMA" ? "Costo $" : "Costo"}
                 </th>
@@ -1015,54 +987,18 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                           <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }}>{producto.lineaNombre}</div>
                         )}
                       </td>
-                      <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
-                      {grupoFiltro !== "MATERIA_PRIMA" && <td className="prod-col-grupo" style={{ padding: "8px 12px" }}>
-                        <div style={{ position: "relative", display: "inline-block" }}>
-                          <button
-                            type="button"
-                            onClick={() => setGrupoDropdownId(grupoDropdownId === producto.id ? null : producto.id)}
-                            style={{
-                              fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 99, border: "none", cursor: "pointer",
-                              background: producto.grupo === "PARA_LA_VENTA" ? "#dcfce7" : producto.grupo === "MATERIA_PRIMA" ? "#fef9c3" : "#ede9fe",
-                              color: producto.grupo === "PARA_LA_VENTA" ? "#166534" : producto.grupo === "MATERIA_PRIMA" ? "#854d0e" : "#5b21b6",
-                            }}
-                            title="Cambiar grupo"
-                          >
-                            {GRUPO_PRODUCTO_LABELS[producto.grupo ?? "PARA_LA_VENTA"]} ▾
-                          </button>
-                          {grupoDropdownId === producto.id && (
-                            <div style={{
-                              position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30,
-                              background: "var(--erp-surface)", border: "1px solid var(--erp-border)",
-                              borderRadius: 8, minWidth: 160, boxShadow: "0 4px 16px rgba(0,0,0,0.18)", overflow: "hidden",
-                            }}>
-                              <div style={{ padding: "5px 10px 4px", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--erp-text-3)", borderBottom: "1px solid var(--erp-border)" }}>Cambiar grupo</div>
-                              {GRUPOS_PRODUCTO.filter(g => g !== "SERVICIO").map(g => (
-                                <button
-                                  key={g}
-                                  type="button"
-                                  onClick={() => handleCambiarGrupo(producto, g)}
-                                  style={{
-                                    display: "flex", alignItems: "center", gap: 8, width: "100%",
-                                    padding: "8px 12px", border: "none", background: "transparent",
-                                    fontSize: 12, fontWeight: 500, color: "var(--erp-text)", cursor: "pointer",
-                                    textAlign: "left",
-                                  }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = "var(--erp-bg)")}
-                                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                                >
-                                  <span style={{
-                                    width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                                    background: g === "PARA_LA_VENTA" ? "#16a34a" : "#ea580c",
-                                  }} />
-                                  {GRUPO_PRODUCTO_LABELS[g]}
-                                  {(producto.grupo ?? "PARA_LA_VENTA") === g && <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--erp-text-3)" }}>✓ actual</span>}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </td>}
+                      <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>
+                        <div>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</div>
+                        {grupoFiltro !== "MATERIA_PRIMA" && (
+                          <span style={{
+                            marginTop: 3, display: "inline-block", fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 99,
+                            background: producto.grupo === "PARA_LA_VENTA" ? "#dcfce7" : producto.grupo === "MATERIA_PRIMA" ? "#fef9c3" : "#ede9fe",
+                            color: producto.grupo === "PARA_LA_VENTA" ? "#166534" : producto.grupo === "MATERIA_PRIMA" ? "#854d0e" : "#5b21b6",
+                          }}>
+                            {GRUPO_PRODUCTO_LABELS[producto.grupo ?? "PARA_LA_VENTA"]}
+                          </span>
+                        )}
+                      </td>
                       <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       {grupoFiltro === "MATERIA_PRIMA" ? (
                         <>
