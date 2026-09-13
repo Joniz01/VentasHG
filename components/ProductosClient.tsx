@@ -72,6 +72,11 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [lineaStandaloneSaving, setLineaStandaloneSaving] = useState(false);
   const [lineaStandaloneError, setLineaStandaloneError] = useState<string | null>(null);
   const [lineaStandaloneOk, setLineaStandaloneOk] = useState<string | null>(null);
+  const [filterLineaId, setFilterLineaId] = useState<string>("");
+  const [lineasFiltro, setLineasFiltro] = useState<Linea[]>([]);
+  const [deletingFamiliaId, setDeletingFamiliaId] = useState<number | null>(null);
+  const [deletingLineaId, setDeletingLineaId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(15);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
@@ -105,11 +110,16 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     } else if (filterCategoriaId) {
       list = list.filter((p) => String(p.categoriaId) === filterCategoriaId);
     }
+    if (filterLineaId === "__sin__") {
+      list = list.filter((p) => !p.lineaId);
+    } else if (filterLineaId) {
+      list = list.filter((p) => String(p.lineaId) === filterLineaId);
+    }
     if (orden === "nombre") {
       list.sort((a, b) => a.nombre.localeCompare(b.nombre));
     }
     return list;
-  }, [productos, orden, searchNombre, filterCategoriaId]);
+  }, [productos, orden, searchNombre, filterCategoriaId, filterLineaId]);
 
   async function loadProductos() {
     try {
@@ -186,6 +196,39 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       setLineaStandaloneError(err instanceof Error ? err.message : "Error al crear la línea");
     } finally {
       setLineaStandaloneSaving(false);
+    }
+  }
+
+  async function handleEliminarFamilia(id: number, nombre: string) {
+    if (!confirm(`¿Eliminar la familia "${nombre}"?`)) return;
+    setDeletingFamiliaId(id);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/categorias/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al eliminar");
+      await loadCategorias();
+      await loadLineas();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Error al eliminar la familia");
+    } finally {
+      setDeletingFamiliaId(null);
+    }
+  }
+
+  async function handleEliminarLinea(id: number, nombre: string) {
+    if (!confirm(`¿Eliminar la línea "${nombre}"?`)) return;
+    setDeletingLineaId(id);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/lineas/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al eliminar");
+      await loadLineas();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Error al eliminar la línea");
+    } finally {
+      setDeletingLineaId(null);
     }
   }
 
@@ -535,6 +578,25 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
             </button>
           </div>
           {catStandaloneError && <div style={{ fontSize: 12, color: "#B91C1C" }}>{catStandaloneError}</div>}
+          {deleteError && <div style={{ fontSize: 12, color: "#B91C1C" }}>{deleteError}</div>}
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Familias existentes</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {familias.map((f) => (
+                <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "5px 8px", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6 }}>
+                  <span style={{ fontSize: 13, color: "var(--erp-text)" }}>{f.nombre}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleEliminarFamilia(f.id, f.nombre)}
+                    disabled={deletingFamiliaId === f.id}
+                    style={{ border: "1px solid #fecaca", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: "#dc2626", background: "transparent", cursor: "pointer", opacity: deletingFamiliaId === f.id ? 0.5 : 1, whiteSpace: "nowrap" }}
+                  >
+                    {deletingFamiliaId === f.id ? "..." : "Eliminar"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -575,6 +637,35 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
           </div>
           {lineaStandaloneError && <div style={{ fontSize: 12, color: "#B91C1C" }}>{lineaStandaloneError}</div>}
           {lineaStandaloneOk && <div style={{ fontSize: 12, color: "#059669", fontWeight: 600 }}>✓ {lineaStandaloneOk}</div>}
+          {lineas.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Líneas existentes</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {familias.map((f) => {
+                  const lineasDeFamilia = lineas.filter(l => l.familiaId === f.id);
+                  if (lineasDeFamilia.length === 0) return null;
+                  return (
+                    <div key={f.id}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", marginBottom: 3, paddingLeft: 2 }}>{f.nombre}</div>
+                      {lineasDeFamilia.map((l) => (
+                        <div key={l.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "5px 8px", background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, marginBottom: 3, marginLeft: 8 }}>
+                          <span style={{ fontSize: 13, color: "var(--erp-text)" }}>{l.nombre}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarLinea(l.id, l.nombre)}
+                            disabled={deletingLineaId === l.id}
+                            style={{ border: "1px solid #fecaca", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: "#dc2626", background: "transparent", cursor: "pointer", opacity: deletingLineaId === l.id ? 0.5 : 1, whiteSpace: "nowrap" }}
+                          >
+                            {deletingLineaId === l.id ? "..." : "Eliminar"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1059,7 +1150,14 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
             <select
               style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
               value={filterCategoriaId}
-              onChange={(e) => { setFilterCategoriaId(e.target.value); setPagina(1); }}
+              onChange={(e) => {
+                setFilterCategoriaId(e.target.value);
+                setFilterLineaId("");
+                setPagina(1);
+                const fid = Number(e.target.value);
+                if (fid) setLineasFiltro(lineas.filter(l => l.familiaId === fid));
+                else setLineasFiltro([]);
+              }}
             >
               <option value="">Todas</option>
               <option value="__sin__">Sin familia</option>
@@ -1068,6 +1166,21 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               ))}
             </select>
           </div>
+          {filterCategoriaId && filterCategoriaId !== "__sin__" && lineasFiltro.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Línea</label>
+              <select
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
+                value={filterLineaId}
+                onChange={(e) => { setFilterLineaId(e.target.value); setPagina(1); }}
+              >
+                <option value="">Todas las líneas</option>
+                {lineasFiltro.map((l) => (
+                  <option key={l.id} value={String(l.id)}>{l.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Ordenar por</label>
             <select
@@ -1076,13 +1189,13 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
             >
               <option value="nombre">Nombre</option>
-              <option value="categoria">Categoría</option>
+              <option value="categoria">Familia / Línea</option>
             </select>
           </div>
-          {(searchNombre || filterCategoriaId) && (
+          {(searchNombre || filterCategoriaId || filterLineaId) && (
             <button
               type="button"
-              onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setPagina(1); }}
+              onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setFilterLineaId(""); setLineasFiltro([]); setPagina(1); }}
               style={{ background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 12px", fontSize: 13, color: "var(--erp-text-3)", cursor: "pointer", alignSelf: "flex-end" }}
             >
               Limpiar
