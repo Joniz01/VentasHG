@@ -61,7 +61,7 @@ export async function GET() {
           p.stock_actual,
           COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
           f.nombre AS categoria_nombre,
-          COALESCE(f.orden, 99) AS cat_orden
+          99 AS cat_orden
         FROM productos p
         LEFT JOIN familias f ON f.id = p.categoria_id
         WHERE p.activo = TRUE

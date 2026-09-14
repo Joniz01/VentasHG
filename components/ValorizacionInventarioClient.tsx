@@ -36,7 +36,7 @@ export default function ValorizacionInventarioClient() {
 
   useEffect(() => {
     fetch("/api/inventario/valorizacion")
-      .then((r) => r.ok ? r.json() : Promise.reject("Error al cargar"))
+      .then((r) => r.ok ? r.json() : r.json().then((d) => Promise.reject(d.error ?? "Error al cargar")))
       .then((d) => setData(d))
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
