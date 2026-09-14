@@ -675,6 +675,7 @@ export default function FacturaCompraForm({
   // ── EDIT MODE ──────────────────────────────────────────────────────────────
   if (isEdit) {
     return (
+      <>
       <div className="flex flex-col gap-4" style={{ maxWidth: 1440, width: "100%", boxSizing: "border-box" }}>
         <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12, padding: 16 }}>
           <div style={sectionTitle}>Proveedor</div>
@@ -807,6 +808,7 @@ export default function FacturaCompraForm({
             style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", touchAction: "pinch-zoom", transform: `rotate(${rotacionImg}deg)` }} />
         </div>
       )}
+      </>
     );
   }
 
