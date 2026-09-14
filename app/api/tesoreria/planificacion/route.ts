@@ -378,7 +378,7 @@ export async function GET(request: NextRequest) {
 
   // Query 2: mensuales y quincenales automáticas
   try {
-    const r = await pool.query<{ nomina_id: string; nombre: string; fecha_pago: unknown; total_salario: string; total_inc_usd: string; nro_empleados: string }>(
+    const r = await pool.query<{ nomina_id: string; nombre: string; fecha_pago: unknown; total_salario: string; total_inc_usd: string; nro_empleados: string; tipo: string }>(
       `WITH meses AS (
          SELECT generate_series(
            date_trunc('month', $1::date),
@@ -387,20 +387,20 @@ export async function GET(request: NextRequest) {
          )::date AS mes_inicio
        ),
        fechas AS (
-         SELECT n.id AS nomina_id, n.nombre,
+         SELECT n.id AS nomina_id, n.nombre, n.tipo,
                 (m.mes_inicio + (n.dia_pago_1 - 1) * INTERVAL '1 day')::date AS fecha_pago
          FROM meses m, nominas n
          WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
            AND n.frecuencia IN ('MENSUAL','QUINCENAL') AND n.dia_pago_1 IS NOT NULL
          UNION ALL
-         SELECT n.id, n.nombre,
+         SELECT n.id, n.nombre, n.tipo,
                 (m.mes_inicio + (n.dia_pago_2 - 1) * INTERVAL '1 day')::date AS fecha_pago
          FROM meses m, nominas n
          WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
            AND n.frecuencia = 'QUINCENAL' AND n.dia_pago_2 IS NOT NULL
        ),
        filtradas AS (
-         SELECT DISTINCT f.nomina_id, f.nombre, f.fecha_pago
+         SELECT DISTINCT f.nomina_id, f.nombre, f.tipo, f.fecha_pago
          FROM fechas f
          WHERE f.fecha_pago BETWEEN $1 AND $2
            AND NOT EXISTS (
@@ -421,7 +421,7 @@ export async function GET(request: NextRequest) {
          FROM nomina_incidencia_config nic
          GROUP BY nic.nomina_id
        )
-       SELECT f.nomina_id, f.nombre, f.fecha_pago,
+       SELECT f.nomina_id, f.nombre, f.tipo, f.fecha_pago,
               COALESCE(s.total_salario, 0) AS total_salario,
               COALESCE(ic.total_inc_usd, 0) AS total_inc_usd,
               COALESCE(s.nro_empleados, 0) AS nro_empleados
@@ -433,7 +433,18 @@ export async function GET(request: NextRequest) {
     );
     for (const row of r.rows) {
       const nro = Number(row.nro_empleados);
-      const totalUsd = Number(row.total_salario) + Number(row.total_inc_usd) * nro;
+      const tipo = String(row.tipo ?? "NORMAL");
+      // SOLO_INCIDENCIAS: solo cuenta incidencias × empleados (sin salario base)
+      // SOLO_SUELDO: solo salario base, sin incidencias
+      // NORMAL: ambos
+      let totalUsd: number;
+      if (tipo === "SOLO_INCIDENCIAS") {
+        totalUsd = Number(row.total_inc_usd) * nro;
+      } else if (tipo === "SOLO_SUELDO") {
+        totalUsd = Number(row.total_salario);
+      } else {
+        totalUsd = Number(row.total_salario) + Number(row.total_inc_usd) * nro;
+      }
       nominasEstimadas.push({
         nomina_id: Number(row.nomina_id),
         nombre: String(row.nombre),

@@ -132,6 +132,138 @@ export async function GET(request: NextRequest) {
 
     const items = result.rows.map(mapCP);
 
+    // Incluir nóminas pendientes (tab Por Pagar)
+    if (!pagadoDesde) {
+      try {
+        // 1. Períodos generados con pagos pendientes
+        const pendParams: unknown[] = [];
+        const pendDateFilter = desde && hasta
+          ? `AND pn.fecha_hasta BETWEEN $${pendParams.push(desde) && pendParams.length} AND $${pendParams.push(hasta) && pendParams.length}`
+          : "";
+        const pendResult = await pool.query(
+          `SELECT
+             'N' || pn.id AS id,
+             n.nombre AS proveedor,
+             NULL AS proveedor_rif,
+             NULL AS numero_factura,
+             n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
+             pn.fecha_desde AS fecha_emision,
+             pn.fecha_hasta AS fecha_vencimiento,
+             COALESCE(SUM(e.salario_base_usd * pn.tasa_dia), 0) AS monto_bs,
+             COALESCE(SUM(e.salario_base_usd), 0) AS monto_usd,
+             COALESCE(SUM(e.salario_base_usd), 0) AS monto_original_usd,
+             pn.tasa_dia,
+             'PENDIENTE' AS estado,
+             NULL AS monto_original_bs,
+             0 AS monto_pagado_bs,
+             NULL AS pagado_at,
+             NULL AS comprobante_url,
+             NULL AS notas,
+             false AS recurrente,
+             NULL AS frecuencia,
+             NULL AS proximo_vencimiento,
+             'nomina' AS tipo,
+             pn.created_at
+           FROM periodos_nomina pn
+           JOIN nominas n ON n.id = pn.nomina_id
+           JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado != 'PAGADO'
+           JOIN empleados e ON e.id = np.empleado_id
+           ${pendDateFilter}
+           GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia, pn.created_at`,
+          pendParams
+        );
+        for (const r of pendResult.rows) items.push(mapCP(r as Record<string, unknown>));
+
+        // 2. Nóminas automáticas estimadas (sin período generado) dentro de la ventana
+        if (desde && hasta) {
+          const estResult = await pool.query(
+            `WITH fechas_est AS (
+               SELECT n.id AS nomina_id, n.nombre, COALESCE(n.tipo,'NORMAL') AS tipo,
+                      (date_trunc('month', $1::date) + (n.dia_pago_1 - 1) * INTERVAL '1 day')::date AS fecha_pago
+               FROM nominas n
+               WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
+                 AND n.frecuencia IN ('MENSUAL','QUINCENAL') AND n.dia_pago_1 IS NOT NULL
+               UNION ALL
+               SELECT n.id, n.nombre, COALESCE(n.tipo,'NORMAL'),
+                      (date_trunc('week', $1::date) + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date
+               FROM nominas n
+               WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
+                 AND n.frecuencia = 'SEMANAL' AND n.dia_semana IS NOT NULL
+             ),
+             filtradas AS (
+               SELECT DISTINCT f.nomina_id, f.nombre, f.tipo, f.fecha_pago
+               FROM fechas_est f
+               WHERE f.fecha_pago BETWEEN $1 AND $2
+                 AND NOT EXISTS (
+                   SELECT 1 FROM periodos_nomina pn
+                   WHERE pn.nomina_id = f.nomina_id
+                     AND pn.fecha_hasta BETWEEN (f.fecha_pago - INTERVAL '6 days')::date AND f.fecha_pago
+                 )
+             ),
+             salarios AS (
+               SELECT en.nomina_id,
+                      COALESCE(SUM(e.salario_base_usd), 0) AS total_salario,
+                      COUNT(DISTINCT en.empleado_id) AS nro_emp
+               FROM empleado_nominas en
+               JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
+               GROUP BY en.nomina_id
+             ),
+             incidencias AS (
+               SELECT nic.nomina_id, COALESCE(SUM(nic.monto_usd), 0) AS total_inc_usd
+               FROM nomina_incidencia_config nic
+               GROUP BY nic.nomina_id
+             )
+             SELECT f.nomina_id, f.nombre, f.tipo, f.fecha_pago,
+                    COALESCE(s.total_salario, 0) AS total_salario,
+                    COALESCE(ic.total_inc_usd, 0) AS total_inc_usd,
+                    COALESCE(s.nro_emp, 0) AS nro_emp
+             FROM filtradas f
+             LEFT JOIN salarios s ON s.nomina_id = f.nomina_id
+             LEFT JOIN incidencias ic ON ic.nomina_id = f.nomina_id
+             ORDER BY f.fecha_pago ASC`,
+            [desde, hasta]
+          );
+          const tasaBcv = await pool.query(`SELECT tasa FROM tasas_bcv_historico ORDER BY fecha DESC LIMIT 1`).then(r => Number(r.rows[0]?.tasa ?? 1)).catch(() => 1);
+          for (const row of estResult.rows) {
+            const nro = Number(row.nro_emp);
+            const tipo = String(row.tipo);
+            let totalUsd: number;
+            if (tipo === "SOLO_INCIDENCIAS") {
+              totalUsd = Number(row.total_inc_usd) * nro;
+            } else if (tipo === "SOLO_SUELDO") {
+              totalUsd = Number(row.total_salario);
+            } else {
+              totalUsd = Number(row.total_salario) + Number(row.total_inc_usd) * nro;
+            }
+            items.push(mapCP({
+              id: `NE${row.nomina_id}_${row.fecha_pago}`,
+              proveedor: String(row.nombre),
+              proveedor_rif: null,
+              numero_factura: null,
+              descripcion: `${row.nombre} · estimado ${toDateStr(row.fecha_pago)}`,
+              fecha_emision: row.fecha_pago,
+              fecha_vencimiento: row.fecha_pago,
+              monto_bs: totalUsd * tasaBcv,
+              monto_usd: totalUsd,
+              monto_original_usd: totalUsd,
+              tasa_dia: tasaBcv,
+              estado: "PENDIENTE",
+              monto_original_bs: null,
+              monto_pagado_bs: 0,
+              pagado_at: null,
+              comprobante_url: null,
+              notas: null,
+              recurrente: false,
+              frecuencia: null,
+              proximo_vencimiento: null,
+              tipo: "nomina",
+              created_at: null,
+            } as Record<string, unknown>));
+          }
+        }
+      } catch { /* nóminas no disponibles — skip */ }
+    }
+
     // Incluir nóminas pagadas cuando se está filtrando por rango de pago (tab Pagados)
     if (pagadoDesde && pagadoHasta) {
       try {
