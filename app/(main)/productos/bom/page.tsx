@@ -1,22 +1,15 @@
+import { Suspense } from "react";
 import { requirePermiso } from "@/lib/auth";
-import ProximamentePage from "@/components/ProximamentePage";
+import RecetasProduccionClient from "@/components/RecetasProduccionClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function BOMPage() {
+export default async function RecetasProduccionPage() {
   await requirePermiso("productos");
+
   return (
-    <ProximamentePage
-      icon="📐"
-      titulo="Lista de Materiales (BOM)"
-      descripcion="Gestión centralizada de las recetas de producción. Define qué insumos y en qué cantidad se necesitan para elaborar cada producto terminado o semielaborado."
-      detalles={[
-        "Ingredientes y cantidades por unidad de producción",
-        "Soporte para BOMs multinivel (producto dentro de producto)",
-        "Costo de producción calculado desde los insumos",
-        "Vinculado a Órdenes de Producción y MRP",
-        "Versiones de receta con historial de cambios",
-      ]}
-    />
+    <Suspense fallback={<div style={{ padding: 24, color: "var(--erp-text-3)", fontSize: 13 }}>Cargando recetas de producción…</div>}>
+      <RecetasProduccionClient />
+    </Suspense>
   );
 }

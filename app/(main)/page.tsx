@@ -53,7 +53,7 @@ const GRUPOS: TileGroup[] = [
     tiles: [
       { href: "/productos",     icon: "🛒", label: "Productos de Venta",      sub: "Catálogo de productos para vender", color: "#1D4ED8", permiso: "productos" },
       { href: "/insumos",       icon: "🧱", label: "Insumos / Materia Prima", sub: "Insumos de producción",             color: "#92400e", permiso: "productos" },
-      { href: "/productos/bom", icon: "📐", label: "Lista de Materiales",     sub: "Recetas y BOMs de producción",      color: "#7C3AED", permiso: "productos", new: true },
+      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción",  sub: "Insumos por unidad + simulación RP", color: "#7C3AED", permiso: "productos" },
     ],
   },
   {

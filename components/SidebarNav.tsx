@@ -60,7 +60,7 @@ const GRUPOS: NavGroup[] = [
     items: [
       { href: "/productos",     icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
       { href: "/insumos",       icon: "🧱", label: "Insumos / Materia Prima", permiso: "productos" },
-      { href: "/productos/bom", icon: "📐", label: "Lista de Materiales",     permiso: "productos" },
+      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción", permiso: "productos" },
     ],
   },
   {
