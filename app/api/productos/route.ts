@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
               COALESCE(p.alerta_outstock_desactivada, FALSE) AS alerta_outstock_desactivada,
               p.alerta_outstock_motivo,
               COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
-              COALESCE(p.aprovisionamiento, 'COMPRA') AS aprovisionamiento
+              COALESCE(p.aprovisionamiento, 'COMPRA') AS aprovisionamiento,
+              p.subtipo_fabricacion
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        LEFT JOIN lineas l ON l.id = p.linea_id
@@ -58,7 +59,8 @@ export async function GET(request: NextRequest) {
               0 AS stock_minimo, 'unidad' AS unidad_medida,
               FALSE AS alerta_outstock_desactivada, NULL AS alerta_outstock_motivo,
               'PARA_LA_VENTA' AS grupo,
-              'COMPRA' AS aprovisionamiento
+              'COMPRA' AS aprovisionamiento,
+              NULL AS subtipo_fabricacion
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        ${grupoValido ? `WHERE p.activo = TRUE AND COALESCE(p.grupo, 'PARA_LA_VENTA') = $1` : ""}
@@ -131,6 +133,7 @@ export async function GET(request: NextRequest) {
     variadaRaciones: row.variada_raciones,
     grupo: row.grupo ?? "PARA_LA_VENTA",
     aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
+    subtipoFabricacion: (row.subtipo_fabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
     createdAt: row.created_at,
     extras: extrasResult.rows
       .filter((extra) => extra.producto_id === row.id)
@@ -253,6 +256,7 @@ export async function POST(request: NextRequest) {
       unidadMedida: "unidad",
       alertaOutstockDesactivada: false,
       alertaOutstockMotivo: null,
+      subtipoFabricacion: null,
       variadaRaciones: row.variada_raciones,
       createdAt: row.created_at,
       extras: [],

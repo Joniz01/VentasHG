@@ -6,6 +6,7 @@ type ProductoRP = {
   id: number;
   nombre: string;
   grupo: string;
+  subtipo_fabricacion: string | null;
   categoriaNombre: string | null;
   rendimiento: number;
   totalInsumos: number;
@@ -24,7 +25,10 @@ type RPItem = {
   insumoNombre: string;
   insumoUnidad: string;
   stockInsumo: number;
+  insumoAprovisionamiento: string;
+  insumoSubtipo: string | null;
   cantidad: number;
+  factorMerma: number;
   unidadMedida: string;
   notas: string | null;
   orden: number;
@@ -65,7 +69,7 @@ export default function RecetasProduccionClient() {
   const [loadingRp, setLoadingRp] = useState<Record<number, boolean>>({});
   const [busqueda, setBusqueda] = useState("");
   // Nuevo insumo
-  const [nuevoItem, setNuevoItem] = useState<Record<number, { insumoId: string; cantidad: string; notas: string }>>({});
+  const [nuevoItem, setNuevoItem] = useState<Record<number, { insumoId: string; cantidad: string; factorMerma: string; notas: string }>>({});
   const [guardandoItem, setGuardandoItem] = useState<Record<number, boolean>>({});
 
   // Simulación
@@ -113,7 +117,8 @@ export default function RecetasProduccionClient() {
   async function agregarItem(productoId: number) {
     const ni = nuevoItem[productoId];
     if (!ni?.insumoId || !ni?.cantidad) return;
-    const insumoSel = insumos.find((i) => i.id === Number(ni.insumoId));
+    const insumoSel = [...insumos, ...productos].find((i) => i.id === Number(ni.insumoId));
+    const unidad = (insumoSel as Insumo)?.unidadMedida ?? "unidad";
     setGuardandoItem((p) => ({ ...p, [productoId]: true }));
     try {
       const res = await fetch(`/api/productos/bom/${productoId}`, {
@@ -122,7 +127,8 @@ export default function RecetasProduccionClient() {
         body: JSON.stringify({
           insumoId: Number(ni.insumoId),
           cantidad: Number(ni.cantidad),
-          unidadMedida: insumoSel?.unidadMedida ?? "unidad",
+          factorMerma: Number(ni.factorMerma) > 1 ? Number(ni.factorMerma) : 1,
+          unidadMedida: unidad,
           notas: ni.notas || null,
         }),
       });
@@ -221,6 +227,15 @@ export default function RecetasProduccionClient() {
                       <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--erp-text-1)" }}>{p.nombre}</div>
                       {p.categoriaNombre && <div style={{ fontSize: "0.68rem", color: "var(--erp-text-3)" }}>{p.categoriaNombre}</div>}
                     </div>
+                    {p.subtipo_fabricacion && (
+                      <span style={{
+                        fontSize: "0.68rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: 20,
+                        background: p.subtipo_fabricacion === "RECETA_BASE" ? "#fef3c7" : p.subtipo_fabricacion === "ENSAMBLADO" ? "#ede9fe" : "#dcfce7",
+                        color: p.subtipo_fabricacion === "RECETA_BASE" ? "#92400e" : p.subtipo_fabricacion === "ENSAMBLADO" ? "#6d28d9" : "#15803d",
+                      }}>
+                        {p.subtipo_fabricacion === "RECETA_BASE" ? "🧂 Base" : p.subtipo_fabricacion === "ENSAMBLADO" ? "🔧 Ensam." : "📦 Comp."}
+                      </span>
+                    )}
                     <span style={{
                       fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: 20,
                       background: p.totalInsumos > 0 ? "#dbeafe" : "#fef9c3",
@@ -244,49 +259,91 @@ export default function RecetasProduccionClient() {
                             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "0.75rem" }}>
                               <thead>
                                 <tr style={{ borderBottom: "1px solid var(--erp-border)" }}>
-                                  {["Insumo", "Cantidad", "Stock actual", ""].map((h, i) => (
+                                  {["Insumo / Sub-receta", "Cant. neta", "Merma", "Cant. bruta", "Stock", ""].map((h, i) => (
                                     <th key={i} style={{ padding: "0.3rem 0.5rem", textAlign: i === 0 ? "left" : "right", fontSize: "0.68rem", fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase" }}>{h}</th>
                                   ))}
                                 </tr>
                               </thead>
                               <tbody>
-                                {items.map((item) => (
-                                  <tr key={item.id} style={{ borderBottom: "1px solid var(--erp-border)" }}>
-                                    <td style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem", color: "var(--erp-text-1)" }}>{item.insumoNombre}</td>
-                                    <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.85rem", color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>{fmt(item.cantidad)} {item.unidadMedida}</td>
-                                    <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.8rem", color: item.stockInsumo > 0 ? "#15803d" : "#b91c1c", fontVariantNumeric: "tabular-nums" }}>{fmt(item.stockInsumo)} {item.insumoUnidad}</td>
-                                    <td style={{ padding: "0.35rem 0.5rem", textAlign: "right" }}>
-                                      <button onClick={() => eliminarItem(p.id, item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#b91c1c", fontSize: "0.8rem" }} title="Eliminar">✕</button>
-                                    </td>
-                                  </tr>
-                                ))}
+                                {items.map((item) => {
+                                  const cantBruta = item.cantidad * (item.factorMerma ?? 1);
+                                  const esFabricacion = item.insumoAprovisionamiento === "FABRICACION";
+                                  return (
+                                    <tr key={item.id} style={{ borderBottom: "1px solid var(--erp-border)" }}>
+                                      <td style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem", color: "var(--erp-text-1)" }}>
+                                        {esFabricacion && (
+                                          <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: 20, background: item.insumoSubtipo === "RECETA_BASE" ? "#fef3c7" : "#ede9fe", color: item.insumoSubtipo === "RECETA_BASE" ? "#92400e" : "#6d28d9", marginRight: 4 }}>
+                                            {item.insumoSubtipo === "RECETA_BASE" ? "🧂" : "🔧"}
+                                          </span>
+                                        )}
+                                        {item.insumoNombre}
+                                      </td>
+                                      <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.85rem", color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>{fmt(item.cantidad)} {item.unidadMedida}</td>
+                                      <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.8rem", color: item.factorMerma > 1 ? "#d97706" : "var(--erp-text-3)" }}>
+                                        {item.factorMerma > 1 ? `+${fmt((item.factorMerma - 1) * 100, 1)}%` : "—"}
+                                      </td>
+                                      <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.8rem", color: item.factorMerma > 1 ? "#d97706" : "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>
+                                        {item.factorMerma > 1 ? `${fmt(cantBruta)} ${item.unidadMedida}` : "—"}
+                                      </td>
+                                      <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.8rem", color: esFabricacion ? "#6d28d9" : item.stockInsumo > 0 ? "#15803d" : "#b91c1c", fontVariantNumeric: "tabular-nums" }}>
+                                        {esFabricacion ? "sub-receta" : `${fmt(item.stockInsumo)} ${item.insumoUnidad}`}
+                                      </td>
+                                      <td style={{ padding: "0.35rem 0.5rem", textAlign: "right" }}>
+                                        <button onClick={() => eliminarItem(p.id, item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#b91c1c", fontSize: "0.8rem" }} title="Eliminar">✕</button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           )}
 
-                          {/* Agregar insumo */}
+                          {/* Agregar insumo / sub-receta */}
                           <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "flex-end" }}>
                             <select
                               value={ni?.insumoId ?? ""}
-                              onChange={(e) => setNuevoItem((prev) => ({ ...prev, [p.id]: { ...prev[p.id] ?? { cantidad: "", notas: "" }, insumoId: e.target.value } }))}
-                              style={{ flex: "2 1 160px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-surface-1)", color: "var(--erp-text-1)" }}
+                              onChange={(e) => setNuevoItem((prev) => ({ ...prev, [p.id]: { ...prev[p.id] ?? { cantidad: "", factorMerma: "1", notas: "" }, insumoId: e.target.value } }))}
+                              style={{ flex: "2 1 180px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-surface-1)", color: "var(--erp-text-1)" }}
                             >
-                              <option value="">— Seleccionar insumo —</option>
-                              {insumos.map((ins) => (
-                                <option key={ins.id} value={ins.id}>{ins.nombre} ({ins.unidadMedida})</option>
-                              ))}
+                              <option value="">— Insumo o sub-receta —</option>
+                              {insumos.length > 0 && (
+                                <optgroup label="🧂 Materias Primas">
+                                  {insumos.map((ins) => (
+                                    <option key={ins.id} value={ins.id}>{ins.nombre} ({ins.unidadMedida})</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {productos.filter((pr) => pr.id !== p.id).length > 0 && (
+                                <optgroup label="🔧 Sub-recetas / Ensamblados">
+                                  {productos.filter((pr) => pr.id !== p.id).map((pr) => (
+                                    <option key={pr.id} value={pr.id}>{pr.nombre}</option>
+                                  ))}
+                                </optgroup>
+                              )}
                             </select>
                             <input
                               type="number" min="0.001" step="0.001" placeholder="Cantidad"
                               value={ni?.cantidad ?? ""}
-                              onChange={(e) => setNuevoItem((prev) => ({ ...prev, [p.id]: { ...prev[p.id] ?? { insumoId: "", notas: "" }, cantidad: e.target.value } }))}
-                              style={{ flex: "1 1 90px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-surface-1)", color: "var(--erp-text-1)", textAlign: "right" }}
+                              onChange={(e) => setNuevoItem((prev) => ({ ...prev, [p.id]: { ...prev[p.id] ?? { insumoId: "", factorMerma: "1", notas: "" }, cantidad: e.target.value } }))}
+                              style={{ flex: "1 1 80px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-surface-1)", color: "var(--erp-text-1)", textAlign: "right" }}
                             />
+                            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <label style={{ fontSize: "0.65rem", color: "var(--erp-text-3)" }}>Merma %</label>
+                              <input
+                                type="number" min="0" step="0.5" placeholder="0"
+                                value={ni?.factorMerma && Number(ni.factorMerma) > 1 ? fmt((Number(ni.factorMerma) - 1) * 100, 1) : ""}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  setNuevoItem((prev) => ({ ...prev, [p.id]: { ...prev[p.id] ?? { insumoId: "", cantidad: "", notas: "" }, factorMerma: String(1 + pct / 100) } }));
+                                }}
+                                style={{ width: 60, padding: "0.4rem 0.4rem", fontSize: "0.8rem", border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-surface-1)", color: "var(--erp-text-1)", textAlign: "right" }}
+                              />
+                            </div>
                             <input
                               type="text" placeholder="Nota (opcional)"
                               value={ni?.notas ?? ""}
-                              onChange={(e) => setNuevoItem((prev) => ({ ...prev, [p.id]: { ...prev[p.id] ?? { insumoId: "", cantidad: "" }, notas: e.target.value } }))}
-                              style={{ flex: "2 1 120px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-surface-1)", color: "var(--erp-text-1)" }}
+                              onChange={(e) => setNuevoItem((prev) => ({ ...prev, [p.id]: { ...prev[p.id] ?? { insumoId: "", cantidad: "", factorMerma: "1" }, notas: e.target.value } }))}
+                              style={{ flex: "2 1 110px", padding: "0.4rem 0.6rem", fontSize: "0.8rem", border: "1px solid var(--erp-border)", borderRadius: 6, background: "var(--erp-surface-1)", color: "var(--erp-text-1)" }}
                             />
                             <button
                               onClick={() => agregarItem(p.id)}

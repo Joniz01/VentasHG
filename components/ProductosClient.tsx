@@ -33,6 +33,7 @@ const EMPTY_FORM = {
   alertaOutstockMotivo: "",
   grupo: "PARA_LA_VENTA" as GrupoProducto,
   aprovisionamiento: "COMPRA" as "COMPRA" | "FABRICACION",
+  subtipoFabricacion: null as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
 };
 
 type ProductosKpis = {
@@ -201,6 +202,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       alertaOutstockMotivo: producto.alertaOutstockMotivo ?? "",
       grupo: producto.grupo ?? "PARA_LA_VENTA",
       aprovisionamiento: (producto.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
+      subtipoFabricacion: (producto.subtipoFabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
     });
     setNuevaCategoriaNombre("");
     setFormEmpaques((producto.empaques ?? []).map((e: EmpaqueProducto) => ({
@@ -280,6 +282,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         alertaOutstockMotivo: form.alertaOutstockDesactivada ? (form.alertaOutstockMotivo.trim() || null) : null,
         grupo: form.grupo,
         aprovisionamiento: form.aprovisionamiento,
+        subtipoFabricacion: form.aprovisionamiento === "FABRICACION" ? form.subtipoFabricacion : null,
       };
 
       const res = await fetch(
@@ -1120,13 +1123,29 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                                 </select>
                               )}
                             </div>
-                            {/* Aprovisionamiento — solo para PARA_LA_VENTA */}
+                            {/* Aprovisionamiento */}
                             {form.grupo !== "MATERIA_PRIMA" && (
                               <div className="flex flex-col gap-1">
                                 <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Aprovisionamiento</label>
-                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.aprovisionamiento} onChange={(e) => setForm({ ...form, aprovisionamiento: e.target.value as "COMPRA" | "FABRICACION" })}>
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.aprovisionamiento} onChange={(e) => setForm({ ...form, aprovisionamiento: e.target.value as "COMPRA" | "FABRICACION", subtipoFabricacion: null })}>
                                   <option value="COMPRA">🛒 Compra — se adquiere de proveedor</option>
                                   <option value="FABRICACION">🏭 Fabricación — se produce internamente (RP)</option>
+                                </select>
+                              </div>
+                            )}
+                            {/* Subtipo de fabricación */}
+                            {form.aprovisionamiento === "FABRICACION" && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producción</label>
+                                <select
+                                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                                  value={form.subtipoFabricacion ?? ""}
+                                  onChange={(e) => setForm({ ...form, subtipoFabricacion: (e.target.value || null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null })}
+                                >
+                                  <option value="">— Sin clasificar —</option>
+                                  <option value="RECETA_BASE">🧂 Receta Base — sub-receta que consume insumos (masa, relleno)</option>
+                                  <option value="ENSAMBLADO">🔧 Ensamblado — combina recetas base en una unidad (tequeño capresa)</option>
+                                  <option value="COMPUESTO">📦 Compuesto — combina ensamblados (bandeja 15, ración)</option>
                                 </select>
                               </div>
                             )}

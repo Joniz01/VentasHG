@@ -218,6 +218,7 @@ export type Producto = {
   variadaRaciones: number;
   grupo: GrupoProducto;
   aprovisionamiento: "COMPRA" | "FABRICACION";
+  subtipoFabricacion: "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null;
   createdAt: string;
   extras: ProductoExtra[];
   componentes: ProductoComponente[];

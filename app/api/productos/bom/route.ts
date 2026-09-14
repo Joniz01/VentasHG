@@ -13,6 +13,7 @@ export async function GET() {
           p.id,
           p.nombre,
           COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
+          p.subtipo_fabricacion,
           f.nombre AS categoria_nombre,
           COALESCE(p.rp_rendimiento, 1) AS rendimiento,
           COUNT(ri.id)::int AS total_insumos
@@ -20,10 +21,9 @@ export async function GET() {
         LEFT JOIN familias f ON f.id = p.categoria_id
         LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
         WHERE p.activo = TRUE
-          AND COALESCE(p.grupo, 'PARA_LA_VENTA') = 'PARA_LA_VENTA'
           AND COALESCE(p.aprovisionamiento, 'COMPRA') = 'FABRICACION'
-        GROUP BY p.id, p.nombre, p.grupo, f.nombre, p.rp_rendimiento
-        ORDER BY f.nombre ASC NULLS LAST, p.nombre ASC
+        GROUP BY p.id, p.nombre, p.grupo, p.subtipo_fabricacion, f.nombre, p.rp_rendimiento
+        ORDER BY p.subtipo_fabricacion ASC NULLS LAST, f.nombre ASC NULLS LAST, p.nombre ASC
       `);
     } catch {
       result = await pool.query(`
@@ -31,6 +31,7 @@ export async function GET() {
           p.id,
           p.nombre,
           COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
+          NULL AS subtipo_fabricacion,
           f.nombre AS categoria_nombre,
           COALESCE(p.rp_rendimiento, 1) AS rendimiento,
           COUNT(ri.id)::int AS total_insumos
@@ -38,7 +39,7 @@ export async function GET() {
         LEFT JOIN familias f ON f.id = p.categoria_id
         LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
         WHERE p.activo = TRUE
-          AND COALESCE(p.grupo, 'PARA_LA_VENTA') = 'PARA_LA_VENTA'
+          AND COALESCE(p.aprovisionamiento, 'COMPRA') = 'FABRICACION'
         GROUP BY p.id, p.nombre, p.grupo, f.nombre, p.rp_rendimiento
         ORDER BY f.nombre ASC NULLS LAST, p.nombre ASC
       `);
