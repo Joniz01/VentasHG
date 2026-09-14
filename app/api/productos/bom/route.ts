@@ -5,23 +5,44 @@ import { pool } from "@/lib/db";
 export async function GET() {
   try {
     // Todos los productos para la venta o producción que tienen al menos un insumo en su RP
-    const result = await pool.query(`
-      SELECT
-        p.id,
-        p.nombre,
-        COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
-        f.nombre AS categoria_nombre,
-        COALESCE(p.rp_rendimiento, 1) AS rendimiento,
-        COUNT(ri.id)::int AS total_insumos
-      FROM productos p
-      LEFT JOIN familias f ON f.id = p.categoria_id
-      LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
-      WHERE p.activo = TRUE
-        AND COALESCE(p.grupo, 'PARA_LA_VENTA') = 'PARA_LA_VENTA'
-        AND COALESCE(p.aprovisionamiento, 'COMPRA') = 'FABRICACION'
-      GROUP BY p.id, p.nombre, p.grupo, f.nombre, p.rp_rendimiento
-      ORDER BY f.nombre ASC NULLS LAST, p.nombre ASC
-    `);
+    // Try with aprovisionamiento filter; fall back if migration 074 hasn't run yet
+    let result;
+    try {
+      result = await pool.query(`
+        SELECT
+          p.id,
+          p.nombre,
+          COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
+          f.nombre AS categoria_nombre,
+          COALESCE(p.rp_rendimiento, 1) AS rendimiento,
+          COUNT(ri.id)::int AS total_insumos
+        FROM productos p
+        LEFT JOIN familias f ON f.id = p.categoria_id
+        LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
+        WHERE p.activo = TRUE
+          AND COALESCE(p.grupo, 'PARA_LA_VENTA') = 'PARA_LA_VENTA'
+          AND COALESCE(p.aprovisionamiento, 'COMPRA') = 'FABRICACION'
+        GROUP BY p.id, p.nombre, p.grupo, f.nombre, p.rp_rendimiento
+        ORDER BY f.nombre ASC NULLS LAST, p.nombre ASC
+      `);
+    } catch {
+      result = await pool.query(`
+        SELECT
+          p.id,
+          p.nombre,
+          COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
+          f.nombre AS categoria_nombre,
+          COALESCE(p.rp_rendimiento, 1) AS rendimiento,
+          COUNT(ri.id)::int AS total_insumos
+        FROM productos p
+        LEFT JOIN familias f ON f.id = p.categoria_id
+        LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
+        WHERE p.activo = TRUE
+          AND COALESCE(p.grupo, 'PARA_LA_VENTA') = 'PARA_LA_VENTA'
+        GROUP BY p.id, p.nombre, p.grupo, f.nombre, p.rp_rendimiento
+        ORDER BY f.nombre ASC NULLS LAST, p.nombre ASC
+      `);
+    }
 
     // Insumos disponibles (MATERIA_PRIMA activos)
     const insumos = await pool.query(`
