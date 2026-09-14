@@ -32,6 +32,7 @@ const EMPTY_FORM = {
   alertaOutstockDesactivada: false,
   alertaOutstockMotivo: "",
   grupo: "PARA_LA_VENTA" as GrupoProducto,
+  aprovisionamiento: "COMPRA" as "COMPRA" | "FABRICACION",
 };
 
 type ProductosKpis = {
@@ -199,6 +200,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
       alertaOutstockMotivo: producto.alertaOutstockMotivo ?? "",
       grupo: producto.grupo ?? "PARA_LA_VENTA",
+      aprovisionamiento: (producto.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
     });
     setNuevaCategoriaNombre("");
     setFormEmpaques((producto.empaques ?? []).map((e: EmpaqueProducto) => ({
@@ -277,6 +279,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         alertaOutstockDesactivada: form.alertaOutstockDesactivada,
         alertaOutstockMotivo: form.alertaOutstockDesactivada ? (form.alertaOutstockMotivo.trim() || null) : null,
         grupo: form.grupo,
+        aprovisionamiento: form.aprovisionamiento,
       };
 
       const res = await fetch(
@@ -1117,6 +1120,16 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                                 </select>
                               )}
                             </div>
+                            {/* Aprovisionamiento — solo para PARA_LA_VENTA */}
+                            {form.grupo !== "MATERIA_PRIMA" && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Aprovisionamiento</label>
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.aprovisionamiento} onChange={(e) => setForm({ ...form, aprovisionamiento: e.target.value as "COMPRA" | "FABRICACION" })}>
+                                  <option value="COMPRA">🛒 Compra — se adquiere de proveedor</option>
+                                  <option value="FABRICACION">🏭 Fabricación — se produce internamente (RP)</option>
+                                </select>
+                              </div>
+                            )}
                             {form.tipoProducto === "VARIADA" && (
                               <div className="flex flex-col gap-1">
                                 <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Raciones a elegir</label>

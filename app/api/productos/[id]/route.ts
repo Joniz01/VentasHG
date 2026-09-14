@@ -9,7 +9,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const body = await request.json();
   const {
     nombre, descripcion, costo, precioVenta, activo, categoriaId, lineaId, tipoProducto, variadaRaciones,
-    stockMinimo, unidadMedida, unidadMedidaId, alertaOutstockDesactivada, alertaOutstockMotivo, grupo,
+    stockMinimo, unidadMedida, unidadMedidaId, alertaOutstockDesactivada, alertaOutstockMotivo, grupo, aprovisionamiento,
   } = body;
 
   const costoNum = Number(costo);
@@ -35,6 +35,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const outstockBool = Boolean(alertaOutstockDesactivada);
   const outstockMotivo = typeof alertaOutstockMotivo === "string" && alertaOutstockMotivo.trim() ? alertaOutstockMotivo.trim() : null;
   const grupoStr = ["PARA_LA_VENTA", "MATERIA_PRIMA", "SERVICIO"].includes(grupo) ? grupo : "PARA_LA_VENTA";
+  const aprovisionamientoStr = aprovisionamiento === "FABRICACION" ? "FABRICACION" : "COMPRA";
 
   // Try with new columns first; fall back gracefully if migration 046 hasn't run yet
   let result;
@@ -45,15 +46,16 @@ export async function PUT(request: NextRequest, { params }: Params) {
            tipo_producto = $7, variada_raciones = $8,
            stock_minimo = $9, unidad_medida = $10, unidad_medida_id = $11,
            alerta_outstock_desactivada = $12, alerta_outstock_motivo = $13,
-           grupo = $14, linea_id = $15
-       WHERE id = $16
+           grupo = $14, linea_id = $15, aprovisionamiento = $16
+       WHERE id = $17
        RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at,
                  tipo_producto, stock_actual, variada_raciones,
                  stock_minimo, unidad_medida, unidad_medida_id, alerta_outstock_desactivada, alerta_outstock_motivo,
-                 COALESCE(grupo, 'PARA_LA_VENTA') AS grupo`,
+                 COALESCE(grupo, 'PARA_LA_VENTA') AS grupo,
+                 COALESCE(aprovisionamiento, 'COMPRA') AS aprovisionamiento`,
       [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum,
        tipoProducto || "NORMAL", variadaRacionesNum,
-       stockMinimoNum, unidadMedidaStr, unidadMedidaIdNum, outstockBool, outstockMotivo, grupoStr, lineaIdNum, id]
+       stockMinimoNum, unidadMedidaStr, unidadMedidaIdNum, outstockBool, outstockMotivo, grupoStr, lineaIdNum, aprovisionamientoStr, id]
     );
   } catch {
     result = await pool.query(
@@ -131,6 +133,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,
     grupo: row.grupo ?? "PARA_LA_VENTA",
+    aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
     createdAt: row.created_at,
     extras: extrasResult.rows.map((extra) => ({
       id: extra.id,

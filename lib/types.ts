@@ -217,6 +217,7 @@ export type Producto = {
   alertaOutstockMotivo: string | null;
   variadaRaciones: number;
   grupo: GrupoProducto;
+  aprovisionamiento: "COMPRA" | "FABRICACION";
   createdAt: string;
   extras: ProductoExtra[];
   componentes: ProductoComponente[];

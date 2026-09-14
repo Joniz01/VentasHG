@@ -18,6 +18,7 @@ export async function GET() {
       LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
       WHERE p.activo = TRUE
         AND COALESCE(p.grupo, 'PARA_LA_VENTA') = 'PARA_LA_VENTA'
+        AND COALESCE(p.aprovisionamiento, 'COMPRA') = 'FABRICACION'
       GROUP BY p.id, p.nombre, p.grupo, f.nombre, p.rp_rendimiento
       ORDER BY f.nombre ASC NULLS LAST, p.nombre ASC
     `);

@@ -39,7 +39,8 @@ export async function GET(request: NextRequest) {
               p.unidad_medida_id, um.nombre AS unidad_medida_nombre, um.abreviatura AS unidad_medida_abreviatura,
               COALESCE(p.alerta_outstock_desactivada, FALSE) AS alerta_outstock_desactivada,
               p.alerta_outstock_motivo,
-              COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo
+              COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
+              COALESCE(p.aprovisionamiento, 'COMPRA') AS aprovisionamiento
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        LEFT JOIN lineas l ON l.id = p.linea_id
@@ -56,7 +57,8 @@ export async function GET(request: NextRequest) {
               p.tipo_producto, p.stock_actual, p.variada_raciones,
               0 AS stock_minimo, 'unidad' AS unidad_medida,
               FALSE AS alerta_outstock_desactivada, NULL AS alerta_outstock_motivo,
-              'PARA_LA_VENTA' AS grupo
+              'PARA_LA_VENTA' AS grupo,
+              'COMPRA' AS aprovisionamiento
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        ${grupoValido ? `WHERE p.activo = TRUE AND COALESCE(p.grupo, 'PARA_LA_VENTA') = $1` : ""}
@@ -128,6 +130,7 @@ export async function GET(request: NextRequest) {
     alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,
     grupo: row.grupo ?? "PARA_LA_VENTA",
+    aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
     createdAt: row.created_at,
     extras: extrasResult.rows
       .filter((extra) => extra.producto_id === row.id)
@@ -164,7 +167,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { nombre, descripcion, costo, precioVenta, categoriaId, lineaId, tipoProducto, variadaRaciones } = body;
+  const { nombre, descripcion, costo, precioVenta, categoriaId, lineaId, tipoProducto, variadaRaciones, aprovisionamiento } = body;
 
   if (!nombre || typeof nombre !== "string") {
     return NextResponse.json(
@@ -203,11 +206,13 @@ export async function POST(request: NextRequest) {
   const lineaIdNum = lineaId ? Number(lineaId) : null;
   const variadaRacionesNum = Number(variadaRaciones) || 0;
 
+  const aprovisionamientoVal = aprovisionamiento === "FABRICACION" ? "FABRICACION" : "COMPRA";
+
   const result = await pool.query(
-    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id, linea_id, tipo_producto, variada_raciones)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at, tipo_producto, stock_actual, variada_raciones`,
-    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum, lineaIdNum, tipoProducto || "NORMAL", variadaRacionesNum]
+    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id, linea_id, tipo_producto, variada_raciones, aprovisionamiento)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at, tipo_producto, stock_actual, variada_raciones, aprovisionamiento`,
+    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum, lineaIdNum, tipoProducto || "NORMAL", variadaRacionesNum, aprovisionamientoVal]
   );
 
   const row = result.rows[0];
