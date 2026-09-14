@@ -51,9 +51,8 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Productos & Catálogo",
     tiles: [
-      { href: "/productos",     icon: "🛒", label: "Productos de Venta",      sub: "Catálogo de productos para vender", color: "#1D4ED8", permiso: "productos" },
-      { href: "/insumos",       icon: "🧱", label: "Insumos / Materia Prima", sub: "Insumos de producción",             color: "#92400e", permiso: "productos" },
-      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción",  sub: "Insumos por unidad + simulación RP", color: "#7C3AED", permiso: "productos" },
+      { href: "/productos", icon: "🛒", label: "Productos de Venta",      sub: "Catálogo de productos para vender", color: "#1D4ED8", permiso: "productos" },
+      { href: "/insumos",   icon: "🧱", label: "Insumos / Materia Prima", sub: "Insumos de producción",             color: "#92400e", permiso: "productos" },
     ],
   },
   {
@@ -72,11 +71,17 @@ const GRUPOS: TileGroup[] = [
     ],
   },
   {
-    label: "Compras & Producción",
+    label: "Producción & MRP",
     tiles: [
-      { href: "/compras",    icon: "🛍️", label: "Órdenes de Compra",   sub: "Facturas y proveedores",       color: "#15803D", permiso: "compras", new: true },
-      { href: "/produccion", icon: "🏭", label: "Órdenes de Producción", sub: "Fabricación y transformación", color: "#B45309", permiso: "productos", new: true },
-      { href: "/mrp",        icon: "⚙️",  label: "MRP · Planificación", sub: "Requerimientos de materiales", color: "#9333EA", new: true },
+      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción",  sub: "Fórmulas e insumos por producto",  color: "#7C3AED", permiso: "productos" },
+      { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción",  sub: "Fabricación y transformación",     color: "#B45309", permiso: "productos", new: true },
+      { href: "/mrp",           icon: "⚙️",  label: "MRP · Planificación",   sub: "Requerimientos de materiales",     color: "#9333EA", new: true },
+    ],
+  },
+  {
+    label: "Compras",
+    tiles: [
+      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra", sub: "Facturas y proveedores", color: "#15803D", permiso: "compras", new: true },
     ],
   },
   {

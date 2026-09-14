@@ -58,9 +58,8 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Productos & Catálogo",
     items: [
-      { href: "/productos",     icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
-      { href: "/insumos",       icon: "🧱", label: "Insumos / Materia Prima", permiso: "productos" },
-      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción", permiso: "productos" },
+      { href: "/productos", icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
+      { href: "/insumos",   icon: "🧱", label: "Insumos / Materia Prima", permiso: "productos" },
     ],
   },
   {
@@ -79,11 +78,17 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Compras & Producción",
+    label: "Producción & MRP",
     items: [
-      { href: "/compras",    icon: "🛍️", label: "Órdenes de Compra",    permiso: "compras" },
-      { href: "/produccion", icon: "🏭", label: "Órdenes de Producción", permiso: "productos" },
-      { href: "/mrp",        icon: "⚙️",  label: "MRP · Planificación" },
+      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción",  permiso: "productos" },
+      { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción",  permiso: "productos" },
+      { href: "/mrp",           icon: "⚙️",  label: "MRP · Planificación" },
+    ],
+  },
+  {
+    label: "Compras",
+    items: [
+      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra", permiso: "compras" },
     ],
   },
   {
