@@ -1,22 +1,15 @@
+import { Suspense } from "react";
 import { requirePermiso } from "@/lib/auth";
-import ProximamentePage from "@/components/ProximamentePage";
+import ReordenInventarioClient from "@/components/ReordenInventarioClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReglasReordenPage() {
+export default async function ReordenInventarioPage() {
   await requirePermiso("productos");
+
   return (
-    <ProximamentePage
-      icon="🔁"
-      titulo="Reglas de Reorden"
-      descripcion="Define el stock mínimo y la cantidad de reorden para cada producto e insumo. El MRP las usa para generar Órdenes de Compra automáticas cuando el stock cae por debajo del umbral."
-      detalles={[
-        "Stock mínimo (punto de reorden) por producto",
-        "Cantidad de reorden sugerida",
-        "Proveedor preferido por ítem",
-        "Tiempo de entrega estimado (lead time)",
-        "Alimenta el motor de planificación MRP",
-      ]}
-    />
+    <Suspense fallback={<div style={{ padding: 24, color: "var(--erp-text-3)", fontSize: 13 }}>Cargando reglas de reorden…</div>}>
+      <ReordenInventarioClient />
+    </Suspense>
   );
 }
