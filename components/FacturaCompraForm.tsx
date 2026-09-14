@@ -5,8 +5,14 @@ import { useState, useRef, useCallback, useEffect } from "react";
 const fmtBs = (n: number) =>
   n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const parseBs = (val: string) =>
-  Number(String(val).replace(/\./g, "").replace(",", ".")) || 0;
+const parseBs = (val: string): number => {
+  const s = String(val).trim();
+  if (!s) return 0;
+  // VE format: dot = thousands separator, comma = decimal (e.g. "1.234,56")
+  if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", ".")) || 0;
+  // Standard decimal (e.g. "1234.56" from OCR or number input)
+  return Number(s.replace(/[^\d.]/g, "")) || 0;
+};
 
 type RifTipo = "J" | "V" | "E" | "G";
 
@@ -110,7 +116,7 @@ export default function FacturaCompraForm({
   // Items
   const [items, setItems] = useState<ItemLine[]>(
     initialData?.items?.length
-      ? initialData.items.map(it => ({ key: nextKey(), productoId: it.productoId, nombreProducto: it.nombreProducto, cantidad: String(it.cantidad), costoUnitBs: String(it.costoUnitBs), costoUnitUsd: "", paraVenta: true, tipoUso: it.tipoUso ?? initialData?.tipoUso ?? "VENTA" }))
+      ? initialData.items.map(it => ({ key: nextKey(), productoId: it.productoId, nombreProducto: it.nombreProducto, cantidad: String(it.cantidad), costoUnitBs: fmtBs(Number(it.costoUnitBs)), costoUnitUsd: "", paraVenta: true, tipoUso: it.tipoUso ?? initialData?.tipoUso ?? "VENTA" }))
       : [{ key: nextKey(), productoId: null, nombreProducto: "", cantidad: "1", costoUnitBs: "", costoUnitUsd: "", paraVenta: true, tipoUso: initialData?.tipoUso ?? "VENTA" }]
   );
   const [prodSugs, setProdSugs] = useState<Record<number, ProductoSug[]>>({});
@@ -125,6 +131,7 @@ export default function FacturaCompraForm({
   const [fechaVencimientoPago, setFechaVencimientoPago] = useState(initialData?.fechaVencimientoPago?.slice(0, 10) ?? "");
   const [tipoUsoFactura, setTipoUsoFactura] = useState<"VENTA" | "MATERIA_PRIMA">(initialData?.tipoUso ?? "VENTA");
   const [imagenBase64, setImagenBase64] = useState<string | null>(initialData?.imagenFactura ?? null);
+  const [rotacionImg, setRotacionImg] = useState(0);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrProvider, setOcrProvider] = useState<string | null>(null);
@@ -308,7 +315,7 @@ export default function FacturaCompraForm({
   const handleImageFile = useCallback(async (file: File) => {
     try {
       const { dataUrl, base64 } = await compressImage(file);
-      setImagenBase64(dataUrl); setOcrError(null); setOcrProvider(null); setOcrVerif(null); setOcrLoading(true);
+      setImagenBase64(dataUrl); setRotacionImg(0); setOcrError(null); setOcrProvider(null); setOcrVerif(null); setOcrLoading(true);
       try {
         const res = await fetch("/api/compras/ocr", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -397,7 +404,7 @@ export default function FacturaCompraForm({
                 key: nextKey(), productoId: null,
                 nombreProducto: nombre,
                 cantidad: String(Number(it.cantidad) || 1),
-                costoUnitBs: costo > 0 ? String(costo) : "",
+                costoUnitBs: costo > 0 ? fmtBs(costo) : "",
                 costoUnitUsd: (costo > 0 && tRef > 0) ? (costo / tRef).toFixed(4) : "",
                 paraVenta: true,
                 tipoUso: tipoUsoRef.current,
@@ -410,6 +417,26 @@ export default function FacturaCompraForm({
       finally { setOcrLoading(false); }
     } catch (err) { setOcrError(err instanceof Error ? err.message : "Error al procesar imagen"); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function applyRotation(dataUrl: string, deg: number): Promise<string> {
+    if (deg === 0) return dataUrl;
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const swap = deg === 90 || deg === 270;
+        const w = swap ? img.height : img.width;
+        const h = swap ? img.width : img.height;
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d")!;
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate((deg * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = dataUrl;
+    });
+  }
 
   async function handleSubmit() {
     const validItems = items.filter(it => it.nombreProducto.trim() && Number(it.cantidad) > 0);
@@ -453,6 +480,7 @@ export default function FacturaCompraForm({
         return it;
       }));
 
+      const finalImagen = imagenBase64 ? await applyRotation(imagenBase64, rotacionImg) : null;
       const url = isEdit ? `/api/compras/${initialData!.id}` : "/api/compras";
       const method = isEdit ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -465,7 +493,7 @@ export default function FacturaCompraForm({
           observaciones: observaciones.trim() || null,
           tasaDia: Number(tasaDia) || 0,
           fechaVencimientoPago: fechaVencimientoPago || null,
-          imagenFactura: imagenBase64,
+          imagenFactura: finalImagen,
           tipoUso: tipoUsoFactura,
           items: resolvedItems.map(it => ({ productoId: it.productoId, nombreProducto: it.nombreProducto.trim(), cantidad: Number(it.cantidad), costoUnitBs: parseBs(it.costoUnitBs), tipoUso: it.tipoUso })),
         }),
@@ -598,6 +626,7 @@ export default function FacturaCompraForm({
             <div style={{ position: "relative" }}>
               <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", pointerEvents: "none" }}>Bs</span>
               <input type="text" value={it.costoUnitBs} onChange={e => updateItemBs(it.key, e.target.value)}
+                onBlur={e => { const p = parseBs(e.target.value); if (p > 0) updateItemBs(it.key, fmtBs(p)); }}
                 placeholder="0,00" style={{ ...S, paddingLeft: 28, textAlign: "right", minWidth: 0 }} />
             </div>
           </td>
@@ -745,12 +774,20 @@ export default function FacturaCompraForm({
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
           {imagenBase64 && !ocrLoading && (
-            <img
-              src={imagenBase64}
-              alt="Factura"
-              onClick={() => setImagenAmpliada(imagenBase64)}
-              style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8, border: "1px solid var(--erp-border)", objectFit: "contain", marginTop: 10, cursor: "zoom-in" }}
-            />
+            <div>
+              <div style={{ display: "inline-block", overflow: "hidden" }}>
+                <img
+                  src={imagenBase64}
+                  alt="Factura"
+                  onClick={() => setImagenAmpliada(imagenBase64)}
+                  style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8, border: "1px solid var(--erp-border)", objectFit: "contain", marginTop: 10, cursor: "zoom-in", transform: `rotate(${rotacionImg}deg)`, transition: "transform 0.2s", display: "block" }}
+                />
+              </div>
+              <button type="button" onClick={() => setRotacionImg(r => (r + 90) % 360)}
+                style={{ marginTop: 6, background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "none", borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                ↻ Girar
+              </button>
+            </div>
           )}
         </div>
 
@@ -760,6 +797,16 @@ export default function FacturaCompraForm({
           <button type="button" onClick={handleSubmit} disabled={saving} style={btnPrimary(saving)}>{saving ? "Guardando..." : "Guardar Cambios"}</button>
         </div>
       </div>
+
+      {imagenAmpliada && (
+        <div onClick={() => setImagenAmpliada(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.85)", touchAction: "pinch-zoom" }}>
+          <button type="button" onClick={() => setImagenAmpliada(null)}
+            style={{ position: "fixed", top: 12, right: 16, fontSize: 30, fontWeight: 700, lineHeight: 1, color: "#fff", background: "none", border: "none", cursor: "pointer" }} aria-label="Cerrar">✕</button>
+          <img src={imagenAmpliada} alt="Factura ampliada" onClick={e => e.stopPropagation()}
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", touchAction: "pinch-zoom", transform: `rotate(${rotacionImg}deg)` }} />
+        </div>
+      )}
     );
   }
 
@@ -793,7 +840,10 @@ export default function FacturaCompraForm({
                 </span>
               )}
               <span style={{ color: "var(--erp-text-2)", fontSize: 12 }}>Datos pre-cargados — revisa y completa los faltantes</span>
-              <img src={imagenBase64} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginLeft: "auto" }} />
+              <button type="button" onClick={() => setRotacionImg(r => (r + 90) % 360)}
+                style={{ background: "var(--erp-primary-lt)", color: "var(--erp-primary)", border: "none", borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>↻ Girar</button>
+              <img src={imagenBase64} alt="" onClick={() => setImagenAmpliada(imagenBase64)}
+                style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginLeft: "auto", cursor: "zoom-in", transform: `rotate(${rotacionImg}deg)`, transition: "transform 0.2s" }} />
             </>
           )}
           {ocrError && <span style={{ color: "#FCA5A5", fontSize: 12 }}>⚠ {ocrError}</span>}
@@ -979,7 +1029,7 @@ export default function FacturaCompraForm({
             src={imagenAmpliada}
             alt="Factura ampliada"
             onClick={e => e.stopPropagation()}
-            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", touchAction: "pinch-zoom" }}
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", touchAction: "pinch-zoom", transform: `rotate(${rotacionImg}deg)` }}
           />
         </div>
       )}

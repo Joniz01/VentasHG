@@ -37,6 +37,7 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
   const [proveedorQ, setProveedorQ] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState<"TODAS" | "ACTIVA" | "ANULADA">("ACTIVA");
   const [detalle, setDetalle] = useState<Detalle | null>(null);
+  const [imagenZoom, setImagenZoom] = useState<string | null>(null);
   const [anulando, setAnulando] = useState(false);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -362,11 +363,23 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
               {detalle.imagenFactura && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", marginBottom: 6 }}>IMAGEN FACTURA</div>
-                  <img src={detalle.imagenFactura.startsWith("data:") ? detalle.imagenFactura : `data:image/jpeg;base64,${detalle.imagenFactura}`} alt="Factura" style={{ width: "100%", borderRadius: 8, border: "1px solid var(--erp-border)" }} />
+                  <img src={detalle.imagenFactura.startsWith("data:") ? detalle.imagenFactura : `data:image/jpeg;base64,${detalle.imagenFactura}`} alt="Factura"
+                    onClick={() => setImagenZoom(detalle.imagenFactura!.startsWith("data:") ? detalle.imagenFactura! : `data:image/jpeg;base64,${detalle.imagenFactura}`)}
+                    style={{ width: "100%", borderRadius: 8, border: "1px solid var(--erp-border)", cursor: "zoom-in" }} />
                 </div>
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {imagenZoom && (
+        <div onClick={() => setImagenZoom(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.88)", touchAction: "pinch-zoom" }}>
+          <button type="button" onClick={() => setImagenZoom(null)}
+            style={{ position: "fixed", top: 12, right: 16, fontSize: 30, fontWeight: 700, lineHeight: 1, color: "#fff", background: "none", border: "none", cursor: "pointer" }} aria-label="Cerrar">✕</button>
+          <img src={imagenZoom} alt="Factura ampliada" onClick={e => e.stopPropagation()}
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", touchAction: "pinch-zoom" }} />
         </div>
       )}
     </div>
