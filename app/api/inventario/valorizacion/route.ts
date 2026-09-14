@@ -61,7 +61,8 @@ export async function GET() {
           p.stock_actual,
           COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
           f.nombre AS categoria_nombre,
-          99 AS cat_orden
+          99 AS cat_orden,
+          COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo
         FROM productos p
         LEFT JOIN familias f ON f.id = p.categoria_id
         WHERE p.activo = TRUE
@@ -74,6 +75,7 @@ export async function GET() {
         ps.unidad_medida,
         ps.categoria_nombre,
         ps.cat_orden,
+        ps.grupo,
         COALESCE(c.total_bs, 0)                   AS total_comprado_bs,
         COALESCE(c.total_usd, 0)                  AS total_comprado_usd,
         COALESCE(c.total_comprado, 0)             AS qty_comprada,
@@ -102,6 +104,7 @@ export async function GET() {
         stockActual,
         unidadMedida:    r.unidad_medida,
         categoriaNombre: r.categoria_nombre ?? null,
+        grupo:           r.grupo as string,
         costoPromUsd,
         costoPromBs,
         valorTotalUsd:   costoPromUsd !== null ? costoPromUsd * stockActual : null,

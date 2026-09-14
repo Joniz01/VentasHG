@@ -8,6 +8,7 @@ type ProductoValor = {
   stockActual: number;
   unidadMedida: string;
   categoriaNombre: string | null;
+  grupo: string;
   costoPromUsd: number | null;
   costoPromBs: number | null;
   valorTotalUsd: number | null;
@@ -31,6 +32,7 @@ export default function ValorizacionInventarioClient() {
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [moneda, setMoneda] = useState<"usd" | "bs">("usd");
+  const [grupoFiltro, setGrupoFiltro] = useState<"TODOS" | "PARA_LA_VENTA" | "MATERIA_PRIMA">("TODOS");
   const [ordenCol, setOrdenCol] = useState<"nombre" | "stock" | "costo" | "valor">("valor");
   const [ordenDir, setOrdenDir] = useState<"asc" | "desc">("desc");
 
@@ -45,12 +47,17 @@ export default function ValorizacionInventarioClient() {
   if (loading) return <div style={{ padding: 24, color: "var(--erp-text-3)", fontSize: 13 }}>Calculando valorización…</div>;
   if (error || !data) return <div style={{ padding: 24, color: "#b91c1c", fontSize: 13 }}>{error ?? "Sin datos"}</div>;
 
+  // KPIs por grupo
+  const ventaUsd = data.productos.filter(p => p.grupo === "PARA_LA_VENTA").reduce((s, p) => s + (p.valorTotalUsd ?? 0), 0);
+  const insumoUsd = data.productos.filter(p => p.grupo === "MATERIA_PRIMA").reduce((s, p) => s + (p.valorTotalUsd ?? 0), 0);
+
   // Filtrar y ordenar
-  let productos = data.productos.filter((p) =>
-    !busqueda.trim() ||
-    p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (p.categoriaNombre ?? "").toLowerCase().includes(busqueda.toLowerCase())
-  );
+  let productos = data.productos.filter((p) => {
+    if (grupoFiltro !== "TODOS" && p.grupo !== grupoFiltro) return false;
+    return !busqueda.trim() ||
+      p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (p.categoriaNombre ?? "").toLowerCase().includes(busqueda.toLowerCase());
+  });
 
   productos = [...productos].sort((a, b) => {
     let va = 0, vb = 0;
@@ -115,6 +122,14 @@ export default function ValorizacionInventarioClient() {
           <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Productos</span>
           <span style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>{data.productos.length}</span>
         </div>
+        <div style={{ background: "#f0fdf4", borderRadius: 12, padding: "0.75rem 1.1rem", display: "flex", flexDirection: "column", gap: 2, minWidth: 160 }}>
+          <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#15803d", textTransform: "uppercase", letterSpacing: "0.05em" }}>Para la venta</span>
+          <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "#15803d", fontVariantNumeric: "tabular-nums" }}>$ {fmt(ventaUsd)}</span>
+        </div>
+        <div style={{ background: "#faf5ff", borderRadius: 12, padding: "0.75rem 1.1rem", display: "flex", flexDirection: "column", gap: 2, minWidth: 160 }}>
+          <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em" }}>Insumos</span>
+          <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "#7c3aed", fontVariantNumeric: "tabular-nums" }}>$ {fmt(insumoUsd)}</span>
+        </div>
         {sinCosto > 0 && (
           <div style={{ background: "#fffbeb", borderRadius: 12, padding: "0.75rem 1.1rem", display: "flex", flexDirection: "column", gap: 2, minWidth: 140 }}>
             <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#B45309", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sin costo registrado</span>
@@ -151,6 +166,15 @@ export default function ValorizacionInventarioClient() {
 
       {/* Controles tabla */}
       <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", border: "1px solid var(--erp-border)", borderRadius: 7, overflow: "hidden" }}>
+          {([["TODOS", "Todos"], ["PARA_LA_VENTA", "Venta"], ["MATERIA_PRIMA", "Insumos"]] as const).map(([val, label]) => (
+            <button key={val} onClick={() => setGrupoFiltro(val)} style={{
+              padding: "0.45rem 0.9rem", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
+              background: grupoFiltro === val ? "#1D4ED8" : "var(--erp-surface-1)",
+              color: grupoFiltro === val ? "#fff" : "var(--erp-text-2)",
+            }}>{label}</button>
+          ))}
+        </div>
         <div style={{ position: "relative", flex: "1 1 200px" }}>
           <input
             type="text" placeholder="Buscar producto o categoría…" value={busqueda}
