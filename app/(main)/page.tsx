@@ -60,10 +60,10 @@ const GRUPOS: TileGroup[] = [
     label: "Inventario",
     tiles: [
       { href: "/inventario",               icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",           color: "#15803D", permiso: "productos" },
-      { href: "/inventario/ajustes",       icon: "⚖️",  label: "Ajustes de Inventario",    sub: "Mermas, pérdidas y correcciones", color: "#B45309", permiso: "productos", new: true },
-      { href: "/inventario/lotes",         icon: "🏷️", label: "Lotes & Vencimientos",     sub: "Trazabilidad y FIFO",             color: "#0891B2", permiso: "productos", new: true },
+      { href: "/inventario/ajustes",       icon: "⚖️",  label: "Ajustes de Inventario",    sub: "Mermas, pérdidas y correcciones", color: "#B45309", permiso: "productos" },
+      { href: "/inventario/lotes",         icon: "🏷️", label: "Lotes & Vencimientos",     sub: "Trazabilidad y FIFO",             color: "#0891B2", permiso: "productos" },
       { href: "/inventarios",              icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos",      color: "#1D4ED8", permiso: "productos" },
-      { href: "/inventario/valorizacion",  icon: "💰", label: "Valorización",             sub: "Costo promedio del stock",        color: "#B45309", permiso: "reportes",  new: true },
+      { href: "/inventario/valorizacion",  icon: "💰", label: "Valorización",             sub: "Costo promedio del stock",        color: "#B45309", permiso: "reportes" },
       { href: "/inventario-disponible",    icon: "✅", label: "Inventario Disponible",    sub: "Vista pública de existencias",    color: "#15803D", permiso: "productos" },
       { href: "/inventario/reorden",       icon: "🔁", label: "Reglas de Reorden",        sub: "Puntos de reorden para MRP",      color: "#7C3AED", permiso: "productos", new: true },
       { href: "/inventario/conteos",       icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",        color: "#7C3AED", permiso: "autorizarConteo" },
