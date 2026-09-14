@@ -278,12 +278,12 @@ export default function RecetasProduccionClient() {
                                         )}
                                         {item.insumoNombre}
                                       </td>
-                                      <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.85rem", color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>{fmt(item.cantidad)} {item.unidadMedida}</td>
+                                      <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.85rem", color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>{fmt(item.cantidad)} {item.insumoUnidad}</td>
                                       <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.8rem", color: item.factorMerma > 1 ? "#d97706" : "var(--erp-text-3)" }}>
                                         {item.factorMerma > 1 ? `+${fmt((item.factorMerma - 1) * 100, 1)}%` : "—"}
                                       </td>
                                       <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.8rem", color: item.factorMerma > 1 ? "#d97706" : "var(--erp-text-3)", fontVariantNumeric: "tabular-nums" }}>
-                                        {item.factorMerma > 1 ? `${fmt(cantBruta)} ${item.unidadMedida}` : "—"}
+                                        {item.factorMerma > 1 ? `${fmt(cantBruta)} ${item.insumoUnidad}` : "—"}
                                       </td>
                                       <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontSize: "0.8rem", color: esFabricacion ? "#6d28d9" : item.stockInsumo > 0 ? "#15803d" : "#b91c1c", fontVariantNumeric: "tabular-nums" }}>
                                         {esFabricacion ? "sub-receta" : `${fmt(item.stockInsumo)} ${item.insumoUnidad}`}
