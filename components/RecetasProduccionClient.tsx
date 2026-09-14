@@ -83,7 +83,11 @@ export default function RecetasProduccionClient() {
     setLoading(true);
     fetch("/api/productos/bom")
       .then((r) => r.ok ? r.json() : r.json().then((d) => Promise.reject(d.error ?? "Error")))
-      .then((d) => { setProductos(d.productos); setInsumos(d.insumos); })
+      .then((d) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setProductos(d.productos.map((p: any) => ({ ...p, totalInsumos: p.totalInsumos ?? p.total_insumos ?? 0 })));
+        setInsumos(d.insumos);
+      })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);

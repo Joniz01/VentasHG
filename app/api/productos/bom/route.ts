@@ -16,7 +16,7 @@ export async function GET() {
           p.subtipo_fabricacion,
           f.nombre AS categoria_nombre,
           COALESCE(p.rp_rendimiento, 1) AS rendimiento,
-          COUNT(ri.id)::int AS total_insumos
+          COUNT(ri.id)::int AS "totalInsumos"
         FROM productos p
         LEFT JOIN familias f ON f.id = p.categoria_id
         LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
@@ -34,7 +34,7 @@ export async function GET() {
           NULL AS subtipo_fabricacion,
           f.nombre AS categoria_nombre,
           COALESCE(p.rp_rendimiento, 1) AS rendimiento,
-          COUNT(ri.id)::int AS total_insumos
+          COUNT(ri.id)::int AS "totalInsumos"
         FROM productos p
         LEFT JOIN familias f ON f.id = p.categoria_id
         LEFT JOIN rp_items ri ON ri.producto_id = p.id AND ri.activo = TRUE
