@@ -35,6 +35,10 @@ export default function ValorizacionInventarioClient() {
   const [grupoFiltro, setGrupoFiltro] = useState<"TODOS" | "PARA_LA_VENTA" | "MATERIA_PRIMA">("TODOS");
   const [ordenCol, setOrdenCol] = useState<"nombre" | "stock" | "costo" | "valor">("valor");
   const [ordenDir, setOrdenDir] = useState<"asc" | "desc">("desc");
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(25);
+
+  useEffect(() => { setPagina(1); }, [busqueda, grupoFiltro]);
 
   useEffect(() => {
     fetch("/api/inventario/valorizacion")
@@ -79,6 +83,16 @@ export default function ValorizacionInventarioClient() {
   }
   const categoriasOrdenadas = Object.entries(porCategoria).sort((a, b) => b[1].totalUsd - a[1].totalUsd);
 
+  function btnPagStyle(disabled: boolean, active = false): React.CSSProperties {
+    return {
+      padding: "0.3rem 0.55rem", border: "1px solid var(--erp-border)", borderRadius: 6,
+      cursor: disabled ? "default" : "pointer", fontSize: "0.78rem", fontWeight: active ? 700 : 400,
+      background: active ? "#1D4ED8" : "var(--erp-surface-1)",
+      color: disabled ? "var(--erp-text-3)" : active ? "#fff" : "var(--erp-text-2)",
+      opacity: disabled ? 0.4 : 1,
+    };
+  }
+
   function thStyle(col: string): React.CSSProperties {
     return {
       padding: "0.35rem 0.75rem", textAlign: col === "nombre" ? "left" : "right",
@@ -92,7 +106,11 @@ export default function ValorizacionInventarioClient() {
   function toggleOrden(col: typeof ordenCol) {
     if (ordenCol === col) setOrdenDir((d) => d === "asc" ? "desc" : "asc");
     else { setOrdenCol(col); setOrdenDir("desc"); }
+    setPagina(1);
   }
+
+  const totalPaginas = Math.max(1, Math.ceil(productos.length / porPagina));
+  const productosPagina = productos.slice((pagina - 1) * porPagina, pagina * porPagina);
 
   const sinCosto = productos.filter((p) => p.costoPromUsd === null).length;
 
@@ -227,7 +245,7 @@ export default function ValorizacionInventarioClient() {
         {productos.length === 0 ? (
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--erp-text-3)", fontSize: 13 }}>Sin resultados</div>
         ) : (
-          productos.map((p, idx) => {
+          productosPagina.map((p, idx) => {
             const valorTotal = moneda === "usd" ? p.valorTotalUsd : p.valorTotalBs;
             const costoUn   = moneda === "usd" ? p.costoPromUsd  : p.costoPromBs;
             const totalRef  = moneda === "usd" ? data.totalUsd    : data.totalBs;
@@ -241,7 +259,7 @@ export default function ValorizacionInventarioClient() {
                   display: "grid", gridTemplateColumns: "1fr 90px 100px 110px 120px",
                   alignItems: "center",
                   padding: "0.5rem 0.75rem",
-                  borderBottom: idx < productos.length - 1 ? "1px solid var(--erp-border)" : "none",
+                  borderBottom: idx < productosPagina.length - 1 ? "1px solid var(--erp-border)" : "none",
                   background: "var(--erp-surface-1)",
                 }}
               >
@@ -274,7 +292,7 @@ export default function ValorizacionInventarioClient() {
           borderTop: "2px solid var(--erp-border)",
         }}>
           <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--erp-text-2)" }}>
-            Total ({productos.length} productos)
+            Total ({productos.length} productos{grupoFiltro !== "TODOS" ? ` filtrados` : ""})
           </span>
           <span />
           <span />
@@ -284,6 +302,35 @@ export default function ValorizacionInventarioClient() {
           <span style={{ textAlign: "right", fontSize: "0.75rem", fontWeight: 700, color: "var(--erp-text-3)" }}>100%</span>
         </div>
       </div>
+
+      {/* Paginación */}
+      {totalPaginas > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <button onClick={() => setPagina(1)} disabled={pagina === 1} style={btnPagStyle(pagina === 1)}>«</button>
+            <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1} style={btnPagStyle(pagina === 1)}>‹</button>
+            {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+              .filter(n => n === 1 || n === totalPaginas || Math.abs(n - pagina) <= 1)
+              .reduce<(number | "…")[]>((acc, n, i, arr) => {
+                if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("…");
+                acc.push(n);
+                return acc;
+              }, [])
+              .map((n, i) => n === "…"
+                ? <span key={`e${i}`} style={{ padding: "0 0.3rem", color: "var(--erp-text-3)", fontSize: "0.8rem" }}>…</span>
+                : <button key={n} onClick={() => setPagina(n as number)} style={btnPagStyle(false, pagina === n)}>{n}</button>
+              )}
+            <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas} style={btnPagStyle(pagina === totalPaginas)}>›</button>
+            <button onClick={() => setPagina(totalPaginas)} disabled={pagina === totalPaginas} style={btnPagStyle(pagina === totalPaginas)}>»</button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.78rem", color: "var(--erp-text-3)" }}>
+            <span>Por página:</span>
+            {[15, 25, 50].map(n => (
+              <button key={n} onClick={() => { setPorPagina(n); setPagina(1); }} style={btnPagStyle(false, porPagina === n)}>{n}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <p style={{ margin: 0, fontSize: "0.72rem", color: "var(--erp-text-3)" }}>
         CPP = Costo Promedio Ponderado calculado sobre historial de compras activas.
