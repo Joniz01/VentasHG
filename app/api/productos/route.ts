@@ -170,7 +170,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { nombre, descripcion, costo, precioVenta, categoriaId, lineaId, tipoProducto, variadaRaciones, aprovisionamiento } = body;
+  const { nombre, descripcion, costo, precioVenta, categoriaId, lineaId, tipoProducto, variadaRaciones, aprovisionamiento, unidadMedida, unidadMedidaId } = body;
 
   if (!nombre || typeof nombre !== "string") {
     return NextResponse.json(
@@ -210,12 +210,14 @@ export async function POST(request: NextRequest) {
   const variadaRacionesNum = Number(variadaRaciones) || 0;
 
   const aprovisionamientoVal = aprovisionamiento === "FABRICACION" ? "FABRICACION" : "COMPRA";
+  const unidadMedidaStr = typeof unidadMedida === "string" && unidadMedida.trim() ? unidadMedida.trim() : null;
+  const unidadMedidaIdNum = unidadMedidaId ? Number(unidadMedidaId) : null;
 
   const result = await pool.query(
-    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id, linea_id, tipo_producto, variada_raciones, aprovisionamiento)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at, tipo_producto, stock_actual, variada_raciones, aprovisionamiento`,
-    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum, lineaIdNum, tipoProducto || "NORMAL", variadaRacionesNum, aprovisionamientoVal]
+    `INSERT INTO productos (nombre, descripcion, costo, precio_venta, categoria_id, linea_id, tipo_producto, variada_raciones, aprovisionamiento, unidad_medida, unidad_medida_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at, tipo_producto, stock_actual, variada_raciones, aprovisionamiento, unidad_medida, unidad_medida_id`,
+    [nombre, descripcion ?? null, costoNum, precioNum, categoriaIdNum, lineaIdNum, tipoProducto || "NORMAL", variadaRacionesNum, aprovisionamientoVal, unidadMedidaStr, unidadMedidaIdNum]
   );
 
   const row = result.rows[0];
@@ -253,7 +255,8 @@ export async function POST(request: NextRequest) {
       tipoProducto: row.tipo_producto,
       stockActual: Number(row.stock_actual),
       stockMinimo: 0,
-      unidadMedida: "unidad",
+      unidadMedida: row.unidad_medida ?? "unidad",
+      unidadMedidaId: row.unidad_medida_id ?? null,
       alertaOutstockDesactivada: false,
       alertaOutstockMotivo: null,
       subtipoFabricacion: null,
