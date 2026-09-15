@@ -81,7 +81,9 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Compras",
     tiles: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra", sub: "Facturas y proveedores", color: "#15803D", permiso: "compras", new: true },
+      { href: "/compras/facturas",    icon: "📄", label: "Facturas de Compra",     sub: "Facturas de proveedores e inventario", color: "#15803D", permiso: "compras" },
+      { href: "/compras/recepciones", icon: "🚚", label: "Recepción de Mercancía", sub: "Mercancía recibida sin factura",        color: "#0891B2", permiso: "compras" },
+      { href: "/compras/proveedores", icon: "🏢", label: "Proveedores",            sub: "Datos y condiciones de crédito",        color: "#475569", permiso: "compras" },
     ],
   },
   {

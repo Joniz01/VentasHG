@@ -88,7 +88,9 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Compras",
     items: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra", permiso: "compras" },
+      { href: "/compras/facturas",     icon: "📄", label: "Facturas de Compra",      permiso: "compras" },
+      { href: "/compras/recepciones",  icon: "🚚", label: "Recepción de Mercancía",  permiso: "compras" },
+      { href: "/compras/proveedores",  icon: "🏢", label: "Proveedores",             permiso: "compras" },
     ],
   },
   {
