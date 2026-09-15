@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
           p.alerta_outstock_motivo,
           c.nombre AS categoria_nombre
         FROM productos p
-        LEFT JOIN categorias c ON c.id = p.categoria_id
+        LEFT JOIN familias c ON c.id = p.categoria_id
         WHERE p.activo = TRUE AND p.tipo_producto = 'NORMAL'
           ${whereExtra}
         ORDER BY
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       const result = await pool.query(`
         SELECT p.id, p.nombre, p.stock_actual, c.nombre AS categoria_nombre
         FROM productos p
-        LEFT JOIN categorias c ON c.id = p.categoria_id
+        LEFT JOIN familias c ON c.id = p.categoria_id
         WHERE p.activo = TRUE AND p.tipo_producto = 'NORMAL'
         ORDER BY p.stock_actual ASC, p.nombre ASC
       `);

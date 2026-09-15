@@ -8,8 +8,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
   const {
-    nombre, descripcion, costo, precioVenta, activo, categoriaId, tipoProducto, variadaRaciones,
-    stockMinimo, unidadMedida, alertaOutstockDesactivada, alertaOutstockMotivo, grupo,
+    nombre, descripcion, costo, precioVenta, activo, categoriaId, lineaId, tipoProducto, variadaRaciones,
+    stockMinimo, unidadMedida, unidadMedidaId, alertaOutstockDesactivada, alertaOutstockMotivo, grupo, aprovisionamiento,
+    subtipoFabricacion,
   } = body;
 
   const costoNum = Number(costo);
@@ -27,12 +28,17 @@ export async function PUT(request: NextRequest, { params }: Params) {
   }
 
   const categoriaIdNum = categoriaId ? Number(categoriaId) : null;
+  const lineaIdNum = lineaId ? Number(lineaId) : null;
   const variadaRacionesNum = Number(variadaRaciones) || 0;
   const stockMinimoNum = Math.max(0, Number(stockMinimo) || 0);
   const unidadMedidaStr = typeof unidadMedida === "string" && unidadMedida.trim() ? unidadMedida.trim() : "unidad";
+  const unidadMedidaIdNum = unidadMedidaId ? Number(unidadMedidaId) : null;
   const outstockBool = Boolean(alertaOutstockDesactivada);
   const outstockMotivo = typeof alertaOutstockMotivo === "string" && alertaOutstockMotivo.trim() ? alertaOutstockMotivo.trim() : null;
   const grupoStr = ["PARA_LA_VENTA", "MATERIA_PRIMA", "SERVICIO"].includes(grupo) ? grupo : "PARA_LA_VENTA";
+  const aprovisionamientoStr = aprovisionamiento === "FABRICACION" ? "FABRICACION" : "COMPRA";
+  const SUBTIPOS_VALIDOS = ["RECETA_BASE", "ENSAMBLADO", "COMPUESTO"];
+  const subtipoStr = subtipoFabricacion && SUBTIPOS_VALIDOS.includes(subtipoFabricacion) ? subtipoFabricacion : null;
 
   // Try with new columns first; fall back gracefully if migration 046 hasn't run yet
   let result;
@@ -41,17 +47,19 @@ export async function PUT(request: NextRequest, { params }: Params) {
       `UPDATE productos
        SET nombre = $1, descripcion = $2, costo = $3, precio_venta = $4, activo = $5, categoria_id = $6,
            tipo_producto = $7, variada_raciones = $8,
-           stock_minimo = $9, unidad_medida = $10,
-           alerta_outstock_desactivada = $11, alerta_outstock_motivo = $12,
-           grupo = $13
-       WHERE id = $14
-       RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at,
+           stock_minimo = $9, unidad_medida = $10, unidad_medida_id = $11,
+           alerta_outstock_desactivada = $12, alerta_outstock_motivo = $13,
+           grupo = $14, linea_id = $15, aprovisionamiento = $16, subtipo_fabricacion = $17
+       WHERE id = $18
+       RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at,
                  tipo_producto, stock_actual, variada_raciones,
-                 stock_minimo, unidad_medida, alerta_outstock_desactivada, alerta_outstock_motivo,
-                 COALESCE(grupo, 'PARA_LA_VENTA') AS grupo`,
+                 stock_minimo, unidad_medida, unidad_medida_id, alerta_outstock_desactivada, alerta_outstock_motivo,
+                 COALESCE(grupo, 'PARA_LA_VENTA') AS grupo,
+                 COALESCE(aprovisionamiento, 'COMPRA') AS aprovisionamiento,
+                 subtipo_fabricacion`,
       [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum,
        tipoProducto || "NORMAL", variadaRacionesNum,
-       stockMinimoNum, unidadMedidaStr, outstockBool, outstockMotivo, grupoStr, id]
+       stockMinimoNum, unidadMedidaStr, unidadMedidaIdNum, outstockBool, outstockMotivo, grupoStr, lineaIdNum, aprovisionamientoStr, subtipoStr, id]
     );
   } catch {
     result = await pool.query(
@@ -60,7 +68,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
            tipo_producto = $7, variada_raciones = $8
        WHERE id = $9
        RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, created_at,
-                 tipo_producto, stock_actual, variada_raciones`,
+                 tipo_producto, stock_actual, variada_raciones,
+                 NULL AS linea_id`,
       [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum,
        tipoProducto || "NORMAL", variadaRacionesNum, id]
     );
@@ -75,10 +84,19 @@ export async function PUT(request: NextRequest, { params }: Params) {
   let categoriaNombre: string | null = null;
   if (row.categoria_id) {
     const categoriaResult = await pool.query(
-      `SELECT nombre FROM categorias WHERE id = $1`,
+      `SELECT nombre FROM familias WHERE id = $1`,
       [row.categoria_id]
     );
     categoriaNombre = categoriaResult.rows[0]?.nombre ?? null;
+  }
+
+  let lineaNombre: string | null = null;
+  if (row.linea_id) {
+    const lineaResult = await pool.query(
+      `SELECT nombre FROM lineas WHERE id = $1`,
+      [row.linea_id]
+    );
+    lineaNombre = lineaResult.rows[0]?.nombre ?? null;
   }
 
   const extrasResult = await pool.query(
@@ -108,14 +126,19 @@ export async function PUT(request: NextRequest, { params }: Params) {
     activo: row.activo,
     categoriaId: row.categoria_id,
     categoriaNombre,
+    lineaId: row.linea_id ?? null,
+    lineaNombre,
     tipoProducto: row.tipo_producto,
     stockActual: Number(row.stock_actual),
     stockMinimo: Number(row.stock_minimo ?? 0),
     unidadMedida: row.unidad_medida ?? "unidad",
+    unidadMedidaId: row.unidad_medida_id ?? null,
     alertaOutstockDesactivada: Boolean(row.alerta_outstock_desactivada),
     alertaOutstockMotivo: row.alerta_outstock_motivo ?? null,
     variadaRaciones: row.variada_raciones,
     grupo: row.grupo ?? "PARA_LA_VENTA",
+    aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
+    subtipoFabricacion: (row.subtipo_fabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
     createdAt: row.created_at,
     extras: extrasResult.rows.map((extra) => ({
       id: extra.id,

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
             COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
             c.nombre AS categoria_nombre
      FROM productos p
-     LEFT JOIN categorias c ON c.id = p.categoria_id
+     LEFT JOIN familias c ON c.id = p.categoria_id
      WHERE p.activo = TRUE AND p.tipo_producto = 'NORMAL'
        AND COALESCE(p.alerta_outstock_desactivada, FALSE) = FALSE
      ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC`

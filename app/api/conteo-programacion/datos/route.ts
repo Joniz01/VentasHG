@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
 
   const [cats, prods, users] = await Promise.all([
-    pool.query(`SELECT id, nombre FROM categorias ORDER BY nombre ASC`),
+    pool.query(`SELECT id, nombre FROM familias ORDER BY nombre ASC`),
     pool.query(
       `SELECT id, nombre, COALESCE(grupo, 'PARA_LA_VENTA') AS grupo
        FROM productos

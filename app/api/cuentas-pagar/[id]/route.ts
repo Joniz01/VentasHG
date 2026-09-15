@@ -42,6 +42,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     montoUsd?: number;
     notas?: string;
     estado?: string;
+    cuotas?: { fecha: string; montoUsd: number }[] | null;
   };
 
   const client = await pool.connect();
@@ -52,15 +53,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // Leer antes de marcar pagado para saber si es recurrente
       const cpRead = await client.query(
         `SELECT proveedor, proveedor_rif, numero_factura, descripcion, fecha_vencimiento,
-                monto_bs, monto_usd, tasa_dia, notas, recurrente, frecuencia, created_by
+                monto_bs, monto_usd, monto_original_usd, monto_original_bs, tasa_dia, notas, recurrente, frecuencia, created_by
          FROM cuentas_pagar WHERE id = $1`,
         [id]
       );
       const cp = cpRead.rows[0];
 
+      const tasaDiaPago = Number(body.tasaDia) || null;
+      const fechaPagoParam = body.fechaPago ?? null;
+      // No actualizar tasa_dia si el registro ya tuvo abono parcial (monto_original_bs set)
+      // — cambiar tasa en ese punto rompe el ratio monto_original_bs/tasa_dia
+      const debeActualizarTasa = !cp?.monto_original_bs;
       await client.query(
-        `UPDATE cuentas_pagar SET estado = 'PAGADO', pagado_at = NOW(), comprobante_url = COALESCE($2, comprobante_url) WHERE id = $1`,
-        [id, body.comprobanteUrl ?? null]
+        `UPDATE cuentas_pagar
+         SET estado = 'PAGADO',
+             pagado_at = COALESCE($2::date, NOW()),
+             tasa_dia = CASE WHEN $3::numeric IS NOT NULL AND $5::boolean THEN $3::numeric ELSE tasa_dia END,
+             monto_bs  = CASE WHEN $3::numeric IS NOT NULL AND $5::boolean THEN ROUND(monto_usd * $3::numeric, 2) ELSE monto_bs END,
+             comprobante_url = COALESCE($4, comprobante_url)
+         WHERE id = $1`,
+        [id, fechaPagoParam, tasaDiaPago, body.comprobanteUrl ?? null, debeActualizarTasa]
       );
 
       // Si es recurrente, generar el siguiente período automáticamente
@@ -70,21 +82,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           : String(cp.fecha_vencimiento).slice(0, 10);
         const nuevoVenc = calcularProximoVencimiento(baseVenc, String(cp.frecuencia));
         const nuevoProxVenc = calcularProximoVencimiento(nuevoVenc, String(cp.frecuencia));
-        await client.query(
-          `INSERT INTO cuentas_pagar
-            (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
-             monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
-           VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
-          [
-            cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
-            nuevoVenc, cp.monto_bs, cp.monto_usd, cp.tasa_dia, cp.notas,
-            cp.frecuencia, nuevoProxVenc, cp.created_by,
-          ]
-        );
+        const montoUsdOriginal = cp.monto_original_usd ?? cp.monto_usd;
+        try {
+          await client.query(
+            `INSERT INTO cuentas_pagar
+              (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+               monto_bs, monto_usd, monto_original_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+             VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
+            [
+              cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
+              nuevoVenc, cp.monto_original_bs ?? cp.monto_bs, montoUsdOriginal, cp.tasa_dia, cp.notas,
+              cp.frecuencia, nuevoProxVenc, cp.created_by,
+            ]
+          );
+        } catch {
+          // monto_original_usd pendiente de migración
+          await client.query(
+            `INSERT INTO cuentas_pagar
+              (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+               monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+             VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,$8,'PENDIENTE',$9,true,$10,$11,$12)`,
+            [
+              cp.proveedor, cp.proveedor_rif, cp.numero_factura, cp.descripcion,
+              nuevoVenc, cp.monto_original_bs ?? cp.monto_bs, montoUsdOriginal, cp.tasa_dia, cp.notas,
+              cp.frecuencia, nuevoProxVenc, cp.created_by,
+            ]
+          );
+        }
       }
 
     } else if (body.accion === "pago_parcial") {
-      const cpResult = await client.query(`SELECT monto_bs, monto_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`, [id]);
+      const cpResult = await client.query(`SELECT monto_bs, monto_usd, monto_original_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`, [id]);
       if (!cpResult.rows.length) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
@@ -92,10 +120,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const cp = cpResult.rows[0];
       const montoBsActual = Number(cp.monto_bs);
       const montoOriginalBs = cp.monto_original_bs ? Number(cp.monto_original_bs) : montoBsActual;
+      // monto_original_usd: se guarda solo la primera vez (COALESCE preserva el valor si ya existe)
+      const montoOriginalUsdGuardar = cp.monto_original_usd != null ? Number(cp.monto_original_usd) : Number(cp.monto_usd);
       const montoPagadoBs = Number(body.montoPagadoBs) || 0;
       const montoPagadoUsd = Number(body.montoPagadoUsd) || 0;
       const tasaDia = Number(body.tasaDia) || 0;
       const restanteBs = montoBsActual - montoPagadoBs;
+      const montoUsdActual = Number(cp.monto_usd);
+      const restanteUsd = Math.max(0, montoUsdActual - montoPagadoUsd);
 
       if (restanteBs < 0) {
         await client.query("ROLLBACK");
@@ -110,28 +142,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2::numeric,
-             monto_usd = GREATEST(monto_usd - $3::numeric, 0),
-             monto_original_bs = COALESCE($4::numeric, monto_original_bs),
+             monto_usd = $7::numeric,
+             monto_original_bs = COALESCE(monto_original_bs, $3::numeric),
+             monto_original_usd = COALESCE(monto_original_usd, $4::numeric),
              monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $5::numeric,
              estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
              fecha_vencimiento = COALESCE($6::date, fecha_vencimiento),
              pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
            WHERE id = $1`,
-          [id, restanteBs, montoPagadoUsd, montoOriginalBs, montoPagadoBs, nuevaFechVenc]
+          [id, restanteBs, montoOriginalBs, montoOriginalUsdGuardar, montoPagadoBs, nuevaFechVenc, restanteUsd]
         );
         await client.query("RELEASE SAVEPOINT sp_update");
       } catch {
-        // Columnas opcionales no existen — rollback al savepoint y fallback
+        // monto_original_usd pendiente de migración — rollback al savepoint y fallback
         await client.query("ROLLBACK TO SAVEPOINT sp_update");
         await client.query(
           `UPDATE cuentas_pagar SET
              monto_bs = $2::numeric,
-             monto_usd = GREATEST(monto_usd - $3::numeric, 0),
+             monto_usd = $6::numeric,
+             monto_original_bs = COALESCE(monto_original_bs, $3::numeric),
+             monto_pagado_bs = COALESCE(monto_pagado_bs, 0) + $4::numeric,
              estado = CASE WHEN $2::numeric <= 0 THEN 'PAGADO' ELSE 'PENDIENTE_PARCIAL' END,
-             fecha_vencimiento = COALESCE($4::date, fecha_vencimiento),
+             fecha_vencimiento = COALESCE($5::date, fecha_vencimiento),
              pagado_at = CASE WHEN $2::numeric <= 0 THEN NOW() ELSE NULL END
            WHERE id = $1`,
-          [id, restanteBs, montoPagadoUsd, nuevaFechVenc]
+          [id, restanteBs, montoOriginalBs, montoPagadoBs, nuevaFechVenc, restanteUsd]
         );
       }
 
@@ -153,8 +188,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         [id]
       );
       if (!histResult.rows.length) {
-        await client.query("ROLLBACK");
-        return NextResponse.json({ error: "No hay abonos registrados para revertir" }, { status: 400 });
+        // Sin historial de parciales → fue un pago total directo; revertir estado
+        const cpRead2 = await client.query(
+          `SELECT estado, monto_bs, monto_usd, monto_original_bs, monto_original_usd FROM cuentas_pagar WHERE id = $1 FOR UPDATE`,
+          [id]
+        );
+        if (!cpRead2.rows.length) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
+        }
+        const cp2 = cpRead2.rows[0];
+        // Restaurar montos originales si existen (en caso de que pagar hubiera modificado algo)
+        const restoreBs = cp2.monto_original_bs ? Number(cp2.monto_original_bs) : Number(cp2.monto_bs);
+        const restoreUsd = cp2.monto_original_usd ? Number(cp2.monto_original_usd) : Number(cp2.monto_usd);
+        await client.query(
+          `UPDATE cuentas_pagar SET
+             estado = 'PENDIENTE',
+             pagado_at = NULL,
+             monto_bs = $2::numeric,
+             monto_usd = $3::numeric,
+             monto_original_bs = NULL,
+             monto_pagado_bs = 0
+           WHERE id = $1`,
+          [id, restoreBs, restoreUsd]
+        );
+        await client.query("COMMIT");
+        return NextResponse.json({ ok: true });
       }
       const abono = histResult.rows[0];
       const abonoMontoBs = Number(abono.monto_bs);
@@ -162,13 +221,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       // Leer saldo actual
       const cpRead = await client.query(
-        `SELECT monto_bs, monto_usd, monto_original_bs FROM cuentas_pagar WHERE id = $1 FOR UPDATE`,
+        `SELECT monto_bs, monto_usd, monto_original_bs, monto_original_usd FROM cuentas_pagar WHERE id = $1 FOR UPDATE`,
         [id]
       );
       const cp = cpRead.rows[0];
-      const nuevoMontoBs = Number(cp.monto_bs) + abonoMontoBs;
-      const nuevoMontoUsd = Number(cp.monto_usd) + abonoMontoUsd;
-      const originalBs = cp.monto_original_bs ? Number(cp.monto_original_bs) : nuevoMontoBs;
+      const originalBs = cp.monto_original_bs ? Number(cp.monto_original_bs) : Number(cp.monto_bs) + abonoMontoBs;
+      const originalUsd = cp.monto_original_usd ? Number(cp.monto_original_usd) : Number(cp.monto_usd) + abonoMontoUsd;
+      // Nunca superar el monto original
+      const nuevoMontoBs = Math.min(Number(cp.monto_bs) + abonoMontoBs, originalBs);
+      const nuevoMontoUsd = Math.min(Number(cp.monto_usd) + abonoMontoUsd, originalUsd);
 
       // Determinar nuevo estado
       const nuevoEstado = nuevoMontoBs >= originalBs * 0.999 ? "PENDIENTE" : "PENDIENTE_PARCIAL";
@@ -201,6 +262,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (body.montoUsd !== undefined) add("monto_usd", Number(body.montoUsd));
       if (body.notas !== undefined) add("notas", body.notas?.trim() || null);
       if (body.estado !== undefined) add("estado", body.estado);
+      if (body.cuotas !== undefined) add("cuotas", body.cuotas === null || body.cuotas?.length === 0 ? null : JSON.stringify(body.cuotas));
       if (sets.length) await client.query(`UPDATE cuentas_pagar SET ${sets.join(", ")} WHERE id = $1`, vals);
     }
 

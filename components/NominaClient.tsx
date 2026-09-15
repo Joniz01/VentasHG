@@ -1668,7 +1668,7 @@ function GestionPagosTab({ onRefreshResumen, proximaSemana, onIrConfig }: { onRe
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-sm font-semibold" style={{ color: "var(--erp-text)" }}>📅 Próximas nóminas a pagar</span>
         <div className="text-right">
-          <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${(proximaSemana!.totalUsd + pendientes.reduce((s, n) => s + n.totalUsdEstimado, 0)).toFixed(2)}</div>
+          <div className="text-sm font-bold" style={{ color: "#1d4ed8" }}>${proximaSemana!.totalUsd.toFixed(2)}</div>
           <div className="text-xs" style={{ color: "var(--erp-text-2)" }}>
             {proximaSemana!.lunes && proximaSemana!.domingo ? `Semana: ${formatFechaCorta(proximaSemana!.lunes)} – ${formatFechaCorta(proximaSemana!.domingo)}` : "Próxima semana"}
           </div>
