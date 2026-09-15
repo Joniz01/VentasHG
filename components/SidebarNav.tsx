@@ -67,10 +67,10 @@ const GRUPOS: NavGroup[] = [
     items: [
       { href: "/inventario",              icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
       { href: "/inventario/ajustes",      icon: "⚖️",  label: "Ajustes de Inventario",   permiso: "productos" },
+      { href: "/inventario-disponible",   icon: "✅", label: "Inventario Disponible",    permiso: "productos" },
       { href: "/inventario/lotes",        icon: "🏷️", label: "Lotes & Vencimientos",     permiso: "productos" },
       { href: "/inventarios",             icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
       { href: "/inventario/valorizacion", icon: "💰", label: "Valorización",             permiso: "reportes" },
-      { href: "/inventario-disponible",   icon: "✅", label: "Inventario Disponible",    permiso: "productos" },
       { href: "/inventario/reorden",      icon: "🔁", label: "Reglas de Reorden",        permiso: "productos" },
       { href: "/inventario/conteos",      icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
       { href: "/conteo",                  icon: "📱", label: "Conteo Físico",            permiso: "conteo" },
@@ -101,9 +101,9 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Finanzas",
     items: [
+      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
       { href: "/tesoreria",           icon: "🏦", label: "Planif. de Pagos",    permiso: "gastos" },
       { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar" },
-      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
       { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero" },
     ],
   },
@@ -155,12 +155,23 @@ function GroupLabel({ label, collapsed }: { label: string; collapsed: boolean })
   );
 }
 
+const MAX_VISIBLE = 3;
+
 export default function SidebarNav({ rol, permisos }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const puedeVerReportes = rol === "ADMIN" || !!permisos?.reportes;
+
+  const toggleGroup = useCallback((label: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
+  }, []);
 
   // Restore collapsed state from localStorage
   useEffect(() => {
@@ -213,10 +224,15 @@ export default function SidebarNav({ rol, permisos }: Props) {
         {GRUPOS.map((grupo) => {
           const visibles = grupo.items.filter((item) => isVisible(item, rol, permisos));
           if (!visibles.length) return null;
+          const isExpanded = expandedGroups.has(grupo.label);
+          const shown = !collapsed && visibles.length > MAX_VISIBLE && !isExpanded
+            ? visibles.slice(0, MAX_VISIBLE)
+            : visibles;
+          const hidden = visibles.length - MAX_VISIBLE;
           return (
             <div key={grupo.label} className="mb-1">
               <GroupLabel label={grupo.label} collapsed={collapsed} />
-              {visibles.map((item) => {
+              {shown.map((item) => {
                 const [itemPath, itemQuery] = item.href.split("?");
                 const itemParams = itemQuery ? new URLSearchParams(itemQuery) : null;
                 const active = itemParams
@@ -249,6 +265,16 @@ export default function SidebarNav({ rol, permisos }: Props) {
                   </Link>
                 );
               })}
+              {!collapsed && visibles.length > MAX_VISIBLE && (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(grupo.label)}
+                  className="w-full text-left py-[5px] text-[11px] transition-colors hover:opacity-80"
+                  style={{ paddingLeft: 12, color: "var(--erp-primary)", background: "transparent", border: "none", cursor: "pointer" }}
+                >
+                  {isExpanded ? "‹ Ver menos" : `+ Ver más (${hidden})`}
+                </button>
+              )}
             </div>
           );
         })}
