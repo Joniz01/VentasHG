@@ -20,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id: idStr } = await params;
   const id = Number(idStr);
-  if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   const body = (await request.json()) as {
     accion?: "pagar" | "pago_parcial" | "editar" | "revertir_ultimo_abono";
@@ -285,7 +285,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const { id: idStr2 } = await params;
   const id = Number(idStr2);
-  if (!id) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   try {
     const histCount = await pool.query(`SELECT COUNT(*) AS n FROM cuentas_pagar_historial WHERE cuenta_pagar_id = $1`, [id]);
