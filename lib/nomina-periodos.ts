@@ -78,7 +78,14 @@ export async function generarPeriodoNomina(
     : await client.query(
         `SELECT tipo_incidencia_id, frecuencia, monto_bs
          FROM nomina_incidencia_config
-         WHERE nomina_id = $1 AND fecha_efectiva BETWEEN $2 AND $3`,
+         WHERE nomina_id = $1 AND (
+           fecha_efectiva BETWEEN $2 AND $3
+           OR (
+             frecuencia = 'MENSUAL'
+             AND fecha_efectiva < $2::date
+             AND EXTRACT(DAY FROM fecha_efectiva) = EXTRACT(DAY FROM $2::date)
+           )
+         )`,
         [params.nominaId, params.fechaDesde, params.fechaHasta]
       );
 
