@@ -83,8 +83,14 @@ function formatMonto(n: number): string {
 
 const fmtBs = (n: number) =>
   n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const parseBs = (val: string) =>
-  Number(String(val).replace(/\./g, "").replace(",", ".")) || 0;
+const parseBs = (val: string): number => {
+  const s = String(val).trim();
+  if (!s) return 0;
+  // Si tiene coma → formato VE (puntos = miles, coma = decimal)
+  if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", ".")) || 0;
+  // Si no tiene coma → formato US/JSON (punto = decimal)
+  return Number(s.replace(/[^\d.]/g, "")) || 0;
+};
 
 const ESTADO_COLORES: Record<EstadoGasto, string> = {
   PENDIENTE: "#a16207",
