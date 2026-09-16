@@ -1091,7 +1091,7 @@ export default function CuentasPagarClient() {
                         </div>
                       ) : (
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                          {esPendiente(cp) && (
+                          {esPendiente(cp) && !String(cp.id).startsWith("NE") && (
                             <button
                               onClick={() => {
                                 setPagoModal({ id: cp.id, montoBs: cp.montoBs, montoUsd: cp.montoUsd, tasaDia: cp.tasaDia, proveedor: cp.proveedor });
@@ -1101,6 +1101,12 @@ export default function CuentasPagarClient() {
                               style={{ padding: "5px 12px", borderRadius: 8, background: "#059669", color: "#fff", border: "none", fontSize: 12, cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap" }}>
                               ✓ Pagar
                             </button>
+                          )}
+                          {esPendiente(cp) && String(cp.id).startsWith("NE") && (
+                            <a href="/nomina" title="Ve al módulo Nómina, genera el período para este ítem y luego regresa a pagarlo aquí"
+                              style={{ padding: "5px 12px", borderRadius: 8, background: "#D97706", color: "#fff", border: "none", fontSize: 12, cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap", textDecoration: "none" }}>
+                              → Nómina
+                            </a>
                           )}
                           {cp.tipo === "compra" ? (
                             <a href="/compras" style={{ padding: "5px 10px", borderRadius: 8, background: "transparent", color: "var(--erp-text-3)", border: "1px solid var(--erp-border)", fontSize: 11, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" }}>
