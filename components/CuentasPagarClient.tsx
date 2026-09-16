@@ -1091,7 +1091,7 @@ export default function CuentasPagarClient() {
                         </div>
                       ) : (
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                          {esPendiente(cp) && cp.tipo !== "nomina" && (
+                          {esPendiente(cp) && (
                             <button
                               onClick={() => {
                                 setPagoModal({ id: cp.id, montoBs: cp.montoBs, montoUsd: cp.montoUsd, tasaDia: cp.tasaDia, proveedor: cp.proveedor });

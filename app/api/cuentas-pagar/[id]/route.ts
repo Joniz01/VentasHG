@@ -19,6 +19,41 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { id: idStr } = await params;
+
+  // Nómina items tienen IDs como "N47" (período real) o "NE5_2026-09-15" (estimado sin período)
+  if (idStr.startsWith("N") && !idStr.startsWith("NE")) {
+    const periodoId = Number(idStr.slice(1));
+    if (!Number.isFinite(periodoId) || periodoId <= 0) {
+      return NextResponse.json({ error: "ID de período de nómina inválido" }, { status: 400 });
+    }
+    const body2 = (await request.json()) as { accion?: string; fechaPago?: string };
+    if (body2.accion === "pagar") {
+      try {
+        const pagosResult = await pool.query(
+          `SELECT id FROM nomina_pagos WHERE periodo_id = $1 AND estado != 'PAGADO'`,
+          [periodoId]
+        );
+        if (pagosResult.rows.length > 0) {
+          const ids = pagosResult.rows.map((r: { id: number }) => r.id);
+          const fechaParam = body2.fechaPago || null;
+          await pool.query(
+            `UPDATE nomina_pagos SET estado = 'PAGADO', pagado_at = COALESCE($2::date, NOW()) WHERE id = ANY($1::int[])`,
+            [ids, fechaParam]
+          );
+        }
+        return NextResponse.json({ ok: true });
+      } catch (err) {
+        const detalle = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ error: "Error al registrar pago de nómina", detalle }, { status: 400 });
+      }
+    }
+    return NextResponse.json({ error: "Acción no soportada para ítem de nómina" }, { status: 400 });
+  }
+
+  if (idStr.startsWith("NE")) {
+    return NextResponse.json({ error: "Este pago estimado aún no tiene período generado. Ve al módulo Nómina para generarlo." }, { status: 400 });
+  }
+
   const id = Number(idStr);
   if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
