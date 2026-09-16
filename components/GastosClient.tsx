@@ -305,7 +305,7 @@ export default function GastosClient() {
     finally { setSavingRec(false); }
   }
 
-  const totalFacturaBs = facturaItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+  const totalFacturaBs = facturaItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * parseBs(it.costoUnitBs), 0);
   const totalFacturaUsd = Number(form.tasaDia) > 0 ? totalFacturaBs / Number(form.tasaDia) : 0;
 
   // Mantiene Monto Bs sincronizado con la suma de ítems mientras haya al menos uno cargado
@@ -528,7 +528,7 @@ export default function GastosClient() {
           };
         })
         .filter((it): it is FacturaItem => it !== null);
-      const total = mappedItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * (Number(it.costoUnitBs) || 0), 0);
+      const total = mappedItems.reduce((s, it) => s + (Number(it.cantidad) || 0) * parseBs(it.costoUnitBs), 0);
 
       if (mappedItems.length > 0) setFacturaItems(mappedItems);
       if (proveedorRif) { const p = parseRif(proveedorRif); setRifTipo(p.tipo); setRifNumero(p.numero); }
