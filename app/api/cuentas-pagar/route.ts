@@ -149,9 +149,9 @@ export async function GET(request: NextRequest) {
              n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
              pn.fecha_desde AS fecha_emision,
              pn.fecha_hasta AS fecha_vencimiento,
-             COALESCE(SUM(e.salario_base_usd * pn.tasa_dia), 0) AS monto_bs,
-             COALESCE(SUM(e.salario_base_usd), 0) AS monto_usd,
-             COALESCE(SUM(e.salario_base_usd), 0) AS monto_original_usd,
+             (COALESCE(SUM(np.salario_base_bs), 0) + COALESCE(SUM(ni.monto_bs), 0)) AS monto_bs,
+             (COALESCE(SUM(np.salario_base_bs), 0) + COALESCE(SUM(ni.monto_bs), 0)) / pn.tasa_dia AS monto_usd,
+             (COALESCE(SUM(np.salario_base_bs), 0) + COALESCE(SUM(ni.monto_bs), 0)) / pn.tasa_dia AS monto_original_usd,
              pn.tasa_dia,
              'PENDIENTE' AS estado,
              NULL AS monto_original_bs,
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
            FROM periodos_nomina pn
            JOIN nominas n ON n.id = pn.nomina_id
            JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado != 'PAGADO'
-           JOIN empleados e ON e.id = np.empleado_id
+           LEFT JOIN nomina_incidencias ni ON ni.nomina_pago_id = np.id
            ${pendDateFilter}
            GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia, pn.created_at`,
           pendParams
