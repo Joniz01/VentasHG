@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type Extra = { id: number; nombre: string; precioAdicional: number };
-type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; extras: Extra[] };
+type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[] };
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number };
 type Theme = "dark" | "light" | "azul" | "beige";
@@ -264,6 +264,7 @@ export default function CajaClient() {
           nombre: p.nombre as string,
           precioVenta: Number(p.precioVenta ?? 0),
           categoriaNombre: (p.categoriaNombre ?? null) as string | null,
+          lineaNombre: (p.lineaNombre ?? null) as string | null,
           extras: ((p.extras ?? []) as Record<string, unknown>[]).map((e) => ({
             id: e.id as number,
             nombre: e.nombre as string,
@@ -305,9 +306,35 @@ export default function CajaClient() {
   const ivaAmt = ivaActivo ? subtotal * 0.16 : 0;
   const total = subtotal + ivaAmt;
   const isCxP = CXP_METHODS.includes(payMethod);
-  const cats = ["Todos", ...Array.from(new Set(productos.map((p) => p.categoriaNombre ?? "Sin categoría")))];
+  const FILTROS = [
+    { key: "Todos",              label: "Todos" },
+    { key: "Premium",            label: "Premium" },
+    { key: "Especiales",         label: "Especiales" },
+    { key: "Tradicional",        label: "Tradicional" },
+    { key: "Bandejas",           label: "Bandejas y Experiencias" },
+    { key: "Combos",             label: "Combos y Pack" },
+    { key: "Raciones",           label: "Raciones" },
+    { key: "Bebidas",            label: "Bebidas" },
+  ] as const;
+  type FiltroKey = typeof FILTROS[number]["key"];
+
+  function matchFiltro(p: Producto, key: FiltroKey): boolean {
+    if (key === "Todos") return true;
+    const linea = (p.lineaNombre ?? "").toLowerCase();
+    const cat = (p.categoriaNombre ?? "").toLowerCase();
+    if (key === "Premium")   return linea.includes("premium");
+    if (key === "Especiales") return linea.includes("especial");
+    if (key === "Tradicional") return linea.includes("tradicional");
+    if (key === "Bandejas")  return cat.includes("bandeja") || cat.includes("experiencia");
+    if (key === "Combos")    return cat.includes("combo") || cat.includes("pack");
+    if (key === "Raciones")  return cat.includes("racion") || cat.includes("ración") || cat.includes("ravion") || cat.includes("ravión");
+    if (key === "Bebidas")   return cat.includes("bebida");
+    return false;
+  }
+
+  const cats = FILTROS.filter((f) => f.key === "Todos" || productos.some((p) => matchFiltro(p, f.key as FiltroKey)));
   const filtrados = productos.filter((p) => {
-    const mc = catActiva === "Todos" || (p.categoriaNombre ?? "Sin categoría") === catActiva;
+    const mc = matchFiltro(p, catActiva as FiltroKey);
     const mq = !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase());
     return mc && mq;
   });
@@ -419,8 +446,8 @@ export default function CajaClient() {
                 <input className="search-input" type="text" placeholder="Buscar producto…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
               </div>
               <div className="cats">
-                {cats.map((cat) => (
-                  <button key={cat} className={`cat-pill${catActiva === cat ? " active" : ""}`} onClick={() => setCatActiva(cat)}>{cat}</button>
+                {cats.map((f) => (
+                  <button key={f.key} className={`cat-pill${catActiva === f.key ? " active" : ""}`} onClick={() => setCatActiva(f.key)}>{f.label}</button>
                 ))}
               </div>
             </div>
