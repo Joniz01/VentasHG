@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
               totalUsd = Number(row.total_salario) + Number(row.total_inc_usd) * nro;
             }
             items.push(mapCP({
-              id: `NE${row.nomina_id}_${row.fecha_pago}`,
+              id: `NE${row.nomina_id}_${toDateStr(row.fecha_pago)}`,
               proveedor: String(row.nombre),
               proveedor_rif: null,
               numero_factura: null,
