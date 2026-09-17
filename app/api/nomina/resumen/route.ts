@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     const pendienteResult = await pool.query(
       `SELECT COALESCE(SUM(
-         e.salario_base_usd +
+         CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
          CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
        ), 0) AS total
        FROM nomina_pagos np
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     const pagadaMesResult = await pool.query(
       `SELECT COALESCE(SUM(
-         e.salario_base_usd +
+         CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
          CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
        ), 0) AS total
        FROM nomina_pagos np
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
          SELECT
            COUNT(DISTINCT pn.id)::int AS periodos,
            COALESCE(SUM(
-             e.salario_base_usd +
+             CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
              CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
            ), 0) AS total_usd
          FROM semana, periodos_nomina pn

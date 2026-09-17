@@ -19,8 +19,12 @@ function mapPeriodo(row: Record<string, unknown>, pagosRows: Record<string, unkn
           montoBs: Number(i.monto_bs),
         }));
       const salarioBaseBs = Number(p.salario_base_bs);
-      // Usar salario en USD directamente para evitar distorsión por conversión de tasa
-      const salarioBaseUsd = Number(p.salario_base_usd) || (tasaDia > 0 ? salarioBaseBs / tasaDia : 0);
+      // El período manda: si no registró sueldo base (nómina de solo incidencias)
+      // en USD también es cero. Cuando sí lo registró se prefiere el salario en
+      // USD del empleado para evitar distorsión por conversión de tasa.
+      const salarioBaseUsd = salarioBaseBs > 0
+        ? (Number(p.salario_base_usd) || (tasaDia > 0 ? salarioBaseBs / tasaDia : 0))
+        : 0;
       const totalIncidenciasBs = incidencias.reduce((s, i) => s + i.montoBs, 0);
       const totalBs = salarioBaseBs + totalIncidenciasBs;
       const incidenciasUsd = tasaDia > 0 ? totalIncidenciasBs / tasaDia : 0;
