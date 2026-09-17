@@ -312,11 +312,11 @@ export default function CuentasPorCobrarPanel() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label style={{ color: "var(--erp-text-2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Desde</label>
-            <input type="date" style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <InputFecha style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} value={desde} onChange={(e) => setDesde(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
             <label style={{ color: "var(--erp-text-2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Hasta</label>
-            <input type="date" style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            <InputFecha style={{ borderColor: "var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 14, border: "1px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} value={hasta} onChange={(e) => setHasta(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
             <label style={{ color: "var(--erp-text-2)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Estado</label>

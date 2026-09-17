@@ -743,7 +743,7 @@ export default function FacturaCompraForm({
           <div style={sectionTitle}>Datos de la Factura</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
+              <div><label style={lbl}>Fecha</label><InputFecha value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
               <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 00001234" style={S} /></div>
             </div>
             <div>
@@ -759,7 +759,7 @@ export default function FacturaCompraForm({
               {tasaBcvError && <div style={{ fontSize: 11, color: "#B91C1C", marginTop: 3 }}>{tasaBcvError}</div>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><label style={lbl}>Vencimiento pago</label><input type="date" value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} /></div>
+              <div><label style={lbl}>Vencimiento pago</label><InputFecha value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} /></div>
               <div><label style={lbl}>Observaciones</label><input value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Opcional" style={S} /></div>
             </div>
           </div>
@@ -973,7 +973,7 @@ export default function FacturaCompraForm({
         <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--erp-border)" }}>
           <div style={sectionTitle}>③ Datos de factura</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-            <div><label style={lbl}>Fecha</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
+            <div><label style={lbl}>Fecha</label><InputFecha value={fecha} onChange={e => setFecha(e.target.value)} style={S} /></div>
             <div><label style={lbl}>N° Factura</label><input value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="Ej: 0045" style={S} /></div>
             <div style={{ minWidth: 0 }}>
               <label style={lbl}>Tasa del día (Bs/$)</label>
@@ -989,7 +989,7 @@ export default function FacturaCompraForm({
             </div>
             <div>
               <label style={lbl}>Vencimiento pago</label>
-              <input type="date" value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} />
+              <InputFecha value={fechaVencimientoPago} onChange={e => setFechaVencimientoPago(e.target.value)} style={S} />
               {proveedorDiasCredito > 0 && <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3 }}>{proveedorDiasCredito} días · según crédito del proveedor</div>}
             </div>
             <div style={{ gridColumn: "span 2" }}>

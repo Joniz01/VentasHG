@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, type FormEvent } from "react";
+import InputFecha from "@/components/InputFecha";
 import {
   ESTADOS_GASTO,
   ESTADO_GASTO_LABELS,
@@ -15,6 +16,7 @@ import {
   type TipoGasto,
   type TipoGastoCatalogo,
 } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 
@@ -1164,12 +1166,12 @@ export default function GastosClient() {
             )}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Fecha</label>
-              <input
-                type="date"
+              <InputFecha
+                value={form.fecha}
+                onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
                 className="rounded-md border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--erp-border)" }}
-                value={form.fecha}
-                onChange={(e) => setForm((p) => ({ ...p, fecha: e.target.value }))}
+                bg="var(--erp-surface)"
                 required
               />
               {form.fecha && (
@@ -1259,22 +1261,22 @@ export default function GastosClient() {
       <div className="rounded-xl border p-3 flex flex-wrap gap-3 items-end" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Desde</label>
-          <input
-            type="date"
+          <InputFecha
+            value={filtroDesde}
+            onChange={(v) => { setFiltroDesde(v); setPage(1); }}
             className="rounded-md border px-2 py-1.5 text-sm"
             style={{ borderColor: "var(--erp-border)" }}
-            value={filtroDesde}
-            onChange={(e) => { setFiltroDesde(e.target.value); setPage(1); }}
+            bg="var(--erp-surface)"
           />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Hasta</label>
-          <input
-            type="date"
+          <InputFecha
+            value={filtroHasta}
+            onChange={(v) => { setFiltroHasta(v); setPage(1); }}
             className="rounded-md border px-2 py-1.5 text-sm"
             style={{ borderColor: "var(--erp-border)" }}
-            value={filtroHasta}
-            onChange={(e) => { setFiltroHasta(e.target.value); setPage(1); }}
+            bg="var(--erp-surface)"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -1479,8 +1481,8 @@ export default function GastosClient() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Próximo vencimiento *</label>
-                  <input type="date" value={recForm.fechaVencimiento}
-                    onChange={e => setRecForm(p => ({ ...p, fechaVencimiento: e.target.value }))} style={recInputStyle} />
+                  <InputFecha value={recForm.fechaVencimiento}
+                    onChange={v => setRecForm(p => ({ ...p, fechaVencimiento: v }))} style={recInputStyle} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
@@ -1610,8 +1612,8 @@ export default function GastosClient() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-2)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Próximo vencimiento</label>
-                    <input type="date" value={editRecForm.fechaVencimiento}
-                      onChange={e => setEditRecForm(p => ({ ...p, fechaVencimiento: e.target.value }))}
+                    <InputFecha value={editRecForm.fechaVencimiento}
+                      onChange={v => setEditRecForm(p => ({ ...p, fechaVencimiento: v }))}
                       style={inputStyle} />
                   </div>
                   <div>
@@ -1662,8 +1664,8 @@ export default function GastosClient() {
                       {/* Cuota rows */}
                       {cuotasForm.map((c, i) => (
                         <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 120px 32px", gap: 6, alignItems: "center", padding: "8px 14px", borderBottom: i < cuotasForm.length - 1 ? "1px solid var(--erp-border)" : "none" }}>
-                          <input type="date" value={c.fecha}
-                            onChange={e => setCuotasForm(prev => prev.map((r, j) => j === i ? { ...r, fecha: e.target.value } : r))}
+                          <InputFecha value={c.fecha}
+                            onChange={v => setCuotasForm(prev => prev.map((r, j) => j === i ? { ...r, fecha: v } : r))}
                             style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }} />
                           <div style={{ position: "relative" }}>
                             <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--erp-text-3)", fontSize: 12, pointerEvents: "none" }}>$</span>
