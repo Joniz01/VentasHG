@@ -53,8 +53,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (idStr.startsWith("NE")) {
-    // Formato: NE{nominaId}_{fechaPago}  ej: NE5_2026-09-15
-    const match = idStr.match(/^NE(\d+)_(\d{4}-\d{2}-\d{2})$/);
+    // Formato: NE{nominaId}_{fechaPago}  ej: NE5_2026-09-15 (o con sufijo ISO)
+    const match = idStr.match(/^NE(\d+)_(\d{4}-\d{2}-\d{2})/);
     if (!match) return NextResponse.json({ error: "ID de nómina estimada inválido" }, { status: 400 });
     const nominaId = Number(match[1]);
     const fechaDesde = match[2];
