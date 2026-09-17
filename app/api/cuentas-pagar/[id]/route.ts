@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
+import { generarPeriodoNomina, calcularFechaHastaPeriodo } from "@/lib/nomina-periodos";
+import { obtenerTasaBcv } from "@/lib/bcv";
 
 const DIAS_FRECUENCIA: Record<string, number> = { SEMANAL: 7, QUINCENAL: 15, MENSUAL: 30 };
 
@@ -51,7 +53,63 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (idStr.startsWith("NE")) {
-    return NextResponse.json({ error: "Este pago estimado aún no tiene período generado. Ve al módulo Nómina para generarlo." }, { status: 400 });
+    // Formato: NE{nominaId}_{fechaPago}  ej: NE5_2026-09-15
+    const match = idStr.match(/^NE(\d+)_(\d{4}-\d{2}-\d{2})$/);
+    if (!match) return NextResponse.json({ error: "ID de nómina estimada inválido" }, { status: 400 });
+    const nominaId = Number(match[1]);
+    const fechaDesde = match[2];
+
+    const body3 = (await request.json()) as { accion?: string; fechaPago?: string; tasaDia?: number };
+    if (body3.accion !== "pagar") {
+      return NextResponse.json({ error: "Acción no soportada para ítem de nómina" }, { status: 400 });
+    }
+
+    // Obtener frecuencia de la nómina
+    const nominaRes = await pool.query(`SELECT frecuencia FROM nominas WHERE id = $1 AND activo = TRUE`, [nominaId]);
+    if (nominaRes.rows.length === 0) return NextResponse.json({ error: "Nómina no encontrada" }, { status: 404 });
+    const frecuencia = nominaRes.rows[0].frecuencia as string;
+    const fechaHasta = calcularFechaHastaPeriodo(frecuencia as Parameters<typeof calcularFechaHastaPeriodo>[0], fechaDesde);
+
+    // Verificar que no exista ya un período para este rango
+    const existeRes = await pool.query(
+      `SELECT id FROM periodos_nomina WHERE nomina_id = $1 AND fecha_desde = $2`,
+      [nominaId, fechaDesde]
+    );
+    if (existeRes.rows.length > 0) {
+      return NextResponse.json({ error: "Ya existe un período para este rango. Recarga la página." }, { status: 409 });
+    }
+
+    let tasaDia: number;
+    try {
+      tasaDia = body3.tasaDia && body3.tasaDia > 0 ? body3.tasaDia : (await obtenerTasaBcv()).tasa;
+    } catch {
+      return NextResponse.json({ error: "No se pudo obtener la tasa BCV" }, { status: 502 });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const periodoId = await generarPeriodoNomina(client, {
+        nominaId,
+        fechaDesde,
+        fechaHasta,
+        tasaDia,
+        createdBy: sesion.id,
+      });
+      const fechaParam = body3.fechaPago || null;
+      await client.query(
+        `UPDATE nomina_pagos SET estado = 'PAGADO', pagado_at = COALESCE($2::date, NOW()) WHERE periodo_id = $1`,
+        [periodoId, fechaParam]
+      );
+      await client.query("COMMIT");
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      const detalle = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: "Error al generar y pagar la nómina", detalle }, { status: 500 });
+    } finally {
+      client.release();
+    }
   }
 
   const id = Number(idStr);
