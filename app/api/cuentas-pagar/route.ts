@@ -226,14 +226,14 @@ export async function GET(request: NextRequest) {
           const tasaBcv = await pool.query(`SELECT tasa FROM tasas_bcv_historico ORDER BY fecha DESC LIMIT 1`).then(r => Number(r.rows[0]?.tasa ?? 1)).catch(() => 1);
           for (const row of estResult.rows) {
             const nro = Number(row.nro_emp);
-            const tipo = String(row.tipo);
+            const tipo = String(row.tipo).trim();
             let totalUsd: number;
             if (tipo === "SOLO_INCIDENCIAS") {
-              totalUsd = Number(row.total_inc_usd) * nro;
+              totalUsd = (Number(row.total_inc_usd) || 0) * nro;
             } else if (tipo === "SOLO_SUELDO") {
-              totalUsd = Number(row.total_salario);
+              totalUsd = Number(row.total_salario) || 0;
             } else {
-              totalUsd = Number(row.total_salario) + Number(row.total_inc_usd) * nro;
+              totalUsd = (Number(row.total_salario) || 0) + (Number(row.total_inc_usd) || 0) * nro;
             }
             items.push(mapCP({
               id: `NE${row.nomina_id}_${toDateStr(row.fecha_pago)}`,
