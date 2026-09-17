@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Cliente, Producto, VentaPendientePago } from "@/lib/types";
 import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
+import InputFecha from "@/components/InputFecha";
 
 type NotaItem = {
   descripcion: string;

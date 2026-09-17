@@ -301,13 +301,11 @@ function FormularioCP({
 
         {/* Fecha emisión — dispara búsqueda de tasa */}
         <CampoForm label={`Fecha Emisión *${tasaMsg ? `  ·  ${tasaMsg}` : ""}`}>
-          <input type="date" style={inputStyle} value={form.fechaEmision}
-            onChange={e => handleFechaEmision(e.target.value)} />
+          <InputFecha value={form.fechaEmision} onChange={v => handleFechaEmision(v)} style={inputStyle} />
         </CampoForm>
 
         <CampoForm label="Fecha Vencimiento *">
-          <input type="date" style={inputStyle} value={form.fechaVencimiento}
-            onChange={e => setForm(p => ({ ...p, fechaVencimiento: e.target.value }))} />
+          <InputFecha value={form.fechaVencimiento} onChange={v => setForm(p => ({ ...p, fechaVencimiento: v }))} style={inputStyle} />
         </CampoForm>
 
         {/* Tasa editable — actualiza la conversión */}
@@ -772,11 +770,9 @@ export default function CuentasPagarClient() {
             })}
             {pagadosPeriodo === "rango" && (
               <>
-                <input type="date" value={pagadosDesde} onChange={e => setPagadosDesde(e.target.value)}
-                  style={{ ...inputStyle, width: 136 }} />
+                <InputFecha value={pagadosDesde} onChange={v => setPagadosDesde(v)} style={{ ...inputStyle, width: 136 }} />
                 <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>—</span>
-                <input type="date" value={pagadosHasta} onChange={e => setPagadosHasta(e.target.value)}
-                  style={{ ...inputStyle, width: 136 }} />
+                <InputFecha value={pagadosHasta} onChange={v => setPagadosHasta(v)} style={{ ...inputStyle, width: 136 }} />
                 <button onClick={cargarPagados}
                   style={{ padding: "4px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1.5px solid #059669", background: "#059669", color: "#fff" }}>
                   Buscar
@@ -941,11 +937,9 @@ export default function CuentasPagarClient() {
           })}
           {filtroFecha === "rango" && (
             <>
-              <input type="date" value={filtroDesde} onChange={e => { setFiltroDesde(e.target.value); setPage(1); }}
-                style={{ ...inputStyle, width: 136, flex: "0 0 auto" }} />
+              <InputFecha value={filtroDesde} onChange={v => { setFiltroDesde(v); setPage(1); }} style={{ ...inputStyle, width: 136, flex: "0 0 auto" }} />
               <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>—</span>
-              <input type="date" value={filtroHasta} onChange={e => { setFiltroHasta(e.target.value); setPage(1); }}
-                style={{ ...inputStyle, width: 136, flex: "0 0 auto" }} />
+              <InputFecha value={filtroHasta} onChange={v => { setFiltroHasta(v); setPage(1); }} style={{ ...inputStyle, width: 136, flex: "0 0 auto" }} />
             </>
           )}
         </div>
@@ -1244,7 +1238,7 @@ export default function CuentasPagarClient() {
                   </p>
                 )}
                 <CampoForm label="Nueva fecha de vencimiento">
-                  <input type="date" style={inputStyle} value={nuevaFechVenc} onChange={e => setNuevaFechVenc(e.target.value)} />
+                  <InputFecha value={nuevaFechVenc} onChange={v => setNuevaFechVenc(v)} style={inputStyle} />
                 </CampoForm>
                 <CampoForm label="Nota (opcional)">
                   <input style={inputStyle} value={notaPago} onChange={e => setNotaPago(e.target.value)} placeholder="Referencia, cheque, etc." />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import InputFecha from "@/components/InputFecha";
 
 const fmtNum = (n: number, dec = 4) =>
   Number.isInteger(n) ? String(n) : n.toLocaleString("es-VE", { minimumFractionDigits: 0, maximumFractionDigits: dec });
@@ -227,7 +228,7 @@ export default function OrdenesProduccionClient() {
               </div>
               <div>
                 <label style={lbl}>Fecha planificada</label>
-                <input type="date" value={fechaPlan} onChange={e => setFechaPlan(e.target.value)} style={S} />
+                <InputFecha value={fechaPlan} onChange={e => setFechaPlan(e.target.value)} style={S} />
               </div>
             </div>
             <div style={{ marginTop: 12 }}>

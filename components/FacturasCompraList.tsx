@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatFecha } from "@/lib/pedidos";
 import FacturaCompraForm from "./FacturaCompraForm";
+import InputFecha from "@/components/InputFecha";
 
 const fmtBs = (n: number) =>
   n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

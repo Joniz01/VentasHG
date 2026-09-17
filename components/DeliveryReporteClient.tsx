@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import type { ReporteDeliveryMotorizado } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+import InputFecha from "@/components/InputFecha";
 
 const MAX_DIAS_ATRAS = 21;
 

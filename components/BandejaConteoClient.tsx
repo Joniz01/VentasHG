@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Conteo, ConteoItem, EstadoConteo } from "@/lib/types";
 import { ESTADO_CONTEO_LABELS } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 const ESTADO_STYLE: Record<EstadoConteo, React.CSSProperties> = {
   BORRADOR:  { background: "#f3f4f6", color: "#374151" },

@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import type { ReporteVentas, ReporteDetalleVenta } from "@/lib/types";
 import { METODO_PAGO_LABELS, METODOS_PAGO } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
+import InputFecha from "@/components/InputFecha";
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();

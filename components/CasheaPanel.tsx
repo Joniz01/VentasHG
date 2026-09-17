@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { CasheaPagoItem } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
 import { METODO_PAGO_LABELS } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 type EstadoFiltro = "PENDIENTE" | "LIQUIDADO" | "TODOS";
 

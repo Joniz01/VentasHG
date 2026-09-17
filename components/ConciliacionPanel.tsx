@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { METODOS_PAGO, METODO_PAGO_LABELS } from "@/lib/types";
 import type { ReporteVentas, ReporteDetalleVenta } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 function isoHoy() {
   const d = new Date();
@@ -72,8 +73,8 @@ export default function ConciliacionPanel() {
             📅 Día específico
           </button>
           {periodo === "custom" && (
-            <input type="date" value={fechaCustom} onChange={(e) => setFechaCustom(e.target.value)}
-              style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "5px 10px", fontSize: 13 }} />
+            <InputFecha value={fechaCustom} onChange={(e) => setFechaCustom(e.target.value)}
+              style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "5px 10px", fontSize: 13 }} bg="var(--erp-surface)" />
           )}
         </div>
         {loading && <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>Cargando...</span>}

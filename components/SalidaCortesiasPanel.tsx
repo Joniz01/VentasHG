@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { Cliente, EmpaqueProducto, Producto } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import InputFecha from "@/components/InputFecha";
 
 type Lote = {
   id: number;
