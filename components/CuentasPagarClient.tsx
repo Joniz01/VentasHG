@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import InputFecha from "@/components/InputFecha";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -150,32 +151,6 @@ const inputStyle: React.CSSProperties = {
   padding: "8px 12px", borderRadius: 8, border: "1px solid var(--erp-border)",
   background: "var(--erp-bg)", color: "var(--erp-text)", fontSize: 14, width: "100%", boxSizing: "border-box",
 };
-
-// El campo de fecha nativo se pinta con el formato del idioma del navegador, que
-// en inglés queda mm/dd/aaaa. No hay forma estándar de cambiarlo, así que encima
-// del texto nativo se dibuja el valor en dd/mm/aaaa con fondo opaco, dejando
-// libre el ícono de la derecha para no perder el calendario del teléfono.
-function InputFecha({ value, onChange, max }: {
-  value: string;
-  onChange: (valor: string) => void;
-  max?: string;
-}) {
-  const [anio, mes, dia] = value.split("-");
-  const texto = dia ? `${dia}/${mes}/${anio}` : "dd/mm/aaaa";
-  return (
-    <div style={{ position: "relative" }}>
-      <input type="date" style={inputStyle} value={value} max={max}
-        onChange={e => onChange(e.target.value)} />
-      <span aria-hidden style={{
-        position: "absolute", left: 1, top: 1, bottom: 1, right: 32,
-        display: "flex", alignItems: "center", paddingLeft: 11,
-        borderRadius: 7, background: "var(--erp-bg)", fontSize: 14,
-        color: dia ? "var(--erp-text)" : "var(--erp-text-3)",
-        pointerEvents: "none",
-      }}>{texto}</span>
-    </div>
-  );
-}
 
 // ── Tasa fetch ─────────────────────────────────────────────────────────────
 

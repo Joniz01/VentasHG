@@ -36,6 +36,7 @@ import PromocionesPanel from "@/components/PromocionesPanel";
 import ConciliacionPanel from "@/components/ConciliacionPanel";
 import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
 import FechaPagoConfirm from "@/components/FechaPagoConfirm";
+import InputFecha from "@/components/InputFecha";
 
 type ItemRow = {
   productoId: string;
@@ -1176,8 +1177,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "var(--erp-surface)", border: "1px solid var(--erp-primary)", borderRadius: 10, padding: "12px 14px", zIndex: 200, minWidth: 240, boxShadow: "0 8px 24px rgba(0,0,0,.15)" }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-primary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>Buscar tasa por fecha</p>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <input
-                        type="date"
+                      <InputFecha
                         defaultValue={fecha}
                         max={today()}
                         style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 8px", fontSize: 13 }}

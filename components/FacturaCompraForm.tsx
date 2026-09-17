@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import InputFecha from "@/components/InputFecha";
 
 const fmtBs = (n: number) =>
   n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

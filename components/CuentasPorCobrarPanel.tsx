@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { formatFecha } from "@/lib/pedidos";
 import FechaPagoConfirm from "@/components/FechaPagoConfirm";
 import type { MetodoPago } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 type TipoCxC = "CxC Directa" | "CASHEA" | "YUMMY";
 type EstadoFiltro = "TODOS" | "PENDIENTE" | "COBRADA" | "VENCIDA";

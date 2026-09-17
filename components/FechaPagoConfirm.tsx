@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { METODO_PAGO_LABELS, type MetodoPago } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 function hoyCaracas(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
