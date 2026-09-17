@@ -111,13 +111,18 @@ button{cursor:pointer}
 .p-row{display:flex;align-items:center;justify-content:space-between;gap:4px}
 .p-price{font-size:12px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
 .p-opts-tag{font-size:9px;color:var(--accent);font-weight:600}
-.p-extras-panel{padding:6px 8px 8px;border-top:1px solid var(--border);background:var(--bbg)}
-.p-extras-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:4px}
-.p-extras-wrap{display:flex;flex-wrap:wrap;gap:4px}
+.p-extras-overlay{position:absolute;inset:0;z-index:20;background:var(--dk);border:1.5px solid var(--ab);border-radius:9px;padding:7px 8px 8px;display:flex;flex-direction:column;gap:5px}
+.p-extras-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.p-extras-wrap{display:flex;flex-wrap:wrap;gap:4px;flex:1;align-content:flex-start}
 .p-extra-btn{padding:3px 8px;border-radius:5px;border:1.5px solid var(--border);background:var(--surface);color:var(--t2);font-size:10px;font-weight:500;transition:all .15s}
 .p-extra-btn:hover{border-color:var(--ab);color:var(--accent);background:var(--al)}
 .p-extra-sin{padding:3px 8px;border-radius:5px;border:1.5px dashed var(--border);background:none;color:var(--t3);font-size:10px;transition:all .15s}
 .p-extra-sin:hover{border-color:var(--t3);color:var(--t2)}
+.p-extra-close{position:absolute;top:4px;right:5px;background:none;border:none;color:var(--t3);font-size:11px;cursor:pointer;padding:0;line-height:1}
+.p-extra-close:hover{color:var(--text)}
+.pg-btn{padding:3px 10px;border-radius:6px;border:1.5px solid var(--border);background:var(--surface);color:var(--t2);font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
+.pg-btn:disabled{opacity:.3;cursor:default}
+.pg-btn:not(:disabled):hover{border-color:var(--ab);color:var(--accent)}
 
 /* ── BOTTOM BAR (left panel) ── */
 .bottom-bar{flex-shrink:0;background:var(--bbg);border-top:2px solid var(--bborder);display:flex;gap:0;overflow:hidden}
@@ -231,7 +236,8 @@ export default function CajaClient() {
   const [bcvInput, setBcvInput] = useState("1.00");
 
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
-  const [catActiva, setCatActiva] = useState("Todos");
+  const [catActiva, setCatActiva] = useState("Tradicional");
+  const [pagina, setPagina] = useState(1);
   const [busqueda, setBusqueda] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -338,6 +344,10 @@ export default function CajaClient() {
     const mq = !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase());
     return mc && mq;
   });
+  const POR_PAGINA = 24;
+  const totalPags = catActiva === "Todos" ? Math.max(1, Math.ceil(filtrados.length / POR_PAGINA)) : 1;
+  const filtradosPag = catActiva === "Todos" ? filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA) : filtrados;
+
   const cartMap: Record<number, number> = {};
   carrito.forEach((c) => { cartMap[c.productoId] = (cartMap[c.productoId] ?? 0) + c.qty; });
 
@@ -447,7 +457,7 @@ export default function CajaClient() {
               </div>
               <div className="cats">
                 {cats.map((f) => (
-                  <button key={f.key} className={`cat-pill${catActiva === f.key ? " active" : ""}`} onClick={() => setCatActiva(f.key)}>{f.label}</button>
+                  <button key={f.key} className={`cat-pill${catActiva === f.key ? " active" : ""}`} onClick={() => { setCatActiva(f.key); setPagina(1); }}>{f.label}</button>
                 ))}
               </div>
             </div>
@@ -458,32 +468,27 @@ export default function CajaClient() {
                   {productos.length === 0 ? "Cargando productos…" : "Sin resultados"}
                 </div>
               )}
-              {filtrados.map((prod) => {
+              {filtradosPag.map((prod) => {
                 const qty = cartMap[prod.id] ?? 0;
                 const isExp = expandedId === prod.id;
                 return (
-                  <div key={prod.id} className={`p-card${qty > 0 ? " in-cart" : ""}${isExp ? " expanded" : ""}`}
-                    style={isExp ? { gridColumn: "span 2" } : {}}>
+                  <div key={prod.id} className={`p-card${qty > 0 ? " in-cart" : ""}`} style={{ position: "relative" }}>
                     <div onClick={() => clickProducto(prod)}>
-                      <div className="p-thumb" style={{ minHeight: isExp ? 40 : undefined }}>
+                      <div className="p-thumb">
                         {qty > 0 && <span className="p-badge">{qty}</span>}
-                        <span style={{ wordBreak: "break-word", overflow: "hidden", maxHeight: isExp ? 36 : 52 }}>
-                          {prod.nombre}
-                        </span>
+                        <span style={{ wordBreak: "break-word", overflow: "hidden" }}>{prod.nombre}</span>
                       </div>
-                      {!isExp && (
-                        <div className="p-info">
-                          <div className="p-name">{prod.nombre}</div>
-                          <div className="p-row">
-                            <span className="p-price">{fmt(prod.precioVenta)}</span>
-                            {prod.extras.length > 0 && <span className="p-opts-tag">opciones ▾</span>}
-                          </div>
+                      <div className="p-info">
+                        <div className="p-name">{prod.nombre}</div>
+                        <div className="p-row">
+                          <span className="p-price">{fmt(prod.precioVenta)}</span>
+                          {prod.extras.length > 0 && <span className="p-opts-tag">opciones ▾</span>}
                         </div>
-                      )}
+                      </div>
                     </div>
                     {isExp && (
-                      <div className="p-extras-panel">
-                        <div className="p-extras-label">{prod.nombre} · {fmt(prod.precioVenta)} · Selecciona preparación</div>
+                      <div className="p-extras-overlay" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-extras-label">{fmt(prod.precioVenta)} · Preparación</div>
                         <div className="p-extras-wrap">
                           {prod.extras.map((ex) => (
                             <button key={ex.id} className="p-extra-btn" onClick={() => addToCart(prod, ex)}>
@@ -492,11 +497,19 @@ export default function CajaClient() {
                           ))}
                           <button className="p-extra-sin" onClick={() => addToCart(prod, null)}>Sin preferencia</button>
                         </div>
+                        <button className="p-extra-close" onClick={() => setExpandedId(null)}>✕</button>
                       </div>
                     )}
                   </div>
                 );
               })}
+              {catActiva === "Todos" && totalPags > 1 && (
+                <div style={{ gridColumn: "1/-1", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0" }}>
+                  <button className="pg-btn" disabled={pagina === 1} onClick={() => setPagina((p) => p - 1)}>‹</button>
+                  <span style={{ fontSize: 11, color: "var(--t2)" }}>{pagina} / {totalPags}</span>
+                  <button className="pg-btn" disabled={pagina === totalPags} onClick={() => setPagina((p) => p + 1)}>›</button>
+                </div>
+              )}
             </div>
 
             {/* ── Bottom bar: Entrega | Cliente ── */}
