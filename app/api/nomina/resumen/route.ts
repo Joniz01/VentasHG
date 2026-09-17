@@ -72,12 +72,16 @@ export async function GET(request: NextRequest) {
          WHERE np.estado = 'PENDIENTE'
            AND pn.fecha_hasta BETWEEN semana.lunes AND semana.domingo
        ),
-       -- Nóminas automáticas semanales cuyo dia_semana cae en próxima semana (estimado con salarios)
-       nominas_auto AS (
+       -- Nóminas automáticas semanales cuyo dia_semana cae en próxima semana.
+       -- La estimación depende del tipo: una nómina de solo incidencias no paga
+       -- sueldo base, y una de solo sueldo no lleva incidencias.
+       nominas_auto_base AS (
          SELECT
-           COUNT(DISTINCT n.id)::int AS nominas,
-           COALESCE(SUM(e.salario_base_usd), 0) AS total_usd,
-           MIN((semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date) AS fecha_pago
+           n.id,
+           COALESCE(n.tipo,'NORMAL') AS tipo,
+           COALESCE(SUM(e.salario_base_usd), 0) AS total_salario,
+           COUNT(DISTINCT e.id) AS nro_empleados,
+           (semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date AS fecha_pago
          FROM semana, nominas n
          JOIN empleado_nominas en ON en.nomina_id = n.id
          JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
@@ -95,6 +99,24 @@ export async function GET(request: NextRequest) {
              WHERE pn2.nomina_id = n.id
                AND pn2.fecha_hasta BETWEEN semana.lunes AND semana.domingo
            )
+         GROUP BY n.id, n.tipo, n.dia_semana, semana.lunes
+       ),
+       nominas_auto AS (
+         SELECT
+           COUNT(*)::int AS nominas,
+           COALESCE(SUM(
+             CASE b.tipo
+               WHEN 'SOLO_INCIDENCIAS' THEN COALESCE(ic.total_inc_usd, 0) * b.nro_empleados
+               WHEN 'SOLO_SUELDO'      THEN b.total_salario
+               ELSE b.total_salario + COALESCE(ic.total_inc_usd, 0) * b.nro_empleados
+             END
+           ), 0) AS total_usd,
+           MIN(b.fecha_pago) AS fecha_pago
+         FROM nominas_auto_base b
+         LEFT JOIN (
+           SELECT nomina_id, SUM(monto_usd) AS total_inc_usd
+           FROM nomina_incidencia_config GROUP BY nomina_id
+         ) ic ON ic.nomina_id = b.id
        ),
        -- Fecha de pago más próxima de períodos ya generados pendientes
        periodos_gen_fecha AS (
@@ -126,13 +148,21 @@ export async function GET(request: NextRequest) {
        SELECT
          n.id,
          n.nombre,
-         COALESCE(SUM(e.salario_base_usd), 0) AS total_usd_estimado,
+         CASE COALESCE(n.tipo,'NORMAL')
+           WHEN 'SOLO_INCIDENCIAS' THEN COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
+           WHEN 'SOLO_SUELDO'      THEN COALESCE(SUM(e.salario_base_usd), 0)
+           ELSE COALESCE(SUM(e.salario_base_usd), 0) + COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
+         END AS total_usd_estimado,
          semana.lunes,
          semana.domingo,
          (semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date AS fecha_hasta
        FROM semana, nominas n
        JOIN empleado_nominas en ON en.nomina_id = n.id
        JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
+       LEFT JOIN (
+         SELECT nomina_id, SUM(monto_usd) AS total_inc_usd
+         FROM nomina_incidencia_config GROUP BY nomina_id
+       ) ic ON ic.nomina_id = n.id
        WHERE n.activo = TRUE
          AND n.modo_generacion = 'AUTOMATICO'
          AND n.frecuencia = 'SEMANAL'
@@ -144,7 +174,7 @@ export async function GET(request: NextRequest) {
            WHERE pn2.nomina_id = n.id
              AND pn2.fecha_hasta BETWEEN semana.lunes AND semana.domingo
          )
-       GROUP BY n.id, n.nombre, n.dia_semana, semana.lunes, semana.domingo`
+       GROUP BY n.id, n.nombre, n.tipo, n.dia_semana, semana.lunes, semana.domingo, ic.total_inc_usd`
     ).catch(() => ({ rows: [] }));
 
     const ps = proximaSemanaResult.rows[0];

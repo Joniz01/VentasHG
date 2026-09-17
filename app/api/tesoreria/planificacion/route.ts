@@ -84,8 +84,20 @@ export async function GET(request: NextRequest) {
             'N' || pn.id AS id,
             n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
             MAX(np.pagado_at)::date AS fecha_pago,
-            COALESCE(SUM(e.salario_base_usd * pn.tasa_dia), 0) AS monto_bs,
-            COALESCE(SUM(e.salario_base_usd), 0) AS monto_usd
+            COALESCE(SUM(np.salario_base_bs), 0)
+              + COALESCE((
+                  SELECT SUM(ni.monto_bs)
+                  FROM nomina_incidencias ni
+                  JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PAGADO'
+                  WHERE np2.periodo_id = pn.id
+                ), 0) AS monto_bs,
+            COALESCE(SUM(CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END), 0)
+              + COALESCE((
+                  SELECT SUM(ni.monto_bs) / NULLIF(pn.tasa_dia, 0)
+                  FROM nomina_incidencias ni
+                  JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PAGADO'
+                  WHERE np2.periodo_id = pn.id
+                ), 0) AS monto_usd
           FROM periodos_nomina pn
           JOIN nominas n ON n.id = pn.nomina_id
           JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PAGADO'
@@ -150,7 +162,7 @@ export async function GET(request: NextRequest) {
             ), 0)                                                                 AS monto_bs,
         pn.tasa_dia                                                               AS tasa_dia,
         NULL::text                                                                AS referencia,
-        COALESCE(SUM(e.salario_base_usd), 0)
+        COALESCE(SUM(CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END), 0)
           + COALESCE((
               SELECT SUM(ni.monto_bs) / NULLIF(pn.tasa_dia, 0)
               FROM nomina_incidencias ni
@@ -163,7 +175,13 @@ export async function GET(request: NextRequest) {
       JOIN empleados e ON e.id = np.empleado_id
       WHERE pn.fecha_hasta BETWEEN $1 AND $2
       GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
-      HAVING COALESCE(SUM(e.salario_base_usd), 0) > 0
+      HAVING COALESCE(SUM(np.salario_base_bs), 0)
+             + COALESCE((
+                 SELECT SUM(ni.monto_bs)
+                 FROM nomina_incidencias ni
+                 JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PENDIENTE'
+                 WHERE np2.periodo_id = pn.id
+               ), 0) > 0
       ORDER BY pn.fecha_hasta ASC`,
       [desde, hasta]
     );
@@ -340,7 +358,7 @@ export async function GET(request: NextRequest) {
          SELECT generate_series(0, 5) AS offset
        ),
        fechas AS (
-         SELECT n.id AS nomina_id, n.nombre,
+         SELECT n.id AS nomina_id, n.nombre, COALESCE(n.tipo,'NORMAL') AS tipo,
            (date_trunc('week', $1::date + sv.offset * 7)
              + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date AS fecha_pago
          FROM semanas_ventana sv, nominas n
@@ -348,7 +366,7 @@ export async function GET(request: NextRequest) {
            AND n.frecuencia = 'SEMANAL' AND n.dia_semana IS NOT NULL
        ),
        filtradas AS (
-         SELECT DISTINCT f.nomina_id, f.nombre, f.fecha_pago
+         SELECT DISTINCT f.nomina_id, f.nombre, f.tipo, f.fecha_pago
          FROM fechas f
          WHERE f.fecha_pago BETWEEN $1 AND $2
            AND NOT EXISTS (
@@ -360,11 +378,19 @@ export async function GET(request: NextRequest) {
            )
        )
        SELECT f.nomina_id, f.nombre, f.fecha_pago,
-              COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
+              CASE f.tipo
+                WHEN 'SOLO_INCIDENCIAS' THEN COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
+                WHEN 'SOLO_SUELDO'      THEN COALESCE(SUM(e.salario_base_usd), 0)
+                ELSE COALESCE(SUM(e.salario_base_usd), 0) + COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
+              END AS total_usd
        FROM filtradas f
        LEFT JOIN empleado_nominas en ON en.nomina_id = f.nomina_id
        LEFT JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
-       GROUP BY f.nomina_id, f.nombre, f.fecha_pago
+       LEFT JOIN (
+         SELECT nomina_id, SUM(monto_usd) AS total_inc_usd
+         FROM nomina_incidencia_config GROUP BY nomina_id
+       ) ic ON ic.nomina_id = f.nomina_id
+       GROUP BY f.nomina_id, f.nombre, f.tipo, f.fecha_pago, ic.total_inc_usd
        ORDER BY f.fecha_pago ASC`,
       [desde, hasta]
     );
@@ -470,10 +496,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const r = await pool.query<{ total_usd: string }>(
-      `SELECT COALESCE(SUM(e.salario_base_usd), 0) AS total_usd
+      `SELECT COALESCE(SUM(
+         CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
+         CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
+       ), 0) AS total_usd
        FROM nomina_pagos np
        JOIN periodos_nomina pn ON pn.id = np.periodo_id
        JOIN empleados e ON e.id = np.empleado_id
+       LEFT JOIN (
+         SELECT nomina_pago_id, SUM(monto_bs) AS total_incidencias_bs
+         FROM nomina_incidencias GROUP BY nomina_pago_id
+       ) inc ON inc.nomina_pago_id = np.id
        WHERE np.estado = 'PAGADO' AND np.pagado_at >= $1`,
       [mesInicio]
     );
