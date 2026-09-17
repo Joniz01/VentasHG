@@ -11,6 +11,7 @@ interface InputFechaProps {
   max?: string;
   required?: boolean;
   disabled?: boolean;
+  autoFocus?: boolean;
   /** Background CSS value for the overlay — defaults to var(--erp-bg).
    *  Pass "var(--erp-surface)" for inputs without explicit background. */
   bg?: string;
@@ -25,6 +26,7 @@ export default function InputFecha({
   max,
   required,
   disabled,
+  autoFocus,
   bg = "var(--erp-bg)",
 }: InputFechaProps) {
   const parts = value ? value.split("-") : [];
@@ -47,6 +49,7 @@ export default function InputFecha({
         max={max}
         required={required}
         disabled={disabled}
+        autoFocus={autoFocus}
       />
       <span
         aria-hidden

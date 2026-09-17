@@ -228,7 +228,7 @@ export default function OrdenesProduccionClient() {
               </div>
               <div>
                 <label style={lbl}>Fecha planificada</label>
-                <InputFecha value={fechaPlan} onChange={e => setFechaPlan(e.target.value)} style={S} />
+                <InputFecha value={fechaPlan} onChange={(v) => setFechaPlan(v)} style={S} />
               </div>
             </div>
             <div style={{ marginTop: 12 }}>

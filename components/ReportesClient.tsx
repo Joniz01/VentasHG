@@ -348,7 +348,7 @@ export default function ReportesClient() {
             <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={desde}
-              onChange={(e) => setDesde(e.target.value)}
+              onChange={(v) => setDesde(v)}
               bg="var(--erp-surface)"
             />
           </div>
@@ -357,7 +357,7 @@ export default function ReportesClient() {
             <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={hasta}
-              onChange={(e) => setHasta(e.target.value)}
+              onChange={(v) => setHasta(v)}
               bg="var(--erp-surface)"
             />
           </div>

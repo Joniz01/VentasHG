@@ -181,11 +181,11 @@ export default function FacturasCompraList({ puedeCrearProducto = false, tasaBcv
       <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 12 }} className="p-4 flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1">
           <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Desde</label>
-          <InputFecha value={desde} onChange={(e) => setDesde(e.target.value)} style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 13 }} bg="var(--erp-surface)" />
+          <InputFecha value={desde} onChange={(v) => setDesde(v)} style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 13 }} bg="var(--erp-surface)" />
         </div>
         <div className="flex flex-col gap-1">
           <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Hasta</label>
-          <InputFecha value={hasta} onChange={(e) => setHasta(e.target.value)} style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 13 }} bg="var(--erp-surface)" />
+          <InputFecha value={hasta} onChange={(v) => setHasta(v)} style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "6px 10px", fontSize: 13 }} bg="var(--erp-surface)" />
         </div>
         <div className="flex flex-col gap-1">
           <label style={{ color: "var(--erp-text-2)", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Proveedor</label>

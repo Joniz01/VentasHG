@@ -73,7 +73,7 @@ export default function ConciliacionPanel() {
             📅 Día específico
           </button>
           {periodo === "custom" && (
-            <InputFecha value={fechaCustom} onChange={(e) => setFechaCustom(e.target.value)}
+            <InputFecha value={fechaCustom} onChange={(v) => setFechaCustom(v)}
               style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "5px 10px", fontSize: 13 }} bg="var(--erp-surface)" />
           )}
         </div>

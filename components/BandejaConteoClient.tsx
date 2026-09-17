@@ -571,7 +571,7 @@ export default function BandejaConteoClient() {
               <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#9a3412" }}>Desde</label>
               <InputFecha
                 value={desdeDate}
-                onChange={(e) => { setDesdeDate(e.target.value); setSeleccionados(new Set()); }}
+                onChange={(v) => { setDesdeDate(v); setSeleccionados(new Set()); }}
                 style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
                 bg="var(--erp-surface)"
               />
@@ -580,7 +580,7 @@ export default function BandejaConteoClient() {
               <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#9a3412" }}>Hasta</label>
               <InputFecha
                 value={hastaDate}
-                onChange={(e) => { setHastaDate(e.target.value); setSeleccionados(new Set()); }}
+                onChange={(v) => { setHastaDate(v); setSeleccionados(new Set()); }}
                 style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
                 bg="var(--erp-surface)"
               />

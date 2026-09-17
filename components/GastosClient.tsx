@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState, type FormEvent } from "react";
-import InputFecha from "@/components/InputFecha";
 import {
   ESTADOS_GASTO,
   ESTADO_GASTO_LABELS,

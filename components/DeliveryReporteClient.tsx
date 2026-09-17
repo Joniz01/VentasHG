@@ -113,7 +113,7 @@ export default function DeliveryReporteClient() {
               value={desde}
               min={minDesde()}
               max={toIsoDate(new Date())}
-              onChange={(e) => setDesde(e.target.value)}
+              onChange={(v) => setDesde(v)}
               bg="var(--erp-surface)"
             />
           </div>
@@ -124,7 +124,7 @@ export default function DeliveryReporteClient() {
               value={hasta}
               min={minDesde()}
               max={toIsoDate(new Date())}
-              onChange={(e) => setHasta(e.target.value)}
+              onChange={(v) => setHasta(v)}
               bg="var(--erp-surface)"
             />
           </div>

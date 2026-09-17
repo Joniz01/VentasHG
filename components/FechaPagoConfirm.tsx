@@ -42,7 +42,7 @@ export default function FechaPagoConfirm({ onConfirm, onCancel, confirming, pedi
         autoFocus
         value={fecha}
         max={hoyCaracas()}
-        onChange={(e) => setFecha(e.target.value)}
+        onChange={(v) => setFecha(v)}
         className="w-full rounded border border-zinc-300 px-2 py-1 text-xs"
         bg="var(--erp-surface)"
       />

@@ -635,7 +635,7 @@ function FormPanel({
               className={inputCls}
               style={{ ...inputStyle, maxWidth: 200 }}
               value={form.fechaEspecifica}
-              onChange={(e) => set("fechaEspecifica", e.target.value)}
+              onChange={(v) => set("fechaEspecifica", v)}
               bg="var(--erp-surface)"
             />
           )}

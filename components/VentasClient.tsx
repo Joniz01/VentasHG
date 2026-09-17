@@ -1177,7 +1177,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: "var(--erp-surface)", border: "1px solid var(--erp-primary)", borderRadius: 10, padding: "12px 14px", zIndex: 200, minWidth: 240, boxShadow: "0 8px 24px rgba(0,0,0,.15)" }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-primary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>Buscar tasa por fecha</p>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <InputFecha
+                      <input
+                        type="date"
                         defaultValue={fecha}
                         max={today()}
                         style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 8px", fontSize: 13 }}
@@ -1615,7 +1616,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           </div>
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-medium text-zinc-600">Fecha límite</label>
-                            <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaLimitePago} onChange={(e) => { setFechaLimitePago(e.target.value); setDiasCredito(""); setErrorPlazoPago(false); }} />
+                            <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaLimitePago} onChange={(v) => { setFechaLimitePago(v); setDiasCredito(""); setErrorPlazoPago(false); }} />
                           </div>
                         </div>
                       )}
@@ -1697,7 +1698,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                       <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-700">Fecha de entrega</label>
-                        <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
+                        <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaEntrega} onChange={(v) => setFechaEntrega(v)} required />
                       </div>
                       <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
@@ -1761,9 +1762,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                         bg="var(--erp-surface)"
                         value={fecha}
                         max={today()}
-                        onChange={(e) => {
-                          setFecha(e.target.value);
-                          if (e.target.value) buscarTasaPorFecha(e.target.value);
+                        onChange={(v) => {
+                          setFecha(v);
+                          if (v) buscarTasaPorFecha(v);
                         }}
                         required
                       />
@@ -1877,7 +1878,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
               bg="var(--erp-surface)"
               value={fecha}
               max={today()}
-              onChange={(e) => { setFecha(e.target.value); if (e.target.value) buscarTasaPorFecha(e.target.value); }}
+              onChange={(v) => { setFecha(v); if (v) buscarTasaPorFecha(v); }}
               required
             />
           </div>
@@ -2074,7 +2075,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Fecha de entrega</label>
-                <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
+                <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaEntrega} onChange={(v) => setFechaEntrega(v)} required />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
@@ -2572,8 +2573,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
                     bg="var(--erp-surface)"
                     value={fechaLimitePago}
-                    onChange={(e) => {
-                      setFechaLimitePago(e.target.value);
+                    onChange={(v) => {
+                      setFechaLimitePago(v);
                       setDiasCredito("");
                       setErrorPlazoPago(false);
                     }}
@@ -2736,7 +2737,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
               bg="var(--erp-surface)"
               value={filtroFechaDesde}
-              onChange={(e) => setFiltroFechaDesde(e.target.value)}
+              onChange={(v) => setFiltroFechaDesde(v)}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -2745,7 +2746,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
               bg="var(--erp-surface)"
               value={filtroFechaHasta}
-              onChange={(e) => setFiltroFechaHasta(e.target.value)}
+              onChange={(v) => setFiltroFechaHasta(v)}
             />
           </div>
         </div>
@@ -2892,7 +2893,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                             <InputFecha
                               max={today()}
                               value={casheaConfirm.fechaPago}
-                              onChange={(e) => setCasheaConfirm((c) => c ? { ...c, fechaPago: e.target.value } : c)}
+                              onChange={(v) => setCasheaConfirm((c) => c ? { ...c, fechaPago: v } : c)}
                               className="w-full rounded border border-zinc-300 px-2 py-1 text-xs"
                               bg="var(--erp-surface)"
                             />

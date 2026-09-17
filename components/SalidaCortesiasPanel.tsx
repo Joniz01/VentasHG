@@ -331,7 +331,7 @@ export default function SalidaCortesiasPanel({ productos }: { productos: Product
               className="rounded-md border px-3 py-2 text-sm"
               style={{ borderColor: "var(--erp-border)" }}
               value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+              onChange={(v) => setFecha(v)}
               bg="var(--erp-surface)"
               required
             />

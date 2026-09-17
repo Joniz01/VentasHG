@@ -253,7 +253,7 @@ export default function CasheaPanel() {
                             <InputFecha
                               max={hoyCaracas()}
                               value={confirm.fechaPago}
-                              onChange={(e) => setConfirm((c) => c ? { ...c, fechaPago: e.target.value } : c)}
+                              onChange={(v) => setConfirm((c) => c ? { ...c, fechaPago: v } : c)}
                               className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm font-medium"
                               bg="var(--erp-surface)"
                             />
