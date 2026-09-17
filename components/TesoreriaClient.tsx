@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import InputFecha from "@/components/InputFecha";
 import { useRouter } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -471,10 +472,10 @@ export default function TesoreriaClient() {
             })}
             {historialPeriodo === "rango" && (
               <>
-                <input type="date" value={historialDesde} onChange={e => setHistorialDesde(e.target.value)}
+                <InputFecha value={historialDesde} onChange={v => setHistorialDesde(v)}
                   style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12, border: "1.5px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} />
                 <span style={{ fontSize: 12, color: "var(--erp-text-3)" }}>hasta</span>
-                <input type="date" value={historialHasta} onChange={e => setHistorialHasta(e.target.value)}
+                <InputFecha value={historialHasta} onChange={v => setHistorialHasta(v)}
                   style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12, border: "1.5px solid var(--erp-border)", background: "var(--erp-surface)", color: "var(--erp-text)" }} />
                 <button onClick={cargarHistorial}
                   style={{ padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1.5px solid #059669", background: "#059669", color: "#fff" }}>
@@ -1028,10 +1029,9 @@ export default function TesoreriaClient() {
                   <label style={{ fontSize: 11, fontWeight: 600, color: "var(--erp-text-3)", display: "block", marginBottom: 5 }}>
                     Nueva fecha de vencimiento del saldo
                   </label>
-                  <input
-                    type="date"
+                  <InputFecha
                     value={nuevaFecha}
-                    onChange={(e) => setNuevaFecha(e.target.value)}
+                    onChange={(v) => setNuevaFecha(v)}
                     style={{
                       width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13,
                       border: "1.5px solid var(--erp-border)", background: "var(--erp-bg, var(--erp-surface))",

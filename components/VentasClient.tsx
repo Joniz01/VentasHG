@@ -1872,9 +1872,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Fecha</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              bg="var(--erp-surface)"
               value={fecha}
               max={today()}
               onChange={(e) => { setFecha(e.target.value); if (e.target.value) buscarTasaPorFecha(e.target.value); }}
@@ -2074,7 +2074,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Fecha de entrega</label>
-                <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
+                <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
@@ -2568,9 +2568,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-zinc-600">Fecha límite de pago</label>
-                  <input
-                    type="date"
+                  <InputFecha
                     className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    bg="var(--erp-surface)"
                     value={fechaLimitePago}
                     onChange={(e) => {
                       setFechaLimitePago(e.target.value);
@@ -2732,18 +2732,18 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
           </button>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-zinc-600">Desde</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              bg="var(--erp-surface)"
               value={filtroFechaDesde}
               onChange={(e) => setFiltroFechaDesde(e.target.value)}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-zinc-600">Hasta</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              bg="var(--erp-surface)"
               value={filtroFechaHasta}
               onChange={(e) => setFiltroFechaHasta(e.target.value)}
             />
@@ -2889,12 +2889,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                               </p>
                             )}
                             <label className="text-xs text-zinc-500">¿Cuándo entró el dinero?</label>
-                            <input
-                              type="date"
+                            <InputFecha
                               max={today()}
                               value={casheaConfirm.fechaPago}
                               onChange={(e) => setCasheaConfirm((c) => c ? { ...c, fechaPago: e.target.value } : c)}
                               className="w-full rounded border border-zinc-300 px-2 py-1 text-xs"
+                              bg="var(--erp-surface)"
                             />
                             <div className="flex gap-1">
                               <button

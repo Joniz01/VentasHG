@@ -443,7 +443,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
                   return <span className="ml-2 font-normal text-xs" style={{ color: "var(--erp-text-2)" }}>{antiguedad}</span>;
                 })()}
               </label>
-              <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaIngreso} onChange={(e) => setForm((p) => ({ ...p, fechaIngreso: e.target.value }))} />
+              <InputFecha value={form.fechaIngreso} onChange={(v) => setForm((p) => ({ ...p, fechaIngreso: v }))} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} bg="var(--erp-surface)" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tasa del día</label>
@@ -642,11 +642,11 @@ function GenerarPeriodoForm({ nomina, onCreated }: { nomina: Nomina; onCreated: 
       <div className="flex gap-2 flex-wrap items-end">
         <div className="flex flex-col gap-1">
           <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Desde</label>
-          <input type="date" className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={form.fechaDesde} onChange={(e) => setForm((p) => ({ ...p, fechaDesde: e.target.value }))} required />
+          <InputFecha value={form.fechaDesde} onChange={(v) => setForm((p) => ({ ...p, fechaDesde: v }))} className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} bg="var(--erp-surface)" required />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Hasta</label>
-          <input type="date" className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={form.fechaHasta} onChange={(e) => setForm((p) => ({ ...p, fechaHasta: e.target.value }))} required />
+          <InputFecha value={form.fechaHasta} onChange={(v) => setForm((p) => ({ ...p, fechaHasta: v }))} className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} bg="var(--erp-surface)" required />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Tasa del día</label>
@@ -935,7 +935,7 @@ function NominaCard({ nomina, tiposIncidencia, onChange, onEdit }: { nomina: Nom
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Fecha efectiva</label>
-                  <input type="date" className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} value={row.fechaEfectiva} onChange={(e) => setRow((p) => ({ ...p, fechaEfectiva: e.target.value }))} />
+                  <InputFecha value={row.fechaEfectiva} onChange={(v) => setRow((p) => ({ ...p, fechaEfectiva: v }))} className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--erp-border)" }} bg="var(--erp-surface)" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs" style={{ color: "var(--erp-text-2)" }}>Tasa</label>

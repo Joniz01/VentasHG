@@ -412,20 +412,20 @@ export default function LotesVencimientosClient() {
             {/* Fecha entrada */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
               <label style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de entrada</label>
-              <input
-                type="date" value={form.fechaEntrada}
+              <InputFecha value={form.fechaEntrada}
                 onChange={(e) => setForm((f) => ({ ...f, fechaEntrada: e.target.value }))}
                 style={{ padding: "0.5rem 0.75rem", borderRadius: 7, border: "1px solid var(--erp-border)", background: "var(--erp-surface-1)", color: "var(--erp-text-1)", fontSize: "0.875rem" }}
+                bg="var(--erp-surface)"
               />
             </div>
 
             {/* Fecha vencimiento */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
               <label style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de vencimiento</label>
-              <input
-                type="date" value={form.fechaVencimiento}
+              <InputFecha value={form.fechaVencimiento}
                 onChange={(e) => setForm((f) => ({ ...f, fechaVencimiento: e.target.value }))}
                 style={{ padding: "0.5rem 0.75rem", borderRadius: 7, border: "1px solid var(--erp-border)", background: "var(--erp-surface-1)", color: "var(--erp-text-1)", fontSize: "0.875rem" }}
+                bg="var(--erp-surface)"
               />
               <span style={{ fontSize: "0.68rem", color: "var(--erp-text-3)" }}>Opcional — dejar vacío si no aplica</span>
             </div>

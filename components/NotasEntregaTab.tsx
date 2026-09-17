@@ -222,20 +222,20 @@ export default function NotasEntregaTab({ productos }: { productos: Producto[] }
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Fecha</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
+              bg="var(--erp-surface)"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Fecha límite de pago</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={fechaLimitePago}
               onChange={(e) => setFechaLimitePago(e.target.value)}
+              bg="var(--erp-surface)"
             />
           </div>
           <div className="flex flex-col gap-1">

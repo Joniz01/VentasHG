@@ -327,12 +327,12 @@ export default function SalidaCortesiasPanel({ productos }: { productos: Product
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold uppercase" style={{ color: "var(--erp-text-3)" }}>Fecha</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border px-3 py-2 text-sm"
               style={{ borderColor: "var(--erp-border)" }}
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
+              bg="var(--erp-surface)"
               required
             />
           </div>
