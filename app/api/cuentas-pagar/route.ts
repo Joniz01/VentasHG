@@ -138,10 +138,27 @@ export async function GET(request: NextRequest) {
         // 1. Períodos generados con pagos pendientes
         const pendParams: unknown[] = [];
         const pendDateFilter = desde && hasta
-          ? `AND pn.fecha_hasta BETWEEN $${pendParams.push(desde) && pendParams.length} AND $${pendParams.push(hasta) && pendParams.length}`
+          ? `WHERE pn.fecha_hasta BETWEEN $${pendParams.push(desde) && pendParams.length} AND $${pendParams.push(hasta) && pendParams.length}`
           : "";
+        // El monto de un período es lo que quedó registrado en el período mismo
+        // (nomina_pagos + nomina_incidencias), NO el salario vigente del empleado.
+        // Cada concepto se agrega por separado para evitar que el JOIN 1:N de
+        // incidencias multiplique la suma de salarios.
         const pendResult = await pool.query(
-          `SELECT
+          `WITH pagos_pend AS (
+             SELECT np.periodo_id, COALESCE(SUM(np.salario_base_bs), 0) AS salario_bs
+             FROM nomina_pagos np
+             WHERE np.estado != 'PAGADO'
+             GROUP BY np.periodo_id
+           ),
+           inc_pend AS (
+             SELECT np.periodo_id, COALESCE(SUM(ni.monto_bs), 0) AS inc_bs
+             FROM nomina_pagos np
+             JOIN nomina_incidencias ni ON ni.nomina_pago_id = np.id
+             WHERE np.estado != 'PAGADO'
+             GROUP BY np.periodo_id
+           )
+           SELECT
              'N' || pn.id AS id,
              n.nombre AS proveedor,
              NULL AS proveedor_rif,
@@ -149,9 +166,9 @@ export async function GET(request: NextRequest) {
              n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
              pn.fecha_desde AS fecha_emision,
              pn.fecha_hasta AS fecha_vencimiento,
-             (COALESCE(SUM(np.salario_base_bs), 0) + COALESCE(SUM(ni.monto_bs), 0)) AS monto_bs,
-             (COALESCE(SUM(np.salario_base_bs), 0) + COALESCE(SUM(ni.monto_bs), 0)) / pn.tasa_dia AS monto_usd,
-             (COALESCE(SUM(np.salario_base_bs), 0) + COALESCE(SUM(ni.monto_bs), 0)) / pn.tasa_dia AS monto_original_usd,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) AS monto_bs,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_usd,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_original_usd,
              pn.tasa_dia,
              'PENDIENTE' AS estado,
              NULL AS monto_original_bs,
@@ -166,10 +183,9 @@ export async function GET(request: NextRequest) {
              pn.created_at
            FROM periodos_nomina pn
            JOIN nominas n ON n.id = pn.nomina_id
-           JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado != 'PAGADO'
-           LEFT JOIN nomina_incidencias ni ON ni.nomina_pago_id = np.id
-           ${pendDateFilter}
-           GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia, pn.created_at`,
+           JOIN pagos_pend p ON p.periodo_id = pn.id
+           LEFT JOIN inc_pend i ON i.periodo_id = pn.id
+           ${pendDateFilter}`,
           pendParams
         );
         for (const r of pendResult.rows) items.push(mapCP(r as Record<string, unknown>));
@@ -267,8 +283,26 @@ export async function GET(request: NextRequest) {
     // Incluir nóminas pagadas cuando se está filtrando por rango de pago (tab Pagados)
     if (pagadoDesde && pagadoHasta) {
       try {
+        // Mismo criterio que el tab Por Pagar: el monto sale de lo registrado en
+        // el período (nomina_pagos + nomina_incidencias), no del salario vigente
+        // del empleado — que para una nómina SOLO_INCIDENCIAS no aplica.
         const nResult = await pool.query(
-          `SELECT
+          `WITH pagos_pag AS (
+             SELECT np.periodo_id,
+                    COALESCE(SUM(np.salario_base_bs), 0) AS salario_bs,
+                    MAX(np.pagado_at) AS pagado_at
+             FROM nomina_pagos np
+             WHERE np.estado = 'PAGADO'
+             GROUP BY np.periodo_id
+           ),
+           inc_pag AS (
+             SELECT np.periodo_id, COALESCE(SUM(ni.monto_bs), 0) AS inc_bs
+             FROM nomina_pagos np
+             JOIN nomina_incidencias ni ON ni.nomina_pago_id = np.id
+             WHERE np.estado = 'PAGADO'
+             GROUP BY np.periodo_id
+           )
+           SELECT
              'N' || pn.id AS id,
              n.nombre AS proveedor,
              NULL AS proveedor_rif,
@@ -276,14 +310,14 @@ export async function GET(request: NextRequest) {
              n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
              pn.fecha_desde AS fecha_emision,
              pn.fecha_hasta AS fecha_vencimiento,
-             COALESCE(SUM(e.salario_base_usd * pn.tasa_dia), 0) AS monto_bs,
-             COALESCE(SUM(e.salario_base_usd), 0) AS monto_usd,
-             COALESCE(SUM(e.salario_base_usd), 0) AS monto_original_usd,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) AS monto_bs,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_usd,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_original_usd,
              pn.tasa_dia,
              'PAGADO' AS estado,
              NULL AS monto_original_bs,
              0 AS monto_pagado_bs,
-             MAX(np.pagado_at) AS pagado_at,
+             p.pagado_at,
              NULL AS comprobante_url,
              NULL AS notas,
              false AS recurrente,
@@ -293,11 +327,10 @@ export async function GET(request: NextRequest) {
              NULL AS created_at
            FROM periodos_nomina pn
            JOIN nominas n ON n.id = pn.nomina_id
-           JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PAGADO'
-           JOIN empleados e ON e.id = np.empleado_id
-           GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
-           HAVING MAX(np.pagado_at)::date BETWEEN $1 AND $2
-           ORDER BY MAX(np.pagado_at) DESC`,
+           JOIN pagos_pag p ON p.periodo_id = pn.id
+           LEFT JOIN inc_pag i ON i.periodo_id = pn.id
+           WHERE p.pagado_at::date BETWEEN $1 AND $2
+           ORDER BY p.pagado_at DESC`,
           [pagadoDesde, pagadoHasta]
         );
         for (const r of nResult.rows) items.push(mapCP(r as Record<string, unknown>));
