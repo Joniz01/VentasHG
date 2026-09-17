@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
+import { sqlMontoEstimadoUsd, sqlSalarioBaseUsdDelPago } from "@/lib/nomina-montos";
 
 export const dynamic = "force-dynamic";
 
 const HOY = `(NOW() AT TIME ZONE 'America/Caracas')::date`;
+
+const SALARIO_BASE_USD = sqlSalarioBaseUsdDelPago({
+  salarioBaseBs: "np.salario_base_bs",
+  salarioUsdEmpleado: "e.salario_base_usd",
+});
 
 export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
@@ -17,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     const pendienteResult = await pool.query(
       `SELECT COALESCE(SUM(
-         CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
+         ${SALARIO_BASE_USD} +
          CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
        ), 0) AS total
        FROM nomina_pagos np
@@ -32,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     const pagadaMesResult = await pool.query(
       `SELECT COALESCE(SUM(
-         CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
+         ${SALARIO_BASE_USD} +
          CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
        ), 0) AS total
        FROM nomina_pagos np
@@ -59,7 +65,7 @@ export async function GET(request: NextRequest) {
          SELECT
            COUNT(DISTINCT pn.id)::int AS periodos,
            COALESCE(SUM(
-             CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
+             ${SALARIO_BASE_USD} +
              CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
            ), 0) AS total_usd
          FROM semana, periodos_nomina pn
@@ -104,13 +110,12 @@ export async function GET(request: NextRequest) {
        nominas_auto AS (
          SELECT
            COUNT(*)::int AS nominas,
-           COALESCE(SUM(
-             CASE b.tipo
-               WHEN 'SOLO_INCIDENCIAS' THEN COALESCE(ic.total_inc_usd, 0) * b.nro_empleados
-               WHEN 'SOLO_SUELDO'      THEN b.total_salario
-               ELSE b.total_salario + COALESCE(ic.total_inc_usd, 0) * b.nro_empleados
-             END
-           ), 0) AS total_usd,
+           COALESCE(SUM(${sqlMontoEstimadoUsd({
+             tipo: "b.tipo",
+             salarioUsd: "b.total_salario",
+             incidenciaUsdPorEmpleado: "COALESCE(ic.total_inc_usd, 0)",
+             nroEmpleados: "b.nro_empleados",
+           })}), 0) AS total_usd,
            MIN(b.fecha_pago) AS fecha_pago
          FROM nominas_auto_base b
          LEFT JOIN (
@@ -148,11 +153,12 @@ export async function GET(request: NextRequest) {
        SELECT
          n.id,
          n.nombre,
-         CASE COALESCE(n.tipo,'NORMAL')
-           WHEN 'SOLO_INCIDENCIAS' THEN COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
-           WHEN 'SOLO_SUELDO'      THEN COALESCE(SUM(e.salario_base_usd), 0)
-           ELSE COALESCE(SUM(e.salario_base_usd), 0) + COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
-         END AS total_usd_estimado,
+         ${sqlMontoEstimadoUsd({
+           tipo: "COALESCE(n.tipo,'NORMAL')",
+           salarioUsd: "COALESCE(SUM(e.salario_base_usd), 0)",
+           incidenciaUsdPorEmpleado: "COALESCE(ic.total_inc_usd, 0)",
+           nroEmpleados: "COUNT(DISTINCT e.id)",
+         })} AS total_usd_estimado,
          semana.lunes,
          semana.domingo,
          (semana.lunes + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date AS fecha_hasta

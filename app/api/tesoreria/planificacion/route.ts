@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
+import {
+  montoEstimadoUsd,
+  sqlIncidenciasDelPeriodoBs,
+  sqlMontoEstimadoUsd,
+  sqlSalarioBaseUsdDelPago,
+} from "@/lib/nomina-montos";
 
 export const dynamic = "force-dynamic";
+
+const SALARIO_BASE_USD = sqlSalarioBaseUsdDelPago({
+  salarioBaseBs: "np.salario_base_bs",
+  salarioUsdEmpleado: "e.salario_base_usd",
+});
 
 function hoyCaracas(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
@@ -85,19 +96,9 @@ export async function GET(request: NextRequest) {
             n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
             MAX(np.pagado_at)::date AS fecha_pago,
             COALESCE(SUM(np.salario_base_bs), 0)
-              + COALESCE((
-                  SELECT SUM(ni.monto_bs)
-                  FROM nomina_incidencias ni
-                  JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PAGADO'
-                  WHERE np2.periodo_id = pn.id
-                ), 0) AS monto_bs,
-            COALESCE(SUM(CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END), 0)
-              + COALESCE((
-                  SELECT SUM(ni.monto_bs) / NULLIF(pn.tasa_dia, 0)
-                  FROM nomina_incidencias ni
-                  JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PAGADO'
-                  WHERE np2.periodo_id = pn.id
-                ), 0) AS monto_usd
+              + COALESCE(${sqlIncidenciasDelPeriodoBs("PAGADO")}, 0) AS monto_bs,
+            COALESCE(SUM(${SALARIO_BASE_USD}), 0)
+              + COALESCE(${sqlIncidenciasDelPeriodoBs("PAGADO")} / NULLIF(pn.tasa_dia, 0), 0) AS monto_usd
           FROM periodos_nomina pn
           JOIN nominas n ON n.id = pn.nomina_id
           JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PAGADO'
@@ -154,21 +155,11 @@ export async function GET(request: NextRequest) {
         n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
         pn.fecha_hasta                                                            AS fecha_vencimiento,
         COALESCE(SUM(np.salario_base_bs), 0)
-          + COALESCE((
-              SELECT SUM(ni.monto_bs)
-              FROM nomina_incidencias ni
-              JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PENDIENTE'
-              WHERE np2.periodo_id = pn.id
-            ), 0)                                                                 AS monto_bs,
+          + COALESCE(${sqlIncidenciasDelPeriodoBs("PENDIENTE")}, 0)                AS monto_bs,
         pn.tasa_dia                                                               AS tasa_dia,
         NULL::text                                                                AS referencia,
-        COALESCE(SUM(CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END), 0)
-          + COALESCE((
-              SELECT SUM(ni.monto_bs) / NULLIF(pn.tasa_dia, 0)
-              FROM nomina_incidencias ni
-              JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PENDIENTE'
-              WHERE np2.periodo_id = pn.id
-            ), 0)                                                                 AS monto_usd
+        COALESCE(SUM(${SALARIO_BASE_USD}), 0)
+          + COALESCE(${sqlIncidenciasDelPeriodoBs("PENDIENTE")} / NULLIF(pn.tasa_dia, 0), 0) AS monto_usd
       FROM periodos_nomina pn
       JOIN nominas n ON n.id = pn.nomina_id
       JOIN nomina_pagos np ON np.periodo_id = pn.id AND np.estado = 'PENDIENTE'
@@ -176,12 +167,7 @@ export async function GET(request: NextRequest) {
       WHERE pn.fecha_hasta BETWEEN $1 AND $2
       GROUP BY pn.id, n.nombre, pn.fecha_desde, pn.fecha_hasta, pn.tasa_dia
       HAVING COALESCE(SUM(np.salario_base_bs), 0)
-             + COALESCE((
-                 SELECT SUM(ni.monto_bs)
-                 FROM nomina_incidencias ni
-                 JOIN nomina_pagos np2 ON np2.id = ni.nomina_pago_id AND np2.estado = 'PENDIENTE'
-                 WHERE np2.periodo_id = pn.id
-               ), 0) > 0
+             + COALESCE(${sqlIncidenciasDelPeriodoBs("PENDIENTE")}, 0) > 0
       ORDER BY pn.fecha_hasta ASC`,
       [desde, hasta]
     );
@@ -378,11 +364,12 @@ export async function GET(request: NextRequest) {
            )
        )
        SELECT f.nomina_id, f.nombre, f.fecha_pago,
-              CASE f.tipo
-                WHEN 'SOLO_INCIDENCIAS' THEN COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
-                WHEN 'SOLO_SUELDO'      THEN COALESCE(SUM(e.salario_base_usd), 0)
-                ELSE COALESCE(SUM(e.salario_base_usd), 0) + COALESCE(ic.total_inc_usd, 0) * COUNT(DISTINCT e.id)
-              END AS total_usd
+              ${sqlMontoEstimadoUsd({
+                tipo: "f.tipo",
+                salarioUsd: "COALESCE(SUM(e.salario_base_usd), 0)",
+                incidenciaUsdPorEmpleado: "COALESCE(ic.total_inc_usd, 0)",
+                nroEmpleados: "COUNT(DISTINCT e.id)",
+              })} AS total_usd
        FROM filtradas f
        LEFT JOIN empleado_nominas en ON en.nomina_id = f.nomina_id
        LEFT JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
@@ -458,19 +445,12 @@ export async function GET(request: NextRequest) {
       [desde, hasta]
     );
     for (const row of r.rows) {
-      const nro = Number(row.nro_empleados);
-      const tipo = String(row.tipo ?? "NORMAL");
-      // SOLO_INCIDENCIAS: solo cuenta incidencias × empleados (sin salario base)
-      // SOLO_SUELDO: solo salario base, sin incidencias
-      // NORMAL: ambos
-      let totalUsd: number;
-      if (tipo === "SOLO_INCIDENCIAS") {
-        totalUsd = Number(row.total_inc_usd) * nro;
-      } else if (tipo === "SOLO_SUELDO") {
-        totalUsd = Number(row.total_salario);
-      } else {
-        totalUsd = Number(row.total_salario) + Number(row.total_inc_usd) * nro;
-      }
+      const totalUsd = montoEstimadoUsd({
+        tipo: row.tipo,
+        salarioUsd: Number(row.total_salario),
+        incidenciaUsdPorEmpleado: Number(row.total_inc_usd),
+        nroEmpleados: Number(row.nro_empleados),
+      });
       nominasEstimadas.push({
         nomina_id: Number(row.nomina_id),
         nombre: String(row.nombre),
@@ -497,7 +477,7 @@ export async function GET(request: NextRequest) {
   try {
     const r = await pool.query<{ total_usd: string }>(
       `SELECT COALESCE(SUM(
-         CASE WHEN np.salario_base_bs > 0 THEN e.salario_base_usd ELSE 0 END +
+         ${SALARIO_BASE_USD} +
          CASE WHEN pn.tasa_dia > 0 THEN COALESCE(inc.total_incidencias_bs, 0) / pn.tasa_dia ELSE 0 END
        ), 0) AS total_usd
        FROM nomina_pagos np
