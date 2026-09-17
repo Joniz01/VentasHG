@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import InputFecha from "@/components/InputFecha";
 import CargosConfigClient from "@/components/CargosConfigClient";
 import {
   ESTADOS_NOMINA_PAGO,
@@ -394,7 +395,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
                   return <span className="ml-2 font-normal text-xs" style={{ color: "var(--erp-text-2)" }}>{edad} años</span>;
                 })()}
               </label>
-              <input type="date" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.fechaNacimiento} onChange={(e) => setForm((p) => ({ ...p, fechaNacimiento: e.target.value }))} />
+              <InputFecha value={form.fechaNacimiento} onChange={(v) => setForm((p) => ({ ...p, fechaNacimiento: v }))} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} bg="var(--erp-surface)" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Sexo</label>

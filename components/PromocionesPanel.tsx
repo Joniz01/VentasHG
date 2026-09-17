@@ -431,12 +431,12 @@ export default function PromocionesPanel({ productos }: { productos: Producto[] 
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Vigencia hasta (opcional)</label>
-                <input
-                  type="date"
+                <InputFecha
                   className="rounded-md border px-3 py-2 text-sm"
                   style={{ borderColor: "var(--erp-border)" }}
                   value={form.fechaFin}
                   onChange={(e) => setForm((f) => ({ ...f, fechaFin: e.target.value }))}
+                  bg="var(--erp-surface)"
                 />
               </div>
             </div>
