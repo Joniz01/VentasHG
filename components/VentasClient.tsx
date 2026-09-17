@@ -409,6 +409,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                 if (cfg.ventas_paso4_abierto !== "false") abiertas.add("paso4");
                 setSeccionesAbiertas(abiertas);
               }
+            } else {
+              setModoVista("clasico");
             }
             setOrdenPasos(orden);
           })
