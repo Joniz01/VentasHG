@@ -361,6 +361,10 @@ export async function GET(request: NextRequest) {
                AND pn.fecha_hasta BETWEEN
                  (f.fecha_pago - INTERVAL '6 days')::date
                  AND f.fecha_pago
+               AND NOT EXISTS (
+                 SELECT 1 FROM nomina_pagos np2
+                 WHERE np2.periodo_id = pn.id AND np2.estado = 'PENDIENTE'
+               )
            )
        )
        SELECT f.nomina_id, f.nombre, f.fecha_pago,
@@ -418,7 +422,12 @@ export async function GET(request: NextRequest) {
          WHERE f.fecha_pago BETWEEN $1 AND $2
            AND NOT EXISTS (
              SELECT 1 FROM periodos_nomina pn
-             WHERE pn.nomina_id = f.nomina_id AND pn.fecha_hasta = f.fecha_pago
+             WHERE pn.nomina_id = f.nomina_id
+               AND date_trunc('month', pn.fecha_hasta) = date_trunc('month', f.fecha_pago)
+               AND NOT EXISTS (
+                 SELECT 1 FROM nomina_pagos np2
+                 WHERE np2.periodo_id = pn.id AND np2.estado = 'PENDIENTE'
+               )
            )
        ),
        salarios AS (
