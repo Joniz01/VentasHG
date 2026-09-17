@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
                  AND NOT EXISTS (
                    SELECT 1 FROM periodos_nomina pn
                    WHERE pn.nomina_id = f.nomina_id
-                     AND pn.fecha_hasta BETWEEN (f.fecha_pago - INTERVAL '6 days')::date AND f.fecha_pago
+                     AND f.fecha_pago BETWEEN pn.fecha_desde AND pn.fecha_hasta
                  )
              ),
              salarios AS (
