@@ -48,10 +48,10 @@ const THEME_VARS: Record<Theme, string> = {
           --tt:#1C1C1E;--tt2:#78786E;--tt3:#AEAE9E;--tl:#E0DDD8;
           --catbg:#1C1C1E;--cattext:#fff;--bs:#1A6FA8;--bbg:#FAFAF8;--bborder:#E0DDD8;`,
   azul: `--bg:#EBF2FA;--surface:#FFF;--topbar:#1A3A5C;--tb-text:#BDD5EE;--tb-border:#142E48;
-         --dk:#3278B4;--dk2:#3A86C4;--dk3:#4294D4;
+         --dk:#D8EDF8;--dk2:#C8E3F4;--dk3:#B8D8F0;
          --accent:#3A9BD5;--al:rgba(58,155,213,.15);--ab:#4AAEE0;
          --text:#1A2A3A;--t2:#4A6A8A;--t3:#7A9AB8;--border:#C5D9EC;
-         --tt:#F0F8FF;--tt2:#C8E0F4;--tt3:#90BBD8;--tl:#2060A0;
+         --tt:#1A2A3A;--tt2:#4A6A8A;--tt3:#7A9AB8;--tl:#B5CEEA;
          --catbg:#1A3A5C;--cattext:#BDD5EE;--bs:#7ec8ff;--bbg:#EBF2FA;--bborder:#B5CEEA;`,
   beige: `--bg:#FEF9F0;--surface:#FFF;--topbar:#1A1A1A;--tb-text:#D4A84A;--tb-border:#111;
           --dk:#3D2B1A;--dk2:#4A3520;--dk3:#5A4228;
@@ -270,6 +270,10 @@ export default function CajaClient() {
   const [fechaCxC, setFechaCxC] = useState("");
   const [confirmOverlay, setConfirmOverlay] = useState<{ icon: string; titulo: string; detalle: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [bcvFechaMsg, setBcvFechaMsg] = useState<string | null>(null);
+  const [bcvFechaErr, setBcvFechaErr] = useState<string | null>(null);
+  const [mostrarHistBcv, setMostrarHistBcv] = useState(false);
+  const [consultandoBcv, setConsultandoBcv] = useState(false);
 
   const ticketRef = useRef(47);
   const [ticketNum, setTicketNum] = useState(47);
@@ -417,6 +421,23 @@ export default function CajaClient() {
   const casheaInicial = casheaTotal * (Number(casheaPct) || 0) / 100;
   const casheaFinanciado = casheaTotal - casheaInicial;
   const casheaVence = addDays(fechaHoy, Number(casheaDiasSelec) || 15);
+
+  async function actualizarBcv() {
+    setConsultandoBcv(true);
+    try {
+      const d = await fetch("/api/tasa-bcv").then((r) => r.json());
+      if (d.tasa) { setBcvRate(Number(d.tasa)); setBcvInput(Number(d.tasa).toFixed(2)); setBcvFechaMsg(null); setBcvFechaErr(null); }
+    } catch { /* ignore */ } finally { setConsultandoBcv(false); }
+  }
+  async function buscarBcvFecha(f: string) {
+    if (!f) return;
+    setConsultandoBcv(true); setBcvFechaErr(null); setBcvFechaMsg(null);
+    try {
+      const d = await fetch(`/api/tasa-bcv?fecha=${f}`).then((r) => r.json());
+      if (d.tasa) { setBcvRate(Number(d.tasa)); setBcvInput(Number(d.tasa).toFixed(2)); setBcvFechaMsg(`✓ Tasa del ${f}: ${Number(d.tasa).toFixed(4)}`); }
+      else setBcvFechaErr("Sin datos para esa fecha");
+    } catch { setBcvFechaErr("Error al buscar"); } finally { setConsultandoBcv(false); }
+  }
 
   async function cobrar() {
     if (carrito.length === 0) return;
@@ -718,15 +739,27 @@ export default function CajaClient() {
               </div>
 
               {/* BCV + Converter */}
-              <div className="bcv-conv">
-                <span className="bcv-lbl">Bs/$</span>
-                <input className="bcv-inp" type="number" step="0.01" min="1" value={bcvInput} onChange={(e) => onBcv(e.target.value)} />
-                <div className="vdiv" />
-                <span className="c-sym">$</span>
-                <input className="c-inp" type="number" placeholder="0.00" value={convUsd} onChange={(e) => fromUsd(e.target.value)} />
-                <span className="c-arr">⇄</span>
-                <span className="c-sym">Bs</span>
-                <input className="c-inp" type="number" placeholder="0,00" value={convBs} onChange={(e) => fromBs(e.target.value)} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div className="bcv-conv">
+                  <span className="bcv-lbl">Bs/$</span>
+                  <input className="bcv-inp" type="number" step="0.01" min="1" value={bcvInput} onChange={(e) => onBcv(e.target.value)} />
+                  <button title="Actualizar tasa BCV" disabled={consultandoBcv} onClick={actualizarBcv} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--tt2)", padding: "0 2px", opacity: consultandoBcv ? 0.5 : 1 }}>↻</button>
+                  <button onClick={() => setMostrarHistBcv((v) => !v)} style={{ background: "none", border: "1px solid var(--border,#ccc)", borderRadius: 4, cursor: "pointer", fontSize: 9, color: "var(--tt2)", padding: "1px 5px" }}>{mostrarHistBcv ? "✕ hist." : "hist."}</button>
+                  <div className="vdiv" />
+                  <span className="c-sym">$</span>
+                  <input className="c-inp" type="number" placeholder="0.00" value={convUsd} onChange={(e) => fromUsd(e.target.value)} />
+                  <span className="c-arr">⇄</span>
+                  <span className="c-sym">Bs</span>
+                  <input className="c-inp" type="number" placeholder="0,00" value={convBs} onChange={(e) => fromBs(e.target.value)} />
+                </div>
+                {mostrarHistBcv && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border,#ccc)", borderRadius: 6, padding: "6px 8px" }}>
+                    <input type="date" style={{ border: "1px solid var(--border,#ccc)", borderRadius: 4, padding: "2px 6px", fontSize: 11, background: "var(--surface)", color: "var(--tt)" }}
+                      onChange={(e) => buscarBcvFecha(e.target.value)} />
+                    {bcvFechaMsg && <span style={{ fontSize: 10, color: "#15803d" }}>{bcvFechaMsg}</span>}
+                    {bcvFechaErr && <span style={{ fontSize: 10, color: "#dc2626" }}>{bcvFechaErr}</span>}
+                  </div>
+                )}
               </div>
 
               {/* Pay methods */}
