@@ -110,7 +110,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       list.sort((a, b) => a.nombre.localeCompare(b.nombre));
     }
     return list;
-  }, [productos, orden, searchNombre, filterCategoriaId, filterLineaId]);
+  }, [productos, orden, searchNombre, filterCategoriaId, filterLineaId, tabVista]);
 
   async function loadProductos() {
     try {
