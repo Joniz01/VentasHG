@@ -1000,33 +1000,64 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
 
       {/* Ficha de edición standalone */}
       {fichaMode && productoEnEdicion && (
-        <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8 }}>
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: "2px solid var(--erp-primary)", background: "var(--erp-bg)" }}>
-            <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "5px 12px", fontSize: 13, cursor: "pointer", color: "var(--erp-text-2)", display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: "2px solid var(--erp-primary)", background: "var(--erp-bg)", flexWrap: "wrap" }}>
+            <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "5px 12px", fontSize: 13, cursor: "pointer", color: "var(--erp-text-2)" }}>
               ← Volver
             </button>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 11, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>Editando producto</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--erp-text)" }}>{productoEnEdicion.nombre}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--erp-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{productoEnEdicion.nombre}</div>
             </div>
             {productoEnEdicion.categoriaNombre && (
-              <span style={{ fontSize: 12, color: "var(--erp-text-3)", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 99, padding: "2px 10px" }}>{productoEnEdicion.categoriaNombre}</span>
+              <span style={{ fontSize: 12, color: "var(--erp-text-3)", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 99, padding: "2px 10px", flexShrink: 0 }}>{productoEnEdicion.categoriaNombre}</span>
             )}
           </div>
-          {/* Two-column layout */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 0 }}>
-            {/* Left: form fields */}
-            <div style={{ padding: 16, borderRight: "1px solid var(--erp-border)" }}>
-              <form onSubmit={handleSubmit} className="prod-form-grid">
-                <div className="flex flex-col gap-1 prod-form-col2">
-                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Nombre</label>
-                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+          {/* Single-column body */}
+          <div style={{ padding: 16 }}>
+            <form onSubmit={handleSubmit} className="prod-form-grid">
+              {/* Image floated top-right — Nombre y Desc fluyen a su izquierda */}
+              <div className="prod-form-full" style={{ margin: 0, padding: 0 }}>
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  {/* Image widget */}
+                  <label
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleDrop}
+                    style={{ flexShrink: 0, width: 140, cursor: "pointer", order: 2 }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
+                    {imagenEdicion ? (
+                      <img src={imagenEdicion} alt="Foto" style={{ width: 140, height: 140, objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)", display: "block" }} />
+                    ) : (
+                      <div style={{ width: 140, height: 140, borderRadius: 8, border: "2px dashed var(--erp-border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--erp-text-3)", fontSize: 28, gap: 4 }}>
+                        <span>📷</span>
+                        <span style={{ fontSize: 10 }}>Foto del producto</span>
+                        <span style={{ fontSize: 10 }}>Clic o arrastra</span>
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: "var(--erp-text-3)", textAlign: "center", marginTop: 4 }}>
+                      {imagenSaving ? "⏳ Guardando…" : imagenEdicion ? "✓ clic para cambiar" : "JPG/PNG · auto-comprimida"}
+                    </div>
+                    {imagenEdicion && !imagenSaving && (
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); guardarImagen(productoEnEdicion.id, null); setImagenEdicion(null); }}
+                        style={{ display: "block", width: "100%", marginTop: 2, background: "none", color: "#dc2626", border: "none", padding: 0, fontSize: 10, cursor: "pointer", textDecoration: "underline", textAlign: "center" }}>
+                        Quitar foto
+                      </button>
+                    )}
+                  </label>
+                  {/* Nombre + Descripción */}
+                  <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 10, order: 1 }}>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Nombre</label>
+                      <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
+                      <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Opcional" />
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1 prod-form-col2">
-                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
-                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Opcional" />
-                </div>
+              </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Familia</label>
                   <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.categoriaId} onChange={(e) => { const v = e.target.value; setForm({ ...form, categoriaId: v, lineaId: "" }); if (v && v !== NUEVA_CATEGORIA) loadLineas(Number(v)); }}>
@@ -1252,34 +1283,6 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               {error && (
                 <div style={{ marginTop: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "#dc2626" }}>{error}</div>
               )}
-            </div>
-            {/* Right: product image */}
-            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3)" }}>Foto del producto</div>
-              <label
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-                style={{ display: "flex", flexDirection: "column", gap: 8, cursor: "pointer" }}>
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
-                {imagenEdicion ? (
-                  <img src={imagenEdicion} alt="Foto" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)" }} />
-                ) : (
-                  <div style={{ width: "100%", aspectRatio: "1", borderRadius: 8, border: "2px dashed var(--erp-border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--erp-text-3)", fontSize: 32, gap: 6 }}>
-                    <span>📷</span>
-                    <span style={{ fontSize: 11 }}>Clic o arrastra</span>
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: "var(--erp-text-3)", textAlign: "center" }}>
-                  {imagenSaving ? "⏳ Guardando…" : imagenEdicion ? "✓ Foto cargada · clic para cambiar" : "JPG/PNG · se comprime automáticamente"}
-                </div>
-                {imagenEdicion && !imagenSaving && (
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); guardarImagen(productoEnEdicion.id, null); setImagenEdicion(null); }}
-                    style={{ background: "none", color: "#dc2626", border: "none", padding: 0, fontSize: 11, cursor: "pointer", textDecoration: "underline", textAlign: "center" }}>
-                    Quitar foto
-                  </button>
-                )}
-              </label>
-            </div>
           </div>
         </div>
       )}
