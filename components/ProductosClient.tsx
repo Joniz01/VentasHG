@@ -328,6 +328,12 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         throw new Error(empaqueErrors.join(" | "));
       }
 
+      // Guardar imagen si cambió
+      const imgActual = productoEnEdicion?.imagenUrl ?? null;
+      if (imagenEdicion !== imgActual) {
+        await guardarImagen(productoId, imagenEdicion);
+      }
+
       await loadProductos();
       await loadKpis();
 
@@ -426,14 +432,26 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     });
   }
 
-  async function handleImagenChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function procesarArchivoImagen(file: File) {
+    if (!file.type.startsWith("image/")) { setError("Solo se admiten archivos de imagen"); return; }
     try {
       const dataUrl = await comprimirImagen(file);
       setImagenEdicion(dataUrl);
+      if (editingId) await guardarImagen(editingId, dataUrl);
     } catch { setError("Error al procesar la imagen"); }
+  }
+
+  async function handleImagenChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await procesarArchivoImagen(file);
     e.target.value = "";
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) procesarArchivoImagen(file);
   }
 
   async function guardarImagen(productoId: number, dataUrl: string | null) {
@@ -1375,32 +1393,37 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                               </div>
                             )}
                             {/* Imagen del producto */}
-                            <div className="prod-form-full" style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "var(--erp-bg)", borderRadius: 8, padding: "10px 12px" }}>
-                              {imagenEdicion ? (
-                                <img src={imagenEdicion} alt="Foto del producto" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)", flexShrink: 0 }} />
-                              ) : (
-                                <div style={{ width: 90, height: 90, borderRadius: 8, border: "2px dashed var(--erp-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "var(--erp-text-3)", fontSize: 28 }}>📷</div>
-                              )}
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)" }}>Foto del producto</div>
-                                <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>JPG/PNG · se comprime automáticamente · se ve en el POS</div>
-                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                  <label style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                                    {imagenEdicion ? "Cambiar foto" : "Subir foto"}
-                                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
-                                  </label>
-                                  {imagenEdicion && (
-                                    <button type="button" onClick={() => setImagenEdicion(null)} style={{ background: "var(--erp-surface)", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
+                            <div className="prod-form-full">
+                              <label
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={handleDrop}
+                                style={{
+                                  display: "flex", gap: 12, alignItems: "center",
+                                  background: "var(--erp-bg)", borderRadius: 8, padding: "10px 12px",
+                                  border: "2px dashed var(--erp-border)", cursor: "pointer",
+                                  transition: "border-color .15s",
+                                }}>
+                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
+                                {imagenEdicion ? (
+                                  <img src={imagenEdicion} alt="Foto" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, border: "1px solid var(--erp-border)", flexShrink: 0 }} />
+                                ) : (
+                                  <div style={{ width: 80, height: 80, borderRadius: 7, border: "1.5px dashed var(--erp-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "var(--erp-text-3)", fontSize: 26 }}>📷</div>
+                                )}
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", marginBottom: 3 }}>
+                                    {imagenSaving ? "⏳ Guardando foto…" : imagenEdicion ? "✓ Foto cargada" : "Foto del producto"}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>
+                                    Clic para seleccionar o arrastra aquí · JPG/PNG · se comprime automáticamente
+                                  </div>
+                                  {imagenEdicion && !imagenSaving && (
+                                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); guardarImagen(producto.id, null); setImagenEdicion(null); }}
+                                      style={{ marginTop: 6, background: "none", color: "#dc2626", border: "none", padding: 0, fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
                                       Quitar foto
                                     </button>
                                   )}
-                                  {(imagenEdicion !== (productoEnEdicion?.imagenUrl ?? null)) && (
-                                    <button type="button" disabled={imagenSaving} onClick={() => guardarImagen(producto.id, imagenEdicion)} style={{ background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 6, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: imagenSaving ? 0.5 : 1 }}>
-                                      {imagenSaving ? "Guardando…" : "✓ Guardar foto"}
-                                    </button>
-                                  )}
                                 </div>
-                              </div>
+                              </label>
                             </div>
 
                             <div className="prod-form-full" style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4, borderTop: "1px solid var(--erp-border)", marginTop: 4 }}>
