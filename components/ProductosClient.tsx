@@ -73,6 +73,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [formEmpaques, setFormEmpaques] = useState<EmpaqueFormRow[]>([]);
   const [tasaHoy, setTasaHoy] = useState<number | null>(null);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
+  const [tabVista, setTabVista] = useState<"activos" | "desactivados">("activos");
 
   // Proveedores del insumo (historial de compras)
   type ProveedorHistorial = {
@@ -90,6 +91,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     if (grupoFiltro) {
       list = list.filter((p) => (p.grupo ?? "PARA_LA_VENTA") === grupoFiltro);
     }
+    list = list.filter((p) => tabVista === "activos" ? p.activo : !p.activo);
     if (searchNombre.trim()) {
       const q = searchNombre.trim().toLowerCase();
       list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q) || (p.lineaNombre ?? "").toLowerCase().includes(q));
@@ -352,6 +354,41 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       await loadKpis();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al eliminar el producto");
+    }
+  }
+
+  async function handleToggleActivo(producto: Producto) {
+    const nuevoEstado = !producto.activo;
+    const accion = nuevoEstado ? "reactivar" : "desactivar";
+    if (!confirm(`¿${nuevoEstado ? "Reactivar" : "Desactivar"} "${producto.nombre}"?`)) return;
+    try {
+      const payload = {
+        nombre: producto.nombre,
+        descripcion: producto.descripcion ?? null,
+        costo: producto.costo,
+        precioVenta: producto.precioVenta,
+        activo: nuevoEstado,
+        categoriaId: producto.categoriaId ?? null,
+        lineaId: producto.lineaId ?? null,
+        tipoProducto: producto.tipoProducto,
+        variadaRaciones: producto.variadaRaciones ?? 0,
+        stockMinimo: producto.stockMinimo ?? 0,
+        unidadMedida: producto.unidadMedida ?? "unidad",
+        unidadMedidaId: producto.unidadMedidaId ?? null,
+        alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
+        alertaOutstockMotivo: producto.alertaOutstockMotivo ?? null,
+        grupo: producto.grupo ?? "PARA_LA_VENTA",
+        aprovisionamiento: producto.aprovisionamiento ?? "COMPRA",
+        subtipoFabricacion: producto.subtipoFabricacion ?? null,
+      };
+      const res = await fetch(`/api/productos/${producto.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? `Error al ${accion}`); }
+      setExpandedId(null);
+      setEditingId(null);
+      await loadProductos();
+      await loadKpis();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Error al ${accion} producto`);
     }
   }
 
@@ -861,6 +898,27 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         </div>
       )}
 
+      {/* Tabs Activos / Desactivados */}
+      {grupoFiltro !== "MATERIA_PRIMA" && (
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--erp-border)", marginBottom: -1 }}>
+          {(["activos", "desactivados"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => { setTabVista(tab); setPagina(1); setEditingId(null); setExpandedId(null); }}
+              style={{
+                padding: "7px 18px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+                borderBottom: tabVista === tab ? "2px solid var(--erp-primary)" : "2px solid transparent",
+                background: "none",
+                color: tabVista === tab ? "var(--erp-primary)" : "var(--erp-text-3)",
+              }}
+            >
+              {tab === "activos" ? "Activos" : "Desactivados"}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Grid de productos — siempre visible */}
       <div
         style={{
@@ -1266,9 +1324,15 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                               <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
                                 Cancelar
                               </button>
-                              <button type="button" onClick={() => handleDelete(producto.id)} style={{ marginLeft: "auto", background: "var(--erp-surface)", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
-                                Eliminar
-                              </button>
+                              <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                                <button type="button" onClick={() => handleToggleActivo(producto)}
+                                  style={{ background: producto.activo ? "#fff7ed" : "#f0fdf4", color: producto.activo ? "#c2410c" : "#15803d", border: `1px solid ${producto.activo ? "#fed7aa" : "#bbf7d0"}`, borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                                  {producto.activo ? "Desactivar" : "Reactivar"}
+                                </button>
+                                <button type="button" onClick={() => handleDelete(producto.id)} style={{ background: "var(--erp-surface)", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                                  Eliminar
+                                </button>
+                              </div>
                             </div>
                           </form>
                           {form.tipoProducto === "COMBO" && productoEnEdicion && (
