@@ -74,6 +74,8 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [tasaHoy, setTasaHoy] = useState<number | null>(null);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
   const [tabVista, setTabVista] = useState<"activos" | "desactivados">("activos");
+  const [imagenEdicion, setImagenEdicion] = useState<string | null>(null);
+  const [imagenSaving, setImagenSaving] = useState(false);
 
   // Proveedores del insumo (historial de compras)
   type ProveedorHistorial = {
@@ -213,6 +215,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       rendimiento: String(e.rendimiento),
       prioridad: e.prioridad,
     })));
+    setImagenEdicion(producto.imagenUrl ?? null);
     setProvRelaciones([]);
     loadProvRelaciones(producto.id);
     setExpandedId(producto.id);
@@ -393,6 +396,60 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   }
 
 
+
+  function comprimirImagen(file: File, maxKB = 200): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 900;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        // try reducing quality until under maxKB
+        let quality = 0.82;
+        let dataUrl = canvas.toDataURL("image/jpeg", quality);
+        while (dataUrl.length > maxKB * 1024 * 1.37 && quality > 0.3) {
+          quality -= 0.08;
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+        }
+        resolve(dataUrl);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Error al leer imagen")); };
+      img.src = url;
+    });
+  }
+
+  async function handleImagenChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await comprimirImagen(file);
+      setImagenEdicion(dataUrl);
+    } catch { setError("Error al procesar la imagen"); }
+    e.target.value = "";
+  }
+
+  async function guardarImagen(productoId: number, dataUrl: string | null) {
+    setImagenSaving(true);
+    try {
+      const res = await fetch(`/api/productos/${productoId}/imagen`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagenUrl: dataUrl }),
+      });
+      if (!res.ok) throw new Error("Error al guardar imagen");
+      setProductos((prev) => prev.map((p) => p.id === productoId ? { ...p, imagenUrl: dataUrl } : p));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al guardar imagen");
+    } finally { setImagenSaving(false); }
+  }
 
   const kpiCards = [
     {
@@ -1317,6 +1374,35 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                                 </div>
                               </div>
                             )}
+                            {/* Imagen del producto */}
+                            <div className="prod-form-full" style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "var(--erp-bg)", borderRadius: 8, padding: "10px 12px" }}>
+                              {imagenEdicion ? (
+                                <img src={imagenEdicion} alt="Foto del producto" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)", flexShrink: 0 }} />
+                              ) : (
+                                <div style={{ width: 90, height: 90, borderRadius: 8, border: "2px dashed var(--erp-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "var(--erp-text-3)", fontSize: 28 }}>📷</div>
+                              )}
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)" }}>Foto del producto</div>
+                                <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>JPG/PNG · se comprime automáticamente · se ve en el POS</div>
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                  <label style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                                    {imagenEdicion ? "Cambiar foto" : "Subir foto"}
+                                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
+                                  </label>
+                                  {imagenEdicion && (
+                                    <button type="button" onClick={() => setImagenEdicion(null)} style={{ background: "var(--erp-surface)", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
+                                      Quitar foto
+                                    </button>
+                                  )}
+                                  {(imagenEdicion !== (productoEnEdicion?.imagenUrl ?? null)) && (
+                                    <button type="button" disabled={imagenSaving} onClick={() => guardarImagen(producto.id, imagenEdicion)} style={{ background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 6, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: imagenSaving ? 0.5 : 1 }}>
+                                      {imagenSaving ? "Guardando…" : "✓ Guardar foto"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
                             <div className="prod-form-full" style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4, borderTop: "1px solid var(--erp-border)", marginTop: 4 }}>
                               <button type="submit" disabled={saving} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.5 : 1 }}>
                                 Guardar cambios

@@ -219,6 +219,7 @@ export type Producto = {
   grupo: GrupoProducto;
   aprovisionamiento: "COMPRA" | "FABRICACION";
   subtipoFabricacion: "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null;
+  imagenUrl: string | null;
   createdAt: string;
   extras: ProductoExtra[];
   componentes: ProductoComponente[];

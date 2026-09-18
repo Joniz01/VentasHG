@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type Extra = { id: number; nombre: string; precioAdicional: number };
-type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[] };
+type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; imagenUrl: string | null };
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number };
 type Theme = "dark" | "light" | "azul" | "beige";
@@ -294,6 +294,7 @@ export default function CajaClient() {
             nombre: e.nombre as string,
             precioAdicional: Number(e.precioAdicional ?? 0),
           })),
+          imagenUrl: (p.imagenUrl ?? null) as string | null,
         })));
       }).catch(() => {});
 
@@ -549,8 +550,11 @@ export default function CajaClient() {
                   <div key={prod.id} className={`p-card${qty > 0 ? " in-cart" : ""}`} style={{ position: "relative" }}>
                     <div onClick={() => clickProducto(prod)}>
                       <div className="p-thumb">
+                        {prod.imagenUrl
+                          ? <img src={prod.imagenUrl} alt={prod.nombre} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                          : <span style={{ wordBreak: "break-word", overflow: "hidden" }}>{prod.nombre}</span>
+                        }
                         {qty > 0 && <span className="p-badge">{qty}</span>}
-                        <span style={{ wordBreak: "break-word", overflow: "hidden" }}>{prod.nombre}</span>
                       </div>
                       <div className="p-info">
                         <div className="p-name">{prod.nombre}</div>
