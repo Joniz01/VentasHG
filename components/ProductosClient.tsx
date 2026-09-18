@@ -1002,62 +1002,53 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       {fichaMode && productoEnEdicion && (
         <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8 }}>
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: "2px solid var(--erp-primary)", background: "var(--erp-bg)", flexWrap: "wrap" }}>
-            <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "5px 12px", fontSize: 13, cursor: "pointer", color: "var(--erp-text-2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "2px solid var(--erp-primary)", background: "var(--erp-bg)", flexWrap: "wrap" }}>
+            <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "5px 12px", fontSize: 13, cursor: "pointer", color: "var(--erp-text-2)", flexShrink: 0 }}>
               ← Volver
             </button>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>Editando producto</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--erp-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{productoEnEdicion.nombre}</div>
+              <div style={{ fontSize: 10, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>Editando producto</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--erp-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{productoEnEdicion.nombre}</div>
             </div>
-            {productoEnEdicion.categoriaNombre && (
-              <span style={{ fontSize: 12, color: "var(--erp-text-3)", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 99, padding: "2px 10px", flexShrink: 0 }}>{productoEnEdicion.categoriaNombre}</span>
-            )}
           </div>
-          {/* Single-column body */}
+          {/* Body */}
           <div style={{ padding: 16 }}>
-            <form onSubmit={handleSubmit} className="prod-form-grid">
-              {/* Image floated top-right — Nombre y Desc fluyen a su izquierda */}
-              <div className="prod-form-full" style={{ margin: 0, padding: 0 }}>
-                <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
-                  {/* Image widget */}
-                  <label
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={handleDrop}
-                    style={{ flexShrink: 0, width: 140, cursor: "pointer", order: 2 }}>
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
-                    {imagenEdicion ? (
-                      <img src={imagenEdicion} alt="Foto" style={{ width: 140, height: 140, objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)", display: "block" }} />
-                    ) : (
-                      <div style={{ width: 140, height: 140, borderRadius: 8, border: "2px dashed var(--erp-border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--erp-text-3)", fontSize: 28, gap: 4 }}>
-                        <span>📷</span>
-                        <span style={{ fontSize: 10 }}>Foto del producto</span>
-                        <span style={{ fontSize: 10 }}>Clic o arrastra</span>
-                      </div>
-                    )}
-                    <div style={{ fontSize: 10, color: "var(--erp-text-3)", textAlign: "center", marginTop: 4 }}>
-                      {imagenSaving ? "⏳ Guardando…" : imagenEdicion ? "✓ clic para cambiar" : "JPG/PNG · auto-comprimida"}
-                    </div>
-                    {imagenEdicion && !imagenSaving && (
-                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); guardarImagen(productoEnEdicion.id, null); setImagenEdicion(null); }}
-                        style={{ display: "block", width: "100%", marginTop: 2, background: "none", color: "#dc2626", border: "none", padding: 0, fontSize: 10, cursor: "pointer", textDecoration: "underline", textAlign: "center" }}>
-                        Quitar foto
-                      </button>
-                    )}
-                  </label>
-                  {/* Nombre + Descripción */}
-                  <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 10, order: 1 }}>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Nombre</label>
-                      <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
-                      <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Opcional" />
-                    </div>
-                  </div>
+            {/* Fila superior: Nombre/Descripcion a la izquierda, imagen a la derecha — FUERA del prod-form-grid */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 14, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Nombre</label>
+                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, width: "100%", boxSizing: "border-box" }} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
+                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, width: "100%", boxSizing: "border-box" }} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Opcional" />
                 </div>
               </div>
+              {/* Imagen — ancho fijo, no compite con el grid */}
+              <label onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} style={{ flexShrink: 0, width: 130, cursor: "pointer" }}>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
+                {imagenEdicion ? (
+                  <img src={imagenEdicion} alt="Foto" style={{ width: 130, height: 130, objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)", display: "block" }} />
+                ) : (
+                  <div style={{ width: 130, height: 130, borderRadius: 8, border: "2px dashed var(--erp-border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--erp-text-3)", fontSize: 26, gap: 4, textAlign: "center" }}>
+                    <span>📷</span>
+                    <span style={{ fontSize: 10, lineHeight: 1.3 }}>Foto del producto</span>
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "var(--erp-text-3)", textAlign: "center", marginTop: 4 }}>
+                  {imagenSaving ? "⏳ Guardando…" : imagenEdicion ? "✓ clic para cambiar" : "Clic o arrastra · JPG/PNG"}
+                </div>
+                {imagenEdicion && !imagenSaving && (
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); guardarImagen(productoEnEdicion.id, null); setImagenEdicion(null); }}
+                    style={{ display: "block", width: "100%", marginTop: 2, background: "none", color: "#dc2626", border: "none", padding: 0, fontSize: 10, cursor: "pointer", textDecoration: "underline", textAlign: "center" }}>
+                    Quitar foto
+                  </button>
+                )}
+              </label>
+            </div>
+            {/* Resto de campos en el grid responsivo */}
+            <form onSubmit={handleSubmit} className="prod-form-grid">
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Familia</label>
                   <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.categoriaId} onChange={(e) => { const v = e.target.value; setForm({ ...form, categoriaId: v, lineaId: "" }); if (v && v !== NUEVA_CATEGORIA) loadLineas(Number(v)); }}>
