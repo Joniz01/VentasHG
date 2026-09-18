@@ -41,8 +41,7 @@ export async function GET(request: NextRequest) {
               p.alerta_outstock_motivo,
               COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
               COALESCE(p.aprovisionamiento, 'COMPRA') AS aprovisionamiento,
-              p.subtipo_fabricacion,
-              p.imagen_url
+              p.subtipo_fabricacion
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        LEFT JOIN lineas l ON l.id = p.linea_id
@@ -72,44 +71,22 @@ export async function GET(request: NextRequest) {
 
   const productoIds = result.rows.map((row) => row.id);
 
-  const extrasResult = productoIds.length
-    ? await pool.query(
-        `SELECT pe.id, pe.producto_id, pe.extra_id, pe.precio_adicional, ec.nombre
-         FROM producto_extras pe
-         JOIN extras_catalogo ec ON ec.id = pe.extra_id
-         WHERE pe.producto_id = ANY($1::int[])
-         ORDER BY ec.nombre ASC`,
-        [productoIds]
-      )
-    : { rows: [] };
+  // Solo traemos el COUNT de extras — los detalles se cargan lazy al abrir la ficha
+  const [extrasCountResult] = await Promise.all([
+    productoIds.length
+      ? pool.query(
+          `SELECT producto_id, COUNT(*)::int AS count
+           FROM producto_extras
+           WHERE producto_id = ANY($1::int[])
+           GROUP BY producto_id`,
+          [productoIds]
+        )
+      : Promise.resolve({ rows: [] as { producto_id: number; count: number }[] }),
+  ]);
 
-  const componentesResult = productoIds.length
-    ? await pool.query(
-        `SELECT pc.id, pc.producto_id, pc.componente_id, pc.cantidad, p2.nombre
-         FROM producto_componentes pc
-         JOIN productos p2 ON p2.id = pc.componente_id
-         WHERE pc.producto_id = ANY($1::int[])
-         ORDER BY p2.nombre ASC`,
-        [productoIds]
-      )
-    : { rows: [] };
-
-  let empaquesResult: { rows: Record<string, unknown>[] } = { rows: [] };
-  if (productoIds.length) {
-    try {
-      empaquesResult = await pool.query(
-        `SELECT pe.id, pe.unidad_id, pe.empaque_id, p2.nombre AS empaque_nombre,
-                p2.stock_actual AS empaque_stock, pe.rendimiento, pe.prioridad
-         FROM producto_empaques pe
-         JOIN productos p2 ON p2.id = pe.empaque_id
-         WHERE pe.unidad_id = ANY($1::int[]) AND pe.activo = TRUE
-         ORDER BY pe.prioridad ASC`,
-        [productoIds]
-      );
-    } catch {
-      // tabla aún no migrada — fallback a vacío
-    }
-  }
+  const extrasCountMap = new Map<number, number>(
+    extrasCountResult.rows.map((r) => [r.producto_id as number, r.count as number])
+  );
 
   const productos = result.rows.map((row) => ({
     id: row.id,
@@ -135,36 +112,12 @@ export async function GET(request: NextRequest) {
     grupo: row.grupo ?? "PARA_LA_VENTA",
     aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
     subtipoFabricacion: (row.subtipo_fabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
-    imagenUrl: row.imagen_url ?? null,
+    imagenUrl: null,
     createdAt: row.created_at,
-    extras: extrasResult.rows
-      .filter((extra) => extra.producto_id === row.id)
-      .map((extra) => ({
-        id: extra.id,
-        productoId: extra.producto_id,
-        extraId: extra.extra_id,
-        nombre: extra.nombre,
-        precioAdicional: Number(extra.precio_adicional),
-      })),
-    componentes: componentesResult.rows
-      .filter((componente) => componente.producto_id === row.id)
-      .map((componente) => ({
-        id: componente.id,
-        productoId: componente.producto_id,
-        componenteId: componente.componente_id,
-        componenteNombre: componente.nombre,
-        cantidad: Number(componente.cantidad),
-      })),
-    empaques: empaquesResult.rows
-      .filter((e) => e.unidad_id === row.id)
-      .map((e) => ({
-        id: e.id,
-        empaqueId: e.empaque_id,
-        empaqueNombre: e.empaque_nombre,
-        empaqueStock: Number(e.empaque_stock),
-        rendimiento: e.rendimiento,
-        prioridad: e.prioridad,
-      })),
+    extrasCount: extrasCountMap.get(row.id) ?? 0,
+    extras: [],
+    componentes: [],
+    empaques: [],
   }));
 
   return NextResponse.json(productos);

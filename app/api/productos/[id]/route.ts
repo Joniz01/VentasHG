@@ -4,6 +4,61 @@ import { TIPOS_PRODUCTO } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
+export async function GET(_request: NextRequest, { params }: Params) {
+  const { id } = await params;
+
+  const row = await pool.query(
+    `SELECT p.id, p.imagen_url,
+            p.unidad_medida_id, um.abreviatura AS unidad_medida_abreviatura
+     FROM productos p
+     LEFT JOIN unidades_medida um ON um.id = p.unidad_medida_id
+     WHERE p.id = $1`,
+    [id]
+  );
+  if (!row.rows[0]) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
+  const [extrasResult, componentesResult, empaquesResult] = await Promise.all([
+    pool.query(
+      `SELECT pe.id, pe.producto_id, pe.extra_id, pe.precio_adicional, ec.nombre
+       FROM producto_extras pe
+       JOIN extras_catalogo ec ON ec.id = pe.extra_id
+       WHERE pe.producto_id = $1 ORDER BY ec.nombre ASC`,
+      [id]
+    ),
+    pool.query(
+      `SELECT pc.id, pc.producto_id, pc.componente_id, pc.cantidad, p2.nombre
+       FROM producto_componentes pc
+       JOIN productos p2 ON p2.id = pc.componente_id
+       WHERE pc.producto_id = $1 ORDER BY p2.nombre ASC`,
+      [id]
+    ),
+    pool.query(
+      `SELECT pe.id, pe.unidad_id, pe.empaque_id, p2.nombre AS empaque_nombre,
+              p2.stock_actual AS empaque_stock, pe.rendimiento, pe.prioridad
+       FROM producto_empaques pe
+       JOIN productos p2 ON p2.id = pe.empaque_id
+       WHERE pe.unidad_id = $1 AND pe.activo = TRUE ORDER BY pe.prioridad ASC`,
+      [id]
+    ).catch(() => ({ rows: [] as Record<string, unknown>[] })),
+  ]);
+
+  return NextResponse.json({
+    imagenUrl: row.rows[0].imagen_url ?? null,
+    extras: extrasResult.rows.map((e) => ({
+      id: e.id, productoId: e.producto_id, extraId: e.extra_id,
+      nombre: e.nombre, precioAdicional: Number(e.precio_adicional),
+    })),
+    componentes: componentesResult.rows.map((c) => ({
+      id: c.id, productoId: c.producto_id, componenteId: c.componente_id,
+      componenteNombre: c.nombre, cantidad: Number(c.cantidad),
+    })),
+    empaques: empaquesResult.rows.map((e) => ({
+      id: e.id, empaqueId: e.empaque_id, empaqueNombre: e.empaque_nombre,
+      empaqueStock: Number(e.empaque_stock), rendimiento: e.rendimiento, prioridad: e.prioridad,
+    })),
+  });
+}
+
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();

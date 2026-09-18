@@ -221,6 +221,7 @@ export type Producto = {
   subtipoFabricacion: "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null;
   imagenUrl: string | null;
   createdAt: string;
+  extrasCount?: number;
   extras: ProductoExtra[];
   componentes: ProductoComponente[];
   empaques: EmpaqueProducto[];

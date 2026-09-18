@@ -210,14 +210,24 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       subtipoFabricacion: (producto.subtipoFabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
     });
     setNuevaCategoriaNombre("");
-    setFormEmpaques((producto.empaques ?? []).map((e: EmpaqueProducto) => ({
-      id: e.id,
-      empaqueId: String(e.empaqueId),
-      rendimiento: String(e.rendimiento),
-      prioridad: e.prioridad,
-    })));
-    setImagenEdicion(producto.imagenUrl ?? null);
+    setFormEmpaques([]);
+    setImagenEdicion(null);
     setProvRelaciones([]);
+    // Carga lazy: imagen + componentes + empaques + extras completos
+    fetch(`/api/productos/${producto.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        setImagenEdicion(d.imagenUrl ?? null);
+        setFormEmpaques((d.empaques ?? []).map((e: EmpaqueProducto) => ({
+          id: e.id, empaqueId: String(e.empaqueId), rendimiento: String(e.rendimiento), prioridad: e.prioridad,
+        })));
+        setProductos(prev => prev.map(p => p.id === producto.id
+          ? { ...p, imagenUrl: d.imagenUrl ?? null, extras: d.extras ?? [], componentes: d.componentes ?? [], empaques: d.empaques ?? [] }
+          : p
+        ));
+      })
+      .catch(() => {});
     loadProvRelaciones(producto.id);
     setExpandedId(producto.id);
     setExpandedPanel("editar");
@@ -1438,7 +1448,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                             {(producto.precioVenta - producto.costo).toFixed(2)}
                           </td>
                           <td className="prod-col-extras" style={{ padding: "8px 12px", color: "var(--erp-text-3)", fontSize: 12 }}>
-                            {producto.extras.length === 0 ? "—" : `${producto.extras.length} extra${producto.extras.length > 1 ? "s" : ""}`}
+                            {(() => { const n = producto.extrasCount ?? producto.extras.length; return n === 0 ? "—" : `${n} extra${n > 1 ? "s" : ""}`; })()}
                           </td>
                         </>
                       )}
