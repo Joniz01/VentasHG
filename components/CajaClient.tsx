@@ -48,10 +48,10 @@ const THEME_VARS: Record<Theme, string> = {
           --tt:#1C1C1E;--tt2:#78786E;--tt3:#AEAE9E;--tl:#E0DDD8;
           --catbg:#1C1C1E;--cattext:#fff;--bs:#1A6FA8;--bbg:#FAFAF8;--bborder:#E0DDD8;`,
   azul: `--bg:#EBF2FA;--surface:#FFF;--topbar:#1A3A5C;--tb-text:#BDD5EE;--tb-border:#142E48;
-         --dk:#1E3D5E;--dk2:#254B73;--dk3:#2E5A88;
+         --dk:#3278B4;--dk2:#3A86C4;--dk3:#4294D4;
          --accent:#3A9BD5;--al:rgba(58,155,213,.15);--ab:#4AAEE0;
          --text:#1A2A3A;--t2:#4A6A8A;--t3:#7A9AB8;--border:#C5D9EC;
-         --tt:#E8F2FA;--tt2:#8AAAC5;--tt3:#5A80A0;--tl:#1E3550;
+         --tt:#F0F8FF;--tt2:#C8E0F4;--tt3:#90BBD8;--tl:#2060A0;
          --catbg:#1A3A5C;--cattext:#BDD5EE;--bs:#7ec8ff;--bbg:#EBF2FA;--bborder:#B5CEEA;`,
   beige: `--bg:#FEF9F0;--surface:#FFF;--topbar:#1A1A1A;--tb-text:#D4A84A;--tb-border:#111;
           --dk:#3D2B1A;--dk2:#4A3520;--dk3:#5A4228;
