@@ -41,7 +41,8 @@ export async function GET(request: NextRequest) {
               p.alerta_outstock_motivo,
               COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
               COALESCE(p.aprovisionamiento, 'COMPRA') AS aprovisionamiento,
-              p.subtipo_fabricacion
+              p.subtipo_fabricacion,
+              p.imagen_url
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        LEFT JOIN lineas l ON l.id = p.linea_id
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
     grupo: row.grupo ?? "PARA_LA_VENTA",
     aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
     subtipoFabricacion: (row.subtipo_fabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
-    imagenUrl: null,
+    imagenUrl: row.imagen_url ?? null,
     createdAt: row.created_at,
     extrasCount: extrasCountMap.get(row.id) ?? 0,
     extras: [],
