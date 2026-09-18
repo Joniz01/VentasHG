@@ -254,7 +254,16 @@ export default function CajaClient() {
   const [horaRetiro, setHoraRetiro] = useState("");
   const [motorizadoId, setMotorizadoId] = useState<number | null>(null);
   const [clienteNombre, setClienteNombre] = useState("");
+  const [clienteApellido, setClienteApellido] = useState("");
+  const [clienteCi, setClienteCi] = useState("");
   const [clienteTel, setClienteTel] = useState("");
+  const [minutosPrep, setMinutosPrep] = useState("15");
+  const [minutosRetiro, setMinutosRetiro] = useState("10");
+  const [casheaPorcentajes, setCasheaPorcentajes] = useState<string[]>(["40", "50"]);
+  const [casheaDiasOpciones, setCasheaDiasOpciones] = useState<string[]>(["15", "30"]);
+  const [casheaPct, setCasheaPct] = useState("40");
+  const [casheaDiasSelec, setCasheaDiasSelec] = useState("15");
+  const [casheaMetodoInicial, setCasheaMetodoInicial] = useState("");
   const [ivaActivo, setIvaActivo] = useState(false);
   const [convUsd, setConvUsd] = useState("");
   const [convBs, setConvBs] = useState("");
@@ -297,7 +306,11 @@ export default function CajaClient() {
 
     fetch("/api/configuracion")
       .then((r) => r.json())
-      .then((cfg: Record<string, string>) => { setIvaActivo(cfg.iva_activo === "true"); })
+      .then((cfg: Record<string, string>) => {
+        setIvaActivo(cfg.iva_activo === "true");
+        if (cfg.cashea_porcentajes) { const opts = cfg.cashea_porcentajes.split(",").map((s: string) => s.trim()).filter(Boolean); setCasheaPorcentajes(opts); setCasheaPct(cfg.cashea_porcentaje_default ?? opts[0] ?? "40"); }
+        if (cfg.cashea_dias) { const opts = cfg.cashea_dias.split(",").map((s: string) => s.trim()).filter(Boolean); setCasheaDiasOpciones(opts); setCasheaDiasSelec(cfg.cashea_dias_default ?? opts[0] ?? "15"); }
+      })
       .catch(() => {});
 
     const tick = () => {
@@ -382,6 +395,29 @@ export default function CajaClient() {
   function fromBs(v: string) { setConvBs(v); const n = parseFloat(v) || 0; setConvUsd(n > 0 ? (n / bcvRate).toFixed(2) : ""); }
   function onBcv(v: string) { setBcvInput(v); setBcvRate(parseFloat(v) || 1); }
 
+  function pad(n: number) { return String(n).padStart(2, "0"); }
+  function addDays(dateStr: string, days: number) {
+    const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+  const fechaHoy = today();
+  // Alarmas calculadas desde hora de entrega
+  function calcAlarma(horaHHMM: string, minutosAntes: number): string | null {
+    if (!horaHHMM) return null;
+    const [h, m] = horaHHMM.split(":").map(Number);
+    const total = h * 60 + m - minutosAntes;
+    if (total < 0) return null;
+    return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+  }
+  const alarmaPrepTime = calcAlarma(horaEntrega, Number(minutosPrep) || 0);
+  const alarmaRetiroTime = calcAlarma(horaEntrega, Number(minutosRetiro) || 0);
+  // Cashea cálculos
+  const isCashea = payMethod === "CASHEA";
+  const casheaTotal = total;
+  const casheaInicial = casheaTotal * (Number(casheaPct) || 0) / 100;
+  const casheaFinanciado = casheaTotal - casheaInicial;
+  const casheaVence = addDays(fechaHoy, Number(casheaDiasSelec) || 15);
+
   async function cobrar() {
     if (carrito.length === 0) return;
     if (entrega === "DELIVERY" && (!horaEntrega || !horaPreparacion)) {
@@ -390,23 +426,35 @@ export default function CajaClient() {
     }
     setGuardando(true);
     try {
+      const nombreCompleto = [clienteNombre.trim(), clienteApellido.trim()].filter(Boolean).join(" ") || "Consumidor Final";
+      const toISO = (hhmm: string | null) => {
+        if (!hhmm) return null;
+        const [h, m] = hhmm.split(":").map(Number);
+        const d = new Date(); d.setHours(h, m, 0, 0);
+        return d.toISOString();
+      };
+      const horaEntregaISO = entrega === "DELIVERY" ? toISO(horaEntrega) : null;
+      const horaPrepaISO = entrega === "DELIVERY" ? toISO(alarmaPrepTime) : null;
+      const horaRetiroISO = entrega === "DELIVERY" ? toISO(alarmaRetiroTime) : null;
       const body = {
-        fecha: today(),
+        fecha: fechaHoy,
         tasaDelDia: bcvRate,
-        cliente: clienteNombre.trim() || "Consumidor Final",
+        cliente: nombreCompleto,
         clienteTelefono: clienteTel || null,
+        clienteCedula: clienteCi || null,
         direccion: entrega === "DELIVERY" ? direccion || null : null,
         modoEntrega: entrega,
         tipoDelivery: entrega === "DELIVERY" ? "MOTORIZADO" : null,
         motorizadoId: entrega === "DELIVERY" ? motorizadoId : null,
         costoDelivery: 0,
         despachoPendiente: entrega === "DELIVERY",
-        horaEntrega: entrega === "DELIVERY" ? horaEntrega || null : null,
-        horaPreparacion: entrega === "DELIVERY" ? horaPreparacion || null : null,
-        horaRetiro: entrega === "DELIVERY" ? horaRetiro || null : null,
+        horaEntrega: horaEntregaISO,
+        horaPreparacion: horaPrepaISO,
+        horaRetiro: horaRetiroISO,
         items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined })),
-        pagos: isCxP ? [] : [{ metodo: payMethod, monto: total }],
-        fechaLimitePago: isCxP ? (fechaCxC || null) : null,
+        pagos: isCxP ? [] : isCashea ? [] : [{ metodo: payMethod, monto: total }],
+        fechaLimitePago: isCxP || isCashea ? (fechaCxC || casheaVence || null) : null,
+        casheaDatos: isCashea ? { porcentaje: Number(casheaPct) || 40, montoInicial: casheaInicial, montoFinanciado: casheaFinanciado, dias: Number(casheaDiasSelec) || 15, fechaVencimiento: casheaVence, metodoInicial: casheaMetodoInicial || null } : undefined,
       };
       const res = await fetch("/api/ventas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error ?? "Error al registrar la venta"); return; }
@@ -422,14 +470,14 @@ export default function CajaClient() {
       ].filter(Boolean).join("<br>");
       setConfirmOverlay({ icon: isCxP ? "📋" : "✅", titulo: isCxP ? "CxC generada" : "Cobro registrado", detalle: det });
       clearCart();
-      setClienteNombre(""); setClienteTel(""); setDireccion("");
-      setHoraEntrega(""); setHoraPreparacion(""); setHoraRetiro("");
-      setMotorizadoId(null); setFechaCxC(""); setPayMethod("EFECTIVO_BS");
+      setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
+      setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPayMethod("EFECTIVO_BS");
+      setCasheaMetodoInicial("");
     } finally { setGuardando(false); }
   }
 
   const ticketLabel = `#${String(ticketNum).padStart(4, "0")}`;
-  const canCobrar = carrito.length > 0 && !guardando && (!isCxP || !!fechaCxC) && (entrega === "LOCAL" || (!!horaEntrega && !!horaPreparacion));
+  const canCobrar = carrito.length > 0 && !guardando && (entrega === "LOCAL" || !!horaEntrega);
 
   return (
     <>
@@ -538,14 +586,31 @@ export default function CajaClient() {
                         <input className="f-input" type="time" value={horaEntrega} onChange={(e) => setHoraEntrega(e.target.value)} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div className="f-label">Hora preparación *</div>
-                        <input className="f-input" type="time" value={horaPreparacion} onChange={(e) => setHoraPreparacion(e.target.value)} />
+                        <div className="f-label">Avisar preparar</div>
+                        <select className="f-input" value={minutosPrep} onChange={(e) => setMinutosPrep(e.target.value)}>
+                          <option value="5">5 min antes</option>
+                          <option value="15">15 min antes</option>
+                          <option value="30">30 min antes</option>
+                          <option value="45">45 min antes</option>
+                          <option value="60">60 min antes</option>
+                        </select>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div className="f-label">Hora retiro</div>
-                        <input className="f-input" type="time" value={horaRetiro} onChange={(e) => setHoraRetiro(e.target.value)} />
+                        <div className="f-label">Avisar retiro</div>
+                        <select className="f-input" value={minutosRetiro} onChange={(e) => setMinutosRetiro(e.target.value)}>
+                          <option value="5">5 min antes</option>
+                          <option value="10">10 min antes</option>
+                          <option value="15">15 min antes</option>
+                          <option value="30">30 min antes</option>
+                        </select>
                       </div>
                     </div>
+                    {(alarmaPrepTime || alarmaRetiroTime) && (
+                      <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--t2)" }}>
+                        {alarmaPrepTime && <span>⏰ Preparar: <strong>{alarmaPrepTime}</strong></span>}
+                        {alarmaRetiroTime && <span>🏍 Retiro: <strong>{alarmaRetiroTime}</strong></span>}
+                      </div>
+                    )}
                     {motorizados.length > 0 && (
                       <div>
                         <div className="f-label">Motorizado</div>
@@ -566,14 +631,32 @@ export default function CajaClient() {
               {/* Cliente */}
               <div className="bb-col">
                 <div className="bb-label">Cliente</div>
-                <div>
-                  <div className="f-label">Nombre</div>
-                  <input className="f-input" type="text" placeholder="Consumidor Final" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} />
+                <div className="hora-row">
+                  <div style={{ flex: 1 }}>
+                    <div className="f-label">Nombre</div>
+                    <input className="f-input" type="text" placeholder="Consumidor Final" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="f-label">Apellido</div>
+                    <input className="f-input" type="text" placeholder="Apellido" value={clienteApellido} onChange={(e) => setClienteApellido(e.target.value)} />
+                  </div>
                 </div>
-                <div>
-                  <div className="f-label">Teléfono</div>
-                  <input className="f-input" type="tel" placeholder="0414-000-0000" value={clienteTel} onChange={(e) => setClienteTel(e.target.value)} />
+                <div className="hora-row">
+                  <div style={{ flex: 1 }}>
+                    <div className="f-label">C.I / RIF</div>
+                    <input className="f-input" type="text" placeholder="V-00000000" value={clienteCi} onChange={(e) => setClienteCi(e.target.value)} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="f-label">Teléfono</div>
+                    <input className="f-input" type="tel" placeholder="0414-000-0000" value={clienteTel} onChange={(e) => setClienteTel(e.target.value)} />
+                  </div>
                 </div>
+                {entrega === "LOCAL" && (
+                  <div>
+                    <div className="f-label">Dirección</div>
+                    <input className="f-input" type="text" placeholder="Opcional" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -658,7 +741,37 @@ export default function CajaClient() {
                 </div>
               </div>
 
-              {isCxP && (
+              {isCashea && (
+                <div style={{ background: "#FFFDE7", border: "1px solid #F9E04A", borderRadius: 7, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: "#7A6A00", textTransform: "uppercase", marginBottom: 2 }}>% Cuota inicial</div>
+                      <select style={{ border: "1px solid #E0D080", borderRadius: 5, padding: "3px 6px", fontSize: 11, background: "#fff" }} value={casheaPct} onChange={(e) => setCasheaPct(e.target.value)}>
+                        {casheaPorcentajes.map((p) => <option key={p} value={p}>{p}%</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: "#7A6A00", textTransform: "uppercase", marginBottom: 2 }}>Días</div>
+                      <select style={{ border: "1px solid #E0D080", borderRadius: 5, padding: "3px 6px", fontSize: 11, background: "#fff" }} value={casheaDiasSelec} onChange={(e) => setCasheaDiasSelec(e.target.value)}>
+                        {casheaDiasOpciones.map((d) => <option key={d} value={d}>{d} días</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: "#7A6A00", textTransform: "uppercase", marginBottom: 2 }}>Forma de pago inicial</div>
+                      <select style={{ width: "100%", border: "1px solid #E0D080", borderRadius: 5, padding: "3px 6px", fontSize: 11, background: "#fff" }} value={casheaMetodoInicial} onChange={(e) => setCasheaMetodoInicial(e.target.value)}>
+                        <option value="">Seleccionar</option>
+                        {PAY_OPTS.filter((p) => p.key !== "CASHEA" && p.key !== "CXC_DIRECTA").map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, fontSize: 10, color: "#5A4A00" }}>
+                    <span>Inicial: <strong>${casheaInicial.toFixed(2)}</strong></span>
+                    <span>Financiado: <strong style={{ color: "#B8860B" }}>${casheaFinanciado.toFixed(2)}</strong></span>
+                    <span>Vence: <strong>{casheaVence}</strong></span>
+                  </div>
+                </div>
+              )}
+              {!isCashea && isCxP && (
                 <>
                   <div className="cxp-note">ℹ️ Genera <strong>Cuenta por Cobrar</strong> pendiente.</div>
                   <div className="cxc-wrap">
@@ -674,6 +787,7 @@ export default function CajaClient() {
                   <span>
                     {carrito.length === 0 ? "Sin productos"
                       : guardando ? "Registrando…"
+                      : isCashea ? `Generar Cashea · ${fmt(total)}`
                       : isCxP ? `Generar CxC · ${fmt(total)}`
                       : `Cobrar ${fmt(total)}`}
                   </span>
