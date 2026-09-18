@@ -53,12 +53,12 @@ const THEME_VARS: Record<Theme, string> = {
          --text:#1A2A3A;--t2:#4A6A8A;--t3:#7A9AB8;--border:#C5D9EC;
          --tt:#E8F2FA;--tt2:#8AAAC5;--tt3:#5A80A0;--tl:#1E3550;
          --catbg:#1A3A5C;--cattext:#BDD5EE;--bs:#7ec8ff;--bbg:#EBF2FA;--bborder:#B5CEEA;`,
-  beige: `--bg:#FAF6EE;--surface:#FFF;--topbar:#3B2416;--tb-text:#D4B896;--tb-border:#2A1A0E;
-          --dk:#3B2416;--dk2:#4A2E1A;--dk3:#5A3A22;
+  beige: `--bg:#FEF9F0;--surface:#FFF;--topbar:#1A1A1A;--tb-text:#D4A84A;--tb-border:#111;
+          --dk:#3D2B1A;--dk2:#4A3520;--dk3:#5A4228;
           --accent:#C8960C;--al:rgba(200,150,12,.15);--ab:#D4A820;
-          --text:#2A1A0A;--t2:#7A5A3A;--t3:#A8845A;--border:#E8DCC8;
+          --text:#1A1A1A;--t2:#5C3A1E;--t3:#A07040;--border:#F0DEB8;
           --tt:#F5EAD8;--tt2:#9A7A5A;--tt3:#6A4A2A;--tl:#2E1C0E;
-          --catbg:#3B2416;--cattext:#D4B896;--bs:#F0C860;--bbg:#F5EFE6;--bborder:#E0D0B8;`,
+          --catbg:#1A1A1A;--cattext:#D4A84A;--bs:#F0C860;--bbg:#FAF3E8;--bborder:#EDD5A8;`,
 };
 
 const CSS = `
@@ -229,7 +229,12 @@ button{cursor:pointer}
 `;
 
 export default function CajaClient() {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>(() => {
+    try { const t = localStorage.getItem("caja_theme"); if (t === "dark" || t === "light" || t === "azul" || t === "beige") return t; } catch { /* ignore */ }
+    return "dark";
+  });
+
+  function changeTheme(t: Theme) { setTheme(t); try { localStorage.setItem("caja_theme", t); } catch { /* ignore */ } }
   const [productos, setProductos] = useState<Producto[]>([]);
   const [motorizados, setMotorizados] = useState<Motorizado[]>([]);
   const [bcvRate, setBcvRate] = useState(1);
@@ -439,7 +444,7 @@ export default function CajaClient() {
           <div className="tb-space" />
           <div className="theme-btns">
             {THEMES.map((t) => (
-              <button key={t.key} className={`theme-btn${theme === t.key ? " active" : ""}`} onClick={() => setTheme(t.key)}>
+              <button key={t.key} className={`theme-btn${theme === t.key ? " active" : ""}`} onClick={() => changeTheme(t.key)}>
                 {t.icon} {t.label}
               </button>
             ))}
