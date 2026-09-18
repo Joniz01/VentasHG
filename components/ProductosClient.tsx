@@ -841,7 +841,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                   {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
                     const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
                     return (
-                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 80px auto", gap: 8, marginBottom: 8, alignItems: "end", minWidth: 0 }}>
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
                           <select
@@ -1179,7 +1179,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                       {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
                         const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
                         return (
-                          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                          <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 80px auto", gap: 8, marginBottom: 8, alignItems: "end", minWidth: 0 }}>
                             <div>
                               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
                               <select style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.empaqueId} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, empaqueId: e.target.value } : r))}>
@@ -1614,7 +1614,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                                   {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
                                     const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
                                     return (
-                                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                                      <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 80px auto", gap: 8, marginBottom: 8, alignItems: "end", minWidth: 0 }}>
                                         <div>
                                           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
                                           <select style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.empaqueId} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, empaqueId: e.target.value } : r))}>
