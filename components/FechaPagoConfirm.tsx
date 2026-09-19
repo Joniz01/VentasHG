@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { METODO_PAGO_LABELS, type MetodoPago } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 function hoyCaracas(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
@@ -37,13 +38,13 @@ export default function FechaPagoConfirm({ onConfirm, onCancel, confirming, pedi
   return (
     <div className="flex flex-col gap-1.5 rounded-md border border-zinc-300 bg-white p-2 text-left">
       <label className="text-xs text-zinc-500">¿Cuándo entró el dinero?</label>
-      <input
-        type="date"
+      <InputFecha
         autoFocus
         value={fecha}
         max={hoyCaracas()}
-        onChange={(e) => setFecha(e.target.value)}
+        onChange={(v) => setFecha(v)}
         className="w-full rounded border border-zinc-300 px-2 py-1 text-xs"
+        bg="var(--erp-surface)"
       />
       {pedirMetodoPago && (
         <>

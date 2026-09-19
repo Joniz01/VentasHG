@@ -10,7 +10,7 @@ export async function GET() {
       SELECT p.nombre, p.stock_actual, p.unidad_medida,
              c.nombre AS categoria_nombre
       FROM productos p
-      LEFT JOIN categorias c ON c.id = p.categoria_id
+      LEFT JOIN familias c ON c.id = p.categoria_id
       WHERE p.activo = TRUE
         AND COALESCE(p.grupo, 'PARA_LA_VENTA') = 'PARA_LA_VENTA'
         AND p.stock_actual > 0

@@ -24,6 +24,9 @@ import {
   type Venta,
 } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
+
+const fmtBs = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 import { ajustarCantidadConFlechas } from "@/lib/cantidad";
 import { validarCedulaRif } from "@/lib/validacion";
 import TimeInput12h from "@/components/TimeInput12h";
@@ -33,6 +36,7 @@ import PromocionesPanel from "@/components/PromocionesPanel";
 import ConciliacionPanel from "@/components/ConciliacionPanel";
 import { YummyIcon, YummyToggle } from "@/components/YummyIcon";
 import FechaPagoConfirm from "@/components/FechaPagoConfirm";
+import InputFecha from "@/components/InputFecha";
 
 type ItemRow = {
   productoId: string;
@@ -328,7 +332,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   async function loadData() {
     try {
       const [productosRes, ventasRes, motorizadosRes, promocionesRes] = await Promise.all([
-        fetch("/api/productos"),
+        fetch("/api/productos?grupo=PARA_LA_VENTA"),
         fetch("/api/ventas"),
         fetch("/api/motorizados"),
         fetch("/api/promociones"),
@@ -405,6 +409,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                 if (cfg.ventas_paso4_abierto !== "false") abiertas.add("paso4");
                 setSeccionesAbiertas(abiertas);
               }
+            } else {
+              setModoVista("clasico");
             }
             setOrdenPasos(orden);
           })
@@ -790,6 +796,33 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
         variadaSelecciones: (item.variadaSelecciones ?? []).map((s) => String(s.productoId)),
       }))
     );
+    // Lazy-load extras para los productos del pedido que los tengan
+    const idsConExtras = venta.items
+      .map((item) => item.productoId)
+      .filter((pid) => {
+        const p = productos.find((pr) => pr.id === pid);
+        return p && (p.extrasCount ?? 0) > 0 && p.extras.length === 0;
+      });
+    if (idsConExtras.length > 0) {
+      Promise.all(
+        idsConExtras.map((pid) =>
+          fetch(`/api/productos/${pid}`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((d) => d ? { pid, extras: d.extras ?? [] } : null)
+            .catch(() => null)
+        )
+      ).then((results) => {
+        const validos = results.filter(Boolean) as { pid: number; extras: unknown[] }[];
+        if (validos.length > 0) {
+          setProductos((prev) =>
+            prev.map((p) => {
+              const found = validos.find((v) => v.pid === p.id);
+              return found ? { ...p, extras: found.extras as typeof p.extras } : p;
+            })
+          );
+        }
+      });
+    }
     setPagos(
       venta.pagos.length
         ? venta.pagos.map((pago) => ({
@@ -901,7 +934,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
     const validPagos = pagos
       .map((p, index) => ({
         metodo: p.metodo,
-        monto: p.montoAuto ? totales.montoSugerido(index) : Number(p.monto) || 0,
+        monto: p.montoAuto ? totales.montoSugerido(index) : Number(String(p.monto).replace(/\./g, "").replace(",", ".")) || 0,
       }))
       .filter((p): p is { metodo: MetodoPago; monto: number } => !!p.metodo && p.monto > 0);
 
@@ -1118,21 +1151,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     const usd = Number(e.target.value);
                     const tasa = Number(tasaDelDia) || 0;
                     const bsEl = document.getElementById("conversor-bs") as HTMLInputElement | null;
-                    if (bsEl) bsEl.value = usd > 0 && tasa > 0 ? (usd * tasa).toFixed(2) : "";
+                    if (bsEl) bsEl.value = usd > 0 && tasa > 0 ? fmtBs(usd * tasa) : "";
                   }}
                 />
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>=</span>
                 <span className="text-xs font-medium" style={{ color: "var(--erp-text-3)" }}>Bs</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="w-20 bg-transparent text-sm font-bold outline-none"
+                  type="text"
+                  className="w-24 bg-transparent text-sm font-bold outline-none"
                   style={{ color: "var(--erp-text-2)" }}
-                  placeholder="0.00"
+                  placeholder="0,00"
                   id="conversor-bs"
                   onChange={(e) => {
-                    const bs = Number(e.target.value);
+                    const raw = e.target.value.replace(/\./g, "").replace(",", ".");
+                    const bs = Number(raw);
                     const tasa = Number(tasaDelDia) || 0;
                     const usdEl = document.getElementById("conversor-usd") as HTMLInputElement | null;
                     if (usdEl) usdEl.value = bs > 0 && tasa > 0 ? (bs / tasa).toFixed(2) : "";
@@ -1358,6 +1390,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                     extraId: "",
                                     variadaSelecciones: match?.tipoProducto === "VARIADA" ? Array.from({ length: match.variadaRaciones }, () => "") : [],
                                   });
+                                  // Lazy-load extras si el producto los tiene pero aún no están cargados
+                                  if (match && (match.extrasCount ?? 0) > 0 && match.extras.length === 0) {
+                                    fetch(`/api/productos/${match.id}`)
+                                      .then(r => r.ok ? r.json() : null)
+                                      .then(d => {
+                                        if (!d) return;
+                                        setProductos(prev => prev.map(p => p.id === match.id ? { ...p, extras: d.extras ?? [] } : p));
+                                      })
+                                      .catch(() => {});
+                                  }
                                   // Detectar stock cero con empaque disponible
                                   if (match && match.stockActual <= 0 && match.empaques && match.empaques.length > 0) {
                                     const empaquesConStock = match.empaques.filter(e => e.empaqueStock > 0);
@@ -1501,15 +1543,15 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                   {METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]) ? "Monto ($)" : "Monto (Bs)"}
                                 </span>
                                 <input
-                                  type="number" step="0.01" min="0"
+                                  type="text"
                                   className="w-32 rounded-md border px-3 py-2 text-sm"
-                                  value={pago.montoAuto ? (pago.metodo ? totales.montoSugerido(index).toFixed(2) : "") : pago.monto}
+                                  value={pago.montoAuto ? (pago.metodo ? (METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]) ? totales.montoSugerido(index).toFixed(2) : fmtBs(totales.montoSugerido(index))) : "") : pago.monto}
                                   onChange={(e) => updatePago(index, { monto: e.target.value, montoAuto: false })}
                                   placeholder="Monto"
                                 />
                               </div>
                               {(() => {
-                                const montoRaw = pago.montoAuto ? totales.montoSugerido(index) : Number(pago.monto) || 0;
+                                const montoRaw = pago.montoAuto ? totales.montoSugerido(index) : Number(String(pago.monto).replace(/\./g, "").replace(",", ".")) || 0;
                                 const tasa = Number(tasaDelDia) || 0;
                                 const esUsd = METODOS_PAGO_USD.includes(pago.metodo as typeof METODOS_PAGO_USD[number]);
                                 if (!montoRaw || !tasa) return null;
@@ -1613,7 +1655,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           </div>
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-medium text-zinc-600">Fecha límite</label>
-                            <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fechaLimitePago} onChange={(e) => { setFechaLimitePago(e.target.value); setDiasCredito(""); setErrorPlazoPago(false); }} />
+                            <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaLimitePago} onChange={(v) => { setFechaLimitePago(v); setDiasCredito(""); setErrorPlazoPago(false); }} />
                           </div>
                         </div>
                       )}
@@ -1639,9 +1681,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           {modoEntrega === "DELIVERY" && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Delivery</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${totales.costoDeliveryUsd.toFixed(2)}</span></div>}
                           <div className="flex justify-between col-span-2 border-t pt-1.5" style={{ borderColor: "var(--erp-border)" }}>
                             <span className="font-semibold" style={{ color: "var(--erp-text)" }}>Total a pagar</span>
-                            <span className="font-bold tabular-nums" style={{ color: "var(--erp-primary)" }}>${totales.totalAPagarUsd.toFixed(2)} · {totales.totalAPagarBs.toFixed(2)} Bs</span>
+                            <span className="font-bold tabular-nums" style={{ color: "var(--erp-primary)" }}>${totales.totalAPagarUsd.toFixed(2)} · {fmtBs(totales.totalAPagarBs)} Bs</span>
                           </div>
-                          {!tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Total pagado</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${pagadoUsd.toFixed(2)} · {pagadoBs.toFixed(2)} Bs</span></div>}
+                          {!tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "var(--erp-text-2)" }}>Total pagado</span><span className="font-medium tabular-nums" style={{ color: "var(--erp-text)" }}>${pagadoUsd.toFixed(2)} · {fmtBs(pagadoBs)} Bs</span></div>}
                           {tieneCashea && <div className="flex justify-between col-span-2"><span className="text-yellow-700">CxC Cashea</span><span className="font-semibold text-yellow-700 tabular-nums">${casheaFinanciadoUsd.toFixed(2)}</span></div>}
                           {tieneYummy && <div className="flex justify-between col-span-2"><span style={{ color: "#007e33" }}>CxC Yummy</span><span className="font-semibold tabular-nums" style={{ color: "#007e33" }}>${totalBase.toFixed(2)}</span></div>}
                         </div>
@@ -1695,7 +1737,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                       <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-700">Fecha de entrega</label>
-                        <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
+                        <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaEntrega} onChange={(v) => setFechaEntrega(v)} required />
                       </div>
                       <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
@@ -1754,14 +1796,14 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-zinc-700">Fecha</label>
-                      <input
-                        type="date"
+                      <InputFecha
                         className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                        bg="var(--erp-surface)"
                         value={fecha}
                         max={today()}
-                        onChange={(e) => {
-                          setFecha(e.target.value);
-                          if (e.target.value) buscarTasaPorFecha(e.target.value);
+                        onChange={(v) => {
+                          setFecha(v);
+                          if (v) buscarTasaPorFecha(v);
                         }}
                         required
                       />
@@ -1870,12 +1912,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Fecha</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              bg="var(--erp-surface)"
               value={fecha}
               max={today()}
-              onChange={(e) => { setFecha(e.target.value); if (e.target.value) buscarTasaPorFecha(e.target.value); }}
+              onChange={(v) => { setFecha(v); if (v) buscarTasaPorFecha(v); }}
               required
             />
           </div>
@@ -2072,7 +2114,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Fecha de entrega</label>
-                <input type="date" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} required />
+                <InputFecha className="rounded-md border border-zinc-300 px-3 py-2 text-sm" bg="var(--erp-surface)" value={fechaEntrega} onChange={(v) => setFechaEntrega(v)} required />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700">Hora de entrega</label>
@@ -2566,12 +2608,12 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-zinc-600">Fecha límite de pago</label>
-                  <input
-                    type="date"
+                  <InputFecha
                     className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    bg="var(--erp-surface)"
                     value={fechaLimitePago}
-                    onChange={(e) => {
-                      setFechaLimitePago(e.target.value);
+                    onChange={(v) => {
+                      setFechaLimitePago(v);
                       setDiasCredito("");
                       setErrorPlazoPago(false);
                     }}
@@ -2596,46 +2638,46 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
             <div className="grid grid-cols-1 gap-2 rounded-md bg-white p-3 text-sm sm:grid-cols-2">
               <div>
                 <span className="font-medium text-zinc-600">Total venta: </span>
-                {totales.ventaTotalBs.toFixed(2)} Bs{" "}
+                {fmtBs(totales.ventaTotalBs)} Bs{" "}
                 <span className="text-zinc-500">(${totales.ventaTotalUsd.toFixed(2)})</span>
               </div>
               {totales.descuento > 0 && (
                 <div>
                   <span className="font-medium text-green-700">Con descuento ({totales.descuento}%): </span>
-                  {totales.ventaTotalConDescuentoBs.toFixed(2)} Bs{" "}
+                  {fmtBs(totales.ventaTotalConDescuentoBs)} Bs{" "}
                   <span className="text-zinc-500">(${totales.ventaTotalConDescuentoUsd.toFixed(2)})</span>
                 </div>
               )}
               {modoEntrega === "DELIVERY" && (
                 <div>
                   <span className="font-medium text-zinc-600">Costo delivery: </span>
-                  {totales.costoDeliveryBs.toFixed(2)} Bs{" "}
+                  {fmtBs(totales.costoDeliveryBs)} Bs{" "}
                   <span className="text-zinc-500">(${totales.costoDeliveryUsd.toFixed(2)})</span>
                 </div>
               )}
               <div>
                 <span className="font-medium text-zinc-600">Total a pagar: </span>
-                {totales.totalAPagarBs.toFixed(2)} Bs{" "}
+                {fmtBs(totales.totalAPagarBs)} Bs{" "}
                 <span className="text-zinc-500">(${totales.totalAPagarUsd.toFixed(2)})</span>
               </div>
               {!tieneYummy && (
                 <div>
                   <span className="font-medium text-zinc-600">Total pagado: </span>
-                  {pagadoBs.toFixed(2)} Bs{" "}
+                  {fmtBs(pagadoBs)} Bs{" "}
                   <span className="text-zinc-500">(${pagadoUsd.toFixed(2)})</span>
                 </div>
               )}
               {tieneCashea && (
                 <div className="sm:col-span-2">
                   <span className="font-medium text-yellow-700">CxC Cashea: </span>
-                  <span className="font-semibold text-yellow-800">{(casheaFinanciadoUsd * tasa).toFixed(2)} Bs</span>{" "}
+                  <span className="font-semibold text-yellow-800">{fmtBs(casheaFinanciadoUsd * tasa)} Bs</span>{" "}
                   <span className="text-zinc-500">(${casheaFinanciadoUsd.toFixed(2)})</span>
                 </div>
               )}
               {tieneYummy && (
                 <div className="sm:col-span-2">
                   <span className="font-medium" style={{ color: "#007e33" }}>CxC Yummy: </span>
-                  <span className="font-semibold" style={{ color: "#007e33" }}>{(totalBase * tasa).toFixed(2)} Bs</span>{" "}
+                  <span className="font-semibold" style={{ color: "#007e33" }}>{fmtBs(totalBase * tasa)} Bs</span>{" "}
                   <span className="text-zinc-500">(${totalBase.toFixed(2)})</span>
                 </div>
               )}
@@ -2730,20 +2772,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
           </button>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-zinc-600">Desde</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              bg="var(--erp-surface)"
               value={filtroFechaDesde}
-              onChange={(e) => setFiltroFechaDesde(e.target.value)}
+              onChange={(v) => setFiltroFechaDesde(v)}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-zinc-600">Hasta</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              bg="var(--erp-surface)"
               value={filtroFechaHasta}
-              onChange={(e) => setFiltroFechaHasta(e.target.value)}
+              onChange={(v) => setFiltroFechaHasta(v)}
             />
           </div>
         </div>
@@ -2825,17 +2867,17 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   </td>
                   <td className="px-4 py-2 text-zinc-600">
                     {venta.pagos
-                      .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${p.monto.toFixed(2)}`)
+                      .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${METODOS_PAGO_USD.includes(p.metodo) ? p.monto.toFixed(2) : fmtBs(p.monto)}`)
                       .join(", ") || "-"}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {usdToBs(ventaTotalUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
+                    {fmtBs(usdToBs(ventaTotalUsd, venta.tasaDelDia))} Bs{" "}
                     <span className="text-zinc-500">(${ventaTotalUsd.toFixed(2)})</span>
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     {costoDeliveryUsd > 0 ? (
                       <>
-                        {usdToBs(costoDeliveryUsd, venta.tasaDelDia).toFixed(2)} Bs{" "}
+                        {fmtBs(usdToBs(costoDeliveryUsd, venta.tasaDelDia))} Bs{" "}
                         <span className="text-zinc-500">(${costoDeliveryUsd.toFixed(2)})</span>
                       </>
                     ) : (
@@ -2843,7 +2885,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     )}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {totalPagadoEnBs.toFixed(2)} Bs{" "}
+                    {fmtBs(totalPagadoEnBs)} Bs{" "}
                     <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
                   </td>
                   <td className="px-4 py-2">
@@ -2883,16 +2925,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                             />
                             {Number(casheaConfirm.tasa) > 0 && (
                               <p className="text-xs font-medium text-zinc-700">
-                                = Bs {(cd.montoFinanciado * Number(casheaConfirm.tasa)).toFixed(2)}
+                                = Bs {fmtBs(cd.montoFinanciado * Number(casheaConfirm.tasa))}
                               </p>
                             )}
                             <label className="text-xs text-zinc-500">¿Cuándo entró el dinero?</label>
-                            <input
-                              type="date"
+                            <InputFecha
                               max={today()}
                               value={casheaConfirm.fechaPago}
-                              onChange={(e) => setCasheaConfirm((c) => c ? { ...c, fechaPago: e.target.value } : c)}
+                              onChange={(v) => setCasheaConfirm((c) => c ? { ...c, fechaPago: v } : c)}
                               className="w-full rounded border border-zinc-300 px-2 py-1 text-xs"
+                              bg="var(--erp-surface)"
                             />
                             <div className="flex gap-1">
                               <button

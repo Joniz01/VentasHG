@@ -81,6 +81,25 @@ export type Categoria = {
   nombre: string;
 };
 
+export type UnidadMedida = {
+  id: number;
+  nombre: string;
+  abreviatura: string;
+  tipo: "UNIDAD" | "MASA" | "VOLUMEN" | "LONGITUD";
+};
+
+export type Familia = {
+  id: number;
+  nombre: string;
+  orden?: number;
+};
+
+export type Linea = {
+  id: number;
+  familiaId: number;
+  nombre: string;
+};
+
 export type Cliente = {
   id: number;
   nombre: string;
@@ -185,15 +204,24 @@ export type Producto = {
   activo: boolean;
   categoriaId: number | null;
   categoriaNombre: string | null;
+  lineaId: number | null;
+  lineaNombre: string | null;
   tipoProducto: TipoProducto;
   stockActual: number;
   stockMinimo: number;
   unidadMedida: string;
+  unidadMedidaId: number | null;
+  unidadMedidaNombre: string | null;
+  unidadMedidaAbreviatura: string | null;
   alertaOutstockDesactivada: boolean;
   alertaOutstockMotivo: string | null;
   variadaRaciones: number;
   grupo: GrupoProducto;
+  aprovisionamiento: "COMPRA" | "FABRICACION";
+  subtipoFabricacion: "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null;
+  imagenUrl: string | null;
   createdAt: string;
+  extrasCount?: number;
   extras: ProductoExtra[];
   componentes: ProductoComponente[];
   empaques: EmpaqueProducto[];
@@ -862,6 +890,7 @@ export type NominaPago = {
   empleadoId: number;
   empleadoNombre: string;
   salarioBaseBs: number;
+  salarioBaseUsd: number;
   incidencias: NominaIncidencia[];
   totalIncidenciasBs: number;
   totalBs: number;

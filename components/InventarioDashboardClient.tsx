@@ -170,6 +170,10 @@ export default function InventarioDashboardClient() {
   const [loadingLista, setLoadingLista] = useState(true);
   const [busqueda, setBusqueda] = useState("");
 
+  type KpisGrupo = { totalActivos: number; valorInventario: number; sinStock: number };
+  const [kpisVenta, setKpisVenta] = useState<KpisGrupo | null>(null);
+  const [kpisInsumos, setKpisInsumos] = useState<KpisGrupo | null>(null);
+
   const setFiltro = useCallback((f: FiltroStock) => {
     const p = new URLSearchParams(searchParams.toString());
     if (f === "todos") p.delete("filtro"); else p.set("filtro", f);
@@ -185,17 +189,27 @@ export default function InventarioDashboardClient() {
   useEffect(() => {
     setLoadingResumen(true);
     fetch("/api/inventario/resumen")
-      .then(r => r.json())
-      .then(setResumen)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && !d.error) setResumen(d); })
+      .catch(() => {})
       .finally(() => setLoadingResumen(false));
+
+    Promise.all([
+      fetch("/api/productos/kpis?grupo=PARA_LA_VENTA").then(r => r.ok ? r.json() : null),
+      fetch("/api/productos/kpis?grupo=MATERIA_PRIMA").then(r => r.ok ? r.json() : null),
+    ]).then(([v, i]) => {
+      if (v && !v.error) setKpisVenta(v);
+      if (i && !i.error) setKpisInsumos(i);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
     setLoadingLista(true);
     setBusqueda("");
     fetch(`/api/inventario/lista?filtro=${filtroParam}`)
-      .then(r => r.json())
-      .then(setProductos)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setProductos(Array.isArray(d) ? d : []))
+      .catch(() => setProductos([]))
       .finally(() => setLoadingLista(false));
   }, [filtroParam]);
 
@@ -308,6 +322,47 @@ export default function InventarioDashboardClient() {
           >
             Vista simple →
           </button>
+        </div>
+      </div>
+
+      {/* ── Consolidado de Inventario ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--erp-text-3)" }}>
+          Consolidado de Inventario
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+          {/* Capital total */}
+          <div style={{ background: "var(--erp-surface)", border: "1.5px solid var(--erp-border)", borderRadius: 12, padding: "14px 16px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--erp-text-3)", marginBottom: 6 }}>Capital Total en Inventario</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--erp-text)", fontVariantNumeric: "tabular-nums" }}>
+              {kpisVenta && kpisInsumos
+                ? `$${(kpisVenta.valorInventario + kpisInsumos.valorInventario).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : "…"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 2 }}>venta + insumos</div>
+          </div>
+          {/* Capital venta */}
+          <div style={{ background: "var(--erp-surface)", border: "1.5px solid var(--erp-border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "#16a34a", borderRadius: "12px 0 0 12px" }} />
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--erp-text-3)", marginBottom: 6, marginLeft: 6 }}>🛒 Productos de Venta</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#16a34a", fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>
+              {kpisVenta ? `$${kpisVenta.valorInventario.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginLeft: 6, marginTop: 2 }}>
+              {kpisVenta ? `${kpisVenta.totalActivos} productos · ${kpisVenta.sinStock} sin stock` : ""}
+            </div>
+          </div>
+          {/* Capital insumos */}
+          <div style={{ background: "var(--erp-surface)", border: "1.5px solid var(--erp-border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "#ea580c", borderRadius: "12px 0 0 12px" }} />
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--erp-text-3)", marginBottom: 6, marginLeft: 6 }}>🧱 Insumos / Materia Prima</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#ea580c", fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>
+              {kpisInsumos ? `$${kpisInsumos.valorInventario.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginLeft: 6, marginTop: 2 }}>
+              {kpisInsumos ? `${kpisInsumos.totalActivos} insumos · ${kpisInsumos.sinStock} sin stock` : ""}
+            </div>
+          </div>
         </div>
       </div>
 

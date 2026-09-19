@@ -8,11 +8,11 @@ export default async function ProductosPage() {
 
   return (
     <div>
-      <h2 className="mb-4 text-lg font-semibold">Productos</h2>
+      <h2 className="mb-4 text-lg font-semibold">Productos de Venta</h2>
       <p className="mb-4 text-sm text-zinc-600">
-        Registra los productos del catálogo con su costo y precio de venta.
+        Catálogo de productos disponibles para la venta en el POS y facturas.
       </p>
-      <ProductosClient />
+      <ProductosClient grupoFiltro="PARA_LA_VENTA" />
     </div>
   );
 }

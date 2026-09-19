@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Conteo, ConteoItem, EstadoConteo } from "@/lib/types";
 import { ESTADO_CONTEO_LABELS } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 const ESTADO_STYLE: Record<EstadoConteo, React.CSSProperties> = {
   BORRADOR:  { background: "#f3f4f6", color: "#374151" },
@@ -568,20 +569,20 @@ export default function BandejaConteoClient() {
           <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
               <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#9a3412" }}>Desde</label>
-              <input
-                type="date"
+              <InputFecha
                 value={desdeDate}
-                onChange={(e) => { setDesdeDate(e.target.value); setSeleccionados(new Set()); }}
+                onChange={(v) => { setDesdeDate(v); setSeleccionados(new Set()); }}
                 style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
+                bg="var(--erp-surface)"
               />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
               <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#9a3412" }}>Hasta</label>
-              <input
-                type="date"
+              <InputFecha
                 value={hastaDate}
-                onChange={(e) => { setHastaDate(e.target.value); setSeleccionados(new Set()); }}
+                onChange={(v) => { setHastaDate(v); setSeleccionados(new Set()); }}
                 style={{ border: "1px solid #fdba74", borderRadius: "5px", padding: "0.3rem 0.5rem", fontSize: "0.8rem" }}
+                bg="var(--erp-surface)"
               />
             </div>
             <button

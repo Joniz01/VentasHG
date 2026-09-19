@@ -76,9 +76,16 @@ export async function generarPeriodoNomina(
   const incidenciasConfig = soloSueldo
     ? { rows: [] }
     : await client.query(
-        `SELECT tipo_incidencia_id, frecuencia, monto_bs
+        `SELECT tipo_incidencia_id, frecuencia, monto_usd
          FROM nomina_incidencia_config
-         WHERE nomina_id = $1 AND fecha_efectiva BETWEEN $2 AND $3`,
+         WHERE nomina_id = $1 AND (
+           fecha_efectiva BETWEEN $2 AND $3
+           OR (
+             frecuencia = 'MENSUAL'
+             AND fecha_efectiva < $2::date
+             AND EXTRACT(DAY FROM fecha_efectiva) = EXTRACT(DAY FROM $2::date)
+           )
+         )`,
         [params.nominaId, params.fechaDesde, params.fechaHasta]
       );
 
@@ -98,7 +105,7 @@ export async function generarPeriodoNomina(
       await client.query(
         `INSERT INTO nomina_incidencias (nomina_pago_id, tipo_incidencia_id, monto_bs, frecuencia)
          VALUES ($1,$2,$3,$4)`,
-        [nominaPagoId, inc.tipo_incidencia_id, Number(inc.monto_bs) || 0, inc.frecuencia]
+        [nominaPagoId, inc.tipo_incidencia_id, (Number(inc.monto_usd) || 0) * params.tasaDia, inc.frecuencia]
       );
     }
   }

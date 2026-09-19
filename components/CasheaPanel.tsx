@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { CasheaPagoItem } from "@/lib/types";
 import { formatFecha } from "@/lib/pedidos";
 import { METODO_PAGO_LABELS } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 type EstadoFiltro = "PENDIENTE" | "LIQUIDADO" | "TODOS";
 
@@ -249,12 +250,12 @@ export default function CasheaPanel() {
                           </div>
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-medium text-zinc-600">¿Cuándo entró el dinero?</label>
-                            <input
-                              type="date"
+                            <InputFecha
                               max={hoyCaracas()}
                               value={confirm.fechaPago}
-                              onChange={(e) => setConfirm((c) => c ? { ...c, fechaPago: e.target.value } : c)}
+                              onChange={(v) => setConfirm((c) => c ? { ...c, fechaPago: v } : c)}
                               className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm font-medium"
+                              bg="var(--erp-surface)"
                             />
                           </div>
                           <div className="flex flex-col gap-0.5">

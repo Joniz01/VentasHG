@@ -9,6 +9,8 @@ type ProductoConteo = {
   stockSistema: number;
   unidadMedida: string;
   categoriaNombre: string | null;
+  grupo: string;
+  lineaNombre: string | null;
 };
 
 type EntradaConteo = {
@@ -104,6 +106,8 @@ export default function ConteoApp() {
   const [conteoId, setConteoId] = useState<number | null>(null);
   const [fase, setFase] = useState<"contando" | "enviando" | "enviado">("contando");
   const [busqueda, setBusqueda] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "venta" | "insumo">("todos");
+  const [filtroLinea, setFiltroLinea] = useState<string>("all");
   const [guardando, setGuardando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
@@ -284,12 +288,36 @@ export default function ConteoApp() {
     );
   }
 
-  const productosFiltrados = busqueda.trim()
-    ? productos.filter((p) =>
-        p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-        (p.categoriaNombre ?? "").toLowerCase().includes(busqueda.toLowerCase())
-      )
-    : productos;
+  // Opciones dinámicas para segundo nivel
+  const lineasVenta = Array.from(new Set(
+    productos.filter(p => p.grupo === "PARA_LA_VENTA" && p.lineaNombre).map(p => p.lineaNombre!)
+  )).sort();
+  const familiasInsumo = Array.from(new Set(
+    productos.filter(p => p.grupo === "MATERIA_PRIMA" && p.categoriaNombre).map(p => p.categoriaNombre!)
+  )).sort();
+  const lineasTodos = Array.from(new Set([...lineasVenta, ...familiasInsumo])).sort();
+
+  const opcionesLinea = filtroTipo === "venta" ? lineasVenta
+    : filtroTipo === "insumo" ? familiasInsumo
+    : lineasTodos;
+
+  const etiquetaNivel2 = filtroTipo === "insumo" ? "Familia" : filtroTipo === "venta" ? "Línea" : "Línea / Familia";
+
+  const productosFiltrados = productos.filter((p) => {
+    if (filtroTipo === "venta" && p.grupo !== "PARA_LA_VENTA") return false;
+    if (filtroTipo === "insumo" && p.grupo !== "MATERIA_PRIMA") return false;
+    if (filtroLinea !== "all") {
+      const match = p.grupo === "MATERIA_PRIMA"
+        ? p.categoriaNombre === filtroLinea
+        : p.lineaNombre === filtroLinea;
+      if (!match) return false;
+    }
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase();
+      return p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q);
+    }
+    return true;
+  });
 
   const contados = productos.filter((p) => entradas[p.id]?.stockContado !== "").length;
 
@@ -330,25 +358,77 @@ export default function ConteoApp() {
       </header>
 
       {/* Barra de búsqueda + acciones */}
-      <div style={{ padding: "0.75rem 1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", background: "var(--erp-surface, #fff)", borderBottom: "1px solid var(--erp-border, #e5e7eb)" }}>
-        <input
-          type="search"
-          placeholder="Buscar producto o categoría…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          style={{ ...inputStyle, flex: "1 1 180px", minWidth: 0 }}
-        />
-        <button type="button" onClick={handleGuardar} disabled={guardando} style={{ ...btnSecStyle, whiteSpace: "nowrap" }}>
-          {guardando ? "Guardando…" : "💾 Guardar borrador"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setFase("enviando")}
-          disabled={contados === 0}
-          style={{ ...btnPrimaryStyle, whiteSpace: "nowrap", opacity: contados === 0 ? 0.5 : 1 }}
-        >
-          Enviar al supervisor →
-        </button>
+      <div style={{ background: "var(--erp-surface, #fff)", borderBottom: "1px solid var(--erp-border, #e5e7eb)" }}>
+        <div style={{ padding: "0.75rem 1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <input
+            type="search"
+            placeholder="Buscar producto o categoría…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            style={{ ...inputStyle, flex: "1 1 180px", minWidth: 0 }}
+          />
+          <button type="button" onClick={handleGuardar} disabled={guardando} style={{ ...btnSecStyle, whiteSpace: "nowrap" }}>
+            {guardando ? "Guardando…" : "💾 Guardar borrador"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFase("enviando")}
+            disabled={contados === 0}
+            style={{ ...btnPrimaryStyle, whiteSpace: "nowrap", opacity: contados === 0 ? 0.5 : 1 }}
+          >
+            Enviar al supervisor →
+          </button>
+        </div>
+
+        {/* Filtros */}
+        <div style={{ padding: "0 1rem 0.65rem", display: "flex", flexDirection: "column", gap: "6px" }}>
+          {/* Nivel 1: Tipo */}
+          <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+            {(["todos", "venta", "insumo"] as const).map((t) => {
+              const labels = { todos: "Todos", venta: "Productos de Venta", insumo: "Insumos / Mat. Prima" };
+              const active = filtroTipo === t;
+              const isInsumo = t === "insumo";
+              return (
+                <button key={t} type="button"
+                  onClick={() => { setFiltroTipo(t); setFiltroLinea("all"); }}
+                  style={{
+                    padding: "3px 11px", borderRadius: "20px", fontSize: "12px", fontWeight: 500,
+                    cursor: "pointer", whiteSpace: "nowrap",
+                    border: active ? "none" : "1.5px solid var(--erp-border, #e5e7eb)",
+                    background: active ? (isInsumo ? "#059669" : "#0F172A") : "var(--erp-bg, #f5f5f5)",
+                    color: active ? "#fff" : "var(--erp-text-2, #6b7280)",
+                  }}>
+                  {labels[t]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Nivel 2: Línea / Familia — solo si hay opciones */}
+          {opcionesLinea.length > 0 && (
+            <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--erp-text-3, #9ca3af)", marginRight: "2px" }}>
+                {etiquetaNivel2}:
+              </span>
+              {[{ key: "all", label: "Todas" }, ...opcionesLinea.map(l => ({ key: l, label: l }))].map(({ key, label }) => {
+                const active = filtroLinea === key;
+                return (
+                  <button key={key} type="button"
+                    onClick={() => setFiltroLinea(key)}
+                    style={{
+                      padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 500,
+                      cursor: "pointer", whiteSpace: "nowrap",
+                      border: active ? "none" : "1.5px solid var(--erp-border, #e5e7eb)",
+                      background: active ? "var(--erp-primary, #1d4ed8)" : "var(--erp-bg, #f5f5f5)",
+                      color: active ? "#fff" : "var(--erp-text-2, #6b7280)",
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -406,6 +486,7 @@ export default function ConteoApp() {
               const contado = entrada.stockContado !== "" ? Number(entrada.stockContado) : null;
               const diff = contado != null ? contado - p.stockSistema : null;
 
+              const esInsumo = p.grupo === "MATERIA_PRIMA";
               return (
                 <div key={p.id} style={{
                   display: "grid",
@@ -417,6 +498,7 @@ export default function ConteoApp() {
                   background: "var(--erp-surface, #fff)",
                   borderRadius: "8px",
                   border: "1px solid var(--erp-border, #e5e7eb)",
+                  borderLeft: esInsumo ? "3px solid #10B981" : "1px solid var(--erp-border, #e5e7eb)",
                 }}>
                   <div>
                     <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--erp-text)" }}>{p.nombre}</div>

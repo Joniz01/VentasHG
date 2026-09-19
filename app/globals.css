@@ -231,8 +231,17 @@ textarea {
 
 .prod-form-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
+}
+
+.prod-form-grid select,
+.prod-form-grid input[type="text"],
+.prod-form-grid input[type="number"],
+.prod-form-grid input[type="search"] {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .prod-form-col2 {

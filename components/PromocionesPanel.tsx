@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DESCUENTO_TIPOS, DESCUENTO_TIPO_LABELS, type Promocion, type DescuentoTipo, type Producto } from "@/lib/types";
+import InputFecha from "@/components/InputFecha";
 
 const ICON_DESCUENTO: Record<DescuentoTipo, string> = {
   PORCENTAJE: "%",
@@ -419,23 +420,23 @@ export default function PromocionesPanel({ productos }: { productos: Producto[] 
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Vigencia desde</label>
-                <input
-                  type="date"
+                <InputFecha
                   className="rounded-md border px-3 py-2 text-sm"
                   style={{ borderColor: "var(--erp-border)", ...(camposInvalidos.has("fechaInicio") ? errStyle : {}) }}
                   value={form.fechaInicio}
-                  onChange={(e) => setForm((f) => ({ ...f, fechaInicio: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, fechaInicio: v }))}
+                  bg="var(--erp-surface)"
                 />
                 {camposInvalidos.has("fechaInicio") && <span className="text-xs font-medium" style={{ color: "#DC2626" }}>Selecciona la fecha de inicio de vigencia</span>}
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold uppercase" style={{ color: "var(--erp-text-3)" }}>Vigencia hasta (opcional)</label>
-                <input
-                  type="date"
+                <InputFecha
                   className="rounded-md border px-3 py-2 text-sm"
                   style={{ borderColor: "var(--erp-border)" }}
                   value={form.fechaFin}
-                  onChange={(e) => setForm((f) => ({ ...f, fechaFin: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, fechaFin: v }))}
+                  bg="var(--erp-surface)"
                 />
               </div>
             </div>

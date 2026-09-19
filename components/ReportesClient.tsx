@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import type { ReporteVentas, ReporteDetalleVenta } from "@/lib/types";
 import { METODO_PAGO_LABELS, METODOS_PAGO } from "@/lib/types";
 import DeliveryPagosPanel from "@/components/DeliveryPagosPanel";
+import InputFecha from "@/components/InputFecha";
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear();
@@ -344,20 +345,20 @@ export default function ReportesClient() {
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Desde</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={desde}
-              onChange={(e) => setDesde(e.target.value)}
+              onChange={(v) => setDesde(v)}
+              bg="var(--erp-surface)"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700">Hasta</label>
-            <input
-              type="date"
+            <InputFecha
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
               value={hasta}
-              onChange={(e) => setHasta(e.target.value)}
+              onChange={(v) => setHasta(v)}
+              bg="var(--erp-surface)"
             />
           </div>
           <button
