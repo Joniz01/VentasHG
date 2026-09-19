@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type Extra = { id: number; nombre: string; precioAdicional: number };
-type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; imagenUrl: string | null };
+type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; extrasCount: number; imagenUrl: string | null };
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number };
 type Theme = "dark" | "light" | "azul" | "beige";
@@ -294,6 +294,7 @@ export default function CajaClient() {
             nombre: e.nombre as string,
             precioAdicional: Number(e.precioAdicional ?? 0),
           })),
+          extrasCount: Number(p.extrasCount ?? 0),
           imagenUrl: (p.imagenUrl ?? null) as string | null,
         })));
       }).catch(() => {});
@@ -392,8 +393,26 @@ export default function CajaClient() {
     setTicketNum(ticketRef.current);
   }
   function clickProducto(prod: Producto) {
-    if (prod.extras.length > 0) { setExpandedId(expandedId === prod.id ? null : prod.id); }
-    else { addToCart(prod, null); }
+    if (prod.extras.length > 0) {
+      setExpandedId(expandedId === prod.id ? null : prod.id);
+    } else if (prod.extrasCount > 0) {
+      // Extras aún no cargados — fetch lazy y luego abrir overlay
+      fetch(`/api/productos/${prod.id}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (!d) return;
+          const extras: Extra[] = (d.extras ?? []).map((e: Record<string, unknown>) => ({
+            id: e.id as number,
+            nombre: e.nombre as string,
+            precioAdicional: Number(e.precioAdicional ?? 0),
+          }));
+          setProductos((prev) => prev.map((p) => p.id === prod.id ? { ...p, extras } : p));
+          setExpandedId(prod.id);
+        })
+        .catch(() => addToCart(prod, null));
+    } else {
+      addToCart(prod, null);
+    }
   }
 
   function fromUsd(v: string) { setConvUsd(v); const n = parseFloat(v) || 0; setConvBs(n > 0 ? (n * bcvRate).toFixed(2) : ""); }
