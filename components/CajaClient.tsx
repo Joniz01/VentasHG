@@ -461,8 +461,8 @@ export default function CajaClient() {
 
   async function cobrar() {
     if (carrito.length === 0) return;
-    if (entrega === "DELIVERY" && (!horaEntrega || !horaPreparacion)) {
-      alert("Indica la hora de entrega y de preparación para el delivery.");
+    if (entrega === "DELIVERY" && !horaEntrega) {
+      alert("Indica la hora de entrega para el delivery.");
       return;
     }
     setGuardando(true);
