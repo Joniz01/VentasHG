@@ -1363,6 +1363,16 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                     extraId: "",
                                     variadaSelecciones: match?.tipoProducto === "VARIADA" ? Array.from({ length: match.variadaRaciones }, () => "") : [],
                                   });
+                                  // Lazy-load extras si el producto los tiene pero aún no están cargados
+                                  if (match && (match.extrasCount ?? 0) > 0 && match.extras.length === 0) {
+                                    fetch(`/api/productos/${match.id}`)
+                                      .then(r => r.ok ? r.json() : null)
+                                      .then(d => {
+                                        if (!d) return;
+                                        setProductos(prev => prev.map(p => p.id === match.id ? { ...p, extras: d.extras ?? [] } : p));
+                                      })
+                                      .catch(() => {});
+                                  }
                                   // Detectar stock cero con empaque disponible
                                   if (match && match.stockActual <= 0 && match.empaques && match.empaques.length > 0) {
                                     const empaquesConStock = match.empaques.filter(e => e.empaqueStock > 0);
