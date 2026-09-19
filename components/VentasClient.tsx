@@ -796,6 +796,33 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
         variadaSelecciones: (item.variadaSelecciones ?? []).map((s) => String(s.productoId)),
       }))
     );
+    // Lazy-load extras para los productos del pedido que los tengan
+    const idsConExtras = venta.items
+      .map((item) => item.productoId)
+      .filter((pid) => {
+        const p = productos.find((pr) => pr.id === pid);
+        return p && (p.extrasCount ?? 0) > 0 && p.extras.length === 0;
+      });
+    if (idsConExtras.length > 0) {
+      Promise.all(
+        idsConExtras.map((pid) =>
+          fetch(`/api/productos/${pid}`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((d) => d ? { pid, extras: d.extras ?? [] } : null)
+            .catch(() => null)
+        )
+      ).then((results) => {
+        const validos = results.filter(Boolean) as { pid: number; extras: unknown[] }[];
+        if (validos.length > 0) {
+          setProductos((prev) =>
+            prev.map((p) => {
+              const found = validos.find((v) => v.pid === p.id);
+              return found ? { ...p, extras: found.extras as typeof p.extras } : p;
+            })
+          );
+        }
+      });
+    }
     setPagos(
       venta.pagos.length
         ? venta.pagos.map((pago) => ({
