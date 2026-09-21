@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type Extra = { id: number; nombre: string; precioAdicional: number };
-type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; extrasCount: number; imagenUrl: string | null; tipoProducto: string; variadaRaciones: number; tipoEmpaqueId: number | null };
+type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; extrasCount: number; imagenUrl: string | null; tipoProducto: string; variadaRaciones: number; tipoEmpaqueId: number | null; tipoEmpaqueNombre: string | null };
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number; variadaSelecciones: string[] };
 type Theme = "dark" | "light" | "azul" | "beige";
@@ -314,6 +314,7 @@ export default function CajaClient() {
           tipoProducto: (p.tipoProducto as string) ?? "NORMAL",
           variadaRaciones: Number(p.variadaRaciones ?? 0),
           tipoEmpaqueId: (p.tipoEmpaqueId as number | null) ?? null,
+          tipoEmpaqueNombre: (p.tipoEmpaqueNombre as string | null) ?? null,
         })));
       }).catch(() => {});
 
@@ -844,7 +845,7 @@ export default function CajaClient() {
               ) : carrito.map((c) => {
                 const esVariada = c.variadaSelecciones.length > 0;
                 const racionesOk = esVariada && c.variadaSelecciones.every(Boolean);
-                const normalProds = productos.filter((p) => p.tipoProducto === "NORMAL" && p.tipoEmpaqueId !== null);
+                const normalProds = productos.filter((p) => p.tipoProducto === "NORMAL" && p.tipoEmpaqueNombre?.toLowerCase().includes("ración"));
                 return (
                   <div key={c.uid} className="line" style={{ flexDirection: "column", alignItems: "stretch", gap: 0, padding: 0 }}>
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 14px" }}>
