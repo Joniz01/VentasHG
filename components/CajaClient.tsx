@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 type Extra = { id: number; nombre: string; precioAdicional: number };
-type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; extrasCount: number; imagenUrl: string | null };
+type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; extrasCount: number; imagenUrl: string | null; tipoProducto: string; variadaRaciones: number };
 type Motorizado = { id: number; nombre: string; apellido: string };
-type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number };
+type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number; variadaSelecciones: string[] };
 type Theme = "dark" | "light" | "azul" | "beige";
 
 let _uid = 0;
@@ -167,6 +167,18 @@ button{cursor:pointer}
 .q-btn.rm:hover{color:#e57373}
 .q-val{font-size:11px;font-weight:700;color:var(--tt);width:18px;text-align:center;font-variant-numeric:tabular-nums}
 .li-total{font-size:12px;font-weight:600;color:var(--tt);font-variant-numeric:tabular-nums;min-width:44px;text-align:right;flex-shrink:0;margin-top:2px}
+.raciones-blk{padding:4px 14px 8px;border-top:1px solid var(--dk3)}
+.raciones-hd{display:flex;align-items:center;gap:6px;font-size:9px;font-weight:700;color:var(--tt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.raciones-badge{background:var(--accent);color:#1c1c1e;font-size:8px;font-weight:800;padding:1px 5px;border-radius:20px}
+.racion-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.racion-num{width:16px;height:16px;border-radius:50%;background:var(--dk3);color:var(--tt3);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.racion-num.ok{background:var(--accent);color:#1c1c1e}
+.racion-sel{flex:1;padding:4px 7px;border-radius:5px;border:1px solid var(--dk3);background:var(--dk2);color:var(--tt);font-size:10px;font-family:inherit;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23888880'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;padding-right:18px}
+.racion-sel:focus{border-color:var(--accent)}
+.racion-sel.ok{border-color:var(--accent);color:var(--accent)}
+.raciones-hint{margin-top:3px;padding:4px 7px;border-radius:4px;font-size:9px;font-weight:500;display:flex;align-items:center;gap:4px}
+.raciones-hint.warn{background:rgba(220,38,38,.12);color:#f87171;border:1px solid rgba(220,38,38,.2)}
+.raciones-hint.ok{background:rgba(22,163,74,.12);color:#4ade80;border:1px solid rgba(22,163,74,.2)}
 
 /* Fixed bottom */
 .iva-row{display:flex;align-items:center;gap:8px;padding:6px 13px;border-bottom:1px solid var(--tl)}
@@ -299,6 +311,8 @@ export default function CajaClient() {
           })),
           extrasCount: Number(p.extrasCount ?? 0),
           imagenUrl: (p.imagenUrl ?? null) as string | null,
+          tipoProducto: (p.tipoProducto as string) ?? "NORMAL",
+          variadaRaciones: Number(p.variadaRaciones ?? 0),
         })));
       }).catch(() => {});
 
@@ -392,15 +406,28 @@ export default function CajaClient() {
 
   function addToCart(prod: Producto, extra: Extra | null) {
     const extraId = extra?.id ?? null;
+    const esVariada = prod.tipoProducto === "VARIADA";
     setCarrito((prev) => {
+      // Variada siempre agrega línea nueva (cada una tiene sus propias raciones)
+      if (esVariada) {
+        return [...prev, { uid: uid(), productoId: prod.id, nombre: prod.nombre, precio: prod.precioVenta, qty: 1, extraId: null, extraNombre: null, extraPrecio: 0, variadaSelecciones: Array.from({ length: prod.variadaRaciones }, () => "") }];
+      }
       const ex = prev.find((c) => c.productoId === prod.id && c.extraId === extraId);
       if (ex) return prev.map((c) => c.uid === ex.uid ? { ...c, qty: c.qty + 1 } : c);
-      return [...prev, { uid: uid(), productoId: prod.id, nombre: prod.nombre, precio: prod.precioVenta, qty: 1, extraId, extraNombre: extra?.nombre ?? null, extraPrecio: extra?.precioAdicional ?? 0 }];
+      return [...prev, { uid: uid(), productoId: prod.id, nombre: prod.nombre, precio: prod.precioVenta, qty: 1, extraId, extraNombre: extra?.nombre ?? null, extraPrecio: extra?.precioAdicional ?? 0, variadaSelecciones: [] }];
     });
     setExpandedId(null);
   }
   function setQty(u: string, delta: number) {
     setCarrito((prev) => prev.map((c) => c.uid === u ? { ...c, qty: c.qty + delta } : c).filter((c) => c.qty > 0));
+  }
+  function setRacion(uid: string, idx: number, val: string) {
+    setCarrito((prev) => prev.map((c) => {
+      if (c.uid !== uid) return c;
+      const sel = [...c.variadaSelecciones];
+      sel[idx] = val;
+      return { ...c, variadaSelecciones: sel };
+    }));
   }
   function clearCart() {
     setCarrito([]);
@@ -427,6 +454,10 @@ export default function CajaClient() {
     setClienteCampoActivo(null);
   }
   function clickProducto(prod: Producto) {
+    if (prod.tipoProducto === "VARIADA") {
+      addToCart(prod, null);
+      return;
+    }
     if (prod.extras.length > 0) {
       setExpandedId(expandedId === prod.id ? null : prod.id);
     } else if (prod.extrasCount > 0) {
@@ -498,6 +529,17 @@ export default function CajaClient() {
       alert("Indica la hora de entrega para el delivery.");
       return;
     }
+    // Validar raciones completas
+    for (const c of carrito) {
+      if (c.variadaSelecciones.length > 0) {
+        const prod = productos.find((p) => p.id === c.productoId);
+        const faltantes = c.variadaSelecciones.filter((s) => !s).length;
+        if (faltantes > 0) {
+          alert(`Selecciona las ${c.variadaSelecciones.length} raciones de "${prod?.nombre ?? c.nombre}"`);
+          return;
+        }
+      }
+    }
     setGuardando(true);
     try {
       const nombreCompleto = [clienteNombre.trim(), clienteApellido.trim()].filter(Boolean).join(" ") || "Consumidor Final";
@@ -525,7 +567,7 @@ export default function CajaClient() {
         horaEntrega: horaEntregaISO,
         horaPreparacion: horaPrepaISO,
         horaRetiro: horaRetiroISO,
-        items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined })),
+        items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined, variadaSelecciones: c.variadaSelecciones.length > 0 ? c.variadaSelecciones.filter(Boolean).map(Number) : undefined })),
         pagos: isCxP ? [] : isCashea ? [] : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => ({ metodo: p.metodo, monto: Number(p.monto) })),
         fechaLimitePago: isCxP || isCashea ? (fechaCxC || casheaVence || null) : null,
         casheaDatos: isCashea ? { porcentaje: Number(casheaPct) || 40, montoInicial: casheaInicial, montoFinanciado: casheaFinanciado, dias: Number(casheaDiasSelec) || 15, fechaVencimiento: casheaVence, metodoInicial: casheaMetodoInicial || null } : undefined,
@@ -551,7 +593,8 @@ export default function CajaClient() {
   }
 
   const ticketLabel = `#${String(ticketNum).padStart(4, "0")}`;
-  const canCobrar = carrito.length > 0 && !guardando && (entrega === "LOCAL" || !!horaEntrega);
+  const racionesCompletas = carrito.every((c) => c.variadaSelecciones.length === 0 || c.variadaSelecciones.every(Boolean));
+  const canCobrar = carrito.length > 0 && !guardando && racionesCompletas && (entrega === "LOCAL" || !!horaEntrega);
 
   return (
     <>
@@ -797,21 +840,46 @@ export default function CajaClient() {
                   <span className="t-empty-icon">🛒</span>
                   <span>Toca un producto para agregar</span>
                 </div>
-              ) : carrito.map((c) => (
-                <div key={c.uid} className="line">
-                  <div className="li">
-                    <div className="li-name">{c.nombre}</div>
-                    {c.extraNombre && <div className="li-nota">· {c.extraNombre}</div>}
-                    <div className="li-unit">{fmt(c.precio + c.extraPrecio)} c/u</div>
+              ) : carrito.map((c) => {
+                const esVariada = c.variadaSelecciones.length > 0;
+                const racionesOk = esVariada && c.variadaSelecciones.every(Boolean);
+                const normalProds = productos.filter((p) => p.tipoProducto === "NORMAL");
+                return (
+                  <div key={c.uid} className="line" style={{ flexDirection: "column", alignItems: "stretch", gap: 0, padding: 0 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 14px" }}>
+                      <div className="li">
+                        <div className="li-name">{c.nombre}</div>
+                        {c.extraNombre && <div className="li-nota">· {c.extraNombre}</div>}
+                        <div className="li-unit">{fmt(c.precio + c.extraPrecio)} c/u</div>
+                      </div>
+                      <div className="qty">
+                        <button className="q-btn rm" onClick={() => setQty(c.uid, -1)}>−</button>
+                        <span className="q-val">{c.qty}</span>
+                        <button className="q-btn" onClick={() => setQty(c.uid, +1)}>+</button>
+                      </div>
+                      <div className="li-total">{fmt((c.precio + c.extraPrecio) * c.qty)}</div>
+                    </div>
+                    {esVariada && (
+                      <div className="raciones-blk">
+                        <div className="raciones-hd">Raciones <span className="raciones-badge">{c.variadaSelecciones.length}</span></div>
+                        {c.variadaSelecciones.map((sel, idx) => (
+                          <div key={idx} className="racion-row">
+                            <div className={`racion-num${sel ? " ok" : ""}`}>{idx + 1}</div>
+                            <select className={`racion-sel${sel ? " ok" : ""}`} value={sel}
+                              onChange={(e) => setRacion(c.uid, idx, e.target.value)}>
+                              <option value="">Ración {idx + 1} — elige</option>
+                              {normalProds.map((p) => <option key={p.id} value={String(p.id)}>{p.nombre}</option>)}
+                            </select>
+                          </div>
+                        ))}
+                        <div className={`raciones-hint${racionesOk ? " ok" : " warn"}`}>
+                          {racionesOk ? "✓ Raciones completas" : `⚠ Selecciona ${c.variadaSelecciones.filter((s) => !s).length} más`}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="qty">
-                    <button className="q-btn rm" onClick={() => setQty(c.uid, -1)}>−</button>
-                    <span className="q-val">{c.qty}</span>
-                    <button className="q-btn" onClick={() => setQty(c.uid, +1)}>+</button>
-                  </div>
-                  <div className="li-total">{fmt((c.precio + c.extraPrecio) * c.qty)}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="t-bottom">
