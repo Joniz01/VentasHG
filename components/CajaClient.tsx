@@ -246,7 +246,7 @@ export default function CajaClient() {
   const [busqueda, setBusqueda] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const [payMethod, setPayMethod] = useState("EFECTIVO_BS");
+  const [pagos, setPagos] = useState<{ metodo: string; monto: string }[]>([{ metodo: "EFECTIVO_BS", monto: "" }]);
   const [entrega, setEntrega] = useState<"LOCAL" | "DELIVERY">("LOCAL");
   const [direccion, setDireccion] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
@@ -339,7 +339,9 @@ export default function CajaClient() {
   const ivaAmt = ivaActivo ? subtotal * 0.16 : 0;
   const costoDeliveryNum = entrega === "DELIVERY" ? (Number(costoDelivery) || 0) : 0;
   const total = subtotal + ivaAmt + costoDeliveryNum;
-  const isCxP = CXP_METHODS.includes(payMethod);
+  const isCashea = pagos.some((p) => p.metodo === "CASHEA");
+  const isCxP = pagos.some((p) => CXP_METHODS.includes(p.metodo));
+  const totalPagado = pagos.reduce((s, p) => s + (Number(p.monto) || 0), 0);
   const FILTROS = [
     { key: "Todos",              label: "Todos" },
     { key: "Premium",            label: "Premium" },
@@ -459,7 +461,6 @@ export default function CajaClient() {
   const alarmaPrepTime = calcAlarma(horaEntrega, Number(minutosPrep) || 0);
   const alarmaRetiroTime = calcAlarma(horaEntrega, Number(minutosRetiro) || 0);
   // Cashea cálculos
-  const isCashea = payMethod === "CASHEA";
   const casheaTotal = total;
   const casheaInicial = casheaTotal * (Number(casheaPct) || 0) / 100;
   const casheaFinanciado = casheaTotal - casheaInicial;
@@ -516,13 +517,13 @@ export default function CajaClient() {
         horaPreparacion: horaPrepaISO,
         horaRetiro: horaRetiroISO,
         items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined })),
-        pagos: isCxP ? [] : isCashea ? [] : [{ metodo: payMethod, monto: total }],
+        pagos: isCxP ? [] : isCashea ? [] : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => ({ metodo: p.metodo, monto: Number(p.monto) })),
         fechaLimitePago: isCxP || isCashea ? (fechaCxC || casheaVence || null) : null,
         casheaDatos: isCashea ? { porcentaje: Number(casheaPct) || 40, montoInicial: casheaInicial, montoFinanciado: casheaFinanciado, dias: Number(casheaDiasSelec) || 15, fechaVencimiento: casheaVence, metodoInicial: casheaMetodoInicial || null } : undefined,
       };
       const res = await fetch("/api/ventas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error ?? "Error al registrar la venta"); return; }
-      const payLabel = PAY_OPTS.find((p) => p.key === payMethod)?.label ?? payMethod;
+      const payLabel = isCxP || isCashea ? (isCashea ? "Cashea" : "CxC") : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => PAY_OPTS.find((o) => o.key === p.metodo)?.label ?? p.metodo).join(" + ");
       const det = [
         `Total: <strong>${fmt(total)}</strong> (${fmtBs(total, bcvRate)})`,
         `Método: <strong>${payLabel}</strong>`,
@@ -535,7 +536,7 @@ export default function CajaClient() {
       setConfirmOverlay({ icon: isCxP ? "📋" : "✅", titulo: isCxP ? "CxC generada" : "Cobro registrado", detalle: det });
       clearCart();
       setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
-      setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPayMethod("EFECTIVO_BS");
+      setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPagos([{ metodo: "EFECTIVO_BS", monto: "" }]);
       setCasheaMetodoInicial(""); setCostoDelivery("0"); setClienteSugerencias([]);
     } finally { setGuardando(false); }
   }
@@ -816,16 +817,13 @@ export default function CajaClient() {
               </div>
 
               {/* Totals */}
-              <div className="totals-row">
-                <div className="tot-lines">
-                  <div className="tot-item"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-                  {ivaActivo && <div className="tot-item"><span>IVA 16%</span><span>{fmt(ivaAmt)}</span></div>}
-                  {costoDeliveryNum > 0 && <div className="tot-item"><span>Delivery</span><span>{fmt(costoDeliveryNum)}</span></div>}
-                </div>
-                <div>
-                  <div className="tot-grand">{fmt(total)}</div>
-                  <div className="tot-bs">{fmtBs(total, bcvRate)}</div>
-                </div>
+              <div className="tot-lines" style={{ display: "flex", flexDirection: "column", gap: 2, padding: "6px 0" }}>
+                <div className="tot-item"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
+                {ivaActivo && <div className="tot-item"><span>IVA 16%</span><span>{fmt(ivaAmt)}</span></div>}
+                {costoDeliveryNum > 0 && <div className="tot-item"><span>Delivery</span><span>{fmt(costoDeliveryNum)} / {fmtBs(costoDeliveryNum, bcvRate)}</span></div>}
+                <div className="tot-item" style={{ fontWeight: 700, fontSize: 14, borderTop: "1px solid var(--tl)", paddingTop: 4, marginTop: 2 }}><span>Total a pagar</span><span>{fmt(total)}</span></div>
+                <div className="tot-item" style={{ fontSize: 11, color: "var(--tt2)" }}><span></span><span>{fmtBs(total, bcvRate)}</span></div>
+                {totalPagado > 0 && <div className="tot-item" style={{ fontSize: 11, color: totalPagado >= total ? "#16a34a" : "var(--accent)" }}><span>Total pagado</span><span>{fmt(totalPagado)}</span></div>}
               </div>
 
               {/* BCV + Converter */}
@@ -854,14 +852,34 @@ export default function CajaClient() {
 
               {/* Pay methods */}
               <div className="pay-sec">
-                <div className="pay-lbl">Forma de Pago</div>
-                <div className="pay-grid">
-                  {PAY_OPTS.map((p) => (
-                    <button key={p.key} className={`pay-btn${payMethod === p.key ? " active" : ""}`} onClick={() => setPayMethod(p.key)}>
-                      <span className="pay-ico">{p.icon}</span>{p.label}
-                    </button>
-                  ))}
-                </div>
+                <div className="pay-lbl">Formas de Pago</div>
+                {pagos.map((pago, idx) => (
+                  <div key={idx} style={{ marginBottom: 6 }}>
+                    <div className="pay-grid">
+                      {PAY_OPTS.map((opt) => (
+                        <button key={opt.key} className={`pay-btn${pago.metodo === opt.key ? " active" : ""}`}
+                          onClick={() => setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, metodo: opt.key } : p))}>
+                          <span className="pay-ico">{opt.icon}</span>{opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center" }}>
+                      <span style={{ fontSize: 10, color: "var(--tt2)", whiteSpace: "nowrap" }}>Monto $</span>
+                      <input type="number" min="0" step="0.01" placeholder="0.00"
+                        value={pago.monto}
+                        onChange={(e) => setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, monto: e.target.value } : p))}
+                        style={{ flex: 1, border: "1px solid var(--tl)", borderRadius: 6, padding: "4px 8px", fontSize: 12, background: "var(--surface)", color: "var(--text)" }} />
+                      {pagos.length > 1 && (
+                        <button onClick={() => setPagos((prev) => prev.filter((_, i) => i !== idx))}
+                          style={{ padding: "3px 8px", border: "1px solid #dc2626", borderRadius: 5, background: "none", color: "#dc2626", fontSize: 10, cursor: "pointer" }}>✕</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button onClick={() => setPagos((prev) => [...prev, { metodo: "EFECTIVO_BS", monto: "" }])}
+                  style={{ width: "100%", marginTop: 2, padding: "5px", border: "1.5px dashed var(--tl)", borderRadius: 6, background: "none", color: "var(--tt2)", fontSize: 11, cursor: "pointer" }}>
+                  + Agregar método de pago
+                </button>
               </div>
 
               {isCashea && (
