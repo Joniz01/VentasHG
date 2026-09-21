@@ -257,6 +257,9 @@ export default function CajaClient() {
   const [clienteApellido, setClienteApellido] = useState("");
   const [clienteCi, setClienteCi] = useState("");
   const [clienteTel, setClienteTel] = useState("");
+  const [costoDelivery, setCostoDelivery] = useState("0");
+  const [clienteSugerencias, setClienteSugerencias] = useState<{ id: number; nombre: string; cedula: string | null; telefono: string | null; direccion: string | null }[]>([]);
+  const [clienteCampoActivo, setClienteCampoActivo] = useState<"nombre" | "ci" | null>(null);
   const [minutosPrep, setMinutosPrep] = useState("15");
   const [minutosRetiro, setMinutosRetiro] = useState("10");
   const [casheaPorcentajes, setCasheaPorcentajes] = useState<string[]>(["40", "50"]);
@@ -334,7 +337,8 @@ export default function CajaClient() {
 
   const subtotal = carrito.reduce((s, c) => s + (c.precio + c.extraPrecio) * c.qty, 0);
   const ivaAmt = ivaActivo ? subtotal * 0.16 : 0;
-  const total = subtotal + ivaAmt;
+  const costoDeliveryNum = entrega === "DELIVERY" ? (Number(costoDelivery) || 0) : 0;
+  const total = subtotal + ivaAmt + costoDeliveryNum;
   const isCxP = CXP_METHODS.includes(payMethod);
   const FILTROS = [
     { key: "Todos",              label: "Todos" },
@@ -391,6 +395,25 @@ export default function CajaClient() {
     setCarrito([]);
     ticketRef.current += 1;
     setTicketNum(ticketRef.current);
+  }
+
+  function buscarCliente(q: string) {
+    if (q.length < 4) { setClienteSugerencias([]); return; }
+    fetch(`/api/clientes?q=${encodeURIComponent(q)}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then(setClienteSugerencias)
+      .catch(() => {});
+  }
+
+  function seleccionarCliente(c: { nombre: string; cedula: string | null; telefono: string | null; direccion: string | null }) {
+    const partes = c.nombre.trim().split(" ");
+    setClienteNombre(partes[0] ?? "");
+    setClienteApellido(partes.slice(1).join(" ") ?? "");
+    setClienteCi(c.cedula ?? "");
+    setClienteTel(c.telefono ?? "");
+    if (c.direccion) setDireccion(c.direccion);
+    setClienteSugerencias([]);
+    setClienteCampoActivo(null);
   }
   function clickProducto(prod: Producto) {
     if (prod.extras.length > 0) {
@@ -487,7 +510,7 @@ export default function CajaClient() {
         modoEntrega: entrega,
         tipoDelivery: entrega === "DELIVERY" ? "MOTORIZADO" : null,
         motorizadoId: entrega === "DELIVERY" ? motorizadoId : null,
-        costoDelivery: 0,
+        costoDelivery: costoDeliveryNum,
         despachoPendiente: entrega === "DELIVERY",
         horaEntrega: horaEntregaISO,
         horaPreparacion: horaPrepaISO,
@@ -513,7 +536,7 @@ export default function CajaClient() {
       clearCart();
       setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
       setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPayMethod("EFECTIVO_BS");
-      setCasheaMetodoInicial("");
+      setCasheaMetodoInicial(""); setCostoDelivery("0"); setClienteSugerencias([]);
     } finally { setGuardando(false); }
   }
 
@@ -625,6 +648,11 @@ export default function CajaClient() {
                       <input className="f-input" type="text" placeholder="Av. Principal…" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
                     </div>
                     <div className="hora-row">
+                      <div style={{ flex: "0 0 90px" }}>
+                        <div className="f-label">Costo delivery ($)</div>
+                        <input className="f-input" type="number" min="0" step="0.5" value={costoDelivery}
+                          onChange={(e) => setCostoDelivery(e.target.value)} />
+                      </div>
                       <div style={{ flex: 1 }}>
                         <div className="f-label">Hora entrega *</div>
                         <input className="f-input" type="time" value={horaEntrega} onChange={(e) => setHoraEntrega(e.target.value)} />
@@ -676,9 +704,28 @@ export default function CajaClient() {
               <div className="bb-col">
                 <div className="bb-label">Cliente</div>
                 <div className="hora-row">
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, position: "relative" }}>
                     <div className="f-label">Nombre</div>
-                    <input className="f-input" type="text" placeholder="Consumidor Final" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} />
+                    <input className="f-input" type="text" placeholder="Consumidor Final" value={clienteNombre}
+                      onChange={(e) => { setClienteNombre(e.target.value); setClienteCampoActivo("nombre"); buscarCliente(e.target.value); }}
+                      onBlur={() => setTimeout(() => { setClienteSugerencias([]); setClienteCampoActivo(null); }, 150)}
+                    />
+                    {clienteCampoActivo === "nombre" && clienteSugerencias.length > 0 && (
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+                        background: "var(--surface)", border: "1px solid var(--border,#ccc)",
+                        borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,.15)", maxHeight: 180, overflowY: "auto" }}>
+                        {clienteSugerencias.map((s) => (
+                          <div key={s.id} onMouseDown={() => seleccionarCliente(s)}
+                            style={{ padding: "7px 10px", cursor: "pointer", fontSize: 12,
+                              borderBottom: "1px solid var(--border,#eee)" }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--al,#f0f9ff)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
+                            <strong>{s.nombre}</strong>
+                            {s.cedula && <span style={{ color: "var(--t3,#888)", marginLeft: 6 }}>{s.cedula}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div className="f-label">Apellido</div>
@@ -686,9 +733,28 @@ export default function CajaClient() {
                   </div>
                 </div>
                 <div className="hora-row">
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, position: "relative" }}>
                     <div className="f-label">C.I / RIF</div>
-                    <input className="f-input" type="text" placeholder="V-00000000" value={clienteCi} onChange={(e) => setClienteCi(e.target.value)} />
+                    <input className="f-input" type="text" placeholder="V-00000000" value={clienteCi}
+                      onChange={(e) => { setClienteCi(e.target.value); setClienteCampoActivo("ci"); buscarCliente(e.target.value); }}
+                      onBlur={() => setTimeout(() => { setClienteSugerencias([]); setClienteCampoActivo(null); }, 150)}
+                    />
+                    {clienteCampoActivo === "ci" && clienteSugerencias.length > 0 && (
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+                        background: "var(--surface)", border: "1px solid var(--border,#ccc)",
+                        borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,.15)", maxHeight: 180, overflowY: "auto" }}>
+                        {clienteSugerencias.map((s) => (
+                          <div key={s.id} onMouseDown={() => seleccionarCliente(s)}
+                            style={{ padding: "7px 10px", cursor: "pointer", fontSize: 12,
+                              borderBottom: "1px solid var(--border,#eee)" }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--al,#f0f9ff)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
+                            <strong>{s.cedula ?? s.nombre}</strong>
+                            <span style={{ color: "var(--t3,#888)", marginLeft: 6 }}>{s.nombre}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div className="f-label">Teléfono</div>
@@ -754,6 +820,7 @@ export default function CajaClient() {
                 <div className="tot-lines">
                   <div className="tot-item"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
                   {ivaActivo && <div className="tot-item"><span>IVA 16%</span><span>{fmt(ivaAmt)}</span></div>}
+                  {costoDeliveryNum > 0 && <div className="tot-item"><span>Delivery</span><span>{fmt(costoDeliveryNum)}</span></div>}
                 </div>
                 <div>
                   <div className="tot-grand">{fmt(total)}</div>
