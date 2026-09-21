@@ -246,7 +246,7 @@ export default function CajaClient() {
   const [busqueda, setBusqueda] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const [pagos, setPagos] = useState<{ metodo: string; monto: string }[]>([{ metodo: "EFECTIVO_BS", monto: "" }]);
+  const [pagos, setPagos] = useState<{ metodo: string; monto: string }[]>([{ metodo: "EFECTIVO_BS", monto: "0" }]);
   const [entrega, setEntrega] = useState<"LOCAL" | "DELIVERY">("LOCAL");
   const [direccion, setDireccion] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
@@ -342,6 +342,15 @@ export default function CajaClient() {
   const isCashea = pagos.some((p) => p.metodo === "CASHEA");
   const isCxP = pagos.some((p) => CXP_METHODS.includes(p.metodo));
   const totalPagado = pagos.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+
+  // Auto-rellenar primer método con total cuando hay solo uno
+  useEffect(() => {
+    setPagos((prev) => {
+      if (prev.length === 1) return [{ ...prev[0], monto: total.toFixed(2) }];
+      return prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
   const FILTROS = [
     { key: "Todos",              label: "Todos" },
     { key: "Premium",            label: "Premium" },
@@ -536,7 +545,7 @@ export default function CajaClient() {
       setConfirmOverlay({ icon: isCxP ? "📋" : "✅", titulo: isCxP ? "CxC generada" : "Cobro registrado", detalle: det });
       clearCart();
       setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
-      setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPagos([{ metodo: "EFECTIVO_BS", monto: "" }]);
+      setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPagos([{ metodo: "EFECTIVO_BS", monto: "0" }]);
       setCasheaMetodoInicial(""); setCostoDelivery("0"); setClienteSugerencias([]);
     } finally { setGuardando(false); }
   }
@@ -823,7 +832,7 @@ export default function CajaClient() {
                 {costoDeliveryNum > 0 && <div className="tot-item"><span>Delivery</span><span>{fmt(costoDeliveryNum)} / {fmtBs(costoDeliveryNum, bcvRate)}</span></div>}
                 <div className="tot-item" style={{ fontWeight: 700, fontSize: 14, borderTop: "1px solid var(--tl)", paddingTop: 4, marginTop: 2 }}><span>Total a pagar</span><span>{fmt(total)}</span></div>
                 <div className="tot-item" style={{ fontSize: 11, color: "var(--tt2)" }}><span></span><span>{fmtBs(total, bcvRate)}</span></div>
-                {totalPagado > 0 && <div className="tot-item" style={{ fontSize: 11, color: totalPagado >= total ? "#16a34a" : "var(--accent)" }}><span>Total pagado</span><span>{fmt(totalPagado)}</span></div>}
+                {totalPagado > 0 && <div className="tot-item" style={{ fontSize: 11, color: totalPagado >= total ? "#16a34a" : "var(--accent)" }}><span>Total pagado</span><span>{fmt(totalPagado)} / {fmtBs(totalPagado, bcvRate)}</span></div>}
               </div>
 
               {/* BCV + Converter */}
@@ -853,30 +862,46 @@ export default function CajaClient() {
               {/* Pay methods */}
               <div className="pay-sec">
                 <div className="pay-lbl">Formas de Pago</div>
-                {pagos.map((pago, idx) => (
-                  <div key={idx} style={{ marginBottom: 6 }}>
-                    <div className="pay-grid">
-                      {PAY_OPTS.map((opt) => (
-                        <button key={opt.key} className={`pay-btn${pago.metodo === opt.key ? " active" : ""}`}
-                          onClick={() => setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, metodo: opt.key } : p))}>
-                          <span className="pay-ico">{opt.icon}</span>{opt.label}
-                        </button>
-                      ))}
+                {pagos.map((pago, idx) => {
+                  const montoUsd = Number(pago.monto) || 0;
+                  const montoBs = montoUsd * bcvRate;
+                  return (
+                    <div key={idx} style={{ marginBottom: 8 }}>
+                      <div className="pay-grid">
+                        {PAY_OPTS.map((opt) => (
+                          <button key={opt.key} className={`pay-btn${pago.metodo === opt.key ? " active" : ""}`}
+                            onClick={() => setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, metodo: opt.key } : p))}>
+                            <span className="pay-ico">{opt.icon}</span>{opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: 5, marginTop: 5, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: "var(--tt2)", whiteSpace: "nowrap" }}>Bs</span>
+                        <input type="number" min="0" step="0.01" placeholder="0,00"
+                          value={montoBs > 0 ? montoBs.toFixed(2) : ""}
+                          onChange={(e) => {
+                            const bs = Number(e.target.value) || 0;
+                            setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, monto: bcvRate > 0 ? (bs / bcvRate).toFixed(6) : "0" } : p));
+                          }}
+                          style={{ flex: 1, border: "1px solid var(--tl)", borderRadius: 6, padding: "4px 8px", fontSize: 12, background: "var(--surface)", color: "var(--text)" }} />
+                        <span style={{ fontSize: 10, color: "var(--tt2)" }}>$</span>
+                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                          value={montoUsd > 0 ? montoUsd.toFixed(2) : ""}
+                          onChange={(e) => setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, monto: e.target.value } : p))}
+                          style={{ width: 68, border: "1px solid var(--tl)", borderRadius: 6, padding: "4px 6px", fontSize: 12, background: "var(--surface)", color: "var(--text)" }} />
+                        {pagos.length > 1 && (
+                          <button onClick={() => setPagos((prev) => prev.filter((_, i) => i !== idx))}
+                            style={{ padding: "3px 7px", border: "1px solid #dc2626", borderRadius: 5, background: "none", color: "#dc2626", fontSize: 10, cursor: "pointer", flexShrink: 0 }}>✕</button>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center" }}>
-                      <span style={{ fontSize: 10, color: "var(--tt2)", whiteSpace: "nowrap" }}>Monto $</span>
-                      <input type="number" min="0" step="0.01" placeholder="0.00"
-                        value={pago.monto}
-                        onChange={(e) => setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, monto: e.target.value } : p))}
-                        style={{ flex: 1, border: "1px solid var(--tl)", borderRadius: 6, padding: "4px 8px", fontSize: 12, background: "var(--surface)", color: "var(--text)" }} />
-                      {pagos.length > 1 && (
-                        <button onClick={() => setPagos((prev) => prev.filter((_, i) => i !== idx))}
-                          style={{ padding: "3px 8px", border: "1px solid #dc2626", borderRadius: 5, background: "none", color: "#dc2626", fontSize: 10, cursor: "pointer" }}>✕</button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <button onClick={() => setPagos((prev) => [...prev, { metodo: "EFECTIVO_BS", monto: "" }])}
+                  );
+                })}
+                <button onClick={() => {
+                  const pagado = pagos.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+                  const restante = Math.max(0, total - pagado);
+                  setPagos((prev) => [...prev, { metodo: "EFECTIVO_BS", monto: restante.toFixed(2) }]);
+                }}
                   style={{ width: "100%", marginTop: 2, padding: "5px", border: "1.5px dashed var(--tl)", borderRadius: 6, background: "none", color: "var(--tt2)", fontSize: 11, cursor: "pointer" }}>
                   + Agregar método de pago
                 </button>
