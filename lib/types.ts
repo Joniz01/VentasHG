@@ -220,6 +220,8 @@ export type Producto = {
   aprovisionamiento: "COMPRA" | "FABRICACION";
   subtipoFabricacion: "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null;
   imagenUrl: string | null;
+  tipoEmpaqueId: number | null;
+  tipoEmpaqueNombre: string | null;
   createdAt: string;
   extrasCount?: number;
   extras: ProductoExtra[];

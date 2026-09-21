@@ -42,11 +42,13 @@ export async function GET(request: NextRequest) {
               COALESCE(p.grupo, 'PARA_LA_VENTA') AS grupo,
               COALESCE(p.aprovisionamiento, 'COMPRA') AS aprovisionamiento,
               p.subtipo_fabricacion,
-              p.imagen_url
+              p.imagen_url,
+              p.tipo_empaque_id, te.nombre AS tipo_empaque_nombre
        FROM productos p
        LEFT JOIN familias c ON c.id = p.categoria_id
        LEFT JOIN lineas l ON l.id = p.linea_id
        LEFT JOIN unidades_medida um ON um.id = p.unidad_medida_id
+       LEFT JOIN tipos_empaque te ON te.id = p.tipo_empaque_id
        ${grupoValido ? `WHERE p.activo = TRUE AND COALESCE(p.grupo, 'PARA_LA_VENTA') = $1` : ""}
        ORDER BY COALESCE(c.orden, 99) ASC, c.nombre ASC NULLS LAST, p.nombre ASC`,
       grupoValido ? [grupoValido] : []
@@ -114,6 +116,8 @@ export async function GET(request: NextRequest) {
     aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
     subtipoFabricacion: (row.subtipo_fabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
     imagenUrl: row.imagen_url ?? null,
+    tipoEmpaqueId: row.tipo_empaque_id ?? null,
+    tipoEmpaqueNombre: row.tipo_empaque_nombre ?? null,
     createdAt: row.created_at,
     extrasCount: extrasCountMap.get(row.id) ?? 0,
     extras: [],

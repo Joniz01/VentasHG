@@ -65,7 +65,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const {
     nombre, descripcion, costo, precioVenta, activo, categoriaId, lineaId, tipoProducto, variadaRaciones,
     stockMinimo, unidadMedida, unidadMedidaId, alertaOutstockDesactivada, alertaOutstockMotivo, grupo, aprovisionamiento,
-    subtipoFabricacion,
+    subtipoFabricacion, tipoEmpaqueId,
   } = body;
 
   const costoNum = Number(costo);
@@ -94,6 +94,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const aprovisionamientoStr = aprovisionamiento === "FABRICACION" ? "FABRICACION" : "COMPRA";
   const SUBTIPOS_VALIDOS = ["RECETA_BASE", "ENSAMBLADO", "COMPUESTO"];
   const subtipoStr = subtipoFabricacion && SUBTIPOS_VALIDOS.includes(subtipoFabricacion) ? subtipoFabricacion : null;
+  const tipoEmpaqueIdNum = tipoEmpaqueId ? Number(tipoEmpaqueId) : null;
 
   // Try with new columns first; fall back gracefully if migration 046 hasn't run yet
   let result;
@@ -104,17 +105,18 @@ export async function PUT(request: NextRequest, { params }: Params) {
            tipo_producto = $7, variada_raciones = $8,
            stock_minimo = $9, unidad_medida = $10, unidad_medida_id = $11,
            alerta_outstock_desactivada = $12, alerta_outstock_motivo = $13,
-           grupo = $14, linea_id = $15, aprovisionamiento = $16, subtipo_fabricacion = $17
-       WHERE id = $18
+           grupo = $14, linea_id = $15, aprovisionamiento = $16, subtipo_fabricacion = $17,
+           tipo_empaque_id = $18
+       WHERE id = $19
        RETURNING id, nombre, descripcion, costo, precio_venta, activo, categoria_id, linea_id, created_at,
                  tipo_producto, stock_actual, variada_raciones,
                  stock_minimo, unidad_medida, unidad_medida_id, alerta_outstock_desactivada, alerta_outstock_motivo,
                  COALESCE(grupo, 'PARA_LA_VENTA') AS grupo,
                  COALESCE(aprovisionamiento, 'COMPRA') AS aprovisionamiento,
-                 subtipo_fabricacion`,
+                 subtipo_fabricacion, tipo_empaque_id`,
       [nombre, descripcion ?? null, costoNum, precioNum, activo ?? true, categoriaIdNum,
        tipoProducto || "NORMAL", variadaRacionesNum,
-       stockMinimoNum, unidadMedidaStr, unidadMedidaIdNum, outstockBool, outstockMotivo, grupoStr, lineaIdNum, aprovisionamientoStr, subtipoStr, id]
+       stockMinimoNum, unidadMedidaStr, unidadMedidaIdNum, outstockBool, outstockMotivo, grupoStr, lineaIdNum, aprovisionamientoStr, subtipoStr, tipoEmpaqueIdNum, id]
     );
   } catch {
     result = await pool.query(
@@ -194,6 +196,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
     grupo: row.grupo ?? "PARA_LA_VENTA",
     aprovisionamiento: (row.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
     subtipoFabricacion: (row.subtipo_fabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
+    tipoEmpaqueId: row.tipo_empaque_id ?? null,
+    tipoEmpaqueNombre: null,
     createdAt: row.created_at,
     extras: extrasResult.rows.map((extra) => ({
       id: extra.id,

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type Extra = { id: number; nombre: string; precioAdicional: number };
-type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; extrasCount: number; imagenUrl: string | null; tipoProducto: string; variadaRaciones: number };
+type Producto = { id: number; nombre: string; precioVenta: number; categoriaNombre: string | null; lineaNombre: string | null; extras: Extra[]; extrasCount: number; imagenUrl: string | null; tipoProducto: string; variadaRaciones: number; tipoEmpaqueId: number | null };
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number; variadaSelecciones: string[] };
 type Theme = "dark" | "light" | "azul" | "beige";
@@ -313,6 +313,7 @@ export default function CajaClient() {
           imagenUrl: (p.imagenUrl ?? null) as string | null,
           tipoProducto: (p.tipoProducto as string) ?? "NORMAL",
           variadaRaciones: Number(p.variadaRaciones ?? 0),
+          tipoEmpaqueId: (p.tipoEmpaqueId as number | null) ?? null,
         })));
       }).catch(() => {});
 
@@ -843,7 +844,7 @@ export default function CajaClient() {
               ) : carrito.map((c) => {
                 const esVariada = c.variadaSelecciones.length > 0;
                 const racionesOk = esVariada && c.variadaSelecciones.every(Boolean);
-                const normalProds = productos.filter((p) => p.tipoProducto === "NORMAL");
+                const normalProds = productos.filter((p) => p.tipoProducto === "NORMAL" && p.tipoEmpaqueId !== null);
                 return (
                   <div key={c.uid} className="line" style={{ flexDirection: "column", alignItems: "stretch", gap: 0, padding: 0 }}>
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 14px" }}>

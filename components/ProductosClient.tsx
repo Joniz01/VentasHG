@@ -34,6 +34,7 @@ const EMPTY_FORM = {
   grupo: "PARA_LA_VENTA" as GrupoProducto,
   aprovisionamiento: "COMPRA" as "COMPRA" | "FABRICACION",
   subtipoFabricacion: null as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
+  tipoEmpaqueId: "",
 };
 
 type ProductosKpis = {
@@ -66,6 +67,8 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
   const [showForm, setShowForm] = useState(false);
   const [filterLineaId, setFilterLineaId] = useState<string>("");
   const [lineasFiltro, setLineasFiltro] = useState<Linea[]>([]);
+  const [tiposEmpaque, setTiposEmpaque] = useState<{ id: number; nombre: string; activo: boolean }[]>([]);
+  const [filterTipoEmpaqueId, setFilterTipoEmpaqueId] = useState<string>("");
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(15);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
@@ -109,11 +112,16 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     } else if (filterLineaId) {
       list = list.filter((p) => String(p.lineaId) === filterLineaId);
     }
+    if (filterTipoEmpaqueId === "__sin__") {
+      list = list.filter((p) => !p.tipoEmpaqueId);
+    } else if (filterTipoEmpaqueId) {
+      list = list.filter((p) => String(p.tipoEmpaqueId) === filterTipoEmpaqueId);
+    }
     if (searchNombre.trim() || orden === "nombre") {
       list.sort((a, b) => a.nombre.localeCompare(b.nombre));
     }
     return list;
-  }, [productos, orden, searchNombre, filterCategoriaId, filterLineaId, tabVista]);
+  }, [productos, orden, searchNombre, filterCategoriaId, filterLineaId, filterTipoEmpaqueId, tabVista]);
 
   async function loadProductos() {
     try {
@@ -180,6 +188,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
     fetch("/api/tasa-bcv").then(r => r.ok ? r.json() : null).then(d => {
       if (d?.tasa) setTasaHoy(Number(d.tasa));
     }).catch(() => {});
+    fetch("/api/tipos-empaque").then(r => r.ok ? r.json() : []).then(setTiposEmpaque).catch(() => {});
   }, []);
 
   async function loadProvRelaciones(productoId: number) {
@@ -208,6 +217,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
       grupo: producto.grupo ?? "PARA_LA_VENTA",
       aprovisionamiento: (producto.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
       subtipoFabricacion: (producto.subtipoFabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
+      tipoEmpaqueId: producto.tipoEmpaqueId ? String(producto.tipoEmpaqueId) : "",
     });
     setNuevaCategoriaNombre("");
     setFormEmpaques([]);
@@ -302,6 +312,7 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
         grupo: form.grupo,
         aprovisionamiento: form.aprovisionamiento,
         subtipoFabricacion: form.aprovisionamiento === "FABRICACION" ? form.subtipoFabricacion : null,
+        tipoEmpaqueId: form.tipoEmpaqueId ? Number(form.tipoEmpaqueId) : null,
       };
 
       const res = await fetch(
@@ -1082,6 +1093,15 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                     </select>
                   </div>
                 )}
+                {tiposEmpaque.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de Empaque</label>
+                    <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.tipoEmpaqueId} onChange={(e) => setForm({ ...form, tipoEmpaqueId: e.target.value })}>
+                      <option value="">Sin tipo</option>
+                      {tiposEmpaque.filter(t => t.activo).map((t) => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Costo <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>USD</span></label>
                   <div style={{ position: "relative" }}>
@@ -1345,10 +1365,26 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
               </select>
             </div>
           )}
-          {(searchNombre || filterCategoriaId || filterLineaId) && (
+          {tiposEmpaque.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Tipo de Empaque</label>
+              <select
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
+                value={filterTipoEmpaqueId}
+                onChange={(e) => { setFilterTipoEmpaqueId(e.target.value); setPagina(1); }}
+              >
+                <option value="">Todos</option>
+                <option value="__sin__">Sin tipo</option>
+                {tiposEmpaque.filter(t => t.activo).map((t) => (
+                  <option key={t.id} value={String(t.id)}>{t.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {(searchNombre || filterCategoriaId || filterLineaId || filterTipoEmpaqueId) && (
             <button
               type="button"
-              onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setFilterLineaId(""); setLineasFiltro([]); setPagina(1); }}
+              onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setFilterLineaId(""); setLineasFiltro([]); setFilterTipoEmpaqueId(""); setPagina(1); }}
               style={{ background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 12px", fontSize: 13, color: "var(--erp-text-3)", cursor: "pointer", alignSelf: "flex-end" }}
             >
               Limpiar
@@ -1508,6 +1544,15 @@ export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoPr
                                 <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.lineaId} onChange={(e) => setForm({ ...form, lineaId: e.target.value })}>
                                   <option value="">Sin línea</option>
                                   {lineas.filter(l => String(l.familiaId) === form.categoriaId).map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                                </select>
+                              </div>
+                            )}
+                            {tiposEmpaque.length > 0 && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de Empaque</label>
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.tipoEmpaqueId} onChange={(e) => setForm({ ...form, tipoEmpaqueId: e.target.value })}>
+                                  <option value="">Sin tipo</option>
+                                  {tiposEmpaque.filter(t => t.activo).map((t) => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
                                 </select>
                               </div>
                             )}

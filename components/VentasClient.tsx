@@ -1470,7 +1470,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                                       const s = [...item.variadaSelecciones]; s[racionIndex] = val; updateItem(index, { variadaSelecciones: s });
                                     }}>
                                     <option value="">Ración {racionIndex + 1}</option>
-                                    {productos.filter((p) => p.tipoProducto === "NORMAL").map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}</option>)}
+                                    {productos.filter((p) => p.tipoProducto === "NORMAL" && p.tipoEmpaqueId).map((p) => <option key={p.id} value={p.id}>{p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}</option>)}
                                   </select>
                                 ))}
                               </div>
@@ -2356,7 +2356,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                         >
                           <option value="">Selecciona ración {racionIndex + 1}</option>
                           {productos
-                            .filter((p) => p.tipoProducto === "NORMAL")
+                            .filter((p) => p.tipoProducto === "NORMAL" && p.tipoEmpaqueId)
                             .map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.nombre} (stock: {p.stockActual}){p.stockActual <= 0 && p.empaques?.some(e => e.empaqueStock > 0) ? " 📦" : ""}
