@@ -227,8 +227,12 @@ export default function SidebarNav({ rol, permisos }: Props) {
   useEffect(() => {
     const activeGroup = GRUPOS.find(
       (g) => !g.noCollapse && g.items.some((item) => {
-        const [itemPath] = item.href.split("?");
-        return pathname?.startsWith(itemPath) && !item.href.includes("?");
+        const [itemPath, itemQuery] = item.href.split("?");
+        if (itemQuery) {
+          const params = new URLSearchParams(itemQuery);
+          return pathname === itemPath && [...params.entries()].every(([k, v]) => searchParams.get(k) === v);
+        }
+        return pathname?.startsWith(itemPath);
       })
     );
     if (activeGroup) {
@@ -239,7 +243,7 @@ export default function SidebarNav({ rol, permisos }: Props) {
         return next;
       });
     }
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   // Sync CSS var and localStorage when collapsed changes
   useEffect(() => {
@@ -254,8 +258,8 @@ export default function SidebarNav({ rol, permisos }: Props) {
     return () => window.removeEventListener("toggle-sidebar", handler);
   }, []);
 
-  // Close mobile drawer on route change
-  useEffect(() => { setOpen(false); }, [pathname]);
+  // Close mobile drawer on route change (pathname or searchParams)
+  useEffect(() => { setOpen(false); }, [pathname, searchParams]);
 
   const navContent = (collapsed: boolean) => (
     <>
