@@ -62,10 +62,7 @@ export async function GET(request: NextRequest) {
 
   const pagosResult = await pool.query(
     `SELECT
-       CASE WHEN v.cuenta_por_cobrar = TRUE AND v.cuenta_cobrada = TRUE
-            THEN 'CXC_DIRECTA'::metodo_pago
-            ELSE pv.metodo
-       END AS metodo,
+       pv.metodo,
        pv.monto, v.tasa_dia
      FROM pagos_venta pv
      JOIN ventas v ON v.id = pv.venta_id
