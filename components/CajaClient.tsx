@@ -387,7 +387,7 @@ export default function CajaClient() {
     if (key === "Premium")    return linea.includes("premium");
     if (key === "Especiales") return linea.includes("especial");
     if (key === "Tradicional") return linea.includes("tradicional");
-    if (key === "Masas")      return linea.includes("masa") || linea.includes("intervenida") || cat.includes("masa") || cat.includes("intervenida");
+    if (key === "Masas")      return linea.includes("masas intervenidas") || cat.includes("masas intervenidas");
     if (key === "Bandejas")   return cat.includes("bandeja") || cat.includes("experiencia");
     if (key === "Combos")     return cat.includes("combo") || cat.includes("pack");
     if (key === "Raciones")   return cat.includes("racion") || cat.includes("ración") || cat.includes("ravion") || cat.includes("ravión");
