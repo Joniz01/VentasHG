@@ -311,6 +311,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   const [casheaConfirm, setCasheaConfirm] = useState<{ ventaId: number; tasa: string; fechaPago: string } | null>(null);
   const [yummyConfirmId, setYummyConfirmId] = useState<number | null>(null);
   const [cxcConfirmId, setCxcConfirmId] = useState<number | null>(null);
+  const [accionesMenuId, setAccionesMenuId] = useState<number | null>(null);
   const [casheaUpdating, setCasheaUpdating] = useState<number | null>(null);
   const [filtroFechaDesde, setFiltroFechaDesde] = useState(() => today());
   const [filtroFechaHasta, setFiltroFechaHasta] = useState(() => today());
@@ -2960,20 +2961,18 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   )}
                   {col("totalVenta") && (
                     <td className="px-4 py-2 text-right whitespace-nowrap">
-                      {fmtBs(usdToBs(ventaTotalUsd, venta.tasaDelDia))} Bs{" "}
-                      <span className="text-zinc-500">(${ventaTotalUsd.toFixed(2)})</span>
+                      <div>{fmtBs(usdToBs(ventaTotalUsd, venta.tasaDelDia))} Bs</div>
+                      <div className="text-[11px] text-zinc-400">(${ventaTotalUsd.toFixed(2)})</div>
                     </td>
                   )}
                   {col("delivery") && (
                     <td className="px-4 py-2 text-right whitespace-nowrap">
                       {costoDeliveryUsd > 0 ? (
                         <>
-                          {fmtBs(usdToBs(costoDeliveryUsd, venta.tasaDelDia))} Bs{" "}
-                          <span className="text-zinc-500">(${costoDeliveryUsd.toFixed(2)})</span>
+                          <div>{fmtBs(usdToBs(costoDeliveryUsd, venta.tasaDelDia))} Bs</div>
+                          <div className="text-[11px] text-zinc-400">(${costoDeliveryUsd.toFixed(2)})</div>
                         </>
-                      ) : (
-                        "-"
-                      )}
+                      ) : "-"}
                     </td>
                   )}
                   {col("totalPagado") && (
@@ -2983,8 +2982,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                           {venta.pagos.map((p) => METODO_PAGO_LABELS[p.metodo]).join(" + ")}
                         </div>
                       )}
-                      {fmtBs(totalPagadoEnBs)} Bs{" "}
-                      <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
+                      <div>{fmtBs(totalPagadoEnBs)} Bs</div>
+                      <div className="text-[11px] text-zinc-400">(${totalPagadoEnUsd.toFixed(2)})</div>
                     </td>
                   )}
                   {col("entrega") && (
@@ -3130,19 +3129,32 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   </td>
                   )}
                   <td className="px-4 py-2 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="relative flex justify-end">
                       <button
-                        onClick={() => { startEdit(venta); setVista("ventas"); }}
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100"
+                        onClick={() => setAccionesMenuId((prev) => prev === venta.id ? null : venta.id)}
+                        className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium hover:bg-zinc-100"
                       >
-                        Editar
+                        Modificar ▾
                       </button>
-                      <button
-                        onClick={() => handleDelete(venta.id)}
-                        className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                      >
-                        Eliminar
-                      </button>
+                      {accionesMenuId === venta.id && (
+                        <div
+                          className="absolute right-0 top-full z-50 mt-1 rounded-lg border shadow-lg overflow-hidden"
+                          style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)", minWidth: 110 }}
+                        >
+                          <button
+                            onClick={() => { startEdit(venta); setVista("ventas"); setAccionesMenuId(null); }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-zinc-100"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            onClick={() => { handleDelete(venta.id); setAccionesMenuId(null); }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            🗑️ Eliminar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
