@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { SESSION_COOKIE, getUsuarioFromSession } from "@/lib/auth";
 import type { PermisosUsuario, Rol } from "@/lib/types";
 import HomeScrollHandler from "@/components/HomeScrollHandler";
+import HomeDashboard from "@/components/HomeDashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +151,9 @@ export default async function Home() {
           </p>
         </div>
       </div>
+
+      {/* Dashboard metrics */}
+      <HomeDashboard />
 
       {/* Tile groups */}
       {GRUPOS.map((grupo) => {
