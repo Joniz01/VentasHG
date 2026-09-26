@@ -46,12 +46,19 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       );
       if (cuentaCobrada) {
         const fp = fechaPago || hoyCaracas();
-        // Métodos USD: guardar en USD. Métodos Bs: guardar en Bs (total_usd * tasa)
         const METODOS_USD = ["EFECTIVO_USD", "ZELLE", "CXC_DIRECTA"];
-        const tasa = Number(row.tasa_dia ?? 0);
-        const monto = METODOS_USD.includes(metodo)
-          ? row.total_usd
-          : tasa > 0 ? Number(row.total_usd) * tasa : row.total_usd;
+        let tasa = Number(row.tasa_dia ?? 0);
+        // Si la venta no tiene tasa registrada, usar la más reciente de tasas_bcv
+        if (tasa <= 0) {
+          const tasaRes = await client.query(
+            `SELECT valor FROM tasas_bcv ORDER BY fecha DESC LIMIT 1`
+          );
+          tasa = tasaRes.rows[0] ? Number(tasaRes.rows[0].valor) : 0;
+        }
+        // Métodos USD: guardar en USD. Métodos Bs: guardar en Bs (total_usd * tasa)
+        const monto = METODOS_USD.includes(metodo) || tasa <= 0
+          ? Number(row.total_usd)
+          : Number(row.total_usd) * tasa;
         await client.query(
           `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
            VALUES ($1, $2, $3, $4)`,
