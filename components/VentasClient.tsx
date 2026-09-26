@@ -1104,33 +1104,35 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ERP anchor tab bar */}
-      <div
-        className="flex gap-0 print:hidden border-b"
-        style={{ borderColor: "var(--erp-border)" }}
-      >
-        {(["ventas", "historial", "conciliacion"] as const)
-          .map((v) => {
-          const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", conciliacion: "Conciliación" };
-          const active = vista === v;
-          return (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setVista(v)}
-              className="px-4 py-2.5 text-[12.5px] font-medium transition-colors whitespace-nowrap"
-              style={{
-                color: active ? "var(--erp-primary)" : "var(--erp-text-2)",
-                borderBottom: active ? "2px solid var(--erp-primary)" : "2px solid transparent",
-                marginBottom: "-1px",
-                background: "transparent",
-              }}
-            >
-              {labels[v]}
-            </button>
-          );
-        })}
-      </div>
+      {/* ERP anchor tab bar — solo en las vistas de Punto de Venta */}
+      {!["cortesias", "promociones", "notas"].includes(vista) && (
+        <div
+          className="flex gap-0 print:hidden border-b"
+          style={{ borderColor: "var(--erp-border)" }}
+        >
+          {(["ventas", "historial", "conciliacion"] as const)
+            .map((v) => {
+            const labels: Record<string, string> = { ventas: "Registro de Ventas", historial: "Historial", conciliacion: "Conciliación" };
+            const active = vista === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVista(v)}
+                className="px-4 py-2.5 text-[12.5px] font-medium transition-colors whitespace-nowrap"
+                style={{
+                  color: active ? "var(--erp-primary)" : "var(--erp-text-2)",
+                  borderBottom: active ? "2px solid var(--erp-primary)" : "2px solid transparent",
+                  marginBottom: "-1px",
+                  background: "transparent",
+                }}
+              >
+                {labels[v]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {vista === "notas" && <NotasEntregaTab productos={productos} />}
 
