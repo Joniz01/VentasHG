@@ -150,8 +150,16 @@ type Props = {
 export default function VentasClient({ rol = null, puedeDescuento = false, puedePromociones = false }: Props) {
   const searchParams = useSearchParams();
   const vistaParam = searchParams.get("vista");
-  const vistaInicial = (["ventas", "cortesias", "promociones", "historial", "notas", "conciliacion"].includes(vistaParam ?? "") ? vistaParam : "ventas") as "ventas" | "cortesias" | "promociones" | "historial" | "notas" | "conciliacion";
-  const [vista, setVista] = useState<"ventas" | "cortesias" | "promociones" | "historial" | "notas" | "conciliacion">(vistaInicial);
+  const VISTAS_VALIDAS = ["ventas", "cortesias", "promociones", "historial", "notas", "conciliacion"] as const;
+  type Vista = typeof VISTAS_VALIDAS[number];
+  const vistaInicial = (VISTAS_VALIDAS.includes(vistaParam as Vista) ? vistaParam : "ventas") as Vista;
+  const [vista, setVista] = useState<Vista>(vistaInicial);
+  // Sincronizar vista cuando el usuario navega a ?vista=X desde el sidebar
+  useEffect(() => {
+    const v = (VISTAS_VALIDAS.includes(vistaParam as Vista) ? vistaParam : "ventas") as Vista;
+    setVista(v);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vistaParam]);
   const [paginaVentas, setPaginaVentas] = useState(1);
   const [porPaginaVentas, setPorPaginaVentas] = useState(25);
   const [clientesConfig, setClientesConfig] = useState<ClientesConfig>(CLIENTES_CONFIG_DEFAULT);
