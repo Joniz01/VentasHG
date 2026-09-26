@@ -2962,7 +2962,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                     );
                   })()}
                   {col("productos") && (
-                    <td className="px-4 py-2 text-zinc-600 whitespace-nowrap">
+                    <td className="px-4 py-2 text-zinc-600" style={{ maxWidth: "30ch", overflowWrap: "break-word" }}>
                       {venta.items.map((i, idx) => (
                         <div key={idx}>
                           {i.nombreProducto}{i.extraNombre ? ` (${i.extraNombre})` : ""} x{i.cantidad}
