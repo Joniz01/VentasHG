@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import AlarmasConfigClient from "@/components/AlarmasConfigClient";
-import ConfiguracionClient from "@/components/ConfiguracionClient";
+import PdVConfigClient from "@/components/PdVConfigClient";
 import MotorizadosConfigClient from "@/components/MotorizadosConfigClient";
 import UsuariosConfigClient from "@/components/UsuariosConfigClient";
 import AdminAccesoClient from "@/components/AdminAccesoClient";
@@ -22,7 +22,7 @@ type Props = {
 const TABS = [
   { key: "usuarios",      label: "Usuarios",           icon: "👥", desc: "Gestiona usuarios y permisos" },
   { key: "alarmas",       label: "Alarmas",             icon: "🔔", desc: "Sonido y comportamiento de alertas" },
-  { key: "configuracion", label: "Configuración",       icon: "⚙️",  desc: "Parámetros generales del sistema" },
+  { key: "punto-venta",   label: "Punto de Venta",      icon: "🛒",  desc: "Modo vista y pasos del proceso de venta" },
   { key: "inventario",    label: "Inventario Inicial",  icon: "📦", desc: "Reiniciar inventario de productos" },
   { key: "acceso",        label: "Acceso al Sistema",   icon: "🔐", desc: "Contraseña y sesión" },
   { key: "llm",           label: "IA / LLM",            icon: "🤖", desc: "API keys de Gemini y Groq" },
@@ -141,12 +141,12 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario, esAd
         </div>
       )}
 
-      {tab === "configuracion" && (
+      {tab === "punto-venta" && (
         <div>
           <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
-            Ajusta los parámetros generales del sistema.
+            Configura el comportamiento por defecto del Punto de Venta para todos los usuarios.
           </p>
-          <ConfiguracionClient />
+          <PdVConfigClient />
         </div>
       )}
 

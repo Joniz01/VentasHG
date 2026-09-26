@@ -8,6 +8,7 @@ import CuentasPorCobrarAlerta from "@/components/CuentasPorCobrarAlerta";
 import CasheaAlerta from "@/components/CasheaAlerta";
 import ConteoAlerta from "@/components/ConteoAlerta";
 import ConteoProgramacionAlerta from "@/components/ConteoProgramacionAlerta";
+import OutstockAlerta from "@/components/OutstockAlerta";
 
 type Props = { rol: Rol | null; permisos: PermisosUsuario | null };
 
@@ -20,7 +21,7 @@ type NavItem = {
   badge?: "cxc" | "cashea" | "conteo" | "programacion";
 };
 
-type NavGroup = { label: string; items: NavItem[] };
+type NavGroup = { label: string; items: NavItem[]; groupBadge?: "outstock" };
 
 const GRUPOS: NavGroup[] = [
   {
@@ -56,21 +57,42 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Inventario",
+    label: "Productos & Catálogo",
     items: [
-      { href: "/productos",          icon: "📦", label: "Productos",                permiso: "productos" },
-      { href: "/inventario",         icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
-      { href: "/inventarios",        icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
-      { href: "/inventario/conteos",       icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
-      { href: "/conteo",                   icon: "📱", label: "Conteo Físico",            permiso: "conteo" },
-      { href: "/inventario/programacion",  icon: "🗓️", label: "Programación de Conteos",  permiso: "programarConteo", badge: "programacion" },
+      { href: "/productos", icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
+      { href: "/insumos",   icon: "🧱", label: "Insumos / Materia Prima", permiso: "productos" },
     ],
   },
   {
-    label: "Compras & Producción",
+    label: "Inventario",
+    groupBadge: "outstock",
     items: [
-      { href: "/compras", icon: "🛍️", label: "Órdenes de Compra",   permiso: "compras" },
-      { href: "/mrp",     icon: "⚙️",  label: "MRP · Planificación" },
+      { href: "/inventario",              icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
+      { href: "/inventario/ajustes",      icon: "⚖️",  label: "Ajustes de Inventario",   permiso: "productos" },
+      { href: "/inventario-disponible",   icon: "✅", label: "Inventario Disponible",    permiso: "productos" },
+      { href: "/inventario/lotes",        icon: "🏷️", label: "Lotes & Vencimientos",     permiso: "productos" },
+      { href: "/inventarios",             icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
+      { href: "/inventario/valorizacion", icon: "💰", label: "Valorización",             permiso: "reportes" },
+      { href: "/inventario/reorden",      icon: "🔁", label: "Reglas de Reorden",        permiso: "productos" },
+      { href: "/inventario/conteos",      icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
+      { href: "/conteo",                  icon: "📱", label: "Conteo Físico",            permiso: "conteo" },
+      { href: "/inventario/programacion", icon: "🗓️", label: "Programación de Conteos",  permiso: "programarConteo", badge: "programacion" },
+    ],
+  },
+  {
+    label: "Producción & MRP",
+    items: [
+      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción",  permiso: "productos" },
+      { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción",  permiso: "productos" },
+      { href: "/mrp",           icon: "⚙️",  label: "MRP · Planificación" },
+    ],
+  },
+  {
+    label: "Compras",
+    items: [
+      { href: "/compras/facturas",     icon: "📄", label: "Facturas de Compra",      permiso: "compras" },
+      { href: "/compras/recepciones",  icon: "🚚", label: "Recepción de Mercancía",  permiso: "compras" },
+      { href: "/compras/proveedores",  icon: "🏢", label: "Proveedores",             permiso: "compras" },
     ],
   },
   {
@@ -83,16 +105,17 @@ const GRUPOS: NavGroup[] = [
   {
     label: "Finanzas",
     items: [
+      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
       { href: "/tesoreria",           icon: "🏦", label: "Planif. de Pagos",    permiso: "gastos" },
       { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar" },
-      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
       { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero" },
     ],
   },
   {
     label: "Admin & Configuración",
     items: [
-      { href: "/admin", icon: "🔧", label: "Configuración", rolReq: "ADMIN" },
+      { href: "/admin",          icon: "🔧", label: "Configuración",     rolReq: "ADMIN" },
+      { href: "/configuracion",  icon: "📐", label: "Maestros del Sistema", rolReq: "ADMIN" },
     ],
   },
 ];
@@ -108,40 +131,62 @@ function isVisible(item: NavItem, rol: Rol | null, permisos: PermisosUsuario | n
   return !!permisos?.[item.permiso];
 }
 
-function GroupLabel({ label, collapsed }: { label: string; collapsed: boolean }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const slug = labelToSlug(label);
-
-  const handleClick = useCallback(() => {
-    if (pathname === "/") {
-      const el = document.getElementById(`section-${slug}`);
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      router.push(`/?section=${slug}`);
-    }
-  }, [pathname, router, slug]);
-
+function GroupLabel({
+  label, collapsed, groupCollapsed, onToggleCollapse, groupBadge,
+}: {
+  label: string;
+  collapsed: boolean;
+  groupCollapsed: boolean;
+  onToggleCollapse: () => void;
+  groupBadge?: "outstock";
+}) {
   if (collapsed) return null;
 
   return (
     <button
       type="button"
-      onClick={handleClick}
-      className="w-full text-left px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider transition-colors hover:opacity-70"
+      onClick={onToggleCollapse}
+      className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider transition-colors hover:opacity-80"
       style={{ color: "var(--erp-text-3)", background: "transparent", border: "none", cursor: "pointer" }}
     >
-      {label}
+      <span className="flex-1 text-left">{label}</span>
+      {groupBadge === "outstock" && !groupCollapsed && <OutstockAlerta collapsed={false} />}
+      <span style={{ fontSize: 10, opacity: .7, transform: groupCollapsed ? "rotate(-90deg)" : "none", display: "inline-block", transition: "transform .15s" }}>
+        ▾
+      </span>
     </button>
   );
 }
+
+const MAX_VISIBLE = 3;
 
 export default function SidebarNav({ rol, permisos }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroupCollapse = useCallback((label: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      try {
+        localStorage.setItem("sidebar-groups-collapsed", JSON.stringify([...next]));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
   const puedeVerReportes = rol === "ADMIN" || !!permisos?.reportes;
+
+  const toggleGroup = useCallback((label: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
+  }, []);
 
   // Restore collapsed state from localStorage
   useEffect(() => {
@@ -151,6 +196,8 @@ export default function SidebarNav({ rol, permisos }: Props) {
         setCollapsed(true);
         document.documentElement.style.setProperty("--sidebar-w", "56px");
       }
+      const savedGroups = localStorage.getItem("sidebar-groups-collapsed");
+      if (savedGroups) setCollapsedGroups(new Set(JSON.parse(savedGroups) as string[]));
     } catch { /* ignore */ }
   }, []);
 
@@ -194,10 +241,22 @@ export default function SidebarNav({ rol, permisos }: Props) {
         {GRUPOS.map((grupo) => {
           const visibles = grupo.items.filter((item) => isVisible(item, rol, permisos));
           if (!visibles.length) return null;
+          const isExpanded = expandedGroups.has(grupo.label);
+          const isGroupCollapsed = !collapsed && collapsedGroups.has(grupo.label);
+          const shown = !collapsed && visibles.length > MAX_VISIBLE && !isExpanded
+            ? visibles.slice(0, MAX_VISIBLE)
+            : visibles;
+          const hidden = visibles.length - MAX_VISIBLE;
           return (
             <div key={grupo.label} className="mb-1">
-              <GroupLabel label={grupo.label} collapsed={collapsed} />
-              {visibles.map((item) => {
+              <GroupLabel
+                label={grupo.label}
+                collapsed={collapsed}
+                groupCollapsed={isGroupCollapsed}
+                onToggleCollapse={() => toggleGroupCollapse(grupo.label)}
+                groupBadge={grupo.groupBadge}
+              />
+              {isGroupCollapsed ? null : shown.map((item) => {
                 const [itemPath, itemQuery] = item.href.split("?");
                 const itemParams = itemQuery ? new URLSearchParams(itemQuery) : null;
                 const active = itemParams
@@ -230,6 +289,16 @@ export default function SidebarNav({ rol, permisos }: Props) {
                   </Link>
                 );
               })}
+              {!collapsed && !isGroupCollapsed && visibles.length > MAX_VISIBLE && (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(grupo.label)}
+                  className="w-full text-left py-[5px] text-[11px] transition-colors hover:opacity-80"
+                  style={{ paddingLeft: 12, color: "var(--erp-primary)", background: "transparent", border: "none", cursor: "pointer" }}
+                >
+                  {isExpanded ? "‹ Ver menos" : `+ Ver más (${hidden})`}
+                </button>
+              )}
             </div>
           );
         })}
@@ -240,7 +309,7 @@ export default function SidebarNav({ rol, permisos }: Props) {
           className="shrink-0 border-t px-3 py-2.5 text-[10px]"
           style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-3)" }}
         >
-          VentasHG v3.0 · © 2026 HG
+          VentasHG v3.1.0 · © 2026 HG
         </div>
       )}
     </>

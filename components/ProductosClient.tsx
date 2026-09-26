@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, useRef, FormEvent } from "react";
 import Paginador from "@/components/Paginador";
-import type { Categoria, EmpaqueProducto, GrupoProducto, Producto, TipoProducto } from "@/lib/types";
+import type { Categoria, EmpaqueProducto, Familia, GrupoProducto, Linea, Producto, TipoProducto, UnidadMedida } from "@/lib/types";
 import { GRUPOS_PRODUCTO, GRUPO_PRODUCTO_LABELS, TIPOS_PRODUCTO, TIPO_PRODUCTO_LABELS } from "@/lib/types";
 
 type EmpaqueFormRow = {
@@ -23,13 +23,18 @@ const EMPTY_FORM = {
   costo: "",
   precioVenta: "",
   categoriaId: "",
+  lineaId: "",
   tipoProducto: "NORMAL" as TipoProducto,
   variadaRaciones: "3",
   stockMinimo: "0",
   unidadMedida: "unidad",
+  unidadMedidaId: "",
   alertaOutstockDesactivada: false,
   alertaOutstockMotivo: "",
   grupo: "PARA_LA_VENTA" as GrupoProducto,
+  aprovisionamiento: "COMPRA" as "COMPRA" | "FABRICACION",
+  subtipoFabricacion: null as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
+  tipoEmpaqueId: "",
 };
 
 type ProductosKpis = {
@@ -42,51 +47,81 @@ type ProductosKpis = {
   margenPromedio: number;
 };
 
-export default function ProductosClient() {
+export default function ProductosClient({ grupoFiltro }: { grupoFiltro?: GrupoProducto }) {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [familias, setFamilias] = useState<Familia[]>([]);
+  const [lineas, setLineas] = useState<Linea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({ ...EMPTY_FORM, grupo: grupoFiltro ?? "PARA_LA_VENTA" as GrupoProducto });
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
   const [nuevaCategoriaOrden, setNuevaCategoriaOrden] = useState("99");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [expandedPanel, setExpandedPanel] = useState<"extras" | "componentes" | null>(null);
-  const [orden, setOrden] = useState<"nombre" | "categoria">("categoria");
+  const [expandedPanel, setExpandedPanel] = useState<"editar" | null>(null);
+  const [orden] = useState<"nombre" | "categoria">("categoria");
   const [searchNombre, setSearchNombre] = useState("");
   const [filterCategoriaId, setFilterCategoriaId] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
-  const [showCategoriaForm, setShowCategoriaForm] = useState(false);
-  const [catStandaloneNombre, setCatStandaloneNombre] = useState("");
-  const [catStandaloneOrden, setCatStandaloneOrden] = useState("99");
-  const [catStandaloneSaving, setCatStandaloneSaving] = useState(false);
-  const [catStandaloneError, setCatStandaloneError] = useState<string | null>(null);
+  const [filterLineaId, setFilterLineaId] = useState<string>("");
+  const [lineasFiltro, setLineasFiltro] = useState<Linea[]>([]);
+  const [tiposEmpaque, setTiposEmpaque] = useState<{ id: number; nombre: string; activo: boolean }[]>([]);
+  const [filterTipoEmpaqueId, setFilterTipoEmpaqueId] = useState<string>("");
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(15);
   const [kpis, setKpis] = useState<ProductosKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [formEmpaques, setFormEmpaques] = useState<EmpaqueFormRow[]>([]);
+  const [tasaHoy, setTasaHoy] = useState<number | null>(null);
+  const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
+  const [tabVista, setTabVista] = useState<"activos" | "desactivados">("activos");
+  const [imagenEdicion, setImagenEdicion] = useState<string | null>(null);
+  const [imagenSaving, setImagenSaving] = useState(false);
+  const [fichaMode, setFichaMode] = useState(false);
+
+  // Proveedores del insumo (historial de compras)
+  type ProveedorHistorial = {
+    proveedorId: number; proveedorNombre: string; proveedorRif: string;
+    proveedorTelefono: string; vecesComprado: number; ultimaCompra: string | null;
+    ultimoPrecioBs: number | null;
+  };
+  const [provRelaciones, setProvRelaciones] = useState<ProveedorHistorial[]>([]);
+  const formRef = useRef<HTMLDivElement>(null);
 
   const productoEnEdicion = editingId ? productos.find((p) => p.id === editingId) ?? null : null;
 
   const productosOrdenados = useMemo(() => {
     let list = [...productos];
+    if (grupoFiltro) {
+      list = list.filter((p) => (p.grupo ?? "PARA_LA_VENTA") === grupoFiltro);
+    }
+    list = list.filter((p) => tabVista === "activos" ? p.activo : !p.activo);
     if (searchNombre.trim()) {
       const q = searchNombre.trim().toLowerCase();
-      list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q));
+      list = list.filter((p) => p.nombre.toLowerCase().includes(q) || (p.categoriaNombre ?? "").toLowerCase().includes(q) || (p.lineaNombre ?? "").toLowerCase().includes(q));
     }
     if (filterCategoriaId === "__sin__") {
       list = list.filter((p) => !p.categoriaId);
     } else if (filterCategoriaId) {
       list = list.filter((p) => String(p.categoriaId) === filterCategoriaId);
     }
-    if (orden === "nombre") {
+    if (filterLineaId === "__sin__") {
+      list = list.filter((p) => !p.lineaId);
+    } else if (filterLineaId) {
+      list = list.filter((p) => String(p.lineaId) === filterLineaId);
+    }
+    if (filterTipoEmpaqueId === "__sin__") {
+      list = list.filter((p) => !p.tipoEmpaqueId);
+    } else if (filterTipoEmpaqueId) {
+      list = list.filter((p) => String(p.tipoEmpaqueId) === filterTipoEmpaqueId);
+    }
+    if (searchNombre.trim() || orden === "nombre") {
       list.sort((a, b) => a.nombre.localeCompare(b.nombre));
     }
     return list;
-  }, [productos, orden, searchNombre, filterCategoriaId]);
+  }, [productos, orden, searchNombre, filterCategoriaId, filterLineaId, filterTipoEmpaqueId, tabVista]);
 
   async function loadProductos() {
     try {
@@ -102,41 +137,32 @@ export default function ProductosClient() {
 
   async function loadCategorias() {
     try {
-      const res = await fetch("/api/categorias");
+      const url = grupoFiltro === "MATERIA_PRIMA"
+        ? "/api/categorias?grupo=MATERIA_PRIMA"
+        : "/api/categorias";
+      const res = await fetch(url);
       const data = await res.json();
       setCategorias(data);
+      setFamilias(data);
     } catch {
       setError("No se pudieron cargar las categorías");
     }
   }
 
-  async function handleCrearCategoriaStandalone() {
-    if (!catStandaloneNombre.trim()) return;
-    setCatStandaloneSaving(true);
-    setCatStandaloneError(null);
+  async function loadLineas(familiaId?: number) {
     try {
-      const res = await fetch("/api/categorias", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: catStandaloneNombre.trim(), orden: Number(catStandaloneOrden) || 99 }),
-      });
+      const url = familiaId ? `/api/lineas?familiaId=${familiaId}` : "/api/lineas";
+      const res = await fetch(url);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al crear la categoría");
-      await loadCategorias();
-      setCatStandaloneNombre("");
-      setCatStandaloneOrden("99");
-      setShowCategoriaForm(false);
-    } catch (err) {
-      setCatStandaloneError(err instanceof Error ? err.message : "Error al crear la categoría");
-    } finally {
-      setCatStandaloneSaving(false);
-    }
+      setLineas(data);
+    } catch { /* ignore */ }
   }
 
   async function loadKpis() {
     try {
       setKpisLoading(true);
-      const res = await fetch("/api/productos/kpis");
+      const url = grupoFiltro ? `/api/productos/kpis?grupo=${grupoFiltro}` : "/api/productos/kpis";
+      const res = await fetch(url);
       const data = await res.json();
       setKpis(data);
     } catch {
@@ -146,11 +172,31 @@ export default function ProductosClient() {
     }
   }
 
+  async function loadUnidadesMedida() {
+    try {
+      const res = await fetch("/api/unidades-medida");
+      if (res.ok) setUnidadesMedida(await res.json());
+    } catch { /* ignore */ }
+  }
+
   useEffect(() => {
     loadProductos();
     loadCategorias();
+    loadLineas();
+    loadUnidadesMedida();
     loadKpis();
+    fetch("/api/tasa-bcv").then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.tasa) setTasaHoy(Number(d.tasa));
+    }).catch(() => {});
+    fetch("/api/tipos-empaque").then(r => r.ok ? r.json() : []).then(setTiposEmpaque).catch(() => {});
   }, []);
+
+  async function loadProvRelaciones(productoId: number) {
+    try {
+      const r = await fetch(`/api/productos/${productoId}/proveedores`);
+      if (r.ok) { const d = await r.json(); setProvRelaciones(d.items ?? []); }
+    } catch { /* ignore */ }
+  }
 
   function startEdit(producto: Producto) {
     setEditingId(producto.id);
@@ -160,32 +206,58 @@ export default function ProductosClient() {
       costo: String(producto.costo),
       precioVenta: String(producto.precioVenta),
       categoriaId: producto.categoriaId ? String(producto.categoriaId) : "",
+      lineaId: producto.lineaId ? String(producto.lineaId) : "",
       tipoProducto: producto.tipoProducto,
       variadaRaciones: String(producto.variadaRaciones || 3),
       stockMinimo: String(producto.stockMinimo ?? 0),
       unidadMedida: producto.unidadMedida ?? "unidad",
+      unidadMedidaId: producto.unidadMedidaId ? String(producto.unidadMedidaId) : "",
       alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
       alertaOutstockMotivo: producto.alertaOutstockMotivo ?? "",
       grupo: producto.grupo ?? "PARA_LA_VENTA",
+      aprovisionamiento: (producto.aprovisionamiento ?? "COMPRA") as "COMPRA" | "FABRICACION",
+      subtipoFabricacion: (producto.subtipoFabricacion ?? null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null,
+      tipoEmpaqueId: producto.tipoEmpaqueId ? String(producto.tipoEmpaqueId) : "",
     });
     setNuevaCategoriaNombre("");
-    setFormEmpaques((producto.empaques ?? []).map((e: EmpaqueProducto) => ({
-      id: e.id,
-      empaqueId: String(e.empaqueId),
-      rendimiento: String(e.rendimiento),
-      prioridad: e.prioridad,
-    })));
-    setShowForm(true);
+    setFormEmpaques([]);
+    setImagenEdicion(null);
+    setProvRelaciones([]);
+    // Carga lazy: imagen + componentes + empaques + extras completos
+    fetch(`/api/productos/${producto.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        setImagenEdicion(d.imagenUrl ?? null);
+        setFormEmpaques((d.empaques ?? []).map((e: EmpaqueProducto) => ({
+          id: e.id, empaqueId: String(e.empaqueId), rendimiento: String(e.rendimiento), prioridad: e.prioridad,
+        })));
+        setProductos(prev => prev.map(p => p.id === producto.id
+          ? { ...p, imagenUrl: d.imagenUrl ?? null, extras: d.extras ?? [], componentes: d.componentes ?? [], empaques: d.empaques ?? [] }
+          : p
+        ));
+      })
+      .catch(() => {});
+    loadProvRelaciones(producto.id);
+    setExpandedId(producto.id);
+    setExpandedPanel("editar");
+    setFichaMode(true);
+    setShowForm(false);
   }
 
   function cancelEdit() {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, grupo: grupoFiltro ?? "PARA_LA_VENTA" });
     setFormEmpaques([]);
+    setProvRelaciones([]);
     setNuevaCategoriaNombre("");
     setNuevaCategoriaOrden("99");
-    setShowForm(false);
+    setExpandedId(null);
+    setExpandedPanel(null);
+    setFichaMode(false);
+    setImagenEdicion(null);
   }
+
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -207,7 +279,11 @@ export default function ProductosClient() {
         const catRes = await fetch("/api/categorias", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nombre: nuevaCategoriaNombre.trim(), orden: Number(nuevaCategoriaOrden) || 99 }),
+          body: JSON.stringify({
+            nombre: nuevaCategoriaNombre.trim(),
+            orden: Number(nuevaCategoriaOrden) || 99,
+            grupo: grupoFiltro === "MATERIA_PRIMA" ? "MATERIA_PRIMA" : "PARA_LA_VENTA",
+          }),
         });
         if (!catRes.ok) {
           const data = await catRes.json();
@@ -225,13 +301,18 @@ export default function ProductosClient() {
         precioVenta: Number(form.precioVenta) || 0,
         activo: true,
         categoriaId: categoriaId || null,
+        lineaId: form.lineaId || null,
         tipoProducto: form.tipoProducto,
         variadaRaciones: form.tipoProducto === "VARIADA" ? Number(form.variadaRaciones) || 0 : 0,
         stockMinimo: Number(form.stockMinimo) || 0,
         unidadMedida: form.unidadMedida.trim() || "unidad",
+        unidadMedidaId: form.unidadMedidaId ? Number(form.unidadMedidaId) : null,
         alertaOutstockDesactivada: form.alertaOutstockDesactivada,
         alertaOutstockMotivo: form.alertaOutstockDesactivada ? (form.alertaOutstockMotivo.trim() || null) : null,
         grupo: form.grupo,
+        aprovisionamiento: form.aprovisionamiento,
+        subtipoFabricacion: form.aprovisionamiento === "FABRICACION" ? form.subtipoFabricacion : null,
+        tipoEmpaqueId: form.tipoEmpaqueId ? Number(form.tipoEmpaqueId) : null,
       };
 
       const res = await fetch(
@@ -272,6 +353,12 @@ export default function ProductosClient() {
         throw new Error(empaqueErrors.join(" | "));
       }
 
+      // Guardar imagen si cambió
+      const imgActual = productoEnEdicion?.imagenUrl ?? null;
+      if (imagenEdicion !== imgActual) {
+        await guardarImagen(productoId, imagenEdicion);
+      }
+
       await loadProductos();
       await loadKpis();
 
@@ -304,9 +391,112 @@ export default function ProductosClient() {
     }
   }
 
+  async function handleToggleActivo(producto: Producto) {
+    const nuevoEstado = !producto.activo;
+    const accion = nuevoEstado ? "reactivar" : "desactivar";
+    if (!confirm(`¿${nuevoEstado ? "Reactivar" : "Desactivar"} "${producto.nombre}"?`)) return;
+    try {
+      const payload = {
+        nombre: producto.nombre,
+        descripcion: producto.descripcion ?? null,
+        costo: producto.costo,
+        precioVenta: producto.precioVenta,
+        activo: nuevoEstado,
+        categoriaId: producto.categoriaId ?? null,
+        lineaId: producto.lineaId ?? null,
+        tipoProducto: producto.tipoProducto,
+        variadaRaciones: producto.variadaRaciones ?? 0,
+        stockMinimo: producto.stockMinimo ?? 0,
+        unidadMedida: producto.unidadMedida ?? "unidad",
+        unidadMedidaId: producto.unidadMedidaId ?? null,
+        alertaOutstockDesactivada: producto.alertaOutstockDesactivada ?? false,
+        alertaOutstockMotivo: producto.alertaOutstockMotivo ?? null,
+        grupo: producto.grupo ?? "PARA_LA_VENTA",
+        aprovisionamiento: producto.aprovisionamiento ?? "COMPRA",
+        subtipoFabricacion: producto.subtipoFabricacion ?? null,
+      };
+      const res = await fetch(`/api/productos/${producto.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? `Error al ${accion}`); }
+      setExpandedId(null);
+      setEditingId(null);
+      await loadProductos();
+      await loadKpis();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Error al ${accion} producto`);
+    }
+  }
+
+
+
+  function comprimirImagen(file: File, maxKB = 200): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 900;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        // try reducing quality until under maxKB
+        let quality = 0.82;
+        let dataUrl = canvas.toDataURL("image/jpeg", quality);
+        while (dataUrl.length > maxKB * 1024 * 1.37 && quality > 0.3) {
+          quality -= 0.08;
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+        }
+        resolve(dataUrl);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Error al leer imagen")); };
+      img.src = url;
+    });
+  }
+
+  async function procesarArchivoImagen(file: File) {
+    if (!file.type.startsWith("image/")) { setError("Solo se admiten archivos de imagen"); return; }
+    try {
+      const dataUrl = await comprimirImagen(file);
+      setImagenEdicion(dataUrl);
+      if (editingId) await guardarImagen(editingId, dataUrl);
+    } catch { setError("Error al procesar la imagen"); }
+  }
+
+  async function handleImagenChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await procesarArchivoImagen(file);
+    e.target.value = "";
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) procesarArchivoImagen(file);
+  }
+
+  async function guardarImagen(productoId: number, dataUrl: string | null) {
+    setImagenSaving(true);
+    try {
+      const res = await fetch(`/api/productos/${productoId}/imagen`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagenUrl: dataUrl }),
+      });
+      if (!res.ok) throw new Error("Error al guardar imagen");
+      setProductos((prev) => prev.map((p) => p.id === productoId ? { ...p, imagenUrl: dataUrl } : p));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al guardar imagen");
+    } finally { setImagenSaving(false); }
+  }
+
   const kpiCards = [
     {
-      label: "Productos Activos",
+      label: grupoFiltro === "MATERIA_PRIMA" ? "Insumos Registrados" : "Productos Activos",
       value: kpisLoading ? "…" : String(kpis?.totalActivos ?? 0),
       sub: "en catálogo",
       color: "var(--erp-text)",
@@ -318,12 +508,12 @@ export default function ProductosClient() {
       color: "#059669",
     },
     {
-      label: "Sin Stock",
+      label: grupoFiltro === "MATERIA_PRIMA" ? "Insumos Sin Stock" : "Sin Stock",
       value: kpisLoading ? "…" : String(kpis?.sinStock ?? 0),
-      sub: "productos en 0 unidades",
+      sub: "en 0 unidades",
       color: (kpis?.sinStock ?? 0) > 0 ? "#dc2626" : "var(--erp-text)",
     },
-    {
+    ...(grupoFiltro === "MATERIA_PRIMA" ? [] : [{
       label: "Unidades Vendidas Hoy",
       value: kpisLoading ? "…" : String(kpis?.unidadesHoy ?? 0),
       sub: "total unidades del día",
@@ -340,19 +530,22 @@ export default function ProductosClient() {
       value: kpisLoading ? "…" : `${(kpis?.margenPromedio ?? 0).toFixed(1)}%`,
       sub: "sobre precio de venta",
       color: "#d97706",
-    },
+    }]),
   ];
 
   return (
     <div className="flex flex-col gap-4" style={{ color: "var(--erp-text)" }}>
       {/* Header: título + botón Crear */}
       <div className="prod-header">
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Productos</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>
+          {grupoFiltro === "MATERIA_PRIMA" ? "Insumos / Materia Prima" : grupoFiltro === "PARA_LA_VENTA" ? "Productos de Venta" : "Productos"}
+        </h2>
         <div className="prod-header-btns">
           <button
             type="button"
             onClick={() => {
-              if (showForm && editingId) { cancelEdit(); } else { setShowForm((v) => !v); if (editingId) cancelEdit(); }
+              if (editingId) cancelEdit();
+              setShowForm((v) => !v);
             }}
             style={{
               background: showForm ? "var(--erp-primary)" : "var(--erp-surface)",
@@ -365,59 +558,11 @@ export default function ProductosClient() {
               cursor: "pointer",
             }}
           >
-            {editingId ? `✏️ Editando #${editingId}` : showForm ? "✕ Cerrar" : "+ Crear Producto"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCategoriaForm((v) => !v)}
-            style={{
-              background: showCategoriaForm ? "var(--erp-primary)" : "var(--erp-surface)",
-              color: showCategoriaForm ? "#fff" : "var(--erp-text)",
-              border: "1px solid var(--erp-border)",
-              borderRadius: 6,
-              padding: "6px 14px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {showCategoriaForm ? "✕ Cerrar" : "+ Crear Categoría"}
+            {showForm ? "✕ Cerrar" : "+ Crear Producto"}
           </button>
         </div>
       </div>
 
-      {showCategoriaForm && (
-        <div style={{ background: "var(--erp-primary-lt)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-primary)" }}>Nueva categoría</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input
-              style={{ flex: 1, minWidth: 180, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-              value={catStandaloneNombre}
-              onChange={(e) => setCatStandaloneNombre(e.target.value)}
-              placeholder="Nombre de la categoría"
-              autoFocus
-            />
-            <input
-              type="number"
-              min={1}
-              style={{ width: 90, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-              value={catStandaloneOrden}
-              onChange={(e) => setCatStandaloneOrden(e.target.value)}
-              title="Orden (1=primero, 99=al final)"
-              placeholder="Orden"
-            />
-            <button
-              type="button"
-              onClick={handleCrearCategoriaStandalone}
-              disabled={catStandaloneSaving || !catStandaloneNombre.trim()}
-              style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: catStandaloneSaving || !catStandaloneNombre.trim() ? 0.6 : 1 }}
-            >
-              {catStandaloneSaving ? "Guardando..." : "Guardar"}
-            </button>
-          </div>
-          {catStandaloneError && <div style={{ fontSize: 12, color: "#B91C1C" }}>{catStandaloneError}</div>}
-        </div>
-      )}
 
       {/* KPI Cards — se ocultan cuando el formulario está abierto o hay un panel de producto expandido */}
       {!showForm && !expandedId && <div className="prod-kpi-grid">
@@ -447,8 +592,9 @@ export default function ProductosClient() {
       </div>}
 
       {/* Formulario Crear / Editar — colapsable */}
-      {showForm && (
+      {showForm && !editingId && (
         <div
+          ref={formRef}
           style={{
             background: "var(--erp-surface)",
             border: "1px solid var(--erp-border)",
@@ -456,18 +602,6 @@ export default function ProductosClient() {
             padding: 16,
           }}
         >
-          {editingId && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "6px 12px", marginBottom: 12, fontSize: 13, color: "#92400e" }}>
-              <span>✏️ Editando producto #{editingId}</span>
-              <button
-                type="button"
-                onClick={cancelEdit}
-                style={{ marginLeft: "auto", background: "none", border: "1px solid #fcd34d", borderRadius: 4, padding: "2px 8px", fontSize: 12, cursor: "pointer", color: "#92400e" }}
-              >
-                Cancelar
-              </button>
-            </div>
-          )}
           <form
             onSubmit={handleSubmit}
             className="prod-form-grid"
@@ -492,19 +626,23 @@ export default function ProductosClient() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Categoría</label>
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Familia</label>
               <select
                 style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                 value={form.categoriaId}
-                onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
+                onChange={(e) => {
+                  const newFamiliaId = e.target.value;
+                  setForm({ ...form, categoriaId: newFamiliaId, lineaId: "" });
+                  if (newFamiliaId && newFamiliaId !== NUEVA_CATEGORIA) {
+                    loadLineas(Number(newFamiliaId));
+                  }
+                }}
               >
-                <option value="">Sin categoría</option>
-                {categorias.map((categoria) => (
-                  <option key={categoria.id} value={categoria.id}>
-                    {categoria.nombre}
-                  </option>
+                <option value="">Sin familia</option>
+                {familias.map((f) => (
+                  <option key={f.id} value={f.id}>{f.nombre}</option>
                 ))}
-                <option value={NUEVA_CATEGORIA}>+ Nueva categoría...</option>
+                <option value={NUEVA_CATEGORIA}>+ Nueva familia...</option>
               </select>
               {form.categoriaId === NUEVA_CATEGORIA && (
                 <div className="flex gap-2">
@@ -512,7 +650,7 @@ export default function ProductosClient() {
                     style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
                     value={nuevaCategoriaNombre}
                     onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
-                    placeholder="Nombre de la nueva categoría"
+                    placeholder="Nombre de la nueva familia"
                   />
                   <input
                     type="number"
@@ -526,55 +664,105 @@ export default function ProductosClient() {
                 </div>
               )}
             </div>
+            {form.categoriaId && form.categoriaId !== NUEVA_CATEGORIA && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Línea</label>
+                <select
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  value={form.lineaId}
+                  onChange={(e) => setForm({ ...form, lineaId: e.target.value })}
+                >
+                  <option value="">Sin línea</option>
+                  {lineas.filter(l => String(l.familiaId) === form.categoriaId).map((l) => (
+                    <option key={l.id} value={l.id}>{l.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Costo</label>
-              <input
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.costo}
-                onChange={(e) => setForm({ ...form, costo: e.target.value })}
-                placeholder="0.00"
-              />
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>
+                Costo
+                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>USD</span>
+              </label>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
+                <input
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.costo}
+                  onChange={(e) => setForm({ ...form, costo: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              {tasaHoy && Number(form.costo) > 0 && (
+                <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>≈</span>
+                  <strong style={{ color: "var(--erp-text-2)", fontVariantNumeric: "tabular-nums" }}>
+                    Bs {(Number(form.costo) * tasaHoy).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </strong>
+                  <span style={{ color: "var(--erp-text-3)" }}>· tasa {tasaHoy.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Precio de venta</label>
-              <input
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.precioVenta}
-                onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
+            {grupoFiltro !== "MATERIA_PRIMA" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>
+                  Precio de venta
+                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dcfce7", color: "#166534", borderRadius: 99, padding: "1px 7px" }}>USD</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
+                <input
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.precioVenta}
+                  onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
+                  placeholder="0.00"
+                />
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producto</label>
-              <select
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                value={form.tipoProducto}
-                onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}
-              >
-                {TIPOS_PRODUCTO.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {TIPO_PRODUCTO_LABELS[tipo]}
-                  </option>
-                ))}
-              </select>
+              {grupoFiltro === "MATERIA_PRIMA" ? (
+                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>
+                  Normal (con inventario)
+                </div>
+              ) : (
+                <select
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  value={form.tipoProducto}
+                  onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}
+                >
+                  {TIPOS_PRODUCTO.map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {TIPO_PRODUCTO_LABELS[tipo]}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Grupo</label>
-              <select
-                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                value={form.grupo}
-                onChange={(e) => setForm({ ...form, grupo: e.target.value as GrupoProducto })}
-              >
-                {GRUPOS_PRODUCTO.map((g) => (
-                  <option key={g} value={g}>{GRUPO_PRODUCTO_LABELS[g]}</option>
-                ))}
-              </select>
+              {grupoFiltro === "MATERIA_PRIMA" ? (
+                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>
+                  Materia Prima
+                </div>
+              ) : (
+                <select
+                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                  value={form.grupo}
+                  onChange={(e) => setForm({ ...form, grupo: e.target.value as GrupoProducto })}
+                >
+                  {GRUPOS_PRODUCTO.map((g) => (
+                    <option key={g} value={g}>{GRUPO_PRODUCTO_LABELS[g]}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {form.tipoProducto === "VARIADA" && (
@@ -607,12 +795,28 @@ export default function ProductosClient() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Unidad de medida</label>
-                  <input
-                    style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
-                    value={form.unidadMedida}
-                    onChange={(e) => setForm({ ...form, unidadMedida: e.target.value })}
-                    placeholder="unidad, kg, lt…"
-                  />
+                  <select
+                    style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }}
+                    value={form.unidadMedidaId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const um = unidadesMedida.find(u => String(u.id) === id);
+                      setForm({ ...form, unidadMedidaId: id, unidadMedida: um?.abreviatura ?? "unidad" });
+                    }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {["UNIDAD", "MASA", "VOLUMEN", "LONGITUD"].map(tipo => {
+                      const opts = unidadesMedida.filter(u => u.tipo === tipo);
+                      if (!opts.length) return null;
+                      return (
+                        <optgroup key={tipo} label={tipo.charAt(0) + tipo.slice(1).toLowerCase()}>
+                          {opts.map(u => (
+                            <option key={u.id} value={String(u.id)}>{u.nombre} ({u.abreviatura})</option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
                 </div>
               </>
             )}
@@ -645,7 +849,7 @@ export default function ProductosClient() {
               </div>
             )}
             {/* ── Empaque & Rendimiento ── */}
-            {form.tipoProducto === "NORMAL" && (
+            {form.tipoProducto === "NORMAL" && grupoFiltro !== "MATERIA_PRIMA" && (
               <div className="prod-form-full">
                 <div style={{ border: "2px dashed var(--erp-accent)", borderRadius: 8, padding: "12px 14px", background: "color-mix(in srgb, var(--erp-accent) 4%, var(--erp-surface))" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -658,7 +862,7 @@ export default function ProductosClient() {
                   {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
                     const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
                     return (
-                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 80px auto", gap: 8, marginBottom: 8, alignItems: "end", minWidth: 0 }}>
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
                           <select
@@ -723,41 +927,70 @@ export default function ProductosClient() {
               </div>
             )}
 
+            {/* ── Proveedores — historial de compras ── */}
+            {editingId && (
+              <div className="prod-form-full">
+                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>
+                    🏭 Proveedores
+                  </div>
+
+                  {provRelaciones.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--erp-text-3)", padding: "8px 0" }}>
+                      Sin historial de compras registradas para este insumo.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {provRelaciones.map((rel) => (
+                        <div key={rel.proveedorId} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "var(--erp-bg)", borderRadius: 6, border: "1px solid var(--erp-border)" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>{rel.proveedorNombre}</span>
+                              {rel.proveedorRif && (
+                                <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{rel.proveedorRif}</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                              <span>
+                                Compras: <strong style={{ color: "var(--erp-text-2)" }}>{rel.vecesComprado}</strong>
+                              </span>
+                              {rel.ultimaCompra && (
+                                <span>
+                                  Última compra: <strong style={{ color: "var(--erp-text-2)" }}>
+                                    {new Date(rel.ultimaCompra).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}
+                                  </strong>
+                                </span>
+                              )}
+                              {rel.ultimoPrecioBs != null && (
+                                <span>
+                                  Último precio: <strong style={{ color: "var(--erp-text-2)" }}>
+                                    Bs {rel.ultimoPrecioBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </strong>
+                                </span>
+                              )}
+                              {rel.proveedorTelefono && (
+                                <span>📞 {rel.proveedorTelefono}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="prod-form-full" style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4 }}>
               <button
                 type="submit"
                 disabled={saving}
                 style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.5 : 1 }}
               >
-                {editingId ? "Guardar cambios" : "Crear Producto"}
+                Crear Producto
               </button>
-              {editingId && (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  style={{ background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}
-                >
-                  Cancelar
-                </button>
-              )}
             </div>
           </form>
-
-          {form.tipoProducto === "COMBO" && (
-            <div style={{ marginTop: 12, background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 16 }}>
-              {productoEnEdicion ? (
-                <ProductoComponentesPanel
-                  producto={productoEnEdicion}
-                  productos={productos}
-                  onChange={loadProductos}
-                />
-              ) : (
-                <p style={{ fontSize: 13, color: "var(--erp-text-3)", margin: 0 }}>
-                  Guarda el producto para poder configurar las bandejas (y cantidades) que descuenta este combo.
-                </p>
-              )}
-            </div>
-          )}
 
           {error && (
             <div style={{ marginTop: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "#dc2626" }}>{error}</div>
@@ -765,8 +998,318 @@ export default function ProductosClient() {
         </div>
       )}
 
+      {/* Tabs Activos / Desactivados */}
+      {grupoFiltro !== "MATERIA_PRIMA" && (
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--erp-border)", marginBottom: -1 }}>
+          {(["activos", "desactivados"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => { setTabVista(tab); setPagina(1); setEditingId(null); setExpandedId(null); }}
+              style={{
+                padding: "7px 18px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+                borderBottom: tabVista === tab ? "2px solid var(--erp-primary)" : "2px solid transparent",
+                background: "none",
+                color: tabVista === tab ? "var(--erp-primary)" : "var(--erp-text-3)",
+              }}
+            >
+              {tab === "activos" ? "Activos" : "Desactivados"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Ficha de edición standalone */}
+      {fichaMode && productoEnEdicion && (
+        <div style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8 }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "2px solid var(--erp-primary)", background: "var(--erp-bg)", flexWrap: "wrap" }}>
+            <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "5px 12px", fontSize: 13, cursor: "pointer", color: "var(--erp-text-2)", flexShrink: 0 }}>
+              ← Volver
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em" }}>Editando producto</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--erp-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{productoEnEdicion.nombre}</div>
+            </div>
+          </div>
+          {/* Body */}
+          <div style={{ padding: 16 }}>
+            {/* Fila superior: Nombre/Descripcion a la izquierda, imagen a la derecha — FUERA del prod-form-grid */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 14, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Nombre</label>
+                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, width: "100%", boxSizing: "border-box" }} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
+                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, width: "100%", boxSizing: "border-box" }} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Opcional" />
+                </div>
+              </div>
+              {/* Imagen — ancho fijo, no compite con el grid */}
+              <label onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} style={{ flexShrink: 0, width: 130, cursor: "pointer" }}>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
+                {imagenEdicion ? (
+                  <img src={imagenEdicion} alt="Foto" style={{ width: 130, height: 130, objectFit: "cover", borderRadius: 8, border: "1px solid var(--erp-border)", display: "block" }} />
+                ) : (
+                  <div style={{ width: 130, height: 130, borderRadius: 8, border: "2px dashed var(--erp-border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--erp-text-3)", fontSize: 26, gap: 4, textAlign: "center" }}>
+                    <span>📷</span>
+                    <span style={{ fontSize: 10, lineHeight: 1.3 }}>Foto del producto</span>
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "var(--erp-text-3)", textAlign: "center", marginTop: 4 }}>
+                  {imagenSaving ? "⏳ Guardando…" : imagenEdicion ? "✓ clic para cambiar" : "Clic o arrastra · JPG/PNG"}
+                </div>
+                {imagenEdicion && !imagenSaving && (
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); guardarImagen(productoEnEdicion.id, null); setImagenEdicion(null); }}
+                    style={{ display: "block", width: "100%", marginTop: 2, background: "none", color: "#dc2626", border: "none", padding: 0, fontSize: 10, cursor: "pointer", textDecoration: "underline", textAlign: "center" }}>
+                    Quitar foto
+                  </button>
+                )}
+              </label>
+            </div>
+            {/* Resto de campos en el grid responsivo */}
+            <form onSubmit={handleSubmit} className="prod-form-grid">
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Familia</label>
+                  <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.categoriaId} onChange={(e) => { const v = e.target.value; setForm({ ...form, categoriaId: v, lineaId: "" }); if (v && v !== NUEVA_CATEGORIA) loadLineas(Number(v)); }}>
+                    <option value="">Sin familia</option>
+                    {familias.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+                    <option value={NUEVA_CATEGORIA}>+ Nueva familia...</option>
+                  </select>
+                  {form.categoriaId === NUEVA_CATEGORIA && (
+                    <div className="flex gap-2">
+                      <input style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={nuevaCategoriaNombre} onChange={(e) => setNuevaCategoriaNombre(e.target.value)} placeholder="Nombre de la nueva familia" />
+                      <input type="number" min={1} style={{ width: 72, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={nuevaCategoriaOrden} onChange={(e) => setNuevaCategoriaOrden(e.target.value)} placeholder="Orden" />
+                    </div>
+                  )}
+                </div>
+                {form.categoriaId && form.categoriaId !== NUEVA_CATEGORIA && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Línea</label>
+                    <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.lineaId} onChange={(e) => setForm({ ...form, lineaId: e.target.value })}>
+                      <option value="">Sin línea</option>
+                      {lineas.filter(l => String(l.familiaId) === form.categoriaId).map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                    </select>
+                  </div>
+                )}
+                {tiposEmpaque.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de Empaque</label>
+                    <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.tipoEmpaqueId} onChange={(e) => setForm({ ...form, tipoEmpaqueId: e.target.value })}>
+                      <option value="">Sin tipo</option>
+                      {tiposEmpaque.filter(t => t.activo).map((t) => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Costo <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>USD</span></label>
+                  <div style={{ position: "relative" }}>
+                    <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
+                    <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }} type="number" step="0.01" min="0" value={form.costo} onChange={(e) => setForm({ ...form, costo: e.target.value })} placeholder="0.00" />
+                  </div>
+                  {tasaHoy && Number(form.costo) > 0 && (
+                    <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3 }}>≈ <strong>Bs {(Number(form.costo) * tasaHoy).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> · tasa {tasaHoy.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  )}
+                </div>
+                {grupoFiltro !== "MATERIA_PRIMA" && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Precio de venta <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dcfce7", color: "#166534", borderRadius: 99, padding: "1px 7px" }}>USD</span></label>
+                    <div style={{ position: "relative" }}>
+                      <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
+                      <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }} type="number" step="0.01" min="0" value={form.precioVenta} onChange={(e) => setForm({ ...form, precioVenta: e.target.value })} placeholder="0.00" />
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producto</label>
+                  {grupoFiltro === "MATERIA_PRIMA" ? (
+                    <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>Normal (con inventario)</div>
+                  ) : (
+                    <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.tipoProducto} onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}>
+                      {TIPOS_PRODUCTO.map((tipo) => <option key={tipo} value={tipo}>{TIPO_PRODUCTO_LABELS[tipo]}</option>)}
+                    </select>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Grupo</label>
+                  {grupoFiltro === "MATERIA_PRIMA" ? (
+                    <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>Materia Prima</div>
+                  ) : (
+                    <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.grupo} onChange={(e) => setForm({ ...form, grupo: e.target.value as GrupoProducto })}>
+                      {GRUPOS_PRODUCTO.map((g) => <option key={g} value={g}>{GRUPO_PRODUCTO_LABELS[g]}</option>)}
+                    </select>
+                  )}
+                </div>
+                {form.grupo !== "MATERIA_PRIMA" && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Aprovisionamiento</label>
+                    <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.aprovisionamiento} onChange={(e) => setForm({ ...form, aprovisionamiento: e.target.value as "COMPRA" | "FABRICACION", subtipoFabricacion: null })}>
+                      <option value="COMPRA">🛒 Compra — se adquiere de proveedor</option>
+                      <option value="FABRICACION">🏭 Fabricación — se produce internamente (RP)</option>
+                    </select>
+                  </div>
+                )}
+                {form.aprovisionamiento === "FABRICACION" && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producción</label>
+                    <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.subtipoFabricacion ?? ""} onChange={(e) => setForm({ ...form, subtipoFabricacion: (e.target.value || null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null })}>
+                      <option value="">— Sin clasificar —</option>
+                      <option value="RECETA_BASE">🧂 Receta Base — sub-receta que consume insumos</option>
+                      <option value="ENSAMBLADO">🔧 Ensamblado — combina recetas base</option>
+                      <option value="COMPUESTO">📦 Compuesto — combina ensamblados</option>
+                    </select>
+                  </div>
+                )}
+                {form.tipoProducto === "VARIADA" && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Raciones a elegir</label>
+                    <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} type="number" step="1" min="1" value={form.variadaRaciones} onChange={(e) => setForm({ ...form, variadaRaciones: e.target.value })} />
+                  </div>
+                )}
+                {form.tipoProducto === "NORMAL" && (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Mínimo de existencia</label>
+                      <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} type="number" step="1" min="0" value={form.stockMinimo} onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })} placeholder="0" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Unidad de medida</label>
+                      <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }} value={form.unidadMedidaId} onChange={(e) => { const id = e.target.value; const um = unidadesMedida.find(u => String(u.id) === id); setForm({ ...form, unidadMedidaId: id, unidadMedida: um?.abreviatura ?? "unidad" }); }}>
+                        <option value="">— Seleccionar —</option>
+                        {["UNIDAD", "MASA", "VOLUMEN", "LONGITUD"].map(tipo => { const opts = unidadesMedida.filter(u => u.tipo === tipo); if (!opts.length) return null; return <optgroup key={tipo} label={tipo.charAt(0) + tipo.slice(1).toLowerCase()}>{opts.map(u => <option key={u.id} value={String(u.id)}>{u.nombre} ({u.abreviatura})</option>)}</optgroup>; })}
+                      </select>
+                    </div>
+                  </>
+                )}
+                {form.tipoProducto === "NORMAL" && (
+                  <div className="prod-form-full">
+                    <div style={{ border: "1px solid", borderColor: form.alertaOutstockDesactivada ? "#f59e0b" : "var(--erp-border)", borderRadius: 8, padding: "10px 14px", background: form.alertaOutstockDesactivada ? "#fffbeb" : "transparent" }}>
+                      <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                        <input type="checkbox" checked={form.alertaOutstockDesactivada} onChange={(e) => setForm({ ...form, alertaOutstockDesactivada: e.target.checked, alertaOutstockMotivo: e.target.checked ? form.alertaOutstockMotivo : "" })} style={{ marginTop: 2, width: 16, height: 16, accentColor: "#f59e0b", flexShrink: 0 }} />
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: form.alertaOutstockDesactivada ? "#92400e" : "var(--erp-text)" }}>🔕 Apagar Alerta OutStock</span>
+                          <span style={{ display: "block", fontSize: 11.5, color: "var(--erp-text-3)", marginTop: 2, lineHeight: 1.4 }}>Producto descontinuado, de temporada o sin despacho del proveedor.</span>
+                        </div>
+                      </label>
+                      {form.alertaOutstockDesactivada && (
+                        <input style={{ marginTop: 8, width: "100%", border: "1px solid #fcd34d", borderRadius: 6, padding: "6px 10px", fontSize: 13, background: "#fffbeb" }} value={form.alertaOutstockMotivo} onChange={(e) => setForm({ ...form, alertaOutstockMotivo: e.target.value })} placeholder="Motivo (opcional)…" />
+                      )}
+                    </div>
+                  </div>
+                )}
+                {form.tipoProducto === "NORMAL" && grupoFiltro !== "MATERIA_PRIMA" && (
+                  <div className="prod-form-full">
+                    <div style={{ border: "2px dashed var(--erp-accent)", borderRadius: 8, padding: "12px 14px", background: "color-mix(in srgb, var(--erp-accent) 4%, var(--erp-surface))" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <span style={{ fontSize: 16 }}>📦</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-accent)" }}>Empaque &amp; Rendimiento</span>
+                        <span style={{ fontSize: 11.5, color: "var(--erp-text-3)", marginLeft: 4 }}>Indica desde qué empaque se puede obtener este producto cuando no haya stock</span>
+                      </div>
+                      {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
+                        const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
+                        return (
+                          <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 80px auto", gap: 8, marginBottom: 8, alignItems: "end", minWidth: 0 }}>
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
+                              <select style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.empaqueId} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, empaqueId: e.target.value } : r))}>
+                                <option value="">— seleccionar —</option>
+                                {productos.filter(p => p.activo && p.id !== (editingId ?? 0)).map(p => <option key={p.id} value={String(p.id)}>{p.nombre} (stock: {p.stockActual})</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Rinde (uds)</div>
+                              <input type="number" min="1" style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.rendimiento} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, rendimiento: e.target.value } : r))} placeholder="ej. 3" />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Prioridad</div>
+                              <select style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.prioridad} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, prioridad: Number(e.target.value) } : r))}>
+                                <option value={1}>1° Principal</option>
+                                <option value={2}>2° Alternativo</option>
+                                <option value={3}>3° Reserva</option>
+                              </select>
+                            </div>
+                            <button type="button" onClick={() => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, toDelete: true } : r))} style={{ background: "var(--erp-surface)", border: "1px solid #fca5a5", borderRadius: 6, padding: "7px 10px", color: "#dc2626", fontSize: 12, cursor: "pointer" }}>✕ Quitar</button>
+                            {empaqueProd && row.rendimiento && (
+                              <div style={{ gridColumn: "1 / -1", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 12px", fontSize: 12, color: "var(--erp-text-2)" }}>
+                                📦 <strong>{empaqueProd.nombre}</strong> (stock: {empaqueProd.stockActual}) → abriendo 1 se generan <strong style={{ color: "var(--erp-primary)" }}>{row.rendimiento} {form.unidadMedida || "unidad"}(es)</strong>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {formEmpaques.filter(r => !r.toDelete).length < 3 && (
+                        <button type="button" onClick={() => setFormEmpaques(prev => [...prev, { empaqueId: "", rendimiento: "", prioridad: formEmpaques.filter(r => !r.toDelete).length + 1 }])} style={{ marginTop: 4, background: "transparent", border: "1px dashed var(--erp-accent)", borderRadius: 6, padding: "5px 14px", fontSize: 12, fontWeight: 600, color: "var(--erp-accent)", cursor: "pointer" }}>
+                          + Agregar empaque
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {provRelaciones.length > 0 && (
+                  <div className="prod-form-full">
+                    <div style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>🏭 Proveedores</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {provRelaciones.map((rel) => (
+                          <div key={rel.proveedorId} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "var(--erp-bg)", borderRadius: 6, border: "1px solid var(--erp-border)" }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>{rel.proveedorNombre}</span>
+                                {rel.proveedorRif && <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{rel.proveedorRif}</span>}
+                              </div>
+                              <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                                <span>Compras: <strong style={{ color: "var(--erp-text-2)" }}>{rel.vecesComprado}</strong></span>
+                                {rel.ultimaCompra && <span>Última: <strong style={{ color: "var(--erp-text-2)" }}>{new Date(rel.ultimaCompra).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</strong></span>}
+                                {rel.ultimoPrecioBs != null && <span>Precio: <strong style={{ color: "var(--erp-text-2)" }}>Bs {rel.ultimoPrecioBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>}
+                                {rel.proveedorTelefono && <span>📞 {rel.proveedorTelefono}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="prod-form-full" style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4, borderTop: "1px solid var(--erp-border)", marginTop: 4 }}>
+                  <button type="submit" disabled={saving} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.5 : 1 }}>
+                    Guardar cambios
+                  </button>
+                  <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                    Cancelar
+                  </button>
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                    <button type="button" onClick={() => handleToggleActivo(productoEnEdicion)}
+                      style={{ background: productoEnEdicion.activo ? "#fff7ed" : "#f0fdf4", color: productoEnEdicion.activo ? "#c2410c" : "#15803d", border: `1px solid ${productoEnEdicion.activo ? "#fed7aa" : "#bbf7d0"}`, borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                      {productoEnEdicion.activo ? "Desactivar" : "Reactivar"}
+                    </button>
+                    <button type="button" onClick={() => handleDelete(productoEnEdicion.id)} style={{ background: "var(--erp-surface)", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </form>
+              {form.tipoProducto === "COMBO" && (
+                <div style={{ marginTop: 12, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>🧩 Componentes del Combo</div>
+                  <ProductoComponentesPanel producto={productoEnEdicion} productos={productos} onChange={loadProductos} />
+                </div>
+              )}
+              {grupoFiltro !== "MATERIA_PRIMA" && (
+                <div style={{ marginTop: 12, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>⚙️ Extras</div>
+                  <ProductoExtrasPanel producto={productoEnEdicion} onChange={loadProductos} />
+                </div>
+              )}
+              {error && (
+                <div style={{ marginTop: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "#dc2626" }}>{error}</div>
+              )}
+          </div>
+        </div>
+      )}
+
       {/* Grid de productos — siempre visible */}
-      <div
+      {!fichaMode && <div
         style={{
           background: "var(--erp-surface)",
           border: "1px solid var(--erp-border)",
@@ -787,34 +1330,61 @@ export default function ProductosClient() {
             />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Categoría</label>
+            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Familia</label>
             <select
               style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
               value={filterCategoriaId}
-              onChange={(e) => { setFilterCategoriaId(e.target.value); setPagina(1); }}
+              onChange={(e) => {
+                setFilterCategoriaId(e.target.value);
+                setFilterLineaId("");
+                setPagina(1);
+                const fid = Number(e.target.value);
+                if (fid) setLineasFiltro(lineas.filter(l => l.familiaId === fid));
+                else setLineasFiltro([]);
+              }}
             >
               <option value="">Todas</option>
-              <option value="__sin__">Sin categoría</option>
-              {categorias.map((c) => (
-                <option key={c.id} value={String(c.id)}>{c.nombre}</option>
+              <option value="__sin__">Sin familia</option>
+              {familias.map((f) => (
+                <option key={f.id} value={String(f.id)}>{f.nombre}</option>
               ))}
             </select>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Ordenar por</label>
-            <select
-              style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
-              value={orden}
-              onChange={(e) => setOrden(e.target.value as "nombre" | "categoria")}
-            >
-              <option value="nombre">Nombre</option>
-              <option value="categoria">Categoría</option>
-            </select>
-          </div>
-          {(searchNombre || filterCategoriaId) && (
+          {filterCategoriaId && filterCategoriaId !== "__sin__" && lineasFiltro.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Línea</label>
+              <select
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
+                value={filterLineaId}
+                onChange={(e) => { setFilterLineaId(e.target.value); setPagina(1); }}
+              >
+                <option value="">Todas las líneas</option>
+                {lineasFiltro.map((l) => (
+                  <option key={l.id} value={String(l.id)}>{l.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {tiposEmpaque.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--erp-text-3)" }}>Tipo de Empaque</label>
+              <select
+                style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 10px", fontSize: 13 }}
+                value={filterTipoEmpaqueId}
+                onChange={(e) => { setFilterTipoEmpaqueId(e.target.value); setPagina(1); }}
+              >
+                <option value="">Todos</option>
+                <option value="__sin__">Sin tipo</option>
+                {tiposEmpaque.filter(t => t.activo).map((t) => (
+                  <option key={t.id} value={String(t.id)}>{t.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {(searchNombre || filterCategoriaId || filterLineaId || filterTipoEmpaqueId) && (
             <button
               type="button"
-              onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setPagina(1); }}
+              onClick={() => { setSearchNombre(""); setFilterCategoriaId(""); setFilterLineaId(""); setLineasFiltro([]); setFilterTipoEmpaqueId(""); setPagina(1); }}
               style={{ background: "none", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "6px 12px", fontSize: 13, color: "var(--erp-text-3)", cursor: "pointer", alignSelf: "flex-end" }}
             >
               Limpiar
@@ -831,27 +1401,40 @@ export default function ProductosClient() {
             <thead>
               <tr style={{ background: "var(--erp-bg)", borderBottom: "1px solid var(--erp-border)" }}>
                 <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Nombre</th>
-                <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Categoría</th>
+                <th className="prod-col-cat" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Familia / Línea</th>
                 <th className="prod-col-tipo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Tipo</th>
-                <th className="prod-col-grupo" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Grupo</th>
-                <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Costo</th>
-                <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Precio</th>
-                <th className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Margen</th>
-                <th className="prod-col-extras" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Extras</th>
+                <th className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
+                  {grupoFiltro === "MATERIA_PRIMA" ? "Costo $" : "Costo"}
+                </th>
+                {grupoFiltro === "MATERIA_PRIMA" ? (
+                  <>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>
+                      Costo Bs {tasaHoy ? <span style={{ fontSize: 10, fontWeight: 400 }}>(tasa {tasaHoy.toFixed(2)})</span> : ""}
+                    </th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Stock</th>
+                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Unidad</th>
+                  </>
+                ) : (
+                  <>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Precio</th>
+                    <th className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Margen</th>
+                    <th className="prod-col-extras" style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Extras</th>
+                  </>
+                )}
                 <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, color: "var(--erp-text-2)", whiteSpace: "nowrap" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                  <td colSpan={grupoFiltro === "MATERIA_PRIMA" ? 7 : 8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
                     Cargando...
                   </td>
                 </tr>
               )}
               {!loading && productos.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
+                  <td colSpan={grupoFiltro === "MATERIA_PRIMA" ? 7 : 8} style={{ padding: "24px", textAlign: "center", color: "var(--erp-text-3)" }}>
                     No hay productos registrados
                   </td>
                 </tr>
@@ -867,81 +1450,354 @@ export default function ProductosClient() {
                           {producto.categoriaNombre ?? ""}{producto.categoriaNombre ? " · " : ""}{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}
                         </div>
                       </td>
-                      <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.categoriaNombre ?? "-"}</td>
-                      <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</td>
-                      <td className="prod-col-grupo" style={{ padding: "8px 12px" }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 99,
-                          background: producto.grupo === "PARA_LA_VENTA" ? "#dcfce7" : producto.grupo === "MATERIA_PRIMA" ? "#fef9c3" : "#ede9fe",
-                          color: producto.grupo === "PARA_LA_VENTA" ? "#166534" : producto.grupo === "MATERIA_PRIMA" ? "#854d0e" : "#5b21b6",
-                        }}>
-                          {GRUPO_PRODUCTO_LABELS[producto.grupo ?? "PARA_LA_VENTA"]}
-                        </span>
+                      <td className="prod-col-cat" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>
+                        <div>{producto.categoriaNombre ?? "-"}</div>
+                        {producto.lineaNombre && (
+                          <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 1 }}>{producto.lineaNombre}</div>
+                        )}
                       </td>
-                      <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toFixed(2)}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
-                      <td className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {(producto.precioVenta - producto.costo).toFixed(2)}
+                      <td className="prod-col-tipo" style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>
+                        <div>{TIPO_PRODUCTO_LABELS[producto.tipoProducto]}</div>
+                        {grupoFiltro !== "MATERIA_PRIMA" && (
+                          <span style={{
+                            marginTop: 3, display: "inline-block", fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 99,
+                            background: producto.grupo === "PARA_LA_VENTA" ? "#dcfce7" : producto.grupo === "MATERIA_PRIMA" ? "#fef9c3" : "#ede9fe",
+                            color: producto.grupo === "PARA_LA_VENTA" ? "#166534" : producto.grupo === "MATERIA_PRIMA" ? "#854d0e" : "#5b21b6",
+                          }}>
+                            {GRUPO_PRODUCTO_LABELS[producto.grupo ?? "PARA_LA_VENTA"]}
+                          </span>
+                        )}
                       </td>
-                      <td className="prod-col-extras" style={{ padding: "8px 12px", color: "var(--erp-text-2)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {producto.extras.length === 0
-                          ? "-"
-                          : producto.extras
-                              .map((extra) => `${extra.nombre} (+${extra.precioAdicional.toFixed(2)})`)
-                              .join(", ")}
-                      </td>
+                      <td className="prod-col-costo" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.costo.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      {grupoFiltro === "MATERIA_PRIMA" ? (
+                        <>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                            {tasaHoy ? (producto.costo * tasaHoy).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                          </td>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.stockActual}</td>
+                          <td style={{ padding: "8px 12px", color: "var(--erp-text-2)" }}>{producto.unidadMedidaAbreviatura ?? producto.unidadMedida ?? "—"}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{producto.precioVenta.toFixed(2)}</td>
+                          <td className="prod-col-margen" style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                            {(producto.precioVenta - producto.costo).toFixed(2)}
+                          </td>
+                          <td className="prod-col-extras" style={{ padding: "8px 12px", color: "var(--erp-text-3)", fontSize: 12 }}>
+                            {(() => { const n = producto.extrasCount ?? producto.extras.length; return n === 0 ? "—" : `${n} extra${n > 1 ? "s" : ""}`; })()}
+                          </td>
+                        </>
+                      )}
                       <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 4 }}>
-                          <button
-                            onClick={() => {
-                              setExpandedId(expandedId === producto.id && expandedPanel === "extras" ? null : producto.id);
-                              setExpandedPanel("extras");
-                            }}
-                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
-                          >
-                            Extras
-                          </button>
-                          {producto.tipoProducto === "COMBO" && (
-                            <button
-                              onClick={() => {
-                                setExpandedId(expandedId === producto.id && expandedPanel === "componentes" ? null : producto.id);
-                                setExpandedPanel("componentes");
-                              }}
-                              style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
-                            >
-                              Componentes
-                            </button>
-                          )}
-                          <button
-                            onClick={() => startEdit(producto)}
-                            style={{ border: "1px solid var(--erp-border)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "var(--erp-text-2)" }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDelete(producto.id)}
-                            style={{ border: "1px solid #fecaca", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 500, cursor: "pointer", background: "var(--erp-surface)", color: "#dc2626" }}
-                          >
-                            Eliminar
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => {
+                            if (expandedId === producto.id && expandedPanel === "editar") {
+                              cancelEdit();
+                            } else {
+                              startEdit(producto);
+                            }
+                          }}
+                          style={{
+                            border: "1px solid var(--erp-border)",
+                            borderRadius: 4,
+                            padding: "3px 8px",
+                            fontSize: 11,
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            background: expandedId === producto.id && expandedPanel === "editar" ? "var(--erp-primary)" : "var(--erp-surface)",
+                            color: expandedId === producto.id && expandedPanel === "editar" ? "#fff" : "var(--erp-text-2)",
+                          }}
+                        >
+                          {expandedId === producto.id && expandedPanel === "editar" ? "✕ Cerrar" : "Editar"}
+                        </button>
                       </td>
                     </tr>
-                    {expandedId === producto.id && expandedPanel === "extras" && (
+                    {expandedId === producto.id && expandedPanel === "editar" && (
                       <tr>
-                        <td colSpan={8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
-                          <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
-                        </td>
-                      </tr>
-                    )}
-                    {expandedId === producto.id && expandedPanel === "componentes" && (
-                      <tr>
-                        <td colSpan={8} style={{ background: "var(--erp-bg)", padding: "12px 16px", borderBottom: "1px solid var(--erp-border)" }}>
-                          <ProductoComponentesPanel
-                            producto={producto}
-                            productos={productos}
-                            onChange={loadProductos}
-                          />
+                        <td colSpan={10} style={{ background: "var(--erp-bg)", padding: "16px", borderBottom: "2px solid var(--erp-primary)" }}>
+                          <form onSubmit={handleSubmit} className="prod-form-grid">
+                            <div className="flex flex-col gap-1 prod-form-col2">
+                              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Nombre</label>
+                              <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+                            </div>
+                            <div className="flex flex-col gap-1 prod-form-col2">
+                              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Descripción</label>
+                              <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Opcional" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Familia</label>
+                              <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.categoriaId} onChange={(e) => { const v = e.target.value; setForm({ ...form, categoriaId: v, lineaId: "" }); if (v && v !== NUEVA_CATEGORIA) loadLineas(Number(v)); }}>
+                                <option value="">Sin familia</option>
+                                {familias.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+                                <option value={NUEVA_CATEGORIA}>+ Nueva familia...</option>
+                              </select>
+                              {form.categoriaId === NUEVA_CATEGORIA && (
+                                <div className="flex gap-2">
+                                  <input style={{ flex: 1, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={nuevaCategoriaNombre} onChange={(e) => setNuevaCategoriaNombre(e.target.value)} placeholder="Nombre de la nueva familia" />
+                                  <input type="number" min={1} style={{ width: 72, border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={nuevaCategoriaOrden} onChange={(e) => setNuevaCategoriaOrden(e.target.value)} placeholder="Orden" />
+                                </div>
+                              )}
+                            </div>
+                            {form.categoriaId && form.categoriaId !== NUEVA_CATEGORIA && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Línea</label>
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.lineaId} onChange={(e) => setForm({ ...form, lineaId: e.target.value })}>
+                                  <option value="">Sin línea</option>
+                                  {lineas.filter(l => String(l.familiaId) === form.categoriaId).map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                                </select>
+                              </div>
+                            )}
+                            {tiposEmpaque.length > 0 && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de Empaque</label>
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.tipoEmpaqueId} onChange={(e) => setForm({ ...form, tipoEmpaqueId: e.target.value })}>
+                                  <option value="">Sin tipo</option>
+                                  {tiposEmpaque.filter(t => t.activo).map((t) => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
+                                </select>
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-1">
+                              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Costo <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", borderRadius: 99, padding: "1px 7px" }}>USD</span></label>
+                              <div style={{ position: "relative" }}>
+                                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
+                                <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }} type="number" step="0.01" min="0" value={form.costo} onChange={(e) => setForm({ ...form, costo: e.target.value })} placeholder="0.00" />
+                              </div>
+                              {tasaHoy && Number(form.costo) > 0 && (
+                                <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 3 }}>≈ <strong>Bs {(Number(form.costo) * tasaHoy).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> · tasa {tasaHoy.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                              )}
+                            </div>
+                            {grupoFiltro !== "MATERIA_PRIMA" && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Precio de venta <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: "#dcfce7", color: "#166534", borderRadius: 99, padding: "1px 7px" }}>USD</span></label>
+                                <div style={{ position: "relative" }}>
+                                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--erp-text-3)", pointerEvents: "none" }}>$</span>
+                                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", paddingLeft: 22, fontSize: 13, width: "100%", boxSizing: "border-box" }} type="number" step="0.01" min="0" value={form.precioVenta} onChange={(e) => setForm({ ...form, precioVenta: e.target.value })} placeholder="0.00" />
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-1">
+                              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producto</label>
+                              {grupoFiltro === "MATERIA_PRIMA" ? (
+                                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>Normal (con inventario)</div>
+                              ) : (
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.tipoProducto} onChange={(e) => setForm({ ...form, tipoProducto: e.target.value as TipoProducto })}>
+                                  {TIPOS_PRODUCTO.map((tipo) => <option key={tipo} value={tipo}>{TIPO_PRODUCTO_LABELS[tipo]}</option>)}
+                                </select>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Grupo</label>
+                              {grupoFiltro === "MATERIA_PRIMA" ? (
+                                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text-2)", background: "var(--erp-bg)" }}>Materia Prima</div>
+                              ) : (
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.grupo} onChange={(e) => setForm({ ...form, grupo: e.target.value as GrupoProducto })}>
+                                  {GRUPOS_PRODUCTO.map((g) => <option key={g} value={g}>{GRUPO_PRODUCTO_LABELS[g]}</option>)}
+                                </select>
+                              )}
+                            </div>
+                            {/* Aprovisionamiento */}
+                            {form.grupo !== "MATERIA_PRIMA" && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Aprovisionamiento</label>
+                                <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} value={form.aprovisionamiento} onChange={(e) => setForm({ ...form, aprovisionamiento: e.target.value as "COMPRA" | "FABRICACION", subtipoFabricacion: null })}>
+                                  <option value="COMPRA">🛒 Compra — se adquiere de proveedor</option>
+                                  <option value="FABRICACION">🏭 Fabricación — se produce internamente (RP)</option>
+                                </select>
+                              </div>
+                            )}
+                            {/* Subtipo de fabricación */}
+                            {form.aprovisionamiento === "FABRICACION" && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Tipo de producción</label>
+                                <select
+                                  style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }}
+                                  value={form.subtipoFabricacion ?? ""}
+                                  onChange={(e) => setForm({ ...form, subtipoFabricacion: (e.target.value || null) as "RECETA_BASE" | "ENSAMBLADO" | "COMPUESTO" | null })}
+                                >
+                                  <option value="">— Sin clasificar —</option>
+                                  <option value="RECETA_BASE">🧂 Receta Base — sub-receta que consume insumos (masa, relleno)</option>
+                                  <option value="ENSAMBLADO">🔧 Ensamblado — combina recetas base en una unidad (tequeño capresa)</option>
+                                  <option value="COMPUESTO">📦 Compuesto — combina ensamblados (bandeja 15, ración)</option>
+                                </select>
+                              </div>
+                            )}
+                            {form.tipoProducto === "VARIADA" && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Raciones a elegir</label>
+                                <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} type="number" step="1" min="1" value={form.variadaRaciones} onChange={(e) => setForm({ ...form, variadaRaciones: e.target.value })} />
+                              </div>
+                            )}
+                            {form.tipoProducto === "NORMAL" && (
+                              <>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Mínimo de existencia</label>
+                                  <input style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13 }} type="number" step="1" min="0" value={form.stockMinimo} onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })} placeholder="0" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-sm font-medium" style={{ color: "var(--erp-text-2)" }}>Unidad de medida</label>
+                                  <select style={{ border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, background: "var(--erp-surface)", color: "var(--erp-text)" }} value={form.unidadMedidaId} onChange={(e) => { const id = e.target.value; const um = unidadesMedida.find(u => String(u.id) === id); setForm({ ...form, unidadMedidaId: id, unidadMedida: um?.abreviatura ?? "unidad" }); }}>
+                                    <option value="">— Seleccionar —</option>
+                                    {["UNIDAD", "MASA", "VOLUMEN", "LONGITUD"].map(tipo => { const opts = unidadesMedida.filter(u => u.tipo === tipo); if (!opts.length) return null; return <optgroup key={tipo} label={tipo.charAt(0) + tipo.slice(1).toLowerCase()}>{opts.map(u => <option key={u.id} value={String(u.id)}>{u.nombre} ({u.abreviatura})</option>)}</optgroup>; })}
+                                  </select>
+                                </div>
+                              </>
+                            )}
+                            {form.tipoProducto === "NORMAL" && (
+                              <div className="prod-form-full">
+                                <div style={{ border: "1px solid", borderColor: form.alertaOutstockDesactivada ? "#f59e0b" : "var(--erp-border)", borderRadius: 8, padding: "10px 14px", background: form.alertaOutstockDesactivada ? "#fffbeb" : "transparent" }}>
+                                  <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                                    <input type="checkbox" checked={form.alertaOutstockDesactivada} onChange={(e) => setForm({ ...form, alertaOutstockDesactivada: e.target.checked, alertaOutstockMotivo: e.target.checked ? form.alertaOutstockMotivo : "" })} style={{ marginTop: 2, width: 16, height: 16, accentColor: "#f59e0b", flexShrink: 0 }} />
+                                    <div>
+                                      <span style={{ fontSize: 13, fontWeight: 700, color: form.alertaOutstockDesactivada ? "#92400e" : "var(--erp-text)" }}>🔕 Apagar Alerta OutStock</span>
+                                      <span style={{ display: "block", fontSize: 11.5, color: "var(--erp-text-3)", marginTop: 2, lineHeight: 1.4 }}>Producto descontinuado, de temporada o sin despacho del proveedor.</span>
+                                    </div>
+                                  </label>
+                                  {form.alertaOutstockDesactivada && (
+                                    <input style={{ marginTop: 8, width: "100%", border: "1px solid #fcd34d", borderRadius: 6, padding: "6px 10px", fontSize: 13, background: "#fffbeb" }} value={form.alertaOutstockMotivo} onChange={(e) => setForm({ ...form, alertaOutstockMotivo: e.target.value })} placeholder="Motivo (opcional)…" />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {form.tipoProducto === "NORMAL" && grupoFiltro !== "MATERIA_PRIMA" && (
+                              <div className="prod-form-full">
+                                <div style={{ border: "2px dashed var(--erp-accent)", borderRadius: 8, padding: "12px 14px", background: "color-mix(in srgb, var(--erp-accent) 4%, var(--erp-surface))" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                    <span style={{ fontSize: 16 }}>📦</span>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-accent)" }}>Empaque &amp; Rendimiento</span>
+                                    <span style={{ fontSize: 11.5, color: "var(--erp-text-3)", marginLeft: 4 }}>Indica desde qué empaque se puede obtener este producto cuando no haya stock</span>
+                                  </div>
+                                  {formEmpaques.filter(r => !r.toDelete).map((row, i) => {
+                                    const empaqueProd = productos.find(p => String(p.id) === row.empaqueId);
+                                    return (
+                                      <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 80px auto", gap: 8, marginBottom: 8, alignItems: "end", minWidth: 0 }}>
+                                        <div>
+                                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Empaque (producto origen)</div>
+                                          <select style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.empaqueId} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, empaqueId: e.target.value } : r))}>
+                                            <option value="">— seleccionar —</option>
+                                            {productos.filter(p => p.activo && p.id !== (editingId ?? 0)).map(p => <option key={p.id} value={String(p.id)}>{p.nombre} (stock: {p.stockActual})</option>)}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Rinde (uds)</div>
+                                          <input type="number" min="1" style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-accent)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.rendimiento} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, rendimiento: e.target.value } : r))} placeholder="ej. 3" />
+                                        </div>
+                                        <div>
+                                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--erp-text-3)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>Prioridad</div>
+                                          <select style={{ width: "100%", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 10px", fontSize: 13, color: "var(--erp-text)" }} value={row.prioridad} onChange={(e) => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, prioridad: Number(e.target.value) } : r))}>
+                                            <option value={1}>1° Principal</option>
+                                            <option value={2}>2° Alternativo</option>
+                                            <option value={3}>3° Reserva</option>
+                                          </select>
+                                        </div>
+                                        <button type="button" onClick={() => setFormEmpaques(prev => prev.map((r, idx) => idx === i ? { ...r, toDelete: true } : r))} style={{ background: "var(--erp-surface)", border: "1px solid #fca5a5", borderRadius: 6, padding: "7px 10px", color: "#dc2626", fontSize: 12, cursor: "pointer" }}>✕ Quitar</button>
+                                        {empaqueProd && row.rendimiento && (
+                                          <div style={{ gridColumn: "1 / -1", background: "var(--erp-bg)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 12px", fontSize: 12, color: "var(--erp-text-2)" }}>
+                                            📦 <strong>{empaqueProd.nombre}</strong> (stock: {empaqueProd.stockActual}) → abriendo 1 se generan <strong style={{ color: "var(--erp-primary)" }}>{row.rendimiento} {form.unidadMedida || "unidad"}(es)</strong>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                  {formEmpaques.filter(r => !r.toDelete).length < 3 && (
+                                    <button type="button" onClick={() => setFormEmpaques(prev => [...prev, { empaqueId: "", rendimiento: "", prioridad: formEmpaques.filter(r => !r.toDelete).length + 1 }])} style={{ marginTop: 4, background: "transparent", border: "1px dashed var(--erp-accent)", borderRadius: 6, padding: "5px 14px", fontSize: 12, fontWeight: 600, color: "var(--erp-accent)", cursor: "pointer" }}>
+                                      + Agregar empaque
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {provRelaciones.length > 0 && (
+                              <div className="prod-form-full">
+                                <div style={{ border: "1px solid var(--erp-border)", borderRadius: 8, padding: "12px 14px" }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>🏭 Proveedores</div>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                    {provRelaciones.map((rel) => (
+                                      <div key={rel.proveedorId} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "var(--erp-bg)", borderRadius: 6, border: "1px solid var(--erp-border)" }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--erp-text)" }}>{rel.proveedorNombre}</span>
+                                            {rel.proveedorRif && <span style={{ fontSize: 11, color: "var(--erp-text-3)" }}>{rel.proveedorRif}</span>}
+                                          </div>
+                                          <div style={{ fontSize: 11, color: "var(--erp-text-3)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                                            <span>Compras: <strong style={{ color: "var(--erp-text-2)" }}>{rel.vecesComprado}</strong></span>
+                                            {rel.ultimaCompra && <span>Última compra: <strong style={{ color: "var(--erp-text-2)" }}>{new Date(rel.ultimaCompra).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</strong></span>}
+                                            {rel.ultimoPrecioBs != null && <span>Último precio: <strong style={{ color: "var(--erp-text-2)" }}>Bs {rel.ultimoPrecioBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>}
+                                            {rel.proveedorTelefono && <span>📞 {rel.proveedorTelefono}</span>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {/* Imagen del producto */}
+                            <div className="prod-form-full">
+                              <label
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={handleDrop}
+                                style={{
+                                  display: "flex", gap: 12, alignItems: "center",
+                                  background: "var(--erp-bg)", borderRadius: 8, padding: "10px 12px",
+                                  border: "2px dashed var(--erp-border)", cursor: "pointer",
+                                  transition: "border-color .15s",
+                                }}>
+                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImagenChange} />
+                                {imagenEdicion ? (
+                                  <img src={imagenEdicion} alt="Foto" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, border: "1px solid var(--erp-border)", flexShrink: 0 }} />
+                                ) : (
+                                  <div style={{ width: 80, height: 80, borderRadius: 7, border: "1.5px dashed var(--erp-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "var(--erp-text-3)", fontSize: 26 }}>📷</div>
+                                )}
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--erp-text-2)", marginBottom: 3 }}>
+                                    {imagenSaving ? "⏳ Guardando foto…" : imagenEdicion ? "✓ Foto cargada" : "Foto del producto"}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "var(--erp-text-3)" }}>
+                                    Clic para seleccionar o arrastra aquí · JPG/PNG · se comprime automáticamente
+                                  </div>
+                                  {imagenEdicion && !imagenSaving && (
+                                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); guardarImagen(producto.id, null); setImagenEdicion(null); }}
+                                      style={{ marginTop: 6, background: "none", color: "#dc2626", border: "none", padding: 0, fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
+                                      Quitar foto
+                                    </button>
+                                  )}
+                                </div>
+                              </label>
+                            </div>
+
+                            <div className="prod-form-full" style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4, borderTop: "1px solid var(--erp-border)", marginTop: 4 }}>
+                              <button type="submit" disabled={saving} style={{ background: "var(--erp-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.5 : 1 }}>
+                                Guardar cambios
+                              </button>
+                              <button type="button" onClick={cancelEdit} style={{ background: "var(--erp-surface)", color: "var(--erp-text-2)", border: "1px solid var(--erp-border)", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                                Cancelar
+                              </button>
+                              <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                                <button type="button" onClick={() => handleToggleActivo(producto)}
+                                  style={{ background: producto.activo ? "#fff7ed" : "#f0fdf4", color: producto.activo ? "#c2410c" : "#15803d", border: `1px solid ${producto.activo ? "#fed7aa" : "#bbf7d0"}`, borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                                  {producto.activo ? "Desactivar" : "Reactivar"}
+                                </button>
+                                <button type="button" onClick={() => handleDelete(producto.id)} style={{ background: "var(--erp-surface)", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 6, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>
+                                  Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          </form>
+                          {form.tipoProducto === "COMBO" && productoEnEdicion && (
+                            <div style={{ marginTop: 12, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 16 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>🧩 Componentes del Combo</div>
+                              <ProductoComponentesPanel producto={productoEnEdicion} productos={productos} onChange={loadProductos} />
+                            </div>
+                          )}
+                          {grupoFiltro !== "MATERIA_PRIMA" && (
+                            <div style={{ marginTop: 12, background: "var(--erp-surface)", border: "1px solid var(--erp-border)", borderRadius: 8, padding: 16 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--erp-text)", marginBottom: 10 }}>⚙️ Extras</div>
+                              <ProductoExtrasPanel producto={producto} onChange={loadProductos} />
+                            </div>
+                          )}
+                          {error && (
+                            <div style={{ marginTop: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "#dc2626" }}>{error}</div>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -958,7 +1814,7 @@ export default function ProductosClient() {
           onPagina={setPagina}
           onPorPagina={setPorPagina}
         />
-      </div>
+      </div>}
     </div>
   );
 }

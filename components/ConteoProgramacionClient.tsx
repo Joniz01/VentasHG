@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import InputFecha from "@/components/InputFecha";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -630,12 +631,12 @@ function FormPanel({
           )}
 
           {form.recurrencia === "FECHA" && (
-            <input
-              type="date"
+            <InputFecha
               className={inputCls}
               style={{ ...inputStyle, maxWidth: 200 }}
               value={form.fechaEspecifica}
-              onChange={(e) => set("fechaEspecifica", e.target.value)}
+              onChange={(v) => set("fechaEspecifica", v)}
+              bg="var(--erp-surface)"
             />
           )}
         </div>

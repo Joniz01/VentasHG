@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSesionFromRequest } from "@/lib/auth";
+import { montoEstimadoUsd } from "@/lib/nomina-montos";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ function mapCP(r: Record<string, unknown>) {
   const montoBs = Number(r.monto_bs);
   const montoUsd = Number(r.monto_usd);
   const tasaDia = Number(r.tasa_dia);
+  const montoOriginalUsd = r.monto_original_usd != null ? Number(r.monto_original_usd) : null;
   return {
     id: r.id,
     proveedor: r.proveedor,
@@ -31,6 +33,7 @@ function mapCP(r: Record<string, unknown>) {
     fechaVencimiento: toDateStr(r.fecha_vencimiento),
     montoBs,
     montoUsd,
+    montoOriginalUsd,
     tasaDia,
     estado: r.estado,
     montoOriginalBs: r.monto_original_bs ? Number(r.monto_original_bs) : null,
@@ -41,19 +44,62 @@ function mapCP(r: Record<string, unknown>) {
     recurrente: Boolean(r.recurrente),
     frecuencia: r.frecuencia ?? null,
     proximoVencimiento: r.proximo_vencimiento ? toDateStr(r.proximo_vencimiento) : null,
+    cuotas: (r.cuotas as { fecha: string; montoUsd: number }[] | null) ?? null,
+    tipo: (r.tipo as string) ?? "gasto",
     createdAt: r.created_at,
   };
+}
+
+async function syncCompras(): Promise<void> {
+  await pool.query(`
+    INSERT INTO cuentas_pagar
+      (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision,
+       fecha_vencimiento, monto_bs, monto_usd, tasa_dia, estado, recurrente, tipo, created_by)
+    SELECT
+      c.proveedor_nombre,
+      c.proveedor_rif,
+      COALESCE(c.numero_factura, 'COMPRA-' || c.id),
+      'Compra a crédito' || CASE WHEN c.observaciones IS NOT NULL THEN ' — ' || c.observaciones ELSE '' END,
+      c.fecha,
+      COALESCE(c.fecha_vencimiento_pago, c.fecha),
+      COALESCE(SUM(ci.subtotal_bs), 0),
+      CASE WHEN c.tasa_dia > 0
+        THEN ROUND(COALESCE(SUM(ci.subtotal_bs), 0) / c.tasa_dia, 2)
+        ELSE 0 END,
+      c.tasa_dia,
+      'PENDIENTE',
+      false,
+      'compra',
+      c.created_by
+    FROM compras c
+    LEFT JOIN compra_items ci ON ci.compra_id = c.id
+    WHERE c.estado = 'ACTIVA'
+      AND c.fecha_vencimiento_pago IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM cuentas_pagar cp
+        WHERE cp.numero_factura = COALESCE(c.numero_factura, 'COMPRA-' || c.id)
+          AND cp.tipo = 'compra'
+      )
+    GROUP BY c.id, c.proveedor_nombre, c.proveedor_rif, c.numero_factura,
+             c.observaciones, c.fecha, c.fecha_vencimiento_pago, c.tasa_dia, c.created_by
+  `);
 }
 
 export async function GET(request: NextRequest) {
   const sesion = await getSesionFromRequest(request);
   if (!sesion) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  // Sincronizar compras activas que aún no tienen registro en CxP
+  try { await syncCompras(); } catch { /* no bloquear si falla el sync */ }
+
   const { searchParams } = new URL(request.url);
   const estado = searchParams.get("estado");
   const proveedor = searchParams.get("proveedor");
   const desde = searchParams.get("desde");
   const hasta = searchParams.get("hasta");
+  const soloRecurrente = searchParams.get("recurrente");
+  const pagadoDesde = searchParams.get("pagadoDesde");
+  const pagadoHasta = searchParams.get("pagadoHasta");
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
 
@@ -64,6 +110,10 @@ export async function GET(request: NextRequest) {
   if (proveedor) { params.push(`%${proveedor}%`); conditions.push(`lower(cp.proveedor) LIKE lower($${params.length})`); }
   if (desde) { params.push(desde); conditions.push(`cp.fecha_vencimiento >= $${params.length}`); }
   if (hasta) { params.push(hasta); conditions.push(`cp.fecha_vencimiento <= $${params.length}`); }
+  if (soloRecurrente === "true") { conditions.push(`cp.recurrente = TRUE`); }
+  else if (soloRecurrente === "false") { conditions.push(`cp.recurrente = FALSE`); }
+  if (pagadoDesde) { params.push(pagadoDesde); conditions.push(`cp.pagado_at::date >= $${params.length}`); }
+  if (pagadoHasta) { params.push(pagadoHasta); conditions.push(`cp.pagado_at::date <= $${params.length}`); }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -81,7 +131,210 @@ export async function GET(request: NextRequest) {
       listParams
     );
 
-    return NextResponse.json({ items: result.rows.map(mapCP), total, page, pageSize });
+    const items = result.rows.map(mapCP);
+
+    // Incluir nóminas pendientes (tab Por Pagar)
+    if (!pagadoDesde) {
+      try {
+        // 1. Períodos generados con pagos pendientes
+        const pendParams: unknown[] = [];
+        const pendDateFilter = desde && hasta
+          ? `WHERE pn.fecha_hasta BETWEEN $${pendParams.push(desde) && pendParams.length} AND $${pendParams.push(hasta) && pendParams.length}`
+          : "";
+        // El monto de un período es lo que quedó registrado en el período mismo
+        // (nomina_pagos + nomina_incidencias), NO el salario vigente del empleado.
+        // Cada concepto se agrega por separado para evitar que el JOIN 1:N de
+        // incidencias multiplique la suma de salarios.
+        const pendResult = await pool.query(
+          `WITH pagos_pend AS (
+             SELECT np.periodo_id, COALESCE(SUM(np.salario_base_bs), 0) AS salario_bs
+             FROM nomina_pagos np
+             WHERE np.estado != 'PAGADO'
+             GROUP BY np.periodo_id
+           ),
+           inc_pend AS (
+             SELECT np.periodo_id, COALESCE(SUM(ni.monto_bs), 0) AS inc_bs
+             FROM nomina_pagos np
+             JOIN nomina_incidencias ni ON ni.nomina_pago_id = np.id
+             WHERE np.estado != 'PAGADO'
+             GROUP BY np.periodo_id
+           )
+           SELECT
+             'N' || pn.id AS id,
+             n.nombre AS proveedor,
+             NULL AS proveedor_rif,
+             NULL AS numero_factura,
+             n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
+             pn.fecha_desde AS fecha_emision,
+             pn.fecha_hasta AS fecha_vencimiento,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) AS monto_bs,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_usd,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_original_usd,
+             pn.tasa_dia,
+             'PENDIENTE' AS estado,
+             NULL AS monto_original_bs,
+             0 AS monto_pagado_bs,
+             NULL AS pagado_at,
+             NULL AS comprobante_url,
+             NULL AS notas,
+             false AS recurrente,
+             NULL AS frecuencia,
+             NULL AS proximo_vencimiento,
+             'nomina' AS tipo,
+             pn.created_at
+           FROM periodos_nomina pn
+           JOIN nominas n ON n.id = pn.nomina_id
+           JOIN pagos_pend p ON p.periodo_id = pn.id
+           LEFT JOIN inc_pend i ON i.periodo_id = pn.id
+           ${pendDateFilter}`,
+          pendParams
+        );
+        for (const r of pendResult.rows) items.push(mapCP(r as Record<string, unknown>));
+
+        // 2. Nóminas automáticas estimadas (sin período generado) dentro de la ventana
+        if (desde && hasta) {
+          const estResult = await pool.query(
+            `WITH fechas_est AS (
+               SELECT n.id AS nomina_id, n.nombre, COALESCE(n.tipo,'NORMAL') AS tipo,
+                      (date_trunc('month', $1::date) + (n.dia_pago_1 - 1) * INTERVAL '1 day')::date AS fecha_pago
+               FROM nominas n
+               WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
+                 AND n.frecuencia IN ('MENSUAL','QUINCENAL') AND n.dia_pago_1 IS NOT NULL
+               UNION ALL
+               SELECT n.id, n.nombre, COALESCE(n.tipo,'NORMAL'),
+                      (date_trunc('week', $1::date) + (CASE WHEN n.dia_semana = 0 THEN 6 ELSE n.dia_semana - 1 END) * INTERVAL '1 day')::date
+               FROM nominas n
+               WHERE n.activo = TRUE AND n.modo_generacion = 'AUTOMATICO'
+                 AND n.frecuencia = 'SEMANAL' AND n.dia_semana IS NOT NULL
+             ),
+             filtradas AS (
+               SELECT DISTINCT f.nomina_id, f.nombre, f.tipo, f.fecha_pago
+               FROM fechas_est f
+               WHERE f.fecha_pago BETWEEN $1 AND $2
+                 AND NOT EXISTS (
+                   SELECT 1 FROM periodos_nomina pn
+                   WHERE pn.nomina_id = f.nomina_id
+                     AND f.fecha_pago BETWEEN pn.fecha_desde AND pn.fecha_hasta
+                 )
+             ),
+             salarios AS (
+               SELECT en.nomina_id,
+                      COALESCE(SUM(e.salario_base_usd), 0) AS total_salario,
+                      COUNT(DISTINCT en.empleado_id) AS nro_emp
+               FROM empleado_nominas en
+               JOIN empleados e ON e.id = en.empleado_id AND e.activo = TRUE
+               GROUP BY en.nomina_id
+             ),
+             incidencias AS (
+               SELECT nic.nomina_id, COALESCE(SUM(nic.monto_usd), 0) AS total_inc_usd
+               FROM nomina_incidencia_config nic
+               GROUP BY nic.nomina_id
+             )
+             SELECT f.nomina_id, f.nombre, f.tipo, f.fecha_pago,
+                    COALESCE(s.total_salario, 0) AS total_salario,
+                    COALESCE(ic.total_inc_usd, 0) AS total_inc_usd,
+                    COALESCE(s.nro_emp, 0) AS nro_emp
+             FROM filtradas f
+             LEFT JOIN salarios s ON s.nomina_id = f.nomina_id
+             LEFT JOIN incidencias ic ON ic.nomina_id = f.nomina_id
+             ORDER BY f.fecha_pago ASC`,
+            [desde, hasta]
+          );
+          const tasaBcv = await pool.query(`SELECT tasa FROM tasas_bcv_historico ORDER BY fecha DESC LIMIT 1`).then(r => Number(r.rows[0]?.tasa ?? 1)).catch(() => 1);
+          for (const row of estResult.rows) {
+            const totalUsd = montoEstimadoUsd({
+              tipo: row.tipo as string,
+              salarioUsd: Number(row.total_salario),
+              incidenciaUsdPorEmpleado: Number(row.total_inc_usd),
+              nroEmpleados: Number(row.nro_emp),
+            });
+            items.push(mapCP({
+              id: `NE${row.nomina_id}_${toDateStr(row.fecha_pago)}`,
+              proveedor: String(row.nombre),
+              proveedor_rif: null,
+              numero_factura: null,
+              descripcion: `${row.nombre} · estimado ${toDateStr(row.fecha_pago)}`,
+              fecha_emision: row.fecha_pago,
+              fecha_vencimiento: row.fecha_pago,
+              monto_bs: totalUsd * tasaBcv,
+              monto_usd: totalUsd,
+              monto_original_usd: totalUsd,
+              tasa_dia: tasaBcv,
+              estado: "PENDIENTE",
+              monto_original_bs: null,
+              monto_pagado_bs: 0,
+              pagado_at: null,
+              comprobante_url: null,
+              notas: null,
+              recurrente: false,
+              frecuencia: null,
+              proximo_vencimiento: null,
+              tipo: "nomina",
+              created_at: null,
+            } as Record<string, unknown>));
+          }
+        }
+      } catch { /* nóminas no disponibles — skip */ }
+    }
+
+    // Incluir nóminas pagadas cuando se está filtrando por rango de pago (tab Pagados)
+    if (pagadoDesde && pagadoHasta) {
+      try {
+        // Mismo criterio que el tab Por Pagar: el monto sale de lo registrado en
+        // el período (nomina_pagos + nomina_incidencias), no del salario vigente
+        // del empleado — que para una nómina SOLO_INCIDENCIAS no aplica.
+        const nResult = await pool.query(
+          `WITH pagos_pag AS (
+             SELECT np.periodo_id,
+                    COALESCE(SUM(np.salario_base_bs), 0) AS salario_bs,
+                    MAX(np.pagado_at) AS pagado_at
+             FROM nomina_pagos np
+             WHERE np.estado = 'PAGADO'
+             GROUP BY np.periodo_id
+           ),
+           inc_pag AS (
+             SELECT np.periodo_id, COALESCE(SUM(ni.monto_bs), 0) AS inc_bs
+             FROM nomina_pagos np
+             JOIN nomina_incidencias ni ON ni.nomina_pago_id = np.id
+             WHERE np.estado = 'PAGADO'
+             GROUP BY np.periodo_id
+           )
+           SELECT
+             'N' || pn.id AS id,
+             n.nombre AS proveedor,
+             NULL AS proveedor_rif,
+             NULL AS numero_factura,
+             n.nombre || ' · ' || TO_CHAR(pn.fecha_desde,'DD/MM') || '–' || TO_CHAR(pn.fecha_hasta,'DD/MM/YYYY') AS descripcion,
+             pn.fecha_desde AS fecha_emision,
+             pn.fecha_hasta AS fecha_vencimiento,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) AS monto_bs,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_usd,
+             (p.salario_bs + COALESCE(i.inc_bs, 0)) / NULLIF(pn.tasa_dia, 0) AS monto_original_usd,
+             pn.tasa_dia,
+             'PAGADO' AS estado,
+             NULL AS monto_original_bs,
+             0 AS monto_pagado_bs,
+             p.pagado_at,
+             NULL AS comprobante_url,
+             NULL AS notas,
+             false AS recurrente,
+             NULL AS frecuencia,
+             NULL AS proximo_vencimiento,
+             'nomina' AS tipo,
+             NULL AS created_at
+           FROM periodos_nomina pn
+           JOIN nominas n ON n.id = pn.nomina_id
+           JOIN pagos_pag p ON p.periodo_id = pn.id
+           LEFT JOIN inc_pag i ON i.periodo_id = pn.id
+           WHERE p.pagado_at::date BETWEEN $1 AND $2
+           ORDER BY p.pagado_at DESC`,
+          [pagadoDesde, pagadoHasta]
+        );
+        for (const r of nResult.rows) items.push(mapCP(r as Record<string, unknown>));
+      } catch { /* tabla nomina_pagos no disponible — skip */ }
+    }
+
+    return NextResponse.json({ items, total, page, pageSize });
   } catch (err) {
     const detalle = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: "Error al obtener cuentas por pagar", detalle }, { status: 500 });
@@ -123,31 +376,61 @@ export async function POST(request: NextRequest) {
     ? calcularProximoVencimiento(body.fechaVencimiento, frecuencia)
     : null;
 
+  const montoUsdFinal = Number(body.montoUsd) || 0;
   try {
-    const result = await pool.query(
-      `INSERT INTO cuentas_pagar
-        (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
-         monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-       RETURNING id`,
-      [
-        body.proveedor.trim(),
-        body.proveedorRif?.trim() || null,
-        body.numeroFactura?.trim() || null,
-        body.descripcion?.trim() || null,
-        body.fechaEmision,
-        body.fechaVencimiento,
-        Number(body.montoBs) || 0,
-        Number(body.montoUsd) || 0,
-        Number(body.tasaDia) || 0,
-        body.estado || "PENDIENTE",
-        body.notas?.trim() || null,
-        recurrente,
-        frecuencia,
-        proximoVencimiento,
-        sesion.id,
-      ]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO cuentas_pagar
+          (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+           monto_bs, monto_usd, monto_original_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15)
+         RETURNING id`,
+        [
+          body.proveedor.trim(),
+          body.proveedorRif?.trim() || null,
+          body.numeroFactura?.trim() || null,
+          body.descripcion?.trim() || null,
+          body.fechaEmision,
+          body.fechaVencimiento,
+          Number(body.montoBs) || 0,
+          montoUsdFinal,
+          Number(body.tasaDia) || 0,
+          body.estado || "PENDIENTE",
+          body.notas?.trim() || null,
+          recurrente,
+          frecuencia,
+          proximoVencimiento,
+          sesion.id,
+        ]
+      );
+    } catch {
+      // monto_original_usd pendiente de migración — insertar sin ella
+      result = await pool.query(
+        `INSERT INTO cuentas_pagar
+          (proveedor, proveedor_rif, numero_factura, descripcion, fecha_emision, fecha_vencimiento,
+           monto_bs, monto_usd, tasa_dia, estado, notas, recurrente, frecuencia, proximo_vencimiento, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         RETURNING id`,
+        [
+          body.proveedor.trim(),
+          body.proveedorRif?.trim() || null,
+          body.numeroFactura?.trim() || null,
+          body.descripcion?.trim() || null,
+          body.fechaEmision,
+          body.fechaVencimiento,
+          Number(body.montoBs) || 0,
+          montoUsdFinal,
+          Number(body.tasaDia) || 0,
+          body.estado || "PENDIENTE",
+          body.notas?.trim() || null,
+          recurrente,
+          frecuencia,
+          proximoVencimiento,
+          sesion.id,
+        ]
+      );
+    }
     return NextResponse.json({ id: result.rows[0].id }, { status: 201 });
   } catch (err) {
     const detalle = err instanceof Error ? err.message : String(err);

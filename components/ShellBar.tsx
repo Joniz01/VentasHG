@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, useCallback } from "react";
+
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-context";
 import PerfilMenu from "@/components/PerfilMenu";
@@ -159,6 +160,21 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
       >
         {moduleName}
       </span>
+
+      {/* Quick action — Caja Rápida */}
+      {sesionActiva && (
+        <Link
+          href="/caja"
+          className="hidden sm:flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-opacity hover:opacity-80 shrink-0"
+          style={{
+            borderColor: "rgba(255,255,255,.25)",
+            color: "#fff",
+            background: "rgba(255,255,255,.1)",
+          }}
+        >
+          ⚡ Caja
+        </Link>
+      )}
 
       <div className="flex-1" />
 
