@@ -170,16 +170,43 @@ export default function SidebarNav({ rol, permisos }: Props) {
 
   const puedeVerReportes = rol === "ADMIN" || !!permisos?.reportes;
 
+  const collapsableLabels = GRUPOS.filter((g) => !g.noCollapse).map((g) => g.label);
+
+  const saveGroups = useCallback((next: Set<string>) => {
+    try {
+      localStorage.setItem("sidebar-groups-collapsed", JSON.stringify([...next]));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Accordion: expand one group, collapse the rest
   const toggleGroupCollapse = useCallback((label: string) => {
     setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label); else next.add(label);
-      try {
-        localStorage.setItem("sidebar-groups-collapsed", JSON.stringify([...next]));
-      } catch { /* ignore */ }
+      const isCurrentlyCollapsed = prev.has(label);
+      let next: Set<string>;
+      if (isCurrentlyCollapsed) {
+        // Expand this one, collapse all others
+        next = new Set(collapsableLabels.filter((l) => l !== label));
+      } else {
+        // Collapse this one
+        next = new Set(prev);
+        next.add(label);
+      }
+      saveGroups(next);
       return next;
     });
-  }, []);
+  }, [collapsableLabels, saveGroups]);
+
+  const expandAll = useCallback(() => {
+    const next = new Set<string>();
+    saveGroups(next);
+    setCollapsedGroups(next);
+  }, [saveGroups]);
+
+  const collapseAll = useCallback(() => {
+    const next = new Set(collapsableLabels);
+    saveGroups(next);
+    setCollapsedGroups(next);
+  }, [collapsableLabels, saveGroups]);
 
   // Restore collapsed state from localStorage
   useEffect(() => {
@@ -250,6 +277,31 @@ export default function SidebarNav({ rol, permisos }: Props) {
         </button>
       </div>
 
+      {!collapsed && (
+        <div
+          className="flex items-center gap-1 px-3 pb-1 pt-0.5 shrink-0"
+          style={{ borderBottom: "1px solid var(--erp-border)" }}
+        >
+          <button
+            type="button"
+            onClick={expandAll}
+            className="flex-1 py-1 text-[10px] rounded transition-colors hover:opacity-80"
+            style={{ color: "var(--erp-text-3)", background: "transparent", border: "none", cursor: "pointer" }}
+          >
+            ↕ Expandir todo
+          </button>
+          <span style={{ color: "var(--erp-border)", fontSize: 12 }}>|</span>
+          <button
+            type="button"
+            onClick={collapseAll}
+            className="flex-1 py-1 text-[10px] rounded transition-colors hover:opacity-80"
+            style={{ color: "var(--erp-text-3)", background: "transparent", border: "none", cursor: "pointer" }}
+          >
+            ↕ Colapsar todo
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto py-1">
         {GRUPOS.map((grupo) => {
           const visibles = grupo.items.filter((item) => isVisible(item, rol, permisos));
@@ -299,25 +351,27 @@ export default function SidebarNav({ rol, permisos }: Props) {
                 const active = itemParams
                   ? pathname === itemPath && [...itemParams.entries()].every(([k, v]) => searchParams.get(k) === v)
                   : pathname?.startsWith(item.href) && !item.href.includes("?");
+                const indented = !collapsed && !grupo.noCollapse;
                 return (
                   <Link
                     key={item.href + item.label}
                     href={item.href}
                     title={collapsed ? item.label : undefined}
-                    className="flex items-center gap-2.5 py-[7px] text-[12.5px] transition-colors"
+                    className="flex items-center gap-2 py-[6px] text-[12px] transition-colors"
                     style={{
-                      paddingLeft: collapsed ? 0 : 12,
-                      paddingRight: collapsed ? 0 : 12,
+                      paddingLeft: collapsed ? 0 : indented ? 20 : 12,
+                      paddingRight: collapsed ? 0 : 10,
                       justifyContent: collapsed ? "center" : undefined,
                       borderLeft: !collapsed && active
                         ? "3px solid var(--erp-primary)"
                         : !collapsed ? "3px solid transparent" : undefined,
                       background: active ? "var(--erp-primary-lt)" : undefined,
-                      color: active ? "var(--erp-primary)" : "var(--erp-text-2)",
+                      color: active ? "var(--erp-primary)" : indented ? "var(--erp-text-2)" : "var(--erp-text)",
                       fontWeight: active ? 600 : 400,
+                      opacity: indented && !active ? 0.85 : 1,
                     }}
                   >
-                    <span className="shrink-0 text-center text-[15px]" style={{ width: collapsed ? "100%" : 16 }}>{item.icon}</span>
+                    <span className="shrink-0 text-center text-[14px]" style={{ width: collapsed ? "100%" : 15, opacity: indented ? 0.75 : 1 }}>{item.icon}</span>
                     {!collapsed && <span className="flex-1 leading-tight">{item.label}</span>}
                     {!collapsed && item.badge === "cxc" && puedeVerReportes && <CuentasPorCobrarAlerta />}
                     {!collapsed && item.badge === "cashea" && puedeVerReportes && <CasheaAlerta />}
