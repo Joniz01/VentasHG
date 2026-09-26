@@ -2948,15 +2948,25 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                       {formatFecha(venta.fecha)}
                     </td>
                   )}
-                  {col("cliente") && <td className="px-4 py-2 font-medium" style={{ maxWidth: "14ch", wordBreak: "break-word" }}>{venta.cliente}</td>}
+                  {col("cliente") && (() => {
+                    const partes = venta.cliente.trim().split(/\s+/);
+                    const mid = Math.ceil(partes.length / 2);
+                    const nombres = partes.slice(0, mid).join(" ");
+                    const apellidos = partes.slice(mid).join(" ");
+                    return (
+                      <td className="px-4 py-2 font-medium whitespace-nowrap">
+                        <div>{nombres}</div>
+                        {apellidos && <div>{apellidos}</div>}
+                      </td>
+                    );
+                  })()}
                   {col("productos") && (
-                    <td className="px-4 py-2 text-zinc-600" style={{ maxWidth: "14ch", wordBreak: "break-word" }}>
-                      {venta.items
-                        .map(
-                          (i) =>
-                            `${i.nombreProducto}${i.extraNombre ? ` (${i.extraNombre})` : ""} x${i.cantidad}`
-                        )
-                        .join(", ")}
+                    <td className="px-4 py-2 text-zinc-600 whitespace-nowrap">
+                      {venta.items.map((i, idx) => (
+                        <div key={idx}>
+                          {i.nombreProducto}{i.extraNombre ? ` (${i.extraNombre})` : ""} x{i.cantidad}
+                        </div>
+                      ))}
                     </td>
                   )}
                   {col("totalVenta") && (
