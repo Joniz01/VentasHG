@@ -46,10 +46,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       );
       if (cuentaCobrada) {
         const fp = fechaPago || hoyCaracas();
+        // Métodos USD: guardar en USD. Métodos Bs: guardar en Bs (total_usd * tasa)
+        const METODOS_USD = ["EFECTIVO_USD", "ZELLE", "CXC_DIRECTA"];
+        const tasa = Number(row.tasa_dia ?? 0);
+        const monto = METODOS_USD.includes(metodo)
+          ? row.total_usd
+          : tasa > 0 ? Number(row.total_usd) * tasa : row.total_usd;
         await client.query(
           `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
            VALUES ($1, $2, $3, $4)`,
-          [id, metodo, row.total_usd, fp]
+          [id, metodo, monto, fp]
         );
       }
 
