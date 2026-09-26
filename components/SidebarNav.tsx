@@ -21,13 +21,15 @@ type NavItem = {
   badge?: "cxc" | "cashea" | "conteo" | "programacion";
 };
 
-type NavGroup = { label: string; items: NavItem[]; groupBadge?: "outstock" };
+type NavGroup = { label: string; items: NavItem[]; groupBadge?: "outstock"; noCollapse?: boolean };
 
 const GRUPOS: NavGroup[] = [
   {
     label: "Principal",
+    noCollapse: true,
     items: [
-      { href: "/", icon: "🏠", label: "Inicio" },
+      { href: "/",     icon: "🏠", label: "Inicio" },
+      { href: "/caja", icon: "⚡", label: "Caja Rápida" },
     ],
   },
   {
@@ -42,31 +44,11 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Reportes & KPI",
-    items: [
-      { href: "/dashboard",   icon: "📈", label: "Dashboard",    permiso: "dashboard" },
-      { href: "/reportes",    icon: "📑", label: "Reportes",     permiso: "reportes" },
-      { href: "/ia-analisis", icon: "🤖", label: "IA Análisis" },
-    ],
-  },
-  {
-    label: "CRM",
-    items: [
-      { href: "/clientes", icon: "👤", label: "Clientes", permiso: "ventas" },
-      { href: "/crm",      icon: "🤝", label: "CRM" },
-    ],
-  },
-  {
-    label: "Productos & Catálogo",
-    items: [
-      { href: "/productos", icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
-      { href: "/insumos",   icon: "🧱", label: "Insumos / Materia Prima", permiso: "productos" },
-    ],
-  },
-  {
     label: "Inventario",
     groupBadge: "outstock",
     items: [
+      { href: "/productos",               icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
+      { href: "/insumos",                 icon: "🧱", label: "Insumos / Materia Prima",  permiso: "productos" },
       { href: "/inventario",              icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
       { href: "/inventario/ajustes",      icon: "⚖️",  label: "Ajustes de Inventario",   permiso: "productos" },
       { href: "/inventario-disponible",   icon: "✅", label: "Inventario Disponible",    permiso: "productos" },
@@ -80,45 +62,55 @@ const GRUPOS: NavGroup[] = [
     ],
   },
   {
-    label: "Producción & MRP",
+    label: "Producción",
     items: [
-      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción",  permiso: "productos" },
-      { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción",  permiso: "productos" },
+      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción", permiso: "productos" },
+      { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción", permiso: "productos" },
       { href: "/mrp",           icon: "⚙️",  label: "MRP · Planificación" },
     ],
   },
   {
     label: "Compras",
     items: [
-      { href: "/compras/facturas",     icon: "📄", label: "Facturas de Compra",      permiso: "compras" },
-      { href: "/compras/recepciones",  icon: "🚚", label: "Recepción de Mercancía",  permiso: "compras" },
-      { href: "/compras/proveedores",  icon: "🏢", label: "Proveedores",             permiso: "compras" },
-    ],
-  },
-  {
-    label: "Nómina & Gastos",
-    items: [
-      { href: "/nomina", icon: "👷", label: "Nómina", permiso: "gastos" },
-      { href: "/gastos", icon: "💸", label: "Gastos", permiso: "gastos" },
+      { href: "/compras/facturas",    icon: "📄", label: "Facturas de Compra",     permiso: "compras" },
+      { href: "/compras/recepciones", icon: "🚚", label: "Recepción de Mercancía", permiso: "compras" },
+      { href: "/compras/proveedores", icon: "🏢", label: "Proveedores",            permiso: "compras" },
     ],
   },
   {
     label: "Finanzas",
     items: [
-      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
-      { href: "/tesoreria",           icon: "🏦", label: "Planif. de Pagos",    permiso: "gastos" },
-      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar" },
-      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero" },
+      { href: "/nomina",             icon: "👷", label: "Nómina",              permiso: "gastos" },
+      { href: "/gastos",             icon: "💸", label: "Gastos",              permiso: "gastos" },
+      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar",  permiso: "reportes", badge: "cxc" },
+      { href: "/tesoreria",          icon: "🏦", label: "Planif. de Pagos",    permiso: "gastos" },
+      { href: "/cuentas-por-pagar",  icon: "📤", label: "Cuentas por Pagar" },
+      { href: "/analisis-financiero",icon: "📊", label: "Análisis Financiero" },
     ],
   },
   {
-    label: "Admin & Configuración",
+    label: "Reportes & CRM",
     items: [
-      { href: "/admin",          icon: "🔧", label: "Configuración",     rolReq: "ADMIN" },
-      { href: "/configuracion",  icon: "📐", label: "Maestros del Sistema", rolReq: "ADMIN" },
+      { href: "/dashboard",   icon: "📈", label: "Dashboard",   permiso: "dashboard" },
+      { href: "/reportes",    icon: "📑", label: "Reportes",    permiso: "reportes" },
+      { href: "/ia-analisis", icon: "🤖", label: "IA Análisis" },
+      { href: "/clientes",    icon: "👤", label: "Clientes",    permiso: "ventas" },
+      { href: "/crm",         icon: "🤝", label: "CRM" },
+    ],
+  },
+  {
+    label: "Admin",
+    items: [
+      { href: "/admin",         icon: "🔧", label: "Configuración",        rolReq: "ADMIN" },
+      { href: "/configuracion", icon: "📐", label: "Maestros del Sistema", rolReq: "ADMIN" },
     ],
   },
 ];
+
+// Grupos colapsables por defecto (todos menos Principal)
+const DEFAULT_COLLAPSED = new Set(
+  GRUPOS.filter((g) => !g.noCollapse).map((g) => g.label)
+);
 
 function labelToSlug(label: string) {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -132,15 +124,16 @@ function isVisible(item: NavItem, rol: Rol | null, permisos: PermisosUsuario | n
 }
 
 function GroupLabel({
-  label, collapsed, groupCollapsed, onToggleCollapse, groupBadge,
+  label, collapsed, groupCollapsed, onToggleCollapse, groupBadge, noCollapse,
 }: {
   label: string;
   collapsed: boolean;
   groupCollapsed: boolean;
   onToggleCollapse: () => void;
   groupBadge?: "outstock";
+  noCollapse?: boolean;
 }) {
-  if (collapsed) return null;
+  if (collapsed || noCollapse) return null;
 
   return (
     <button
@@ -158,15 +151,14 @@ function GroupLabel({
   );
 }
 
-const MAX_VISIBLE = 3;
-
 export default function SidebarNav({ rol, permisos }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(DEFAULT_COLLAPSED);
+
+  const puedeVerReportes = rol === "ADMIN" || !!permisos?.reportes;
 
   const toggleGroupCollapse = useCallback((label: string) => {
     setCollapsedGroups((prev) => {
@@ -175,15 +167,6 @@ export default function SidebarNav({ rol, permisos }: Props) {
       try {
         localStorage.setItem("sidebar-groups-collapsed", JSON.stringify([...next]));
       } catch { /* ignore */ }
-      return next;
-    });
-  }, []);
-  const puedeVerReportes = rol === "ADMIN" || !!permisos?.reportes;
-
-  const toggleGroup = useCallback((label: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label); else next.add(label);
       return next;
     });
   }, []);
@@ -197,9 +180,29 @@ export default function SidebarNav({ rol, permisos }: Props) {
         document.documentElement.style.setProperty("--sidebar-w", "56px");
       }
       const savedGroups = localStorage.getItem("sidebar-groups-collapsed");
-      if (savedGroups) setCollapsedGroups(new Set(JSON.parse(savedGroups) as string[]));
+      if (savedGroups) {
+        setCollapsedGroups(new Set(JSON.parse(savedGroups) as string[]));
+      }
     } catch { /* ignore */ }
   }, []);
+
+  // Auto-expand group that contains the active route
+  useEffect(() => {
+    const activeGroup = GRUPOS.find(
+      (g) => !g.noCollapse && g.items.some((item) => {
+        const [itemPath] = item.href.split("?");
+        return pathname?.startsWith(itemPath) && !item.href.includes("?");
+      })
+    );
+    if (activeGroup) {
+      setCollapsedGroups((prev) => {
+        if (!prev.has(activeGroup.label)) return prev;
+        const next = new Set(prev);
+        next.delete(activeGroup.label);
+        return next;
+      });
+    }
+  }, [pathname]);
 
   // Sync CSS var and localStorage when collapsed changes
   useEffect(() => {
@@ -241,12 +244,7 @@ export default function SidebarNav({ rol, permisos }: Props) {
         {GRUPOS.map((grupo) => {
           const visibles = grupo.items.filter((item) => isVisible(item, rol, permisos));
           if (!visibles.length) return null;
-          const isExpanded = expandedGroups.has(grupo.label);
-          const isGroupCollapsed = !collapsed && collapsedGroups.has(grupo.label);
-          const shown = !collapsed && visibles.length > MAX_VISIBLE && !isExpanded
-            ? visibles.slice(0, MAX_VISIBLE)
-            : visibles;
-          const hidden = visibles.length - MAX_VISIBLE;
+          const isGroupCollapsed = !collapsed && !grupo.noCollapse && collapsedGroups.has(grupo.label);
           return (
             <div key={grupo.label} className="mb-1">
               <GroupLabel
@@ -255,8 +253,9 @@ export default function SidebarNav({ rol, permisos }: Props) {
                 groupCollapsed={isGroupCollapsed}
                 onToggleCollapse={() => toggleGroupCollapse(grupo.label)}
                 groupBadge={grupo.groupBadge}
+                noCollapse={grupo.noCollapse}
               />
-              {isGroupCollapsed ? null : shown.map((item) => {
+              {isGroupCollapsed ? null : visibles.map((item) => {
                 const [itemPath, itemQuery] = item.href.split("?");
                 const itemParams = itemQuery ? new URLSearchParams(itemQuery) : null;
                 const active = itemParams
@@ -289,16 +288,6 @@ export default function SidebarNav({ rol, permisos }: Props) {
                   </Link>
                 );
               })}
-              {!collapsed && !isGroupCollapsed && visibles.length > MAX_VISIBLE && (
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(grupo.label)}
-                  className="w-full text-left py-[5px] text-[11px] transition-colors hover:opacity-80"
-                  style={{ paddingLeft: 12, color: "var(--erp-primary)", background: "transparent", border: "none", cursor: "pointer" }}
-                >
-                  {isExpanded ? "‹ Ver menos" : `+ Ver más (${hidden})`}
-                </button>
-              )}
             </div>
           );
         })}

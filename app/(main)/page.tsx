@@ -26,6 +26,7 @@ const GRUPOS: TileGroup[] = [
   {
     label: "Ventas",
     tiles: [
+      { href: "/caja",                          icon: "⚡", label: "Caja Rápida",        sub: "Cobro rápido sin orden",   color: "#EA6B0A" },
       { href: "/ventas",                        icon: "🛒", label: "Punto de Venta",     sub: "Registrar venta",          color: "#EA6B0A", permiso: "ventas" },
       { href: "/pedidos-pendientes",            icon: "📋", label: "Pedidos Pendientes", sub: "Por preparar o entregar",  color: "#1D4ED8", permiso: "pedidosPendientes" },
       { href: "/delivery",                      icon: "📬", label: "Deliveries",         sub: "Pedidos a domicilio",      color: "#15803D" },
@@ -35,79 +36,64 @@ const GRUPOS: TileGroup[] = [
     ],
   },
   {
-    label: "Reportes & KPI",
-    tiles: [
-      { href: "/dashboard",     icon: "📈", label: "Dashboard",       sub: "Métricas y gráficas",         color: "#1D4ED8", permiso: "dashboard" },
-      { href: "/reportes",      icon: "📑", label: "Reportes",        sub: "Ventas y resúmenes",          color: "#1D4ED8", permiso: "reportes" },
-      { href: "/ia-analisis",   icon: "🤖", label: "IA Análisis",     sub: "Análisis inteligente con IA", color: "#7C3AED", new: true },
-    ],
-  },
-  {
-    label: "CRM",
-    tiles: [
-      { href: "/clientes", icon: "👤", label: "Clientes", sub: "Gestión de clientes",   color: "#0891B2", new: true },
-      { href: "/crm",      icon: "🤝", label: "CRM",      sub: "Relación con clientes", color: "#0891B2", new: true },
-    ],
-  },
-  {
-    label: "Productos & Catálogo",
-    tiles: [
-      { href: "/productos", icon: "🛒", label: "Productos de Venta",      sub: "Catálogo de productos para vender", color: "#1D4ED8", permiso: "productos" },
-      { href: "/insumos",   icon: "🧱", label: "Insumos / Materia Prima", sub: "Insumos de producción",             color: "#92400e", permiso: "productos" },
-    ],
-  },
-  {
     label: "Inventario",
     tiles: [
-      { href: "/inventario",               icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",           color: "#15803D", permiso: "productos" },
-      { href: "/inventario/ajustes",       icon: "⚖️",  label: "Ajustes de Inventario",    sub: "Mermas, pérdidas y correcciones", color: "#B45309", permiso: "productos" },
-      { href: "/inventario/lotes",         icon: "🏷️", label: "Lotes & Vencimientos",     sub: "Trazabilidad y FIFO",             color: "#0891B2", permiso: "productos" },
-      { href: "/inventarios",              icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos",      color: "#1D4ED8", permiso: "productos" },
-      { href: "/inventario/valorizacion",  icon: "💰", label: "Valorización",             sub: "Costo promedio del stock",        color: "#B45309", permiso: "reportes" },
-      { href: "/inventario-disponible",    icon: "✅", label: "Inventario Disponible",    sub: "Vista pública de existencias",    color: "#15803D", permiso: "productos" },
-      { href: "/inventario/reorden",       icon: "🔁", label: "Reglas de Reorden",        sub: "Puntos de reorden para MRP",      color: "#7C3AED", permiso: "productos", new: true },
-      { href: "/inventario/conteos",       icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",        color: "#7C3AED", permiso: "autorizarConteo" },
-      { href: "/conteo",                   icon: "📱", label: "Conteo Físico",            sub: "Conteo desde dispositivo",        color: "#7C3AED", permiso: "conteo" },
-      { href: "/inventario/programacion",  icon: "🗓️", label: "Programación de Conteos",  sub: "Alertas y calendarios de conteo", color: "#0891B2", permiso: "programarConteo" },
+      { href: "/productos",                icon: "🛒", label: "Productos de Venta",      sub: "Catálogo de productos para vender", color: "#1D4ED8", permiso: "productos" },
+      { href: "/insumos",                  icon: "🧱", label: "Insumos / Materia Prima", sub: "Insumos de producción",             color: "#92400e", permiso: "productos" },
+      { href: "/inventario",               icon: "🚦", label: "Dashboard Stock",          sub: "Alertas y existencias",            color: "#15803D", permiso: "productos" },
+      { href: "/inventario/ajustes",       icon: "⚖️",  label: "Ajustes de Inventario",   sub: "Mermas, pérdidas y correcciones",  color: "#B45309", permiso: "productos" },
+      { href: "/inventario-disponible",    icon: "✅", label: "Inventario Disponible",    sub: "Vista pública de existencias",     color: "#15803D", permiso: "productos" },
+      { href: "/inventario/lotes",         icon: "🏷️", label: "Lotes & Vencimientos",    sub: "Trazabilidad y FIFO",              color: "#0891B2", permiso: "productos" },
+      { href: "/inventarios",              icon: "📊", label: "Inventario y Movimientos", sub: "Valorización y movimientos",       color: "#1D4ED8", permiso: "productos" },
+      { href: "/inventario/valorizacion",  icon: "💰", label: "Valorización",             sub: "Costo promedio del stock",         color: "#B45309", permiso: "reportes" },
+      { href: "/inventario/reorden",       icon: "🔁", label: "Reglas de Reorden",        sub: "Puntos de reorden para MRP",       color: "#7C3AED", permiso: "productos", new: true },
+      { href: "/inventario/conteos",       icon: "📋", label: "Bandeja Conteos",          sub: "Control de conteo físico",         color: "#7C3AED", permiso: "autorizarConteo" },
+      { href: "/conteo",                   icon: "📱", label: "Conteo Físico",            sub: "Conteo desde dispositivo",         color: "#7C3AED", permiso: "conteo" },
+      { href: "/inventario/programacion",  icon: "🗓️", label: "Programación de Conteos",  sub: "Alertas y calendarios de conteo",  color: "#0891B2", permiso: "programarConteo" },
     ],
   },
   {
-    label: "Producción & MRP",
+    label: "Producción",
     tiles: [
-      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción",  sub: "Fórmulas e insumos por producto",  color: "#7C3AED", permiso: "productos" },
-      { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción",  sub: "Fabricación y transformación",     color: "#B45309", permiso: "productos", new: true },
-      { href: "/mrp",           icon: "⚙️",  label: "MRP · Planificación",   sub: "Requerimientos de materiales",     color: "#9333EA", new: true },
+      { href: "/productos/bom", icon: "📐", label: "Recetas de Producción", sub: "Fórmulas e insumos por producto", color: "#7C3AED", permiso: "productos" },
+      { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción", sub: "Fabricación y transformación",    color: "#B45309", permiso: "productos", new: true },
+      { href: "/mrp",           icon: "⚙️",  label: "MRP · Planificación",  sub: "Requerimientos de materiales",    color: "#9333EA", new: true },
     ],
   },
   {
     label: "Compras",
     tiles: [
       { href: "/compras/facturas",    icon: "📄", label: "Facturas de Compra",     sub: "Facturas de proveedores e inventario", color: "#15803D", permiso: "compras" },
-      { href: "/compras/recepciones", icon: "🚚", label: "Recepción de Mercancía", sub: "Mercancía recibida sin factura",        color: "#0891B2", permiso: "compras" },
-      { href: "/compras/proveedores", icon: "🏢", label: "Proveedores",            sub: "Datos y condiciones de crédito",        color: "#475569", permiso: "compras" },
-    ],
-  },
-  {
-    label: "Nómina & Gastos",
-    tiles: [
-      { href: "/nomina",  icon: "👷", label: "Nómina",  sub: "Empleados y períodos de pago", color: "#9333EA", new: true },
-      { href: "/gastos",  icon: "💸", label: "Gastos",  sub: "Materia prima y operación",    color: "#9333EA", permiso: "gastos", new: true },
+      { href: "/compras/recepciones", icon: "🚚", label: "Recepción de Mercancía", sub: "Mercancía recibida sin factura",       color: "#0891B2", permiso: "compras" },
+      { href: "/compras/proveedores", icon: "🏢", label: "Proveedores",            sub: "Datos y condiciones de crédito",       color: "#475569", permiso: "compras" },
     ],
   },
   {
     label: "Finanzas",
     tiles: [
-      { href: "/tesoreria",           icon: "🏦", label: "Planif. de Pagos",    sub: "Nóminas, gastos y compromisos próximos", color: "#0891B2", permiso: "gastos", new: true },
-      { href: "/cuentas-por-pagar",   icon: "📤", label: "Cuentas por Pagar",   sub: "Facturas de proveedores de servicios",   color: "#B45309", new: true },
-      { href: "/cuentas-por-cobrar",  icon: "💳", label: "Cuentas por Cobrar",  sub: "CxC Directa, Cashea y Yummy",           color: "#15803D", permiso: "reportes" },
-      { href: "/analisis-financiero", icon: "📊", label: "Análisis Financiero", sub: "Indicadores y flujo de caja",           color: "#B45309", new: true },
+      { href: "/nomina",             icon: "👷", label: "Nómina",              sub: "Empleados y períodos de pago",          color: "#9333EA", new: true },
+      { href: "/gastos",             icon: "💸", label: "Gastos",              sub: "Materia prima y operación",             color: "#9333EA", permiso: "gastos", new: true },
+      { href: "/cuentas-por-cobrar", icon: "💳", label: "Cuentas por Cobrar",  sub: "CxC Directa, Cashea y Yummy",          color: "#15803D", permiso: "reportes" },
+      { href: "/tesoreria",          icon: "🏦", label: "Planif. de Pagos",    sub: "Nóminas, gastos y compromisos próximos",color: "#0891B2", permiso: "gastos", new: true },
+      { href: "/cuentas-por-pagar",  icon: "📤", label: "Cuentas por Pagar",   sub: "Facturas de proveedores de servicios",  color: "#B45309", new: true },
+      { href: "/analisis-financiero",icon: "📊", label: "Análisis Financiero", sub: "Indicadores y flujo de caja",           color: "#B45309", new: true },
     ],
   },
   {
-    label: "Admin & Configuración",
+    label: "Reportes & CRM",
     tiles: [
-      { href: "/admin",         icon: "🔧", label: "Configuración",        sub: "Usuarios y config",                 color: "#475569", rolReq: "ADMIN" },
-      { href: "/configuracion", icon: "📐", label: "Maestros del Sistema", sub: "Unidades, familias y líneas",        color: "#475569", rolReq: "ADMIN" },
+      { href: "/dashboard",   icon: "📈", label: "Dashboard",   sub: "Métricas y gráficas",         color: "#1D4ED8", permiso: "dashboard" },
+      { href: "/reportes",    icon: "📑", label: "Reportes",    sub: "Ventas y resúmenes",          color: "#1D4ED8", permiso: "reportes" },
+      { href: "/ia-analisis", icon: "🤖", label: "IA Análisis", sub: "Análisis inteligente con IA", color: "#7C3AED", new: true },
+      { href: "/clientes",    icon: "👤", label: "Clientes",    sub: "Gestión de clientes",         color: "#0891B2", new: true },
+      { href: "/crm",         icon: "🤝", label: "CRM",         sub: "Relación con clientes",       color: "#0891B2", new: true },
+    ],
+  },
+  {
+    label: "Admin",
+    tiles: [
+      { href: "/admin",         icon: "🔧", label: "Configuración",        sub: "Usuarios y config",           color: "#475569", rolReq: "ADMIN" },
+      { href: "/configuracion", icon: "📐", label: "Maestros del Sistema", sub: "Unidades, familias y líneas", color: "#475569", rolReq: "ADMIN" },
     ],
   },
 ];
