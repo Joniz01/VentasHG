@@ -49,16 +49,16 @@
   --erp-text-3:      #4B5563;
 }
 
-/* ── Fina ── */
+/* ── Morado ── */
 [data-theme="fina"] {
   --erp-shell:       #1A0533;
   --erp-shell-text:  #E2D4F8;
   --erp-primary:     #7C3AED;
   --erp-primary-lt:  #EDE9FE;
   --erp-accent:      #EC4899;
-  --erp-bg:          #F5F3FF;
+  --erp-bg:          #F8F8F8;
   --erp-surface:     #FFFFFF;
-  --erp-border:      #DDD6FE;
+  --erp-border:      #E8E2F8;
   --erp-text:        #1E1033;
   --erp-text-2:      #6D28D9;
   --erp-text-3:      #A78BFA;
