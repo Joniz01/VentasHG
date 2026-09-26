@@ -276,6 +276,38 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
   const [busqueda, setBusqueda] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [soloPendientesPago, setSoloPendientesPago] = useState(false);
+
+  // Selector de columnas del historial — persistido en localStorage
+  const COLS_HISTORIAL = [
+    { key: "pedido",      label: "Pedido #" },
+    { key: "fecha",       label: "Fecha" },
+    { key: "cliente",     label: "Cliente" },
+    { key: "productos",   label: "Productos" },
+    { key: "totalVenta",  label: "Total venta" },
+    { key: "delivery",    label: "Delivery" },
+    { key: "totalPagado", label: "Total pagado" },
+    { key: "entrega",     label: "Entrega" },
+    { key: "cobro",       label: "Cobro" },
+  ] as const;
+  type ColHistorial = typeof COLS_HISTORIAL[number]["key"];
+  const ALL_COLS = COLS_HISTORIAL.map((c) => c.key) as ColHistorial[];
+  const [colsVisibles, setColsVisibles] = useState<Set<ColHistorial>>(() => {
+    try {
+      const saved = localStorage.getItem("historial-columnas");
+      if (saved) return new Set(JSON.parse(saved) as ColHistorial[]);
+    } catch { /* ignore */ }
+    return new Set(ALL_COLS);
+  });
+  const [colSelectorOpen, setColSelectorOpen] = useState(false);
+  const col = (key: ColHistorial) => colsVisibles.has(key);
+  const toggleCol = (key: ColHistorial) => {
+    setColsVisibles((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem("historial-columnas", JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const [casheaConfirm, setCasheaConfirm] = useState<{ ventaId: number; tasa: string; fechaPago: string } | null>(null);
   const [yummyConfirmId, setYummyConfirmId] = useState<number | null>(null);
   const [cxcConfirmId, setCxcConfirmId] = useState<number | null>(null);
@@ -2748,6 +2780,54 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
           />
           Solo pendientes por pagar
         </label>
+        {/* Selector de columnas */}
+        <div className="relative ml-auto">
+          <button
+            type="button"
+            onClick={() => setColSelectorOpen((v) => !v)}
+            className="flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50"
+            style={{ color: "var(--erp-text-2)" }}
+          >
+            Columnas ▾
+          </button>
+          {colSelectorOpen && (
+            <div
+              className="absolute right-0 top-full z-50 mt-1 rounded-lg border shadow-lg p-3 flex flex-col gap-2 min-w-[170px]"
+              style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--erp-text-3)" }}>Columnas</span>
+                <button
+                  type="button"
+                  onClick={() => setColSelectorOpen(false)}
+                  className="text-xs hover:opacity-70"
+                  style={{ color: "var(--erp-text-3)" }}
+                >✕</button>
+              </div>
+              {COLS_HISTORIAL.map((c) => (
+                <label key={c.key} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={colsVisibles.has(c.key)}
+                    onChange={() => toggleCol(c.key)}
+                  />
+                  {c.label}
+                </label>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setColsVisibles(new Set(ALL_COLS));
+                  try { localStorage.setItem("historial-columnas", JSON.stringify(ALL_COLS)); } catch { /* ignore */ }
+                }}
+                className="mt-1 text-xs underline text-left"
+                style={{ color: "var(--erp-primary)" }}
+              >
+                Mostrar todas
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {!soloPendientesPago && (
@@ -2806,30 +2886,29 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
           <thead className="bg-zinc-50">
             <tr>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Pedido #</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Fecha</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Productos</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Pagos</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Total venta</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Delivery</th>
-              <th className="px-4 py-2 text-right font-medium text-zinc-600">Total pagado</th>
-              <th className="px-4 py-2 text-left font-medium text-zinc-600">Entrega</th>
-              <th className="px-4 py-2 text-center font-medium text-zinc-600">Cobro</th>
+              {col("pedido")      && <th className="px-4 py-2 text-left font-medium text-zinc-600">Pedido #</th>}
+              {col("fecha")       && <th className="px-4 py-2 text-left font-medium text-zinc-600">Fecha</th>}
+              {col("cliente")     && <th className="px-4 py-2 text-left font-medium text-zinc-600">Cliente</th>}
+              {col("productos")   && <th className="px-4 py-2 text-left font-medium text-zinc-600">Productos</th>}
+              {col("totalVenta")  && <th className="px-4 py-2 text-right font-medium text-zinc-600">Total venta</th>}
+              {col("delivery")    && <th className="px-4 py-2 text-right font-medium text-zinc-600">Delivery</th>}
+              {col("totalPagado") && <th className="px-4 py-2 text-right font-medium text-zinc-600">Total pagado</th>}
+              {col("entrega")     && <th className="px-4 py-2 text-left font-medium text-zinc-600">Entrega</th>}
+              {col("cobro")       && <th className="px-4 py-2 text-center font-medium text-zinc-600">Cobro</th>}
               <th className="px-4 py-2 text-right font-medium text-zinc-600">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {loading && (
               <tr>
-                <td colSpan={11} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={colsVisibles.size + 1} className="px-4 py-6 text-center text-zinc-500">
                   Cargando...
                 </td>
               </tr>
             )}
             {!loading && ventasFiltradas.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-6 text-center text-zinc-500">
+                <td colSpan={colsVisibles.size + 1} className="px-4 py-6 text-center text-zinc-500">
                   No hay ventas registradas
                 </td>
               </tr>
@@ -2862,53 +2941,66 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
 
               return (
                 <tr key={venta.id}>
-                  <td className="px-4 py-2 whitespace-nowrap font-medium">#{venta.id}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    {formatFecha(venta.fecha)}
-                  </td>
-                  <td className="px-4 py-2 font-medium whitespace-nowrap">{venta.cliente}</td>
-                  <td className="px-4 py-2 text-zinc-600">
-                    {venta.items
-                      .map(
-                        (i) =>
-                          `${i.nombreProducto}${i.extraNombre ? ` (${i.extraNombre})` : ""} x${i.cantidad}`
-                      )
-                      .join(", ")}
-                  </td>
-                  <td className="px-4 py-2 text-zinc-600">
-                    {venta.pagos
-                      .map((p) => `${METODO_PAGO_LABELS[p.metodo]}: ${METODOS_PAGO_USD.includes(p.metodo) ? p.monto.toFixed(2) : fmtBs(p.monto)}`)
-                      .join(", ") || "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {fmtBs(usdToBs(ventaTotalUsd, venta.tasaDelDia))} Bs{" "}
-                    <span className="text-zinc-500">(${ventaTotalUsd.toFixed(2)})</span>
-                  </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {costoDeliveryUsd > 0 ? (
-                      <>
-                        {fmtBs(usdToBs(costoDeliveryUsd, venta.tasaDelDia))} Bs{" "}
-                        <span className="text-zinc-500">(${costoDeliveryUsd.toFixed(2)})</span>
-                      </>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
-                    {fmtBs(totalPagadoEnBs)} Bs{" "}
-                    <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
-                  </td>
-                  <td className="px-4 py-2">
-                    {venta.despachoPendiente && !venta.pedidoEntregado ? (
-                      <span className="rounded-md px-2 py-1 font-bold text-white" style={{ background: "var(--erp-primary)" }}>
-                        {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
-                      </span>
-                    ) : venta.modoEntrega === "DELIVERY" ? (
-                      "Delivery"
-                    ) : (
-                      "Local"
-                    )}
-                  </td>
+                  {col("pedido") && <td className="px-4 py-2 whitespace-nowrap font-medium">#{venta.id}</td>}
+                  {col("fecha") && (
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {formatFecha(venta.fecha)}
+                    </td>
+                  )}
+                  {col("cliente") && <td className="px-4 py-2 font-medium whitespace-nowrap">{venta.cliente}</td>}
+                  {col("productos") && (
+                    <td className="px-4 py-2 text-zinc-600">
+                      {venta.items
+                        .map(
+                          (i) =>
+                            `${i.nombreProducto}${i.extraNombre ? ` (${i.extraNombre})` : ""} x${i.cantidad}`
+                        )
+                        .join(", ")}
+                    </td>
+                  )}
+                  {col("totalVenta") && (
+                    <td className="px-4 py-2 text-right whitespace-nowrap">
+                      {fmtBs(usdToBs(ventaTotalUsd, venta.tasaDelDia))} Bs{" "}
+                      <span className="text-zinc-500">(${ventaTotalUsd.toFixed(2)})</span>
+                    </td>
+                  )}
+                  {col("delivery") && (
+                    <td className="px-4 py-2 text-right whitespace-nowrap">
+                      {costoDeliveryUsd > 0 ? (
+                        <>
+                          {fmtBs(usdToBs(costoDeliveryUsd, venta.tasaDelDia))} Bs{" "}
+                          <span className="text-zinc-500">(${costoDeliveryUsd.toFixed(2)})</span>
+                        </>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                  )}
+                  {col("totalPagado") && (
+                    <td className="px-4 py-2 text-right whitespace-nowrap">
+                      {venta.pagos.length > 0 && (
+                        <div className="text-[11px] text-zinc-400 mb-0.5">
+                          {venta.pagos.map((p) => METODO_PAGO_LABELS[p.metodo]).join(" + ")}
+                        </div>
+                      )}
+                      {fmtBs(totalPagadoEnBs)} Bs{" "}
+                      <span className="text-zinc-500">(${totalPagadoEnUsd.toFixed(2)})</span>
+                    </td>
+                  )}
+                  {col("entrega") && (
+                    <td className="px-4 py-2">
+                      {venta.despachoPendiente && !venta.pedidoEntregado ? (
+                        <span className="rounded-md px-2 py-1 font-bold text-white" style={{ background: "var(--erp-primary)" }}>
+                          {venta.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
+                        </span>
+                      ) : venta.modoEntrega === "DELIVERY" ? (
+                        "Delivery"
+                      ) : (
+                        "Local"
+                      )}
+                    </td>
+                  )}
+                  {col("cobro") && (
                   <td className="px-4 py-2 text-center">
                     <div className="flex flex-col items-center gap-1">
                       {cd && (
@@ -3036,6 +3128,7 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                       {!cd && !venta.yummyDatos && !venta.cuentaPorCobrar && "-"}
                     </div>
                   </td>
+                  )}
                   <td className="px-4 py-2 text-right">
                     <div className="flex justify-end gap-2">
                       <button
