@@ -2948,9 +2948,9 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                       {formatFecha(venta.fecha)}
                     </td>
                   )}
-                  {col("cliente") && <td className="px-4 py-2 font-medium whitespace-nowrap">{venta.cliente}</td>}
+                  {col("cliente") && <td className="px-4 py-2 font-medium" style={{ maxWidth: "14ch", wordBreak: "break-word" }}>{venta.cliente}</td>}
                   {col("productos") && (
-                    <td className="px-4 py-2 text-zinc-600">
+                    <td className="px-4 py-2 text-zinc-600" style={{ maxWidth: "14ch", wordBreak: "break-word" }}>
                       {venta.items
                         .map(
                           (i) =>
