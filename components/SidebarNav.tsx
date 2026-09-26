@@ -21,7 +21,7 @@ type NavItem = {
   badge?: "cxc" | "cashea" | "conteo" | "programacion";
 };
 
-type NavGroup = { label: string; items: NavItem[]; groupBadge?: "outstock"; noCollapse?: boolean };
+type NavGroup = { label: string; icon?: string; items: NavItem[]; groupBadge?: "outstock"; noCollapse?: boolean };
 
 const GRUPOS: NavGroup[] = [
   {
@@ -34,6 +34,7 @@ const GRUPOS: NavGroup[] = [
   },
   {
     label: "Ventas",
+    icon: "🛒",
     items: [
       { href: "/ventas",                   icon: "🛒", label: "Punto de Venta",    permiso: "ventas" },
       { href: "/pedidos-pendientes",       icon: "📋", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
@@ -45,6 +46,7 @@ const GRUPOS: NavGroup[] = [
   },
   {
     label: "Inventario",
+    icon: "📦",
     groupBadge: "outstock",
     items: [
       { href: "/productos",               icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
@@ -63,6 +65,7 @@ const GRUPOS: NavGroup[] = [
   },
   {
     label: "Producción",
+    icon: "🏭",
     items: [
       { href: "/productos/bom", icon: "📐", label: "Recetas de Producción", permiso: "productos" },
       { href: "/produccion",    icon: "🏭", label: "Órdenes de Producción", permiso: "productos" },
@@ -71,6 +74,7 @@ const GRUPOS: NavGroup[] = [
   },
   {
     label: "Compras",
+    icon: "🚚",
     items: [
       { href: "/compras/facturas",    icon: "📄", label: "Facturas de Compra",     permiso: "compras" },
       { href: "/compras/recepciones", icon: "🚚", label: "Recepción de Mercancía", permiso: "compras" },
@@ -79,6 +83,7 @@ const GRUPOS: NavGroup[] = [
   },
   {
     label: "Finanzas",
+    icon: "💰",
     items: [
       { href: "/nomina",             icon: "👷", label: "Nómina",              permiso: "gastos" },
       { href: "/gastos",             icon: "💸", label: "Gastos",              permiso: "gastos" },
@@ -90,6 +95,7 @@ const GRUPOS: NavGroup[] = [
   },
   {
     label: "Reportes & CRM",
+    icon: "📈",
     items: [
       { href: "/dashboard",   icon: "📈", label: "Dashboard",   permiso: "dashboard" },
       { href: "/reportes",    icon: "📑", label: "Reportes",    permiso: "reportes" },
@@ -100,6 +106,7 @@ const GRUPOS: NavGroup[] = [
   },
   {
     label: "Admin",
+    icon: "🔧",
     items: [
       { href: "/admin",         icon: "🔧", label: "Configuración",        rolReq: "ADMIN" },
       { href: "/configuracion", icon: "📐", label: "Maestros del Sistema", rolReq: "ADMIN" },
@@ -124,16 +131,18 @@ function isVisible(item: NavItem, rol: Rol | null, permisos: PermisosUsuario | n
 }
 
 function GroupLabel({
-  label, collapsed, groupCollapsed, onToggleCollapse, groupBadge, noCollapse,
+  label, icon, collapsed, groupCollapsed, onToggleCollapse, groupBadge, noCollapse,
 }: {
   label: string;
+  icon?: string;
   collapsed: boolean;
   groupCollapsed: boolean;
   onToggleCollapse: () => void;
   groupBadge?: "outstock";
   noCollapse?: boolean;
 }) {
-  if (collapsed || noCollapse) return null;
+  if (noCollapse) return null;
+  if (collapsed) return null; // collapsed mode handled separately
 
   return (
     <button
@@ -142,6 +151,7 @@ function GroupLabel({
       className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider transition-colors hover:opacity-80"
       style={{ color: "var(--erp-text-3)", background: "transparent", border: "none", cursor: "pointer" }}
     >
+      {icon && <span style={{ fontSize: 13, opacity: .8 }}>{icon}</span>}
       <span className="flex-1 text-left">{label}</span>
       {groupBadge === "outstock" && !groupCollapsed && <OutstockAlerta collapsed={false} />}
       <span style={{ fontSize: 10, opacity: .7, transform: groupCollapsed ? "rotate(-90deg)" : "none", display: "inline-block", transition: "transform .15s" }}>
@@ -245,10 +255,38 @@ export default function SidebarNav({ rol, permisos }: Props) {
           const visibles = grupo.items.filter((item) => isVisible(item, rol, permisos));
           if (!visibles.length) return null;
           const isGroupCollapsed = !collapsed && !grupo.noCollapse && collapsedGroups.has(grupo.label);
+
+          // Collapsed sidebar (56px): show group icon or individual items for noCollapse
+          if (collapsed && !grupo.noCollapse) {
+            const firstItem = visibles[0];
+            const anyActive = visibles.some((item) => {
+              const [itemPath] = item.href.split("?");
+              return pathname?.startsWith(itemPath) && !item.href.includes("?");
+            });
+            return (
+              <div key={grupo.label} className="mb-0.5">
+                <Link
+                  href={firstItem.href}
+                  title={grupo.label}
+                  className="relative flex items-center justify-center py-[9px] transition-colors"
+                  style={{
+                    background: anyActive ? "var(--erp-primary-lt)" : undefined,
+                    borderLeft: anyActive ? "3px solid var(--erp-primary)" : "3px solid transparent",
+                    color: anyActive ? "var(--erp-primary)" : "var(--erp-text-2)",
+                  }}
+                >
+                  <span className="text-[18px]">{grupo.icon}</span>
+                  {grupo.groupBadge === "outstock" && <OutstockAlerta collapsed={true} />}
+                </Link>
+              </div>
+            );
+          }
+
           return (
             <div key={grupo.label} className="mb-1">
               <GroupLabel
                 label={grupo.label}
+                icon={grupo.icon}
                 collapsed={collapsed}
                 groupCollapsed={isGroupCollapsed}
                 onToggleCollapse={() => toggleGroupCollapse(grupo.label)}
