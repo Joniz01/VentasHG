@@ -152,10 +152,14 @@ export default async function Home() {
         return (
           <div key={grupo.label} id={`section-${slug}`} className="mb-6 scroll-mt-16">
             <div
-              className="flex items-center gap-3 mb-3 text-[10px] font-bold uppercase tracking-widest"
-              style={{ color: "var(--erp-text-3)" }}
+              className="flex items-center gap-3 mb-3"
             >
-              {grupo.label}
+              <span
+                className="text-[13px] font-extrabold uppercase tracking-widest"
+                style={{ color: "var(--erp-text-2)" }}
+              >
+                {grupo.label}
+              </span>
               <span
                 className="flex-1 h-px"
                 style={{ background: "var(--erp-border)" }}
