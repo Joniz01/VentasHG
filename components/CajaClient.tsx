@@ -368,14 +368,15 @@ export default function CajaClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
   const FILTROS = [
-    { key: "Todos",              label: "Todos" },
-    { key: "Premium",            label: "Premium" },
-    { key: "Especiales",         label: "Especiales" },
-    { key: "Tradicional",        label: "Tradicional" },
-    { key: "Bandejas",           label: "Bandejas y Experiencias" },
-    { key: "Combos",             label: "Combos y Pack" },
-    { key: "Raciones",           label: "Raciones" },
-    { key: "Bebidas",            label: "Bebidas" },
+    { key: "Todos",      label: "Todos" },
+    { key: "Premium",    label: "Premium" },
+    { key: "Especiales", label: "Especiales" },
+    { key: "Tradicional",label: "Tradicional" },
+    { key: "Masas",      label: "Masas Intervenidas" },
+    { key: "Bandejas",   label: "Bandejas y Experiencias" },
+    { key: "Combos",     label: "Combos y Pack" },
+    { key: "Raciones",   label: "Raciones" },
+    { key: "Bebidas",    label: "Bebidas" },
   ] as const;
   type FiltroKey = typeof FILTROS[number]["key"];
 
@@ -383,13 +384,14 @@ export default function CajaClient() {
     if (key === "Todos") return true;
     const linea = (p.lineaNombre ?? "").toLowerCase();
     const cat = (p.categoriaNombre ?? "").toLowerCase();
-    if (key === "Premium")   return linea.includes("premium");
+    if (key === "Premium")    return linea.includes("premium");
     if (key === "Especiales") return linea.includes("especial");
     if (key === "Tradicional") return linea.includes("tradicional");
-    if (key === "Bandejas")  return cat.includes("bandeja") || cat.includes("experiencia");
-    if (key === "Combos")    return cat.includes("combo") || cat.includes("pack");
-    if (key === "Raciones")  return cat.includes("racion") || cat.includes("ración") || cat.includes("ravion") || cat.includes("ravión");
-    if (key === "Bebidas")   return cat.includes("bebida");
+    if (key === "Masas")      return linea.includes("masa") || linea.includes("intervenida") || cat.includes("masa") || cat.includes("intervenida");
+    if (key === "Bandejas")   return cat.includes("bandeja") || cat.includes("experiencia");
+    if (key === "Combos")     return cat.includes("combo") || cat.includes("pack");
+    if (key === "Raciones")   return cat.includes("racion") || cat.includes("ración") || cat.includes("ravion") || cat.includes("ravión");
+    if (key === "Bebidas")    return cat.includes("bebida");
     return false;
   }
 
