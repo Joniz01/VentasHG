@@ -2950,7 +2950,8 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
                   )}
                   {col("cliente") && (() => {
                     const partes = venta.cliente.trim().split(/\s+/);
-                    const mid = Math.ceil(partes.length / 2);
+                    // Solo dividir en 2 líneas si hay 3 o más palabras
+                    const mid = partes.length >= 3 ? Math.ceil(partes.length / 2) : partes.length;
                     const nombres = partes.slice(0, mid).join(" ");
                     const apellidos = partes.slice(mid).join(" ");
                     return (
