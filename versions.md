@@ -2,6 +2,107 @@
 
 ---
 
+## v3.1.0 — Navegación agrupada + Clasificación Tipo de Empaque
+
+**Fecha:** 2026-09-26 | **Commits:** `9d36773` → `723ccd3`
+
+---
+
+### 1. Clasificación Tipo de Empaque en Productos
+
+**Archivos creados:**
+- `app/api/tipos-empaque/route.ts`
+
+**Archivos modificados:**
+- `lib/types.ts`
+- `app/api/productos/route.ts`
+- `app/api/productos/[id]/route.ts`
+- `components/ProductosClient.tsx`
+- `components/CajaClient.tsx`
+- `components/VentasClient.tsx`
+
+**Descripción:**
+Nueva clasificación ERP de productos mediante la tabla `tipos_empaque`.
+Permite etiquetar cada producto con un tipo de empaque (ej. "Ración 5 und",
+"Ración 10 und", "Bandeja 15 und", "Bandeja 20 und").
+
+El selector de raciones en Bandeja Variada (Caja Rápida y POS) ahora filtra
+únicamente los productos cuyo `tipoEmpaqueNombre` contenga "ración",
+excluyendo bandejas completas, bebidas y otros productos no aplicables.
+
+En la vista de Productos se agrega un filtro por Tipo de Empaque en la barra
+de filtros, y el formulario de edición/creación incluye el campo "Tipo de Empaque".
+
+**Cambios en base de datos:**
+```sql
+CREATE TABLE tipos_empaque (
+  id        SERIAL PRIMARY KEY,
+  nombre    TEXT NOT NULL,
+  activo    BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Columna en productos:
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo_empaque_id INTEGER REFERENCES tipos_empaque(id);
+
+-- Datos iniciales:
+INSERT INTO tipos_empaque (nombre) VALUES
+  ('Bandeja 15 und'), ('Bandeja 20 und'),
+  ('Ración 5 und'), ('Ración 10 und');
+```
+
+---
+
+### 2. Múltiples métodos de pago en Caja Rápida
+
+**Archivos modificados:**
+- `components/CajaClient.tsx`
+
+**Descripción:**
+La Caja Rápida ahora permite dividir el cobro entre varios métodos de pago
+(array `pagos`). Cada método tiene entrada en Bs (primaria) y $ (secundaria)
+sincronizadas por la tasa BCV. El primer método se autorrellena con el total;
+al agregar un segundo método se rellena con el restante. El botón "Cobrar"
+solo se habilita cuando el total pagado ≥ total a pagar.
+
+Totales desglosados: Subtotal / IVA / Delivery / Total a pagar / Total pagado.
+
+---
+
+### 3. Selector de Raciones en Caja Rápida (Bandeja Variada)
+
+**Archivos modificados:**
+- `components/CajaClient.tsx`
+
+**Descripción:**
+Al agregar un producto `tipoProducto === "VARIADA"` en Caja Rápida, se generan
+N selectores de ración (según `variadaRaciones`) directamente en el carrito,
+igualando el comportamiento del POS. El cobro solo se habilita cuando todas
+las raciones están seleccionadas.
+
+---
+
+## Migraciones SQL — v3.1.0
+
+```sql
+-- Ejecutar en el editor SQL de Neon
+
+CREATE TABLE IF NOT EXISTS tipos_empaque (
+  id         SERIAL PRIMARY KEY,
+  nombre     TEXT NOT NULL,
+  activo     BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo_empaque_id INTEGER REFERENCES tipos_empaque(id);
+
+INSERT INTO tipos_empaque (nombre) VALUES
+  ('Bandeja 15 und'), ('Bandeja 20 und'),
+  ('Ración 5 und'), ('Ración 10 und');
+```
+
+---
+
 ## v7.0 — OCR Cédula + Estado Civil en Empleados
 
 **Fecha:** 2026-08-29 | **Commits:** en curso
