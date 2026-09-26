@@ -19,21 +19,6 @@
   --erp-text-3:       #94A3B8;
 }
 
-/* ── Naranja & Verde ── */
-[data-theme="ng"] {
-  --erp-shell:       #12291A;
-  --erp-shell-text:  #A7F3D0;
-  --erp-primary:     #16A34A;
-  --erp-primary-lt:  #DCFCE7;
-  --erp-accent:      #EA580C;
-  --erp-bg:          #F0FDF4;
-  --erp-surface:     #FFFFFF;
-  --erp-border:      #BBF7D0;
-  --erp-text:        #052E16;
-  --erp-text-2:      #166534;
-  --erp-text-3:      #4ADE80;
-}
-
 /* ── Hechizo Gourmet ── */
 [data-theme="hg"] {
   --erp-shell:       #1A1A1A;
@@ -64,19 +49,34 @@
   --erp-text-3:      #4B5563;
 }
 
-/* ── Naranja & Verde Oscuro ── */
-[data-theme="ng-dark"] {
-  --erp-shell:       #0A1A0F;
-  --erp-shell-text:  #6EE7B7;
-  --erp-primary:     #22C55E;
-  --erp-primary-lt:  #052E16;
-  --erp-accent:      #F97316;
-  --erp-bg:          #0A1A0F;
-  --erp-surface:     #0F2518;
-  --erp-border:      #14532D;
-  --erp-text:        #D1FAE5;
-  --erp-text-2:      #6EE7B7;
-  --erp-text-3:      #166534;
+/* ── Fina ── */
+[data-theme="fina"] {
+  --erp-shell:       #1A0533;
+  --erp-shell-text:  #E2D4F8;
+  --erp-primary:     #7C3AED;
+  --erp-primary-lt:  #EDE9FE;
+  --erp-accent:      #EC4899;
+  --erp-bg:          #F5F3FF;
+  --erp-surface:     #FFFFFF;
+  --erp-border:      #DDD6FE;
+  --erp-text:        #1E1033;
+  --erp-text-2:      #6D28D9;
+  --erp-text-3:      #A78BFA;
+}
+
+/* ── Fina Oscuro ── */
+[data-theme="fina-dark"] {
+  --erp-shell:       #0F0520;
+  --erp-shell-text:  #C4B5FD;
+  --erp-primary:     #7C3AED;
+  --erp-primary-lt:  #2E1065;
+  --erp-accent:      #EC4899;
+  --erp-bg:          #0D0118;
+  --erp-surface:     #160B2E;
+  --erp-border:      #2E1065;
+  --erp-text:        #EDE9FE;
+  --erp-text-2:      #C4B5FD;
+  --erp-text-3:      #6D28D9;
 }
 
 /* ── Hechizo Gourmet Oscuro ── */

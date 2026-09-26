@@ -33,12 +33,12 @@ const MODULE_NAMES: Record<string, string> = {
 };
 
 const THEMES = [
-  { id: "",        label: "Corporate",              dark: false, swatch: ["#0F1B2D", "#1D4ED8"] },
-  { id: "ng",      label: "Naranja & Verde",        dark: false, swatch: ["#12291A", "#16A34A"] },
-  { id: "hg",      label: "Hechizo Gourmet",        dark: false, swatch: ["#1A1A1A", "#C81515"] },
-  { id: "dark",    label: "Corporate Oscuro",       dark: true,  swatch: ["#050D1A", "#3B82F6"] },
-  { id: "ng-dark", label: "Naranja & Verde Oscuro", dark: true,  swatch: ["#0A1A0F", "#22C55E"] },
-  { id: "hg-dark", label: "Hechizo Oscuro",         dark: true,  swatch: ["#0F0F0F", "#E03030"] },
+  { id: "",          label: "Corporate",        dark: false, swatch: ["#0F1B2D", "#1D4ED8"] },
+  { id: "hg",        label: "Hechizo Gourmet",  dark: false, swatch: ["#1A1A1A", "#C81515"] },
+  { id: "fina",      label: "Fina",             dark: false, swatch: ["#1A0533", "#7C3AED"] },
+  { id: "dark",      label: "Corporate Oscuro", dark: true,  swatch: ["#050D1A", "#3B82F6"] },
+  { id: "hg-dark",   label: "Hechizo Oscuro",   dark: true,  swatch: ["#0F0F0F", "#E03030"] },
+  { id: "fina-dark", label: "Fina Oscuro",      dark: true,  swatch: ["#0F0520", "#7C3AED"] },
 ];
 
 const CXC_POLL_MS = 5 * 60 * 1000; // 5 minutos
