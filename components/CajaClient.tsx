@@ -663,6 +663,16 @@ export default function CajaClient() {
     } catch { setBcvFechaErr("Error al buscar"); } finally { setConsultandoBcv(false); }
   }
 
+  async function cancelarMesa(ventaId: number, nombreMesa: string) {
+    if (!confirm(`¿Cancelar "${nombreMesa}"? Se eliminará el pedido y se revertirá el inventario.`)) return;
+    try {
+      const res = await fetch(`/api/ventas/${ventaId}`, { method: "DELETE" });
+      if (!res.ok) { const d = await res.json(); alert(d.error ?? "Error al cancelar la mesa"); return; }
+      if (mesaActual?.id === ventaId) { setMesaActual(null); setCarrito([]); }
+      await cargarMesasAbiertas();
+    } catch { alert("Error al cancelar la mesa"); }
+  }
+
   async function cargarMesasAbiertas() {
     try {
       const res = await fetch("/api/ventas?es_mesa_abierta=true&limit=50");
@@ -830,17 +840,27 @@ export default function CajaClient() {
           {mesasAbiertas.length > 0 && (
             <div className="mesa-chips">
               {mesasAbiertas.map((m) => (
-                <button
-                  key={m.id}
-                  className={`mesa-chip${mesaActual?.id === m.id ? " active" : ""}`}
-                  onClick={() => {
-                    if (mesaActual?.id === m.id) { setMesaActual(null); setCarrito([]); }
-                    else { void abrirMesa(m.id); }
-                  }}
-                  title={mesaActual?.id === m.id ? "Click para cerrar esta mesa" : `Abrir ${m.mesa}`}
-                >
-                  🍽️ {m.mesa} ({m.itemCount})
-                </button>
+                <span key={m.id} style={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <button
+                    className={`mesa-chip${mesaActual?.id === m.id ? " active" : ""}`}
+                    style={{ borderRadius: "20px 0 0 20px", borderRight: "none", paddingRight: 6 }}
+                    onClick={() => {
+                      if (mesaActual?.id === m.id) { setMesaActual(null); setCarrito([]); }
+                      else { void abrirMesa(m.id); }
+                    }}
+                    title={mesaActual?.id === m.id ? "Click para deseleccionar" : `Cargar ${m.mesa}`}
+                  >
+                    🍽️ {m.mesa} ({m.itemCount})
+                  </button>
+                  <button
+                    className="mesa-chip"
+                    style={{ borderRadius: "0 20px 20px 0", paddingLeft: 6, paddingRight: 8, opacity: .7 }}
+                    onClick={() => void cancelarMesa(m.id, m.mesa)}
+                    title={`Cancelar ${m.mesa}`}
+                  >
+                    ✕
+                  </button>
+                </span>
               ))}
             </div>
           )}
