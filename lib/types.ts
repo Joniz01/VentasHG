@@ -424,6 +424,8 @@ export type PedidoPendiente = {
   pedidoAceptado: boolean;
   pedidoEntregado: boolean;
   pedidoEnviado: boolean;
+  cuentaPorCobrar: boolean;
+  mesa: string | null;
   items: PedidoPendienteItem[];
 };
 

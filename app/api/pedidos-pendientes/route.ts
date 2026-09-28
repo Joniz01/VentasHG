@@ -3,7 +3,7 @@ import { pool } from "@/lib/db";
 
 export async function GET() {
   const ventasResult = await pool.query(
-    `SELECT id, fecha, cliente, direccion, delivery_asignado, motorizado_id, hora_entrega, hora_preparacion, hora_retiro, pedido_aceptado, pedido_entregado, pedido_enviado
+    `SELECT id, fecha, cliente, direccion, delivery_asignado, motorizado_id, hora_entrega, hora_preparacion, hora_retiro, pedido_aceptado, pedido_entregado, pedido_enviado, cuenta_por_cobrar, mesa
      FROM ventas
      WHERE despacho_pendiente = TRUE
        AND (pedido_entregado = FALSE OR fecha = CURRENT_DATE)
@@ -53,6 +53,8 @@ export async function GET() {
       pedidoAceptado: row.pedido_aceptado,
       pedidoEntregado: row.pedido_entregado,
       pedidoEnviado: row.pedido_enviado,
+      cuentaPorCobrar: row.cuenta_por_cobrar,
+      mesa: row.mesa,
       fritoCongelado,
       items,
     };

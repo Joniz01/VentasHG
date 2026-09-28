@@ -37,11 +37,11 @@ export async function GET(_request: NextRequest, { params }: Params) {
   const venta = ventaResult.rows[0];
 
   const itemsResult = await pool.query(
-    `SELECT vi.cantidad, vi.precio_unit, vi.costo_unit, p.nombre AS producto,
-            e.nombre AS extra
+    `SELECT vi.producto_id, vi.extra_id, vi.cantidad, vi.precio_unit, vi.costo_unit,
+            vi.extra_nombre, vi.extra_precio,
+            p.nombre AS producto, p.precio_venta
      FROM venta_items vi
      JOIN productos p ON p.id = vi.producto_id
-     LEFT JOIN productos e ON e.id = vi.extra_id
      WHERE vi.venta_id = $1
      ORDER BY vi.id`,
     [id]
@@ -82,10 +82,14 @@ export async function GET(_request: NextRequest, { params }: Params) {
       fechaLimitePago: venta.fecha_limite_pago,
     },
     items: itemsResult.rows.map((r) => ({
+      productoId: Number(r.producto_id),
+      extraId: r.extra_id ? Number(r.extra_id) : null,
       producto: r.producto,
-      extra: r.extra,
+      extraNombre: r.extra_nombre,
+      extraPrecio: Number(r.extra_precio ?? 0),
       cantidad: Number(r.cantidad),
       precioUnit: Number(r.precio_unit),
+      precioBase: Number(r.precio_venta),
       costoUnit: Number(r.costo_unit),
     })),
     pagos: pagosResult.rows.map((r) => ({
@@ -133,7 +137,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
            despacho_pendiente = $13, hora_entrega = $14, hora_preparacion = $15, hora_retiro = $16,
            delivery_asignado = $17, motorizado_id = $18, cuenta_por_cobrar = $19, fecha_limite_pago = $20,
            cuenta_cobrada = CASE WHEN $19 THEN cuenta_cobrada ELSE FALSE END,
-           cuenta_cobrada_at = CASE WHEN $19 THEN cuenta_cobrada_at ELSE NULL END
+           cuenta_cobrada_at = CASE WHEN $19 THEN cuenta_cobrada_at ELSE NULL END,
+           mesa = $22, es_mesa_abierta = $23
        WHERE id = $21
        RETURNING id`,
       [
@@ -158,6 +163,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
         cuentaPorCobrar,
         cuentaPorCobrar ? body.fechaLimitePago || null : null,
         id,
+        body.mesa || null,
+        Boolean(body.esMesaAbierta),
       ]
     );
 

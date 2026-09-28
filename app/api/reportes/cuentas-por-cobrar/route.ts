@@ -9,7 +9,11 @@ export async function GET(request: NextRequest) {
   const ventaId = searchParams.get("ventaId");
   const cliente = searchParams.get("cliente");
 
-  const conditions: string[] = ["v.cuenta_por_cobrar = TRUE"];
+  const conditions: string[] = [
+    "v.cuenta_por_cobrar = TRUE",
+    "COALESCE(v.es_mesa_abierta, FALSE) = FALSE",
+    "(v.despacho_pendiente = FALSE OR v.pedido_entregado = TRUE)",
+  ];
   const params: unknown[] = [];
 
   if (desde) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AlarmasConfig, PedidoPendiente } from "@/lib/types";
-import { ALARMAS_CONFIG_DEFAULT } from "@/lib/types";
+import { ALARMAS_CONFIG_DEFAULT, METODO_PAGO_LABELS } from "@/lib/types";
 import { reproducirAlarma } from "@/lib/alarmas";
 import {
   computeEstadoPedido,
@@ -24,6 +24,10 @@ export default function PedidosPendientesClient() {
   const [now, setNow] = useState(0);
   const [mostrarEntregados, setMostrarEntregados] = useState(false);
   const [silenciados, setSilenciados] = useState<Record<string, number>>({});
+  const [pagoModal, setPagoModal] = useState<{ pedidoId: number; cliente: string } | null>(null);
+  const [pagoMetodo, setPagoMetodo] = useState("EFECTIVO_BS");
+  const [pagoMonto, setPagoMonto] = useState("");
+  const [pagoGuardando, setPagoGuardando] = useState(false);
 
   const alarmas = useRef<Map<number, AlarmaInfo>>(new Map());
   const alarmasConfig = useRef<AlarmasConfig>(ALARMAS_CONFIG_DEFAULT);
@@ -198,11 +202,85 @@ export default function PedidosPendientesClient() {
     }
   }
 
+  async function registrarPago() {
+    if (!pagoModal || !pagoMonto || Number(pagoMonto) <= 0) return;
+    setPagoGuardando(true);
+    try {
+      const res = await fetch(`/api/pedidos-pendientes/${pagoModal.pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pagos: [{ metodo: pagoMetodo, monto: Number(pagoMonto) }] }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Error al registrar pago");
+      }
+      setPagoModal(null);
+      setPagoMonto("");
+      await loadPedidos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al registrar pago");
+    } finally {
+      setPagoGuardando(false);
+    }
+  }
+
   const pedidosPendientes = pedidos.filter((p) => !p.pedidoEntregado);
   const pedidosEntregados = pedidos.filter((p) => p.pedidoEntregado);
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Modal Registrar Pago */}
+      {pagoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <h3 className="mb-1 text-base font-semibold text-zinc-900">Registrar Pago</h3>
+            <p className="mb-4 text-sm text-zinc-500">Pedido #{pagoModal.pedidoId} — {pagoModal.cliente}</p>
+            <div className="mb-3 flex flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-600">Método de pago</label>
+              <select
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                value={pagoMetodo}
+                onChange={(e) => setPagoMetodo(e.target.value)}
+              >
+                {Object.entries(METODO_PAGO_LABELS)
+                  .filter(([k]) => k !== "CASHEA" && k !== "YUMMY" && k !== "CXC_DIRECTA")
+                  .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div className="mb-4 flex flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-600">Monto</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                placeholder="0.00"
+                value={pagoMonto}
+                onChange={(e) => setPagoMonto(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={registrarPago}
+                disabled={pagoGuardando || !pagoMonto || Number(pagoMonto) <= 0}
+                className="flex-1 rounded-md bg-zinc-900 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {pagoGuardando ? "Guardando…" : "Confirmar pago"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPagoModal(null); setPagoMonto(""); }}
+                className="rounded-md border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
@@ -233,6 +311,7 @@ export default function PedidosPendientesClient() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-semibold">
                 Pedido #{pedido.id} — {pedido.cliente}
+                {pedido.mesa && <span className="ml-2 rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">{pedido.mesa}</span>}
               </h3>
               <div className="flex items-center gap-2">
                 <div className="flex flex-col text-sm text-zinc-700">
@@ -358,6 +437,21 @@ export default function PedidosPendientesClient() {
                   className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
                 >
                   Aceptar (entregado)
+                </button>
+              </div>
+            )}
+
+            {pedido.cuentaPorCobrar && !pedido.pedidoEntregado && (
+              <div className="flex items-center gap-2 border-t border-current/10 pt-2">
+                <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
+                  Sin pago registrado
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setPagoModal({ pedidoId: pedido.id, cliente: pedido.cliente }); setPagoMetodo("EFECTIVO_BS"); setPagoMonto(""); }}
+                  className="rounded-md border border-zinc-400 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+                >
+                  💳 Registrar pago
                 </button>
               </div>
             )}

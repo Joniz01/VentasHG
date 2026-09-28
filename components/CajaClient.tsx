@@ -285,6 +285,15 @@ button{cursor:pointer}
 .cobrar-btn:active:not(:disabled){transform:scale(.98)}
 .cobrar-btn:disabled{background:var(--dk3);color:var(--tt2);cursor:not-allowed;border:1px solid var(--tl)}
 
+/* ── Mesa Abierta ── */
+.mesa-chips{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;align-items:center}
+.mesa-chips::-webkit-scrollbar{display:none}
+.mesa-chip{flex-shrink:0;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid var(--tb-border);background:rgba(255,255,255,.07);color:var(--tb-text);cursor:pointer;transition:all .15s;white-space:nowrap}
+.mesa-chip:hover{background:rgba(255,255,255,.15)}
+.mesa-chip.active{border-color:var(--ab);color:var(--accent);background:rgba(255,255,255,.1)}
+.mesa-chip-new{flex-shrink:0;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px dashed var(--tb-border);background:none;color:var(--tb-text);cursor:pointer;transition:all .15s;opacity:.7}
+.mesa-chip-new:hover{opacity:1;border-color:var(--ab);color:var(--accent)}
+
 /* Confirm overlay */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:flex;align-items:center;justify-content:center}
 .ov-card{background:var(--dk);border:1px solid var(--tl);border-radius:14px;padding:20px;min-width:260px;max-width:340px;width:90%;display:flex;flex-direction:column;gap:10px;text-align:center}
@@ -354,6 +363,12 @@ export default function CajaClient() {
   const [vistaHistorial, setVistaHistorial] = useState(false);
   const [temaOpen, setTemaOpen] = useState(false);
   const temaRef = useRef<HTMLDivElement>(null);
+  const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
+  const [mesasAbiertas, setMesasAbiertas] = useState<{ id: number; mesa: string; itemCount: number }[]>([]);
+  const [mesaActual, setMesaActual] = useState<{ id: number; mesa: string } | null>(null);
+  const [mesaModalOpen, setMesaModalOpen] = useState(false);
+  const [mesaNombreInput, setMesaNombreInput] = useState("");
+  const [mesaGuardando, setMesaGuardando] = useState(false);
   const [histVentas, setHistVentas] = useState<HistVenta[]>([]);
   const [histCargando, setHistCargando] = useState(false);
   const [histBusqueda, setHistBusqueda] = useState("");
@@ -398,6 +413,8 @@ export default function CajaClient() {
       .then((data: Record<string, unknown>[]) => {
         setMotorizados(data.filter((m) => m.activo !== false) as unknown as Motorizado[]);
       }).catch(() => {});
+
+    cargarMesasAbiertas();
 
     fetch("/api/tasa-bcv")
       .then((r) => r.json())
@@ -646,6 +663,80 @@ export default function CajaClient() {
     } catch { setBcvFechaErr("Error al buscar"); } finally { setConsultandoBcv(false); }
   }
 
+  async function cargarMesasAbiertas() {
+    try {
+      const res = await fetch("/api/ventas?es_mesa_abierta=true&limit=50");
+      if (!res.ok) return;
+      const data = (await res.json()) as { id: number; mesa: string | null; items: unknown[] }[];
+      setMesasAbiertas(data.filter((v) => v.mesa).map((v) => ({ id: v.id, mesa: v.mesa!, itemCount: v.items?.length ?? 0 })));
+    } catch { /* ignorar */ }
+  }
+
+  async function abrirMesa(ventaId: number) {
+    try {
+      const res = await fetch(`/api/ventas/${ventaId}`);
+      if (!res.ok) return;
+      const data = await res.json() as {
+        venta: { id: number; cliente: string; mesa: string; modoEntrega: string; direccion: string | null };
+        items: { productoId: number; producto: string; extraId: number | null; extraNombre: string | null; extraPrecio: number; cantidad: number; precioUnit: number }[];
+      };
+      const nuevasLineas = data.items.map((item) => ({
+        uid: `mesa-${ventaId}-${item.productoId}-${item.extraId ?? 0}-${Math.random()}`,
+        productoId: item.productoId,
+        nombre: item.producto,
+        precio: item.precioUnit - item.extraPrecio,
+        qty: item.cantidad,
+        extraId: item.extraId,
+        extraNombre: item.extraNombre,
+        extraPrecio: item.extraPrecio,
+        variadaSelecciones: [],
+      }));
+      setCarrito(nuevasLineas);
+      setMesaActual({ id: data.venta.id, mesa: data.venta.mesa });
+      setEntrega("LOCAL");
+      if (data.venta.cliente && data.venta.cliente !== "Consumidor Final") {
+        setClienteNombre(data.venta.cliente);
+      }
+    } catch { /* ignorar */ }
+  }
+
+  async function guardarMesaAbierta(nombreMesa: string) {
+    if (carrito.length === 0 || !nombreMesa.trim()) return;
+    setMesaGuardando(true);
+    try {
+      const nombreCompleto = [clienteNombre.trim(), clienteApellido.trim()].filter(Boolean).join(" ") || "Consumidor Final";
+      const body = {
+        fecha: fechaHoy,
+        tasaDelDia: bcvRate,
+        cliente: nombreCompleto,
+        clienteTelefono: clienteTel || null,
+        modoEntrega: "LOCAL",
+        costoDelivery: 0,
+        despachoPendiente: false,
+        mesa: nombreMesa.trim(),
+        esMesaAbierta: true,
+        items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined, variadaSelecciones: c.variadaSelecciones.map(Number).filter(Boolean) })),
+        pagos: [],
+      };
+      const url = mesaActual ? `/api/ventas/${mesaActual.id}` : "/api/ventas";
+      const method = mesaActual ? "PUT" : "POST";
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Error"); }
+      const saved = await res.json();
+      const id = mesaActual ? mesaActual.id : saved.id;
+      setMesaActual({ id, mesa: nombreMesa.trim() });
+      await cargarMesasAbiertas();
+      clearCart();
+      setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel("");
+      setConfirmOverlay({ icon: "🍽️", titulo: `Mesa guardada`, detalle: `Mesa <strong>${nombreMesa.trim()}</strong> guardada con ${body.items.length} ítem(s).` });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al guardar mesa");
+    } finally {
+      setMesaGuardando(false);
+      setMesaModalOpen(false);
+    }
+  }
+
   async function cobrar() {
     if (carrito.length === 0) return;
     if (entrega === "DELIVERY" && !horaEntrega) {
@@ -666,17 +757,20 @@ export default function CajaClient() {
     setGuardando(true);
     try {
       const nombreCompleto = [clienteNombre.trim(), clienteApellido.trim()].filter(Boolean).join(" ") || "Consumidor Final";
-      const toISO = (hhmm: string | null) => {
+      const toISO = (hhmm: string | null, fecha?: string) => {
         if (!hhmm) return null;
         const [h, m] = hhmm.split(":").map(Number);
-        const d = new Date(); d.setHours(h, m, 0, 0);
+        const d = fecha ? new Date(`${fecha}T00:00:00`) : new Date();
+        d.setHours(h, m, 0, 0);
         return d.toISOString();
       };
-      const horaEntregaISO = entrega === "DELIVERY" ? toISO(horaEntrega) : null;
-      const horaPrepaISO = entrega === "DELIVERY" ? toISO(alarmaPrepTime) : null;
-      const horaRetiroISO = entrega === "DELIVERY" ? toISO(alarmaRetiroTime) : null;
+      const horaEntregaISO = entrega === "DELIVERY" ? toISO(horaEntrega, fechaEntrega) : null;
+      const horaPrepaISO = entrega === "DELIVERY" ? toISO(alarmaPrepTime, fechaEntrega) : null;
+      const horaRetiroISO = entrega === "DELIVERY" ? toISO(alarmaRetiroTime, fechaEntrega) : null;
       const body = {
         fecha: fechaHoy,
+        mesa: mesaActual ? mesaActual.mesa : null,
+        esMesaAbierta: false,
         tasaDelDia: bcvRate,
         cliente: nombreCompleto,
         clienteTelefono: clienteTel || null,
@@ -695,7 +789,9 @@ export default function CajaClient() {
         fechaLimitePago: isCxP || isCashea ? (fechaCxC || casheaVence || null) : null,
         casheaDatos: isCashea ? { porcentaje: Number(casheaPct) || 40, montoInicial: casheaInicial, montoFinanciado: casheaFinanciado, dias: Number(casheaDiasSelec) || 15, fechaVencimiento: casheaVence, metodoInicial: casheaMetodoInicial || null } : undefined,
       };
-      const res = await fetch("/api/ventas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const url = mesaActual ? `/api/ventas/${mesaActual.id}` : "/api/ventas";
+      const method = mesaActual ? "PUT" : "POST";
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error ?? "Error al registrar la venta"); return; }
       const payLabel = isCxP || isCashea ? (isCashea ? "Cashea" : "CxC") : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => PAY_OPTS.find((o) => o.key === p.metodo)?.label ?? p.metodo).join(" + ");
       const det = [
@@ -708,6 +804,7 @@ export default function CajaClient() {
           : "",
       ].filter(Boolean).join("<br>");
       setConfirmOverlay({ icon: isCxP ? "📋" : "✅", titulo: isCxP ? "CxC generada" : "Cobro registrado", detalle: det });
+      if (mesaActual) { setMesaActual(null); void cargarMesasAbiertas(); }
       clearCart();
       setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
       setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPagos([{ metodo: "EFECTIVO_BS", monto: "0" }]);
@@ -729,6 +826,32 @@ export default function CajaClient() {
           <span className="tb-brand">VentasHG</span>
           <span className="tb-sep">›</span>
           <span className="tb-title">Caja Rápida</span>
+          {/* Chips de mesas abiertas */}
+          {mesasAbiertas.length > 0 && (
+            <div className="mesa-chips">
+              {mesasAbiertas.map((m) => (
+                <button
+                  key={m.id}
+                  className={`mesa-chip${mesaActual?.id === m.id ? " active" : ""}`}
+                  onClick={() => {
+                    if (mesaActual?.id === m.id) { setMesaActual(null); setCarrito([]); }
+                    else { void abrirMesa(m.id); }
+                  }}
+                  title={mesaActual?.id === m.id ? "Click para cerrar esta mesa" : `Abrir ${m.mesa}`}
+                >
+                  🍽️ {m.mesa} ({m.itemCount})
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            className="mesa-chip-new"
+            title="Guardar carrito como mesa abierta"
+            onClick={() => { setMesaNombreInput(mesaActual?.mesa ?? ""); setMesaModalOpen(true); }}
+            disabled={carrito.length === 0}
+          >
+            + Mesa
+          </button>
           <div className="tb-space" />
           <button
             className={`tb-btn${vistaHistorial ? " active" : ""}`}
@@ -1023,6 +1146,10 @@ export default function CajaClient() {
                         <div className="f-label">Costo delivery ($)</div>
                         <input className="f-input" type="number" min="0" step="0.5" value={costoDelivery}
                           onChange={(e) => setCostoDelivery(e.target.value)} />
+                      </div>
+                      <div style={{ flex: "0 0 110px" }}>
+                        <div className="f-label">Fecha entrega</div>
+                        <input className="f-input" type="date" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div className="f-label">Hora entrega *</div>
@@ -1349,6 +1476,44 @@ export default function CajaClient() {
           </div>
         </div>
       </div>
+
+      {/* Modal Mesa Abierta */}
+      {mesaModalOpen && (
+        <div className="overlay">
+          <div className="ov-card" style={{ textAlign: "left", gap: 8 }}>
+            <div style={{ fontSize: 22 }}>🍽️</div>
+            <div className="cf-title" style={{ textAlign: "left" }}>{mesaActual ? "Actualizar mesa" : "Guardar como Mesa"}</div>
+            <div className="cf-detail" style={{ textAlign: "left" }}>
+              {carrito.length} ítem(s) en el carrito. Ingresa el nombre o número de la mesa.
+            </div>
+            <input
+              className="t-inp-dark"
+              type="text"
+              placeholder="Ej: Mesa 1, Barra, Mesa Terraza…"
+              value={mesaNombreInput}
+              onChange={(e) => setMesaNombreInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void guardarMesaAbierta(mesaNombreInput); }}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="cf-ok"
+                style={{ flex: 1 }}
+                disabled={!mesaNombreInput.trim() || mesaGuardando}
+                onClick={() => void guardarMesaAbierta(mesaNombreInput)}
+              >
+                {mesaGuardando ? "Guardando…" : "Guardar mesa"}
+              </button>
+              <button
+                className="t-clear"
+                onClick={() => setMesaModalOpen(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmOverlay && (
         <div className="overlay">
