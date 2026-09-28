@@ -51,6 +51,7 @@ export default function InputFecha({
         disabled={disabled}
         autoFocus={autoFocus}
       />
+      {/* Overlay de texto formateado */}
       <span
         aria-hidden
         style={{
@@ -58,10 +59,11 @@ export default function InputFecha({
           left: 1,
           top: 1,
           bottom: 1,
-          right: 32,
+          right: 1,
           display: "flex",
           alignItems: "center",
           paddingLeft: overlayPadLeft,
+          paddingRight: 28,
           borderRadius: 7,
           background: bg,
           fontSize: style?.fontSize ?? 14,
@@ -71,6 +73,21 @@ export default function InputFecha({
         }}
       >
         {texto}
+      </span>
+      {/* Flecha visible — igual que un select */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          right: 10,
+          top: "50%",
+          transform: "translateY(-50%)",
+          fontSize: 11,
+          color: "var(--erp-text-3)",
+          pointerEvents: "none",
+        }}
+      >
+        ▾
       </span>
     </div>
   );
