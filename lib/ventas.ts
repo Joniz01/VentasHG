@@ -23,6 +23,7 @@ export type VentaBody = {
   fechaLimitePago?: string | null;
   mesa?: string | null;
   esMesaAbierta?: boolean;
+  cobroAlEntregar?: boolean;
   items: {
     productoId: number;
     cantidad: number;
@@ -72,7 +73,7 @@ export function validarVenta(body: VentaBody): string | null {
     return "Debes indicar la hora de entrega y de preparación para un despacho pendiente";
   }
 
-  if ((!body.pagos || body.pagos.length === 0) && !body.fechaLimitePago && !body.esMesaAbierta) {
+  if ((!body.pagos || body.pagos.length === 0) && !body.fechaLimitePago && !body.esMesaAbierta && !body.cobroAlEntregar) {
     return "Indica la fecha límite de pago: esta venta quedará como cuenta por cobrar";
   }
 

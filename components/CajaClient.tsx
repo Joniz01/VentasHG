@@ -279,6 +279,9 @@ button{cursor:pointer}
 .cxc-lbl{font-size:10px;color:var(--tt2)}
 .t-inp-dark{width:100%;padding:4px 7px;border:1.5px solid var(--tl);border-radius:5px;background:var(--dk);color:var(--tt);font-size:12px;outline:none;transition:border-color .15s}
 .t-inp-dark:focus{border-color:var(--ab)}
+.cobro-entregar-btn{width:100%;margin-top:6px;padding:7px 10px;border:1.5px solid var(--tl);border-radius:6px;background:none;color:var(--tt2);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s;cursor:pointer}
+.cobro-entregar-btn.active{border-color:#f59e0b;color:#92400e;background:#fef3c7}
+.cobro-entregar-btn:hover:not(.active){border-color:var(--tt3);color:var(--tt)}
 .cobrar-wrap{padding:7px 12px 10px}
 .cobrar-btn{width:100%;padding:11px;background:var(--accent);color:#1c1c1e;border:none;border-radius:9px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s,transform .1s;font-variant-numeric:tabular-nums}
 .cobrar-btn:hover:not(:disabled){opacity:.9}
@@ -326,6 +329,7 @@ export default function CajaClient() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const [pagos, setPagos] = useState<{ metodo: string; monto: string }[]>([{ metodo: "EFECTIVO_BS", monto: "0" }]);
+  const [cobroAlEntregar, setCobroAlEntregar] = useState(false);
   const [entrega, setEntrega] = useState<"LOCAL" | "DELIVERY">("LOCAL");
   const [direccion, setDireccion] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
@@ -795,15 +799,16 @@ export default function CajaClient() {
         horaPreparacion: horaPrepaISO,
         horaRetiro: horaRetiroISO,
         items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined, variadaSelecciones: c.variadaSelecciones.length > 0 ? c.variadaSelecciones.filter(Boolean).map(Number) : undefined })),
-        pagos: isCxP ? [] : isCashea ? [] : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => ({ metodo: p.metodo, monto: Number(p.monto) })),
+        pagos: cobroAlEntregar ? [] : isCxP ? [] : isCashea ? [] : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => ({ metodo: p.metodo, monto: Number(p.monto) })),
         fechaLimitePago: isCxP || isCashea ? (fechaCxC || casheaVence || null) : null,
+        cobroAlEntregar: cobroAlEntregar || undefined,
         casheaDatos: isCashea ? { porcentaje: Number(casheaPct) || 40, montoInicial: casheaInicial, montoFinanciado: casheaFinanciado, dias: Number(casheaDiasSelec) || 15, fechaVencimiento: casheaVence, metodoInicial: casheaMetodoInicial || null } : undefined,
       };
       const url = mesaActual ? `/api/ventas/${mesaActual.id}` : "/api/ventas";
       const method = mesaActual ? "PUT" : "POST";
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error ?? "Error al registrar la venta"); return; }
-      const payLabel = isCxP || isCashea ? (isCashea ? "Cashea" : "CxC") : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => PAY_OPTS.find((o) => o.key === p.metodo)?.label ?? p.metodo).join(" + ");
+      const payLabel = cobroAlEntregar ? "Cobro al Entregar" : isCxP || isCashea ? (isCashea ? "Cashea" : "CxC") : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => PAY_OPTS.find((o) => o.key === p.metodo)?.label ?? p.metodo).join(" + ");
       const det = [
         `Total: <strong>${fmt(total)}</strong> (${fmtBs(total, bcvRate)})`,
         `Método: <strong>${payLabel}</strong>`,
@@ -813,11 +818,11 @@ export default function CajaClient() {
           ? `Motorizado: <strong>${motorizados.find((m) => m.id === motorizadoId)?.nombre ?? ""}</strong>`
           : "",
       ].filter(Boolean).join("<br>");
-      setConfirmOverlay({ icon: isCxP ? "📋" : "✅", titulo: isCxP ? "CxC generada" : "Cobro registrado", detalle: det });
+      setConfirmOverlay({ icon: cobroAlEntregar ? "🛵" : isCxP ? "📋" : "✅", titulo: cobroAlEntregar ? "Pedido registrado" : isCxP ? "CxC generada" : "Cobro registrado", detalle: det });
       if (mesaActual) { setMesaActual(null); void cargarMesasAbiertas(); }
       clearCart();
       setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
-      setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPagos([{ metodo: "EFECTIVO_BS", monto: "0" }]);
+      setHoraEntrega(""); setMotorizadoId(null); setFechaCxC(""); setPagos([{ metodo: "EFECTIVO_BS", monto: "0" }]); setCobroAlEntregar(false);
       setCasheaMetodoInicial(""); setCostoDelivery("0"); setClienteSugerencias([]);
     } finally { setGuardando(false); }
   }
@@ -1403,7 +1408,7 @@ export default function CajaClient() {
                       <div className="pay-grid">
                         {PAY_OPTS.map((opt) => (
                           <button key={opt.key} className={`pay-btn${pago.metodo === opt.key ? " active" : ""}`}
-                            onClick={() => setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, metodo: opt.key } : p))}>
+                            onClick={() => { setCobroAlEntregar(false); setPagos((prev) => prev.map((p, i) => i === idx ? { ...p, metodo: p.metodo === opt.key ? "" : opt.key } : p)); }}>
                             <span className="pay-ico">{opt.icon}</span>{opt.label}
                           </button>
                         ))}
@@ -1438,6 +1443,15 @@ export default function CajaClient() {
                   style={{ width: "100%", marginTop: 2, padding: "5px", border: "1.5px dashed var(--tl)", borderRadius: 6, background: "none", color: "var(--tt2)", fontSize: 11, cursor: "pointer" }}>
                   + Agregar método de pago
                 </button>
+                <button className={`cobro-entregar-btn${cobroAlEntregar ? " active" : ""}`}
+                  onClick={() => { setCobroAlEntregar((v) => !v); if (!cobroAlEntregar) setPagos([{ metodo: "", monto: "0" }]); else setPagos([{ metodo: "EFECTIVO_BS", monto: "0" }]); }}>
+                  🛵 Cobro al Entregar
+                </button>
+                {cobroAlEntregar && (
+                  <div style={{ marginTop: 5, padding: "5px 8px", borderRadius: 6, background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.3)", color: "#92400e", fontSize: 10, lineHeight: 1.4 }}>
+                    ℹ️ Sin pago anticipado — el motorizado cobra al entregar. Se registra en Pedidos Pendientes.
+                  </div>
+                )}
               </div>
 
               {isCashea && (
@@ -1486,6 +1500,7 @@ export default function CajaClient() {
                   <span>
                     {carrito.length === 0 ? "Sin productos"
                       : guardando ? "Registrando…"
+                      : cobroAlEntregar ? `Registrar Pedido · ${fmt(total)}`
                       : isCashea ? `Generar Cashea · ${fmt(total)}`
                       : isCxP ? `Generar CxC · ${fmt(total)}`
                       : `Cobrar ${fmt(total)}`}
