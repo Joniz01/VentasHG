@@ -7,6 +7,7 @@ type Producto = { id: number; nombre: string; precioVenta: number; categoriaNomb
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number; variadaSelecciones: string[] };
 type Theme = "dark" | "light" | "azul" | "beige";
+type HistVenta = { id: number; numero: number | null; fecha: string; cliente: string; productos: string; totalUsd: number; estado: string };
 
 let _uid = 0;
 function uid() { return `c${++_uid}`; }
@@ -27,11 +28,11 @@ const PAY_OPTS = [
 
 const CXP_METHODS = ["CASHEA", "CXC_DIRECTA"];
 
-const THEMES: { key: Theme; label: string; icon: string }[] = [
-  { key: "dark",  label: "Oscuro",  icon: "🌑" },
-  { key: "light", label: "Claro",   icon: "☀️" },
-  { key: "azul",  label: "Azul",    icon: "🔷" },
-  { key: "beige", label: "Hechizo", icon: "🪙" },
+const THEMES: { key: Theme; label: string; icon: string; swatch: [string, string] }[] = [
+  { key: "dark",  label: "Oscuro",  icon: "🌑", swatch: ["#1C1C1E", "#C8960C"] },
+  { key: "light", label: "Claro",   icon: "☀️", swatch: ["#ffffff", "#C8960C"] },
+  { key: "azul",  label: "Azul",    icon: "🔷", swatch: ["#1A3A5C", "#3A9BD5"] },
+  { key: "beige", label: "Hechizo", icon: "🪙", swatch: ["#1A1A1A", "#D4A84A"] },
 ];
 
 const THEME_VARS: Record<Theme, string> = {
@@ -75,10 +76,32 @@ button{cursor:pointer}
 .tb-sep{color:var(--tb-border)}
 .tb-title{font-size:13px;font-weight:500;color:var(--tb-text)}
 .tb-space{flex:1}
-.theme-btns{display:flex;gap:3px}
-.theme-btn{padding:2px 7px;border-radius:5px;border:1px solid var(--tb-border);background:none;color:var(--tb-text);font-size:10px;transition:all .15s}
-.theme-btn.active{border-color:var(--ab);color:var(--accent)}
+.tb-btn{padding:4px 10px;border-radius:5px;border:1px solid var(--tb-border);background:rgba(255,255,255,.06);color:var(--tb-text);font-size:11px;font-weight:500;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap}
+.tb-btn:hover{background:rgba(255,255,255,.12)}
+.tb-btn.active{border-color:var(--ab);color:var(--accent)}
+.tema-wrap{position:relative}
+.tema-dd{position:absolute;right:0;top:calc(100% + 6px);width:148px;background:var(--topbar);border:1px solid var(--tb-border);border-radius:8px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:200}
+.tema-item{display:flex;align-items:center;gap:7px;padding:7px 11px;font-size:11px;color:var(--tb-text);background:none;border:none;width:100%;text-align:left;cursor:pointer;transition:background .12s}
+.tema-item:hover{background:rgba(255,255,255,.08)}
+.tema-item.active{color:var(--accent);font-weight:600}
+.tema-swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0}
 .tb-clock{font-size:11px;color:var(--tt3)}
+/* ── Historial panel ── */
+.hist-panel{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden;border-right:1px solid var(--border)}
+.hist-head{padding:8px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-bottom:1px solid var(--border)}
+.hist-title{font-size:13px;font-weight:600;color:var(--text)}
+.hist-search{flex:1;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:11px;background:var(--surface);color:var(--text);outline:none;transition:border-color .15s}
+.hist-search:focus{border-color:var(--accent)}
+.hist-search::placeholder{color:var(--t3)}
+.hist-table{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.hist-table table{width:100%;border-collapse:collapse;font-size:11px}
+.hist-table th{padding:6px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);background:var(--bbg);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
+.hist-table td{padding:7px 10px;border-bottom:1px solid var(--bborder);color:var(--text);vertical-align:top}
+.hist-table tr:hover td{background:rgba(0,0,0,.025)}
+.hist-btn{padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--t2);font-size:10px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.hist-btn:hover{border-color:var(--ab);color:var(--accent)}
+.hist-badge-ok{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:#dcfce7;color:#16a34a}
+.hist-badge-pend{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:#fef9c3;color:#ca8a04}
 
 /* ── Body split ── */
 .pos-body{flex:1;display:flex;min-height:0;overflow:hidden}
@@ -293,6 +316,12 @@ export default function CajaClient() {
   const ticketRef = useRef(47);
   const [ticketNum, setTicketNum] = useState(47);
   const clockRef = useRef<HTMLSpanElement>(null);
+  const [vistaHistorial, setVistaHistorial] = useState(false);
+  const [temaOpen, setTemaOpen] = useState(false);
+  const temaRef = useRef<HTMLDivElement>(null);
+  const [histVentas, setHistVentas] = useState<HistVenta[]>([]);
+  const [histCargando, setHistCargando] = useState(false);
+  const [histBusqueda, setHistBusqueda] = useState("");
 
   useEffect(() => {
     fetch("/api/productos?grupo=PARA_LA_VENTA")
@@ -338,6 +367,11 @@ export default function CajaClient() {
       })
       .catch(() => {});
 
+    const temaHandler = (e: MouseEvent) => {
+      if (temaRef.current && !temaRef.current.contains(e.target as Node)) setTemaOpen(false);
+    };
+    document.addEventListener("mousedown", temaHandler);
+
     const tick = () => {
       if (clockRef.current) {
         clockRef.current.textContent = new Date().toLocaleString("es-VE", {
@@ -348,8 +382,30 @@ export default function CajaClient() {
     };
     tick();
     const iv = setInterval(tick, 30000);
-    return () => clearInterval(iv);
+    return () => { clearInterval(iv); document.removeEventListener("mousedown", temaHandler); };
   }, []);
+
+  useEffect(() => {
+    if (!vistaHistorial) return;
+    setHistCargando(true);
+    fetch("/api/ventas?limit=100")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: Record<string, unknown>[]) => {
+        setHistVentas(data.map((v) => ({
+          id: v.id as number,
+          numero: (v.numero ?? v.pedidoNumero ?? null) as number | null,
+          fecha: (v.fecha as string) ?? "",
+          cliente: (v.cliente as string) ?? "Consumidor Final",
+          productos: ((v.items as Record<string, unknown>[]) ?? [])
+            .map((i: Record<string, unknown>) => `${i.nombre ?? i.productoNombre ?? "?"} x${i.cantidad ?? 1}`)
+            .join(", ") || "—",
+          totalUsd: Number(v.totalUsd ?? v.total ?? 0),
+          estado: (v.estadoEntrega ?? v.estado ?? "PENDIENTE") as string,
+        })));
+      })
+      .catch(() => {})
+      .finally(() => setHistCargando(false));
+  }, [vistaHistorial]);
 
   const subtotal = carrito.reduce((s, c) => s + (c.precio + c.extraPrecio) * c.qty, 0);
   const ivaAmt = ivaActivo ? subtotal * 0.16 : 0;
@@ -611,19 +667,122 @@ export default function CajaClient() {
           <span className="tb-sep">›</span>
           <span className="tb-title">Caja Rápida</span>
           <div className="tb-space" />
-          <div className="theme-btns">
-            {THEMES.map((t) => (
-              <button key={t.key} className={`theme-btn${theme === t.key ? " active" : ""}`} onClick={() => changeTheme(t.key)}>
-                {t.icon} {t.label}
-              </button>
-            ))}
+          <button
+            className={`tb-btn${vistaHistorial ? " active" : ""}`}
+            onClick={() => setVistaHistorial((v) => !v)}
+          >
+            {vistaHistorial ? "← Catálogo" : "📋 Historial de ventas"}
+          </button>
+          <div className="tema-wrap" ref={temaRef}>
+            <button className="tb-btn" onClick={() => setTemaOpen((o) => !o)}>
+              🎨 Tema ▾
+            </button>
+            {temaOpen && (
+              <div className="tema-dd">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.key}
+                    className={`tema-item${theme === t.key ? " active" : ""}`}
+                    onClick={() => { changeTheme(t.key); setTemaOpen(false); }}
+                  >
+                    <span className="tema-swatch" style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 50%, ${t.swatch[1]} 50%)` }} />
+                    {t.icon} {t.label}
+                    {theme === t.key && <span style={{ marginLeft: "auto" }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <span className="tb-clock" ref={clockRef} />
         </div>
 
         <div className="pos-body">
+          {/* ══ HISTORIAL PANEL ══ */}
+          {vistaHistorial && (
+            <div className="hist-panel">
+              <div className="hist-head">
+                <span className="hist-title">Historial de ventas</span>
+                <input
+                  className="hist-search"
+                  type="text"
+                  placeholder="Buscar pedido, cliente…"
+                  value={histBusqueda}
+                  onChange={(e) => setHistBusqueda(e.target.value)}
+                />
+              </div>
+              <div className="hist-table">
+                {histCargando ? (
+                  <div style={{ padding: "32px 0", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>Cargando…</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pedido</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Productos</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {histVentas
+                        .filter((v) => {
+                          if (!histBusqueda) return true;
+                          const q = histBusqueda.toLowerCase();
+                          return (
+                            String(v.numero ?? v.id).includes(q) ||
+                            v.cliente.toLowerCase().includes(q) ||
+                            v.productos.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((v) => {
+                          const partesFecha = v.fecha ? v.fecha.split("T") : [];
+                          const fechaStr = partesFecha[0] ? partesFecha[0].split("-").reverse().join("/") : "—";
+                          const horaStr = partesFecha[1] ? partesFecha[1].slice(0, 5) : "";
+                          const entregado = v.estado === "ENTREGADO" || v.estado === "COMPLETADO";
+                          return (
+                            <tr key={v.id}>
+                              <td style={{ fontWeight: 700, color: "var(--accent)", whiteSpace: "nowrap" }}>
+                                #{String(v.numero ?? v.id).padStart(4, "0")}
+                              </td>
+                              <td style={{ color: "var(--t2)", whiteSpace: "nowrap" }}>
+                                {fechaStr}
+                                {horaStr && <><br /><span style={{ fontSize: 9, color: "var(--t3)" }}>{horaStr}</span></>}
+                              </td>
+                              <td style={{ whiteSpace: "nowrap" }}>{v.cliente}</td>
+                              <td style={{ maxWidth: 200, wordBreak: "break-word" }}>
+                                {v.productos.split(", ").map((p, i) => <div key={i}>{p}</div>)}
+                              </td>
+                              <td style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                                ${v.totalUsd.toFixed(2)}
+                              </td>
+                              <td>
+                                <span className={entregado ? "hist-badge-ok" : "hist-badge-pend"}>
+                                  {entregado ? "Entregado" : "Pendiente"}
+                                </span>
+                              </td>
+                              <td>
+                                <button className="hist-btn" onClick={() => window.open(`/ventas?pedido=${v.id}`, "_blank")}>
+                                  Modificar ▾
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      {histVentas.length === 0 && !histCargando && (
+                        <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px 0", color: "var(--t3)" }}>Sin ventas</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ══ LEFT PANEL ══ */}
-          <div className="left-panel">
+          {!vistaHistorial && <div className="left-panel">
             <div className="cat-head">
               <div className="search-wrap">
                 <span className="s-icon">⌕</span>
@@ -826,7 +985,7 @@ export default function CajaClient() {
                 )}
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* ══ RIGHT PANEL (ticket) ══ */}
           <div className="ticket">
