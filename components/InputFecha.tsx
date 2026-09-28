@@ -38,12 +38,12 @@ export default function InputFecha({
     (style?.padding !== undefined ? style.padding : 11);
 
   return (
-    <div style={{ position: "relative", display: "inline-block", width: style?.width ?? "100%" }}>
+    <div style={{ position: "relative", display: "block", width: style?.width ?? "100%" }}>
       <input
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={style}
+        style={{ width: "100%", ...style }}
         className={className}
         min={min}
         max={max}
@@ -51,7 +51,6 @@ export default function InputFecha({
         disabled={disabled}
         autoFocus={autoFocus}
       />
-      {/* Overlay de texto formateado */}
       <span
         aria-hidden
         style={{
@@ -59,11 +58,10 @@ export default function InputFecha({
           left: 1,
           top: 1,
           bottom: 1,
-          right: 1,
+          right: 32,
           display: "flex",
           alignItems: "center",
           paddingLeft: overlayPadLeft,
-          paddingRight: 28,
           borderRadius: 7,
           background: bg,
           fontSize: style?.fontSize ?? 14,
@@ -73,21 +71,6 @@ export default function InputFecha({
         }}
       >
         {texto}
-      </span>
-      {/* Flecha visible — igual que un select */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          right: 10,
-          top: "50%",
-          transform: "translateY(-50%)",
-          fontSize: 11,
-          color: "var(--erp-text-3)",
-          pointerEvents: "none",
-        }}
-      >
-        ▾
       </span>
     </div>
   );
