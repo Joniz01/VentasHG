@@ -7,7 +7,35 @@ type Producto = { id: number; nombre: string; precioVenta: number; categoriaNomb
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number; variadaSelecciones: string[] };
 type Theme = "dark" | "light" | "azul" | "beige";
-type HistVenta = { id: number; numero: number | null; fecha: string; cliente: string; productos: string; totalUsd: number; estado: string };
+type HistVenta = {
+  id: number;
+  fecha: string;
+  cliente: string;
+  items: { nombreProducto: string; cantidad: number; precioUnit: number; extraNombre: string | null; extraPrecio: number }[];
+  pagos: { metodo: string; monto: number }[];
+  modoEntrega: string;
+  pedidoEntregado: boolean;
+  cuentaPorCobrar: boolean;
+  cuentaCobrada: boolean;
+  tasaDelDia: number;
+};
+
+const HIST_COLS = [
+  { key: "pedido",   label: "Pedido #" },
+  { key: "fecha",    label: "Fecha" },
+  { key: "cliente",  label: "Cliente" },
+  { key: "productos",label: "Productos" },
+  { key: "total",    label: "Total" },
+  { key: "entrega",  label: "Entrega" },
+  { key: "cobro",    label: "Cobro" },
+] as const;
+type HistCol = typeof HIST_COLS[number]["key"];
+const ALL_HIST_COLS = HIST_COLS.map((c) => c.key) as HistCol[];
+
+const METODO_LABEL: Record<string, string> = {
+  EFECTIVO_BS: "Bs", PUNTO_VENTA: "Punto", PAGO_MOVIL: "P.Móvil",
+  EFECTIVO_USD: "USD", CASHEA: "Cashea", CXC_DIRECTA: "CxC",
+};
 
 let _uid = 0;
 function uid() { return `c${++_uid}`; }
@@ -102,6 +130,13 @@ button{cursor:pointer}
 .hist-btn:hover{border-color:var(--ab);color:var(--accent)}
 .hist-badge-ok{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:#dcfce7;color:#16a34a}
 .hist-badge-pend{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:#fef9c3;color:#ca8a04}
+.hist-badge-cxc{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8}
+.hist-date{padding:4px 7px;border:1.5px solid var(--border);border-radius:5px;font-size:11px;background:var(--surface);color:var(--text);outline:none;transition:border-color .15s}
+.hist-date:focus{border-color:var(--accent)}
+.hist-cols-wrap{position:relative}
+.hist-cols-dd{position:absolute;right:0;top:calc(100% + 4px);width:160px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.15);z-index:200;padding:4px 0}
+.hist-cols-item{display:flex;align-items:center;gap:7px;padding:6px 12px;font-size:11px;color:var(--text);cursor:pointer;transition:background .1s}
+.hist-cols-item:hover{background:var(--al)}
 
 /* ── Body split ── */
 .pos-body{flex:1;display:flex;min-height:0;overflow:hidden}
@@ -322,6 +357,17 @@ export default function CajaClient() {
   const [histVentas, setHistVentas] = useState<HistVenta[]>([]);
   const [histCargando, setHistCargando] = useState(false);
   const [histBusqueda, setHistBusqueda] = useState("");
+  const [histDesde, setHistDesde] = useState(() => today());
+  const [histHasta, setHistHasta] = useState(() => today());
+  const [histColsOpen, setHistColsOpen] = useState(false);
+  const histColsRef = useRef<HTMLDivElement>(null);
+  const [histColsVisibles, setHistColsVisibles] = useState<Set<HistCol>>(() => {
+    try {
+      const s = localStorage.getItem("caja-hist-cols");
+      if (s) return new Set(JSON.parse(s) as HistCol[]);
+    } catch { /* ignore */ }
+    return new Set(ALL_HIST_COLS);
+  });
 
   useEffect(() => {
     fetch("/api/productos?grupo=PARA_LA_VENTA")
@@ -369,6 +415,7 @@ export default function CajaClient() {
 
     const temaHandler = (e: MouseEvent) => {
       if (temaRef.current && !temaRef.current.contains(e.target as Node)) setTemaOpen(false);
+      if (histColsRef.current && !histColsRef.current.contains(e.target as Node)) setHistColsOpen(false);
     };
     document.addEventListener("mousedown", temaHandler);
 
@@ -387,25 +434,41 @@ export default function CajaClient() {
 
   useEffect(() => {
     if (!vistaHistorial) return;
+    cargarHistorial();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vistaHistorial]);
+
+  function cargarHistorial() {
     setHistCargando(true);
-    fetch("/api/ventas?limit=100")
+    const qs = new URLSearchParams({ desde: histDesde, hasta: histHasta, limit: "200" });
+    fetch(`/api/ventas?${qs}`)
       .then((r) => r.ok ? r.json() : [])
       .then((data: Record<string, unknown>[]) => {
         setHistVentas(data.map((v) => ({
           id: v.id as number,
-          numero: (v.numero ?? v.pedidoNumero ?? null) as number | null,
           fecha: (v.fecha as string) ?? "",
           cliente: (v.cliente as string) ?? "Consumidor Final",
-          productos: ((v.items as Record<string, unknown>[]) ?? [])
-            .map((i: Record<string, unknown>) => `${i.nombre ?? i.productoNombre ?? "?"} x${i.cantidad ?? 1}`)
-            .join(", ") || "—",
-          totalUsd: Number(v.totalUsd ?? v.total ?? 0),
-          estado: (v.estadoEntrega ?? v.estado ?? "PENDIENTE") as string,
+          items: ((v.items as Record<string, unknown>[]) ?? []).map((i) => ({
+            nombreProducto: (i.nombreProducto as string) ?? "?",
+            cantidad: Number(i.cantidad ?? 1),
+            precioUnit: Number(i.precioUnit ?? 0),
+            extraNombre: (i.extraNombre as string | null) ?? null,
+            extraPrecio: Number(i.extraPrecio ?? 0),
+          })),
+          pagos: ((v.pagos as Record<string, unknown>[]) ?? []).map((p) => ({
+            metodo: (p.metodo as string) ?? "",
+            monto: Number(p.monto ?? 0),
+          })),
+          modoEntrega: (v.modoEntrega as string) ?? "LOCAL",
+          pedidoEntregado: Boolean(v.pedidoEntregado),
+          cuentaPorCobrar: Boolean(v.cuentaPorCobrar),
+          cuentaCobrada: Boolean(v.cuentaCobrada),
+          tasaDelDia: Number(v.tasaDelDia ?? 1),
         })));
       })
       .catch(() => {})
       .finally(() => setHistCargando(false));
-  }, [vistaHistorial]);
+  }
 
   const subtotal = carrito.reduce((s, c) => s + (c.precio + c.extraPrecio) * c.qty, 0);
   const ivaAmt = ivaActivo ? subtotal * 0.16 : 0;
@@ -458,8 +521,8 @@ export default function CajaClient() {
     return mc && mq;
   });
   const POR_PAGINA = 24;
-  const totalPags = catActiva === "Todos" ? Math.max(1, Math.ceil(filtrados.length / POR_PAGINA)) : 1;
-  const filtradosPag = catActiva === "Todos" ? filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA) : filtrados;
+  const totalPags = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
+  const filtradosPag = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
 
   const cartMap: Record<number, number> = {};
   carrito.forEach((c) => { cartMap[c.productoId] = (cartMap[c.productoId] ?? 0) + c.qty; });
@@ -700,83 +763,175 @@ export default function CajaClient() {
           {/* ══ HISTORIAL PANEL ══ */}
           {vistaHistorial && (
             <div className="hist-panel">
-              <div className="hist-head">
-                <span className="hist-title">Historial de ventas</span>
+              {/* Toolbar */}
+              <div className="hist-head" style={{ flexWrap: "wrap", gap: 6 }}>
+                <span className="hist-title">Historial</span>
                 <input
                   className="hist-search"
                   type="text"
-                  placeholder="Buscar pedido, cliente…"
+                  placeholder="Buscar # pedido, cliente…"
                   value={histBusqueda}
                   onChange={(e) => setHistBusqueda(e.target.value)}
                 />
+                <span style={{ fontSize: 10, color: "var(--t3)", whiteSpace: "nowrap" }}>Desde</span>
+                <input className="hist-date" type="date" value={histDesde} onChange={(e) => setHistDesde(e.target.value)} />
+                <span style={{ fontSize: 10, color: "var(--t3)", whiteSpace: "nowrap" }}>Hasta</span>
+                <input className="hist-date" type="date" value={histHasta} onChange={(e) => setHistHasta(e.target.value)} />
+                <button className="hist-btn" onClick={cargarHistorial} style={{ whiteSpace: "nowrap" }}>
+                  {histCargando ? "…" : "↺ Buscar"}
+                </button>
+                {/* Selector de columnas */}
+                <div className="hist-cols-wrap" ref={histColsRef}>
+                  <button className="hist-btn" onClick={() => setHistColsOpen((o) => !o)}>
+                    Columnas ▾
+                  </button>
+                  {histColsOpen && (
+                    <div className="hist-cols-dd">
+                      {HIST_COLS.map((col) => (
+                        <label key={col.key} className="hist-cols-item">
+                          <input
+                            type="checkbox"
+                            checked={histColsVisibles.has(col.key)}
+                            onChange={() => {
+                              setHistColsVisibles((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(col.key)) next.delete(col.key);
+                                else next.add(col.key);
+                                try { localStorage.setItem("caja-hist-cols", JSON.stringify([...next])); } catch { /* ignore */ }
+                                return next;
+                              });
+                            }}
+                          />
+                          {col.label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Tabla */}
               <div className="hist-table">
                 {histCargando ? (
                   <div style={{ padding: "32px 0", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>Cargando…</div>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Pedido</th>
-                        <th>Fecha</th>
-                        <th>Cliente</th>
-                        <th>Productos</th>
-                        <th>Total</th>
-                        <th>Estado</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {histVentas
-                        .filter((v) => {
-                          if (!histBusqueda) return true;
-                          const q = histBusqueda.toLowerCase();
-                          return (
-                            String(v.numero ?? v.id).includes(q) ||
-                            v.cliente.toLowerCase().includes(q) ||
-                            v.productos.toLowerCase().includes(q)
-                          );
-                        })
-                        .map((v) => {
-                          const partesFecha = v.fecha ? v.fecha.split("T") : [];
-                          const fechaStr = partesFecha[0] ? partesFecha[0].split("-").reverse().join("/") : "—";
-                          const horaStr = partesFecha[1] ? partesFecha[1].slice(0, 5) : "";
-                          const entregado = v.estado === "ENTREGADO" || v.estado === "COMPLETADO";
+                ) : (() => {
+                  const cv = histColsVisibles;
+                  const filtradas = histVentas.filter((v) => {
+                    if (!histBusqueda) return true;
+                    const q = histBusqueda.toLowerCase();
+                    return (
+                      String(v.id).includes(q) ||
+                      v.cliente.toLowerCase().includes(q) ||
+                      v.items.some((i) => i.nombreProducto.toLowerCase().includes(q))
+                    );
+                  });
+                  return (
+                    <table>
+                      <thead>
+                        <tr>
+                          {cv.has("pedido")    && <th>Pedido #</th>}
+                          {cv.has("fecha")     && <th>Fecha</th>}
+                          {cv.has("cliente")   && <th>Cliente</th>}
+                          {cv.has("productos") && <th>Productos</th>}
+                          {cv.has("total")     && <th>Total</th>}
+                          {cv.has("entrega")   && <th>Entrega</th>}
+                          {cv.has("cobro")     && <th>Cobro</th>}
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtradas.map((v) => {
+                          const fechaStr = v.fecha ? v.fecha.slice(0, 10).split("-").reverse().join("/") : "—";
+                          const totalUsd = v.items.reduce((s, i) => s + (i.precioUnit + i.extraPrecio) * i.cantidad, 0);
+                          const metodosStr = v.pagos.map((p) => METODO_LABEL[p.metodo] ?? p.metodo).join(" + ") || "—";
                           return (
                             <tr key={v.id}>
-                              <td style={{ fontWeight: 700, color: "var(--accent)", whiteSpace: "nowrap" }}>
-                                #{String(v.numero ?? v.id).padStart(4, "0")}
-                              </td>
-                              <td style={{ color: "var(--t2)", whiteSpace: "nowrap" }}>
-                                {fechaStr}
-                                {horaStr && <><br /><span style={{ fontSize: 9, color: "var(--t3)" }}>{horaStr}</span></>}
-                              </td>
-                              <td style={{ whiteSpace: "nowrap" }}>{v.cliente}</td>
-                              <td style={{ maxWidth: 200, wordBreak: "break-word" }}>
-                                {v.productos.split(", ").map((p, i) => <div key={i}>{p}</div>)}
-                              </td>
-                              <td style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                                ${v.totalUsd.toFixed(2)}
-                              </td>
+                              {cv.has("pedido") && (
+                                <td style={{ fontWeight: 700, color: "var(--accent)", whiteSpace: "nowrap" }}>
+                                  #{String(v.id).padStart(4, "0")}
+                                </td>
+                              )}
+                              {cv.has("fecha") && (
+                                <td style={{ color: "var(--t2)", whiteSpace: "nowrap" }}>{fechaStr}</td>
+                              )}
+                              {cv.has("cliente") && (
+                                <td style={{ whiteSpace: "nowrap" }}>{v.cliente}</td>
+                              )}
+                              {cv.has("productos") && (
+                                <td style={{ maxWidth: 200 }}>
+                                  {v.items.map((i, idx) => (
+                                    <div key={idx}>
+                                      {i.nombreProducto}{i.extraNombre ? ` (${i.extraNombre})` : ""} x{i.cantidad}
+                                    </div>
+                                  ))}
+                                </td>
+                              )}
+                              {cv.has("total") && (
+                                <td style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                                  <div>${totalUsd.toFixed(2)}</div>
+                                  <div style={{ fontSize: 9, color: "var(--t3)" }}>{metodosStr}</div>
+                                </td>
+                              )}
+                              {cv.has("entrega") && (
+                                <td>
+                                  <span className={v.modoEntrega === "DELIVERY" ? "hist-badge-cxc" : "hist-badge-pend"}>
+                                    {v.modoEntrega === "DELIVERY" ? "Delivery" : "Local"}
+                                  </span>
+                                  {v.pedidoEntregado && (
+                                    <div><span className="hist-badge-ok" style={{ marginTop: 2 }}>Entregado</span></div>
+                                  )}
+                                </td>
+                              )}
+                              {cv.has("cobro") && (
+                                <td>
+                                  {v.cuentaPorCobrar ? (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                      <span className={v.cuentaCobrada ? "hist-badge-ok" : "hist-badge-pend"}>
+                                        {v.cuentaCobrada ? "Cobrada" : "Pendiente"}
+                                      </span>
+                                      {!v.cuentaCobrada && (
+                                        <button
+                                          className="hist-btn"
+                                          onClick={async () => {
+                                            const res = await fetch(`/api/reportes/cuentas-por-cobrar/${v.id}`, {
+                                              method: "PATCH",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ cuentaCobrada: true }),
+                                            });
+                                            if (res.ok) cargarHistorial();
+                                          }}
+                                        >
+                                          Marcar pagada
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: "var(--t3)", fontSize: 10 }}>—</span>
+                                  )}
+                                </td>
+                              )}
                               <td>
-                                <span className={entregado ? "hist-badge-ok" : "hist-badge-pend"}>
-                                  {entregado ? "Entregado" : "Pendiente"}
-                                </span>
-                              </td>
-                              <td>
-                                <button className="hist-btn" onClick={() => window.open(`/ventas?pedido=${v.id}`, "_blank")}>
+                                <button
+                                  className="hist-btn"
+                                  onClick={() => window.open(`/ventas?pedido=${v.id}`, "_blank")}
+                                >
                                   Modificar ▾
                                 </button>
                               </td>
                             </tr>
                           );
                         })}
-                      {histVentas.length === 0 && !histCargando && (
-                        <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px 0", color: "var(--t3)" }}>Sin ventas</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                )}
+                        {filtradas.length === 0 && (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: "center", padding: "24px 0", color: "var(--t3)" }}>
+                              Sin ventas para el período seleccionado
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -839,7 +994,7 @@ export default function CajaClient() {
                   </div>
                 );
               })}
-              {catActiva === "Todos" && totalPags > 1 && (
+              {totalPags > 1 && (
                 <div style={{ gridColumn: "1/-1", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0" }}>
                   <button className="pg-btn" disabled={pagina === 1} onClick={() => setPagina((p) => p - 1)}>‹</button>
                   <span style={{ fontSize: 11, color: "var(--t2)" }}>{pagina} / {totalPags}</span>

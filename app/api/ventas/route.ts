@@ -10,7 +10,19 @@ import {
 } from "@/lib/ventas";
 import { notificarNuevoPedido } from "@/lib/fcm";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const desde = searchParams.get("desde");
+  const hasta = searchParams.get("hasta");
+  const limit = Math.min(Number(searchParams.get("limit") ?? "500"), 500);
+
+  const conditions: string[] = [];
+  const qParams: string[] = [];
+  if (desde) { qParams.push(desde); conditions.push(`fecha >= $${qParams.length}`); }
+  if (hasta) { qParams.push(hasta); conditions.push(`fecha <= $${qParams.length}`); }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  qParams.push(String(limit));
+
   const ventasResult = await pool.query(
     `SELECT id, fecha, tasa_dia, cliente, cliente_ci, cliente_telefono, direccion, modalidad_compra, modo_entrega,
             tipo_delivery, costo_delivery, descuento_porcentaje, observaciones, despacho_pendiente,
@@ -18,7 +30,10 @@ export async function GET() {
             delivery_asignado, motorizado_id, pedido_entregado, pedido_enviado,
             cuenta_por_cobrar, fecha_limite_pago, cuenta_cobrada, cuenta_cobrada_at, created_at
      FROM ventas
-     ORDER BY fecha DESC, id DESC`
+     ${where}
+     ORDER BY fecha DESC, id DESC
+     LIMIT $${qParams.length}`,
+    qParams
   );
 
   const ventaIds = ventasResult.rows.map((row) => row.id);
