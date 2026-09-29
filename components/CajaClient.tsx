@@ -1350,7 +1350,7 @@ export default function CajaClient() {
           )}
 
           {/* ══ LEFT PANEL ══ */}
-          {!vistaHistorial && <div className="left-panel">
+          {!vistaHistorial && !vistaAgenda && <div className="left-panel">
             <div className="cat-head">
               <div className="search-wrap">
                 <span className="s-icon">⌕</span>
