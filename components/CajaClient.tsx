@@ -506,20 +506,11 @@ export default function CajaClient() {
     return new Set(ALL_HIST_COLS);
   });
 
-  const LS_PROD_KEY = "caja_productos_v1";
   useEffect(() => {
-    // Show cached data immediately (stale-while-revalidate)
-    try {
-      const cached = localStorage.getItem(LS_PROD_KEY);
-      if (cached) setProductos(JSON.parse(cached) as Producto[]);
-    } catch { /* ignore */ }
-    // Fetch fresh in background
     fetch("/api/productos/caja")
       .then((r) => r.json())
-      .then((data: Producto[]) => {
-        setProductos(data);
-        try { localStorage.setItem(LS_PROD_KEY, JSON.stringify(data)); } catch { /* cuota */ }
-      }).catch(() => { /* keep cache */ });
+      .then((data: Producto[]) => { setProductos(data); })
+      .catch(() => {});
 
     fetch("/api/motorizados")
       .then((r) => r.json())
