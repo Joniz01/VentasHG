@@ -1125,11 +1125,26 @@ export default function CajaClient() {
           </button>
           {agendaHabilitada && (
             <button
-              className={`tb-btn${vistaAgenda ? " active" : ""}`}
+              className={`tb-btn${vistaAgenda || modoAgenda ? " active" : ""}`}
               style={{ position: "relative" }}
-              onClick={() => { setVistaAgenda((v) => { if (!v) { setVistaHistorial(false); void cargarAgenda(); } return !v; }); }}
+              onClick={() => {
+                if (vistaAgenda || modoAgenda) {
+                  // salir: limpiar todo estado de agenda
+                  setVistaAgenda(false);
+                  setModoAgenda(false);
+                  setAgendaEditandoId(null);
+                  setAgendaRecordatorioFecha(""); setAgendaRecordatorioHora("");
+                  setAgendaEntregaFecha(""); setAgendaEntregaHora("");
+                  clearCart();
+                  setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel("");
+                } else {
+                  setVistaHistorial(false);
+                  void cargarAgenda();
+                  setVistaAgenda(true);
+                }
+              }}
             >
-              📅 Agenda
+              {vistaAgenda || modoAgenda ? "← Catálogo" : "📅 Agenda"}
               {agendaPedidos.filter((p) => p.estado === "pendiente").length > 0 && (
                 <span style={{ position: "absolute", top: -3, right: -3, background: "#ef4444", color: "#fff", borderRadius: "50%", width: 14, height: 14, fontSize: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
                   {agendaPedidos.filter((p) => p.estado === "pendiente").length}
