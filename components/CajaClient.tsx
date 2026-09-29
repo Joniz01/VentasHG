@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 type Extra = { id: number; nombre: string; precioAdicional: number };
@@ -1671,7 +1672,7 @@ export default function CajaClient() {
                     <div onClick={() => clickProducto(prod)}>
                       <div className="p-thumb">
                         {prod.imagenUrl
-                          ? <img src={prod.imagenUrl} alt={prod.nombre} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                          ? <Image src={prod.imagenUrl} alt={prod.nombre} fill sizes="160px" style={{ objectFit: "cover" }} />
                           : <span style={{ wordBreak: "break-word", overflow: "hidden" }}>{prod.nombre}</span>
                         }
                         {qty > 0 && <span className="p-badge">{qty}</span>}
