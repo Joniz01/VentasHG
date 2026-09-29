@@ -1672,7 +1672,7 @@ export default function CajaClient() {
                     <div onClick={() => clickProducto(prod)}>
                       <div className="p-thumb">
                         {prod.imagenUrl
-                          ? <Image src={prod.imagenUrl} alt={prod.nombre} fill sizes="160px" style={{ objectFit: "cover" }} />
+                          ? <Image src={prod.imagenUrl} alt={prod.nombre} fill sizes="160px" style={{ objectFit: "cover", pointerEvents: "none" }} />
                           : <span style={{ wordBreak: "break-word", overflow: "hidden" }}>{prod.nombre}</span>
                         }
                         {qty > 0 && <span className="p-badge">{qty}</span>}
