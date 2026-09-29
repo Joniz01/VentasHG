@@ -11,6 +11,7 @@ import ConteoAlertaShell from "@/components/ConteoAlertaShell";
 import ConteoProgramacionAlertaShell from "@/components/ConteoProgramacionAlertaShell";
 
 const MODULE_NAMES: Record<string, string> = {
+  "/caja":               "Caja Rápida",
   "/ventas":             "Punto de Venta",
   "/pedidos-pendientes": "Pedidos Pendientes",
   "/productos":          "Inventario · Productos",
@@ -154,12 +155,24 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
       />
 
       {/* Module name */}
-      <span
-        className="text-xs hidden sm:block"
-        style={{ color: "var(--erp-shell-text)" }}
-      >
-        {moduleName}
-      </span>
+      {pathname?.startsWith("/caja") ? (
+        <Link
+          href="/caja"
+          className="text-xs hidden sm:block hover:underline"
+          style={{ color: "var(--erp-shell-text)", textDecoration: "none" }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.75")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+        >
+          {moduleName}
+        </Link>
+      ) : (
+        <span
+          className="text-xs hidden sm:block"
+          style={{ color: "var(--erp-shell-text)" }}
+        >
+          {moduleName}
+        </span>
+      )}
 
       {/* Quick action — Caja Rápida */}
       {sesionActiva && (
