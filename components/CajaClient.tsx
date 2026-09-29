@@ -507,10 +507,28 @@ export default function CajaClient() {
   });
 
   useEffect(() => {
-    fetch("/api/productos/caja")
+    fetch("/api/productos?grupo=PARA_LA_VENTA")
       .then((r) => r.json())
-      .then((data: Producto[]) => { setProductos(data); })
-      .catch(() => {});
+      .then((data: Record<string, unknown>[]) => {
+        setProductos(data.map((p) => ({
+          id: p.id as number,
+          nombre: p.nombre as string,
+          precioVenta: Number(p.precioVenta ?? 0),
+          categoriaNombre: (p.categoriaNombre ?? null) as string | null,
+          lineaNombre: (p.lineaNombre ?? null) as string | null,
+          extras: ((p.extras ?? []) as Record<string, unknown>[]).map((e) => ({
+            id: e.id as number,
+            nombre: e.nombre as string,
+            precioAdicional: Number(e.precioAdicional ?? 0),
+          })),
+          extrasCount: Number(p.extrasCount ?? 0),
+          imagenUrl: (p.imagenUrl ?? null) as string | null,
+          tipoProducto: (p.tipoProducto as string) ?? "NORMAL",
+          variadaRaciones: Number(p.variadaRaciones ?? 0),
+          tipoEmpaqueId: (p.tipoEmpaqueId as number | null) ?? null,
+          tipoEmpaqueNombre: (p.tipoEmpaqueNombre as string | null) ?? null,
+        })));
+      }).catch(() => {});
 
     fetch("/api/motorizados")
       .then((r) => r.json())
