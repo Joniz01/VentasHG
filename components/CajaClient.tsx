@@ -392,7 +392,7 @@ export default function CajaClient() {
 
   const [pagos, setPagos] = useState<{ metodo: string; monto: string }[]>([{ metodo: "EFECTIVO_BS", monto: "0" }]);
   const [cobroAlEntregar, setCobroAlEntregar] = useState(false);
-  const [entrega, setEntrega] = useState<"LOCAL" | "DELIVERY">("LOCAL");
+  const [entrega, setEntrega] = useState<"LOCAL" | "DELIVERY" | "PICKUP">("LOCAL");
   const [direccion, setDireccion] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
   const [horaPreparacion, setHoraPreparacion] = useState("");
@@ -1011,8 +1011,8 @@ export default function CajaClient() {
 
   async function cobrar() {
     if (carrito.length === 0) return;
-    if (entrega === "DELIVERY" && !horaEntrega) {
-      alert("Indica la hora de entrega para el delivery.");
+    if ((entrega === "DELIVERY" || entrega === "PICKUP") && !horaEntrega) {
+      alert(`Indica la hora de ${entrega === "PICKUP" ? "Pick-Up" : "entrega"}.`);
       return;
     }
     // Validar raciones completas
@@ -1036,8 +1036,9 @@ export default function CajaClient() {
         d.setHours(h, m, 0, 0);
         return d.toISOString();
       };
-      const horaEntregaISO = entrega === "DELIVERY" ? toISO(horaEntrega, fechaEntrega) : null;
-      const horaPrepaISO = entrega === "DELIVERY" ? toISO(alarmaPrepTime, fechaEntrega) : null;
+      const esConHora = entrega === "DELIVERY" || entrega === "PICKUP";
+      const horaEntregaISO = esConHora ? toISO(horaEntrega, fechaEntrega) : null;
+      const horaPrepaISO = esConHora ? toISO(alarmaPrepTime, fechaEntrega) : null;
       const horaRetiroISO = entrega === "DELIVERY" ? toISO(alarmaRetiroTime, fechaEntrega) : null;
       const body = {
         fecha: fechaHoy,
@@ -1562,6 +1563,7 @@ export default function CajaClient() {
                 <div className="toggle-row">
                   <button className={`tog-opt${entrega === "LOCAL" && !modoAgenda ? " active" : ""}`} onClick={() => { setEntrega("LOCAL"); setModoAgenda(false); }}>🏠 Local</button>
                   <button className={`tog-opt${entrega === "DELIVERY" && !modoAgenda ? " active" : ""}`} onClick={() => { setEntrega("DELIVERY"); setModoAgenda(false); }}>🛵 Delivery</button>
+                  <button className={`tog-opt${entrega === "PICKUP" && !modoAgenda ? " active" : ""}`} onClick={() => { setEntrega("PICKUP"); setModoAgenda(false); }}>📦 Pick-Up</button>
                   {agendaHabilitada && (
                     <button className={`tog-opt${modoAgenda ? " active" : ""}`} onClick={() => {
                       setModoAgenda((v) => {
@@ -1677,6 +1679,28 @@ export default function CajaClient() {
                       </div>
                     )}
                   </>
+                )}
+                {!modoAgenda && entrega === "PICKUP" && (
+                  <div className="hora-row" style={{ marginTop: 6 }}>
+                    <div style={{ flex: "0 0 110px" }}>
+                      <div className="f-label">Fecha Pick-Up</div>
+                      <input className="f-input" type="date" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div className="f-label">Hora Pick-Up *</div>
+                      <input className="f-input" type="time" value={horaEntrega} onChange={(e) => setHoraEntrega(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div className="f-label">Avisar preparar</div>
+                      <select className="f-input" value={minutosPrep} onChange={(e) => setMinutosPrep(e.target.value)}>
+                        <option value="5">5 min antes</option>
+                        <option value="15">15 min antes</option>
+                        <option value="30">30 min antes</option>
+                        <option value="45">45 min antes</option>
+                        <option value="60">60 min antes</option>
+                      </select>
+                    </div>
+                  </div>
                 )}
               </div>
 
