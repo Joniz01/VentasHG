@@ -7,6 +7,23 @@ type Producto = { id: number; nombre: string; precioVenta: number; categoriaNomb
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number; variadaSelecciones: string[] };
 type Theme = "dark" | "light" | "azul" | "beige";
+type AgendaItem = { productoId: number; cantidad: number; extraId?: number | null; nombre: string; precio: number };
+type AgendaPedido = {
+  id: number;
+  cliente: string | null;
+  clienteTelefono: string | null;
+  items: AgendaItem[];
+  totalUsd: number;
+  recordatorioAt: string;
+  entregaAt: string | null;
+  minsPreparacion: number;
+  minsRetiro: number;
+  estado: "pendiente" | "confirmada" | "cancelada";
+  alertaCobroDisparada: boolean;
+  alertaPreparacionDisparada: boolean;
+  alertaRetiroDisparada: boolean;
+  ventaId: number | null;
+};
 type HistVenta = {
   id: number;
   fecha: string;
@@ -288,7 +305,34 @@ button{cursor:pointer}
 .cobrar-btn:active:not(:disabled){transform:scale(.98)}
 .cobrar-btn:disabled{background:var(--dk3);color:var(--tt2);cursor:not-allowed;border:1px solid var(--tl)}
 
-/* ── Mesa Abierta ── */
+/* ── Agenda ── */
+.agenda-panel{padding:12px;display:flex;flex-direction:column;gap:8px;height:100%;overflow-y:auto}
+.agenda-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--tl)}
+.agenda-card{background:var(--surface);border:1.5px solid var(--tl);border-radius:9px;padding:9px 11px;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;cursor:pointer;transition:border-color .15s}
+.agenda-card:hover{border-color:var(--ab)}
+.agenda-card.ag-urgent{border-color:#ef4444;background:rgba(239,68,68,.06)}
+.agenda-card.ag-today{border-color:var(--ab);background:var(--al)}
+.ag-time{display:flex;flex-direction:column;align-items:center;background:var(--dk3);border-radius:6px;padding:5px 8px;min-width:56px;gap:1px}
+.ag-date{font-size:8px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em}
+.ag-hour{font-size:14px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.ag-info{display:flex;flex-direction:column;gap:2px}
+.ag-name{font-size:11px;font-weight:600}
+.ag-detail{font-size:9px;color:var(--t2);display:flex;gap:6px;flex-wrap:wrap}
+.ag-tag{display:inline-flex;padding:1px 6px;border-radius:10px;font-size:8px;font-weight:700}
+.ag-actions{display:flex;flex-direction:column;gap:4px}
+.ag-btn{padding:3px 8px;border-radius:5px;border:none;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.ag-btn.cobrar{background:var(--green,#22c55e);color:#000}
+.ag-btn.ver{background:none;border:1.5px solid var(--tl);color:var(--t2);cursor:pointer}
+/* Alert overlay */
+.ag-alert-overlay{position:absolute;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:center;justify-content:center;border-radius:inherit}
+.ag-alert-box{background:var(--surface);border:1.5px solid var(--tl);border-radius:14px;padding:20px 24px;display:flex;flex-direction:column;align-items:center;gap:10px;max-width:300px;text-align:center}
+.ag-alert-emoji{font-size:46px;animation:agRing 1.2s ease-in-out infinite}
+@keyframes agRing{0%,100%{transform:rotate(-8deg) scale(1.05)}15%{transform:rotate(8deg) scale(1.1)}40%{transform:rotate(-5deg) scale(1.05)}55%{transform:rotate(5deg) scale(1.07)}70%,90%{transform:rotate(0) scale(1)}}
+.ag-alert-title{font-size:14px;font-weight:700;color:var(--accent)}
+.ag-alert-body{font-size:11px;color:var(--t2);line-height:1.5}
+.ag-alert-btns{display:flex;gap:7px;width:100%}
+.ag-alert-btns button{flex:1;padding:8px;border-radius:7px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}
+/* Mesa Abierta ── */
 .mesa-chips{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;align-items:center}
 .mesa-chips::-webkit-scrollbar{display:none}
 .mesa-chip{flex-shrink:0;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid var(--tb-border);background:rgba(255,255,255,.07);color:var(--tb-text);cursor:pointer;transition:all .15s;white-space:nowrap}
@@ -365,6 +409,22 @@ export default function CajaClient() {
   const [ticketNum, setTicketNum] = useState(47);
   const clockRef = useRef<HTMLSpanElement>(null);
   const [vistaHistorial, setVistaHistorial] = useState(false);
+  const [vistaAgenda, setVistaAgenda] = useState(false);
+  const [agendaHabilitada, setAgendaHabilitada] = useState(false);
+  const [agendaAlertasPantalla, setAgendaAlertasPantalla] = useState(true);
+  const [agendaAlertasSonido, setAgendaAlertasSonido] = useState(true);
+  const [agendaPedidos, setAgendaPedidos] = useState<AgendaPedido[]>([]);
+  const [agendaCargando, setAgendaCargando] = useState(false);
+  const [modoAgenda, setModoAgenda] = useState(false);
+  const [agendaRecordatorioFecha, setAgendaRecordatorioFecha] = useState("");
+  const [agendaRecordatorioHora, setAgendaRecordatorioHora] = useState("09:00");
+  const [agendaEntregaFecha, setAgendaEntregaFecha] = useState("");
+  const [agendaEntregaHora, setAgendaEntregaHora] = useState("12:00");
+  const [agendaMinsPrepa, setAgendaMinsPrepa] = useState("45");
+  const [agendaMinsRetiro, setAgendaMinsRetiro] = useState("15");
+  const [agendaGuardando, setAgendaGuardando] = useState(false);
+  const [agendaAlertaActual, setAgendaAlertaActual] = useState<AgendaPedido | null>(null);
+  const agendaAlertasDismissedRef = useRef<Set<number>>(new Set());
   const [temaOpen, setTemaOpen] = useState(false);
   const temaRef = useRef<HTMLDivElement>(null);
   const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
@@ -431,6 +491,12 @@ export default function CajaClient() {
         setIvaActivo(cfg.iva_activo === "true");
         if (cfg.cashea_porcentajes) { const opts = cfg.cashea_porcentajes.split(",").map((s: string) => s.trim()).filter(Boolean); setCasheaPorcentajes(opts); setCasheaPct(cfg.cashea_porcentaje_default ?? opts[0] ?? "40"); }
         if (cfg.cashea_dias) { const opts = cfg.cashea_dias.split(",").map((s: string) => s.trim()).filter(Boolean); setCasheaDiasOpciones(opts); setCasheaDiasSelec(cfg.cashea_dias_default ?? opts[0] ?? "15"); }
+        const hab = cfg.agenda_habilitada === "true";
+        setAgendaHabilitada(hab);
+        setAgendaAlertasPantalla(cfg.agenda_alertas_pantalla !== "false");
+        setAgendaAlertasSonido(cfg.agenda_alertas_sonido !== "false");
+        setAgendaMinsPrepa(cfg.agenda_mins_preparacion ?? "45");
+        setAgendaMinsRetiro(cfg.agenda_mins_retiro ?? "15");
       })
       .catch(() => {});
 
@@ -458,6 +524,23 @@ export default function CajaClient() {
     cargarHistorial();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaHistorial]);
+
+  useEffect(() => {
+    if (!agendaHabilitada) return;
+    void cargarAgenda().then(() => {
+      setAgendaPedidos((prev) => { verificarAlertasAgenda(prev); return prev; });
+    });
+    const iv = setInterval(() => {
+      void fetch("/api/agenda-pedidos")
+        .then((r) => r.ok ? r.json() : { items: [] })
+        .then((d: { items: AgendaPedido[] }) => {
+          setAgendaPedidos(d.items ?? []);
+          verificarAlertasAgenda(d.items ?? []);
+        });
+    }, 60000);
+    return () => clearInterval(iv);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaHabilitada]);
 
   function cargarHistorial() {
     setHistCargando(true);
@@ -577,6 +660,109 @@ export default function CajaClient() {
     setCarrito([]);
     ticketRef.current += 1;
     setTicketNum(ticketRef.current);
+  }
+
+  async function cargarAgenda() {
+    setAgendaCargando(true);
+    try {
+      const r = await fetch("/api/agenda-pedidos");
+      if (r.ok) { const d = await r.json(); setAgendaPedidos(d.items ?? []); }
+    } finally { setAgendaCargando(false); }
+  }
+
+  function playBeep() {
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880; osc.type = "sine";
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.8);
+    } catch { /* Web Audio not available */ }
+  }
+
+  function verificarAlertasAgenda(pedidos: AgendaPedido[]) {
+    if (!agendaAlertasPantalla) return;
+    const ahora = new Date();
+    const candidato = pedidos.find(
+      (p) =>
+        p.estado === "pendiente" &&
+        !p.alertaCobroDisparada &&
+        !agendaAlertasDismissedRef.current.has(p.id) &&
+        new Date(p.recordatorioAt) <= ahora
+    );
+    if (candidato) {
+      setAgendaAlertaActual(candidato);
+      if (agendaAlertasSonido) playBeep();
+      void fetch(`/api/agenda-pedidos/${candidato.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertaCobroDisparada: true }),
+      });
+      setAgendaPedidos((prev) =>
+        prev.map((p) => p.id === candidato.id ? { ...p, alertaCobroDisparada: true } : p)
+      );
+    }
+  }
+
+  async function guardarEnAgenda() {
+    if (carrito.length === 0 || !agendaRecordatorioFecha) return;
+    setAgendaGuardando(true);
+    try {
+      const body = {
+        cliente: clienteNombre ? `${clienteNombre} ${clienteApellido}`.trim() : null,
+        clienteTelefono: clienteTel || null,
+        items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? null, nombre: c.nombre, precio: c.precio })),
+        totalUsd: total,
+        recordatorioAt: `${agendaRecordatorioFecha}T${agendaRecordatorioHora || "09:00"}:00`,
+        entregaAt: agendaEntregaFecha ? `${agendaEntregaFecha}T${agendaEntregaHora || "12:00"}:00` : null,
+        minsPreparacion: Number(agendaMinsPrepa) || 45,
+        minsRetiro: Number(agendaMinsRetiro) || 15,
+      };
+      const r = await fetch("/api/agenda-pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); alert((e as { error?: string }).error ?? "Error al guardar agenda"); return; }
+      setConfirmOverlay({ icon: "📅", titulo: "Pedido agendado", detalle: `Recordatorio: <strong>${agendaRecordatorioFecha} ${agendaRecordatorioHora}</strong><br>El pedido no descuenta inventario hasta ser cobrado.` });
+      clearCart();
+      setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
+      setAgendaRecordatorioFecha(""); setAgendaEntregaFecha("");
+      setModoAgenda(false);
+      void cargarAgenda();
+    } finally { setAgendaGuardando(false); }
+  }
+
+  function cobrarDesdeAgenda(pedido: AgendaPedido) {
+    const nuevas = pedido.items.map((it) => {
+      const prod = productos.find((p) => p.id === it.productoId);
+      return {
+        uid: `ag-${it.productoId}-${it.extraId ?? 0}-${Date.now()}`,
+        productoId: it.productoId,
+        nombre: it.nombre || prod?.nombre || `Producto #${it.productoId}`,
+        precio: it.precio || prod?.precioVenta || 0,
+        qty: it.cantidad,
+        extraId: it.extraId ?? null,
+        extraNombre: null,
+        extraPrecio: 0,
+        variadaSelecciones: [],
+      };
+    });
+    setCarrito(nuevas);
+    if (pedido.cliente) {
+      const partes = pedido.cliente.split(" ");
+      setClienteNombre(partes[0] ?? "");
+      setClienteApellido(partes.slice(1).join(" ") ?? "");
+    }
+    if (pedido.clienteTelefono) setClienteTel(pedido.clienteTelefono);
+    if (pedido.entregaAt) {
+      const dt = new Date(pedido.entregaAt);
+      setFechaEntrega(dt.toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
+      setHoraEntrega(dt.toLocaleTimeString("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false }));
+      setEntrega("DELIVERY");
+    }
+    setModoAgenda(false);
+    setVistaAgenda(false);
+    setAgendaAlertaActual(null);
   }
 
   function buscarCliente(q: string) {
@@ -829,7 +1015,8 @@ export default function CajaClient() {
 
   const ticketLabel = `#${String(ticketNum).padStart(4, "0")}`;
   const racionesCompletas = carrito.every((c) => c.variadaSelecciones.length === 0 || c.variadaSelecciones.every(Boolean));
-  const canCobrar = carrito.length > 0 && !guardando && racionesCompletas && (entrega === "LOCAL" || !!horaEntrega);
+  const canCobrar = carrito.length > 0 && !guardando && racionesCompletas && (modoAgenda || entrega === "LOCAL" || !!horaEntrega);
+  const canAgenda = modoAgenda && carrito.length > 0 && !agendaGuardando && !!agendaRecordatorioFecha && !!agendaRecordatorioHora;
 
   return (
     <>
@@ -880,10 +1067,24 @@ export default function CajaClient() {
           <div className="tb-space" />
           <button
             className={`tb-btn${vistaHistorial ? " active" : ""}`}
-            onClick={() => setVistaHistorial((v) => !v)}
+            onClick={() => { setVistaHistorial((v) => { if (!v) setVistaAgenda(false); return !v; }); }}
           >
             {vistaHistorial ? "← Catálogo" : "📋 Historial de ventas"}
           </button>
+          {agendaHabilitada && (
+            <button
+              className={`tb-btn${vistaAgenda ? " active" : ""}`}
+              style={{ position: "relative" }}
+              onClick={() => { setVistaAgenda((v) => { if (!v) { setVistaHistorial(false); void cargarAgenda(); } return !v; }); }}
+            >
+              📅 Agenda
+              {agendaPedidos.filter((p) => p.estado === "pendiente").length > 0 && (
+                <span style={{ position: "absolute", top: -3, right: -3, background: "#ef4444", color: "#fff", borderRadius: "50%", width: 14, height: 14, fontSize: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+                  {agendaPedidos.filter((p) => p.estado === "pendiente").length}
+                </span>
+              )}
+            </button>
+          )}
           <div className="tema-wrap" ref={temaRef}>
             <button className="tb-btn" onClick={() => setTemaOpen((o) => !o)}>
               🎨 Tema ▾
@@ -909,6 +1110,70 @@ export default function CajaClient() {
 
         <div className="pos-body">
           {/* ══ HISTORIAL PANEL ══ */}
+          {vistaAgenda && (
+            <div className="hist-panel">
+              <div className="agenda-panel">
+                <div className="agenda-toolbar">
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>📅 Agenda de Pedidos</span>
+                  <button className="hist-btn" onClick={cargarAgenda}>↺ Actualizar</button>
+                  <div style={{ flex: 1 }} />
+                  <span style={{ fontSize: 10, color: "var(--t2)" }}>
+                    {agendaPedidos.filter((p) => p.estado === "pendiente").length} pendientes
+                  </span>
+                </div>
+                {agendaCargando && <div style={{ fontSize: 11, color: "var(--t2)", textAlign: "center", padding: 20 }}>Cargando…</div>}
+                {!agendaCargando && agendaPedidos.length === 0 && (
+                  <div style={{ fontSize: 11, color: "var(--t2)", textAlign: "center", padding: 20 }}>Sin pedidos agendados</div>
+                )}
+                {agendaPedidos.map((p) => {
+                  const rec = new Date(p.recordatorioAt);
+                  const ahora = new Date();
+                  const vencido = rec < ahora;
+                  const hoyStr = ahora.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit" });
+                  const recStr = rec.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit" });
+                  const esHoy = hoyStr === recStr;
+                  return (
+                    <div key={p.id} className={`agenda-card${vencido ? " ag-urgent" : esHoy ? " ag-today" : ""}`}>
+                      <div className="ag-time">
+                        <div className="ag-date">{esHoy ? "HOY" : recStr}</div>
+                        <div className="ag-hour" style={vencido ? { color: "#ef4444" } : {}}>
+                          {rec.toLocaleTimeString("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false })}
+                        </div>
+                        <div style={{ fontSize: 7, fontWeight: 700, color: vencido ? "#f87171" : "var(--t3)" }}>
+                          {vencido ? "🔴 Cobrar" : "🟡 Pendiente"}
+                        </div>
+                      </div>
+                      <div className="ag-info">
+                        <div className="ag-name">{p.cliente ?? "Sin nombre"}</div>
+                        <div className="ag-detail">
+                          <span>{p.items.map((i) => `${i.nombre} ×${i.cantidad}`).join(" · ")}</span>
+                          <span style={{ fontWeight: 600 }}>${p.totalUsd.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+                          <span className="ag-tag" style={{ background: "var(--al)", color: "var(--accent)" }}>🔔 {rec.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "short" })}</span>
+                          {p.entregaAt && (
+                            <span className="ag-tag" style={{ background: "rgba(34,197,94,.12)", color: "#4ade80" }}>
+                              📦 {new Date(p.entregaAt).toLocaleTimeString("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="ag-actions">
+                        <button className="ag-btn cobrar" onClick={() => cobrarDesdeAgenda(p)}>💰 Cobrar</button>
+                        <button className="ag-btn ver" onClick={async () => {
+                          if (confirm(`¿Cancelar agenda de ${p.cliente ?? "este pedido"}?`)) {
+                            await fetch(`/api/agenda-pedidos/${p.id}`, { method: "DELETE" });
+                            void cargarAgenda();
+                          }
+                        }}>✕ Cancelar</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {vistaHistorial && (
             <div className="hist-panel">
               {/* Toolbar */}
@@ -1157,10 +1422,58 @@ export default function CajaClient() {
               <div className="bb-col">
                 <div className="bb-label">Entrega</div>
                 <div className="toggle-row">
-                  <button className={`tog-opt${entrega === "LOCAL" ? " active" : ""}`} onClick={() => setEntrega("LOCAL")}>🏠 Local</button>
-                  <button className={`tog-opt${entrega === "DELIVERY" ? " active" : ""}`} onClick={() => setEntrega("DELIVERY")}>🛵 Delivery</button>
+                  <button className={`tog-opt${entrega === "LOCAL" && !modoAgenda ? " active" : ""}`} onClick={() => { setEntrega("LOCAL"); setModoAgenda(false); }}>🏠 Local</button>
+                  <button className={`tog-opt${entrega === "DELIVERY" && !modoAgenda ? " active" : ""}`} onClick={() => { setEntrega("DELIVERY"); setModoAgenda(false); }}>🛵 Delivery</button>
+                  {agendaHabilitada && (
+                    <button className={`tog-opt${modoAgenda ? " active" : ""}`} onClick={() => { setModoAgenda((v) => !v); }}>📅 Agenda</button>
+                  )}
                 </div>
-                {entrega === "DELIVERY" && (
+                {modoAgenda && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: ".07em" }}>📅 Agenda — sin cobro ni inventario</div>
+                    <div className="hora-row">
+                      <div style={{ flex: 1 }}>
+                        <div className="f-label">🔔 Recordatorio de Cobro — Fecha</div>
+                        <input className="f-input" type="date" value={agendaRecordatorioFecha} onChange={(e) => setAgendaRecordatorioFecha(e.target.value)} />
+                      </div>
+                      <div style={{ flex: "0 0 100px" }}>
+                        <div className="f-label">Hora</div>
+                        <input className="f-input" type="time" value={agendaRecordatorioHora} onChange={(e) => setAgendaRecordatorioHora(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="hora-row">
+                      <div style={{ flex: 1 }}>
+                        <div className="f-label">📦 Entrega del Pedido — Fecha</div>
+                        <input className="f-input" type="date" value={agendaEntregaFecha} onChange={(e) => setAgendaEntregaFecha(e.target.value)} />
+                      </div>
+                      <div style={{ flex: "0 0 100px" }}>
+                        <div className="f-label">Hora</div>
+                        <input className="f-input" type="time" value={agendaEntregaHora} onChange={(e) => setAgendaEntregaHora(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="hora-row">
+                      <div style={{ flex: 1 }}>
+                        <div className="f-label">🍳 Avisar preparar (mins antes)</div>
+                        <select className="f-input" value={agendaMinsPrepa} onChange={(e) => setAgendaMinsPrepa(e.target.value)}>
+                          <option value="30">30 min</option>
+                          <option value="45">45 min</option>
+                          <option value="60">60 min</option>
+                          <option value="90">90 min</option>
+                        </select>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div className="f-label">🛵 Avisar retiro (mins antes)</div>
+                        <select className="f-input" value={agendaMinsRetiro} onChange={(e) => setAgendaMinsRetiro(e.target.value)}>
+                          <option value="10">10 min</option>
+                          <option value="15">15 min</option>
+                          <option value="20">20 min</option>
+                          <option value="30">30 min</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!modoAgenda && entrega === "DELIVERY" && (
                   <>
                     <div>
                       <div className="f-label">Dirección</div>
@@ -1495,22 +1808,57 @@ export default function CajaClient() {
               )}
 
               <div className="cobrar-wrap">
-                <button className="cobrar-btn" disabled={!canCobrar} onClick={cobrar}>
-                  <span>⚡</span>
-                  <span>
-                    {carrito.length === 0 ? "Sin productos"
-                      : guardando ? "Registrando…"
-                      : cobroAlEntregar ? `Registrar Pedido · ${fmt(total)}`
-                      : isCashea ? `Generar Cashea · ${fmt(total)}`
-                      : isCxP ? `Generar CxC · ${fmt(total)}`
-                      : `Cobrar ${fmt(total)}`}
-                  </span>
-                </button>
+                {modoAgenda ? (
+                  <button className="cobrar-btn" disabled={!canAgenda}
+                    style={canAgenda ? { background: "#7c3aed" } : undefined}
+                    onClick={guardarEnAgenda}>
+                    <span>📅</span>
+                    <span>
+                      {carrito.length === 0 ? "Sin productos"
+                        : agendaGuardando ? "Guardando…"
+                        : !agendaRecordatorioFecha || !agendaRecordatorioHora ? "Elige fecha de recordatorio"
+                        : `Guardar en Agenda · ${fmt(total)}`}
+                    </span>
+                  </button>
+                ) : (
+                  <button className="cobrar-btn" disabled={!canCobrar} onClick={cobrar}>
+                    <span>⚡</span>
+                    <span>
+                      {carrito.length === 0 ? "Sin productos"
+                        : guardando ? "Registrando…"
+                        : cobroAlEntregar ? `Registrar Pedido · ${fmt(total)}`
+                        : isCashea ? `Generar Cashea · ${fmt(total)}`
+                        : isCxP ? `Generar CxC · ${fmt(total)}`
+                        : `Cobrar ${fmt(total)}`}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Agenda Alert Overlay */}
+      {agendaAlertaActual && agendaAlertasPantalla && (
+        <div className="ag-alert-overlay" style={{ position: "fixed" }}>
+          <div className="ag-alert-box">
+            <div className="ag-alert-emoji">🔔</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Recordatorio de Pedido</div>
+            <div style={{ fontSize: 12, color: "var(--t2)" }}>
+              <strong>{agendaAlertaActual.cliente ?? "Sin nombre"}</strong>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--t2)" }}>
+              {agendaAlertaActual.items.map((i) => `${i.nombre} ×${i.cantidad}`).join(", ")}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>${agendaAlertaActual.totalUsd.toFixed(2)}</div>
+            <div className="ag-alert-btns">
+              <button className="ag-btn cobrar" onClick={() => { cobrarDesdeAgenda(agendaAlertaActual); setAgendaAlertaActual(null); }}>💰 Cobrar ahora</button>
+              <button className="ag-btn ver" onClick={() => { agendaAlertasDismissedRef.current.add(agendaAlertaActual.id); setAgendaAlertaActual(null); }}>Recordar después</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Mesa Abierta */}
       {mesaModalOpen && (

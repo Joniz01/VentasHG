@@ -11,6 +11,7 @@ import LLMAdminPanel from "@/components/LLMAdminPanel";
 import ConteoUsuariosConfigClient from "@/components/ConteoUsuariosConfigClient";
 import TiposGastoConfigClient from "@/components/TiposGastoConfigClient";
 import CentrosCostoConfigClient from "@/components/CentrosCostoConfigClient";
+import AgendaConfigPanel from "@/components/AgendaConfigPanel";
 
 type Props = {
   usuarioActualId: number;
@@ -29,6 +30,7 @@ const TABS = [
   { key: "conteo",        label: "Conteo Inventario",   icon: "📋", desc: "Usuarios de conteo físico" },
   { key: "gastos-config",   label: "Gastos",              icon: "🧾", desc: "Tipos de gasto configurables" },
   { key: "centros-costo",   label: "Centros de Costo",    icon: "🏢", desc: "Sucursales y centros de costo" },
+  { key: "agenda",          label: "Agenda de Pedidos",   icon: "📅", desc: "Habilitar y configurar recordatorios de pedidos" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -200,6 +202,15 @@ export default function AdminTabsClient({ usuarioActualId, nombre, usuario, esAd
             Gestiona las sucursales o centros de costo para asignar a Nóminas y Gastos.
           </p>
           <CentrosCostoConfigClient />
+        </div>
+      )}
+
+      {tab === "agenda" && (
+        <div>
+          <p style={{ fontSize: "0.875rem", color: "var(--erp-text-2)", marginBottom: "1rem" }}>
+            Habilita o deshabilita el módulo de Agenda de Pedidos en Caja Rápida. Cuando está activo, permite crear recordatorios de cobro y entrega sin afectar el inventario.
+          </p>
+          <AgendaConfigPanel />
         </div>
       )}
 
