@@ -155,6 +155,21 @@ button{cursor:pointer}
 .hist-cols-item{display:flex;align-items:center;gap:7px;padding:6px 12px;font-size:12px;color:var(--text);cursor:pointer;transition:background .1s}
 .hist-cols-item:hover{background:var(--al)}
 
+/* ── Pedido view (tab virtual en modoAgenda) ── */
+.pedido-view{display:flex;flex-direction:column;gap:0;overflow-y:auto;flex:1;min-height:0;padding:8px 12px}
+.pedido-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--tl)}
+.pedido-row:last-child{border-bottom:none}
+.pedido-nombre{flex:1;font-size:13px;font-weight:500;color:var(--tt)}
+.pedido-precio{font-size:12px;color:var(--t2);white-space:nowrap}
+.pedido-subtotal{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;min-width:60px;text-align:right}
+.pedido-qty{display:flex;align-items:center;gap:4px}
+.pedido-qty-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--tl);background:none;color:var(--tt);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;flex-shrink:0}
+.pedido-qty-btn:hover{border-color:var(--ab);color:var(--accent)}
+.pedido-qty-num{font-size:13px;font-weight:700;min-width:18px;text-align:center}
+.pedido-empty{padding:32px 0;text-align:center;color:var(--t3);font-size:12px}
+.cat-pill.pedido-pill{background:var(--al);color:var(--accent);border-color:var(--accent);font-weight:700}
+.cat-pill.pedido-pill.active{background:var(--accent);color:#1c1c1e}
+
 /* ── Body split ── */
 .pos-body{flex:1;display:flex;min-height:0;overflow:hidden}
 
@@ -430,6 +445,7 @@ export default function CajaClient() {
   const [agendaEditandoId, setAgendaEditandoId] = useState<number | null>(null);
   const [agendaSinClienteModal, setAgendaSinClienteModal] = useState(false);
   const clienteNombreRef = useRef<HTMLInputElement>(null);
+  const catPreviaRef = useRef<string>("Tradicional");
   const [temaOpen, setTemaOpen] = useState(false);
   const temaRef = useRef<HTMLDivElement>(null);
   const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
@@ -744,6 +760,7 @@ export default function CajaClient() {
       setAgendaRecordatorioFecha(""); setAgendaEntregaFecha("");
       setModoAgenda(false);
       setAgendaEditandoId(null);
+      setCatActiva(catPreviaRef.current);
       void cargarAgenda();
     } finally { setAgendaGuardando(false); }
   }
@@ -781,6 +798,8 @@ export default function CajaClient() {
     setAgendaMinsRetiro(String(pedido.minsRetiro));
     setAgendaEditandoId(pedido.id);
     setModoAgenda(true);
+    catPreviaRef.current = catActiva;
+    setCatActiva("PEDIDO");
     setVistaAgenda(false);
   }
 
@@ -1137,6 +1156,7 @@ export default function CajaClient() {
                   setAgendaEntregaFecha(""); setAgendaEntregaHora("");
                   clearCart();
                   setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel("");
+                  setCatActiva(catPreviaRef.current);
                 } else {
                   setVistaHistorial(false);
                   void cargarAgenda();
@@ -1214,7 +1234,7 @@ export default function CajaClient() {
                         <div className="ag-name">{p.cliente ?? "Sin nombre"}</div>
                         <div className="ag-detail">
                           <span>{p.items.map((i) => `${i.nombre} ×${i.cantidad}`).join(" · ")}</span>
-                          <span style={{ fontWeight: 600 }}>${p.totalUsd.toFixed(2)}</span>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>${p.totalUsd.toFixed(2)}</span>
                         </div>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
                           <span className="ag-tag" style={{ background: "var(--al)", color: "var(--accent)" }}>🔔 {rec.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "short" })}</span>
@@ -1425,12 +1445,60 @@ export default function CajaClient() {
                 <input className="search-input" type="text" placeholder="Buscar producto…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
               </div>
               <div className="cats">
+                {modoAgenda && (
+                  <button className={`cat-pill pedido-pill${catActiva === "PEDIDO" ? " active" : ""}`}
+                    onClick={() => { setCatActiva("PEDIDO"); setPagina(1); }}>
+                    📋 Pedido {carrito.length > 0 && `(${carrito.reduce((s, c) => s + c.qty, 0)})`}
+                  </button>
+                )}
                 {cats.map((f) => (
                   <button key={f.key} className={`cat-pill${catActiva === f.key ? " active" : ""}`} onClick={() => { setCatActiva(f.key); setPagina(1); }}>{f.label}</button>
                 ))}
               </div>
             </div>
 
+            {catActiva === "PEDIDO" ? (
+              <div className="pedido-view">
+                {carrito.length === 0 ? (
+                  <div className="pedido-empty">
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>🛒</div>
+                    Sin productos — selecciona una categoría para agregar
+                  </div>
+                ) : (
+                  <>
+                    {carrito.map((c) => (
+                      <div key={c.uid} className="pedido-row">
+                        <div className="pedido-qty">
+                          <button className="pedido-qty-btn" onClick={() => {
+                            setCarrito((prev) => {
+                              const idx = prev.findIndex((x) => x.uid === c.uid);
+                              if (idx === -1) return prev;
+                              if (prev[idx].qty <= 1) return prev.filter((x) => x.uid !== c.uid);
+                              return prev.map((x, i) => i === idx ? { ...x, qty: x.qty - 1 } : x);
+                            });
+                          }}>−</button>
+                          <span className="pedido-qty-num">{c.qty}</span>
+                          <button className="pedido-qty-btn" onClick={() => {
+                            setCarrito((prev) => prev.map((x) => x.uid === c.uid ? { ...x, qty: x.qty + 1 } : x));
+                          }}>+</button>
+                        </div>
+                        <div className="pedido-nombre">
+                          {c.nombre}{c.extraNombre ? <span style={{ fontSize: 11, color: "var(--t2)" }}> · {c.extraNombre}</span> : null}
+                        </div>
+                        <div className="pedido-precio">{fmt(c.precio + c.extraPrecio)}</div>
+                        <div className="pedido-subtotal">{fmt((c.precio + c.extraPrecio) * c.qty)}</div>
+                        <button style={{ background: "none", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 13, padding: "0 2px" }}
+                          onClick={() => setCarrito((prev) => prev.filter((x) => x.uid !== c.uid))}>✕</button>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--tl)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 12, color: "var(--t2)" }}>{carrito.reduce((s, c) => s + c.qty, 0)} ítem(s)</span>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)" }}>{fmt(subtotal)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
             <div className="product-grid">
               {filtrados.length === 0 && (
                 <div style={{ gridColumn: "1/-1", padding: "32px 0", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
@@ -1483,6 +1551,7 @@ export default function CajaClient() {
                 </div>
               )}
             </div>
+            )}
 
             {/* ── Bottom bar: Entrega | Cliente ── */}
             <div className="bottom-bar">
@@ -1493,7 +1562,13 @@ export default function CajaClient() {
                   <button className={`tog-opt${entrega === "LOCAL" && !modoAgenda ? " active" : ""}`} onClick={() => { setEntrega("LOCAL"); setModoAgenda(false); }}>🏠 Local</button>
                   <button className={`tog-opt${entrega === "DELIVERY" && !modoAgenda ? " active" : ""}`} onClick={() => { setEntrega("DELIVERY"); setModoAgenda(false); }}>🛵 Delivery</button>
                   {agendaHabilitada && (
-                    <button className={`tog-opt${modoAgenda ? " active" : ""}`} onClick={() => { setModoAgenda((v) => !v); }}>📅 Agenda</button>
+                    <button className={`tog-opt${modoAgenda ? " active" : ""}`} onClick={() => {
+                      setModoAgenda((v) => {
+                        if (!v) { catPreviaRef.current = catActiva; setCatActiva("PEDIDO"); }
+                        else { setCatActiva(catPreviaRef.current); }
+                        return !v;
+                      });
+                    }}>📅 Agenda</button>
                   )}
                 </div>
                 {modoAgenda && (
