@@ -119,7 +119,8 @@ button{cursor:pointer}
 .topbar{background:var(--topbar);color:var(--tb-text);height:44px;display:flex;align-items:center;gap:12px;padding:0 14px;flex-shrink:0;border-bottom:1px solid var(--tb-border)}
 .tb-brand{font-weight:700;font-size:12px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
 .tb-sep{color:var(--tb-border)}
-.tb-title{font-size:14px;font-weight:500;color:var(--tb-text)}
+.tb-title{font-size:14px;font-weight:500;color:var(--tb-text);text-decoration:none}
+.tb-title:hover{text-decoration:underline;text-underline-offset:3px;opacity:.8}
 .tb-space{flex:1}
 .tb-btn{padding:4px 10px;border-radius:5px;border:1px solid var(--tb-border);background:rgba(255,255,255,.06);color:var(--tb-text);font-size:12px;font-weight:500;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap}
 .tb-btn:hover{background:rgba(255,255,255,.12)}
@@ -1098,7 +1099,7 @@ export default function CajaClient() {
         <div className="topbar">
           <span className="tb-brand">VentasHG</span>
           <span className="tb-sep">›</span>
-          <span className="tb-title">Caja Rápida</span>
+          <a className="tb-title" href="/caja">Caja Rápida</a>
           {/* Chips de mesas abiertas */}
           {mesasAbiertas.length > 0 && (
             <div className="mesa-chips">
