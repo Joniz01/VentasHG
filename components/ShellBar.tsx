@@ -158,10 +158,16 @@ export default function ShellBar({ sesionActiva, empresa }: Props) {
       {pathname?.startsWith("/caja") ? (
         <Link
           href="/caja"
-          className="text-xs hidden sm:block hover:underline"
-          style={{ color: "var(--erp-shell-text)", textDecoration: "none" }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.75")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          className="text-xs hidden sm:block"
+          style={{
+            color: "var(--erp-shell-text)",
+            textDecoration: "underline",
+            textUnderlineOffset: 3,
+            cursor: "pointer",
+            opacity: 0.9,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.9")}
         >
           {moduleName}
         </Link>
