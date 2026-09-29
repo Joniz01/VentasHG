@@ -794,7 +794,8 @@ export default function CajaClient() {
       setConfirmOverlay({ icon: "📅", titulo: tituloConfirm, detalle: `Recordatorio: <strong>${agendaRecordatorioFecha} ${agendaRecordatorioHora}</strong><br>El pedido no descuenta inventario hasta ser cobrado.` });
       clearCart();
       setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
-      setAgendaRecordatorioFecha(""); setAgendaEntregaFecha("");
+      setAgendaRecordatorioFecha(""); setAgendaRecordatorioHora("09:00");
+      setAgendaEntregaFecha(""); setAgendaEntregaHora("12:00");
       setModoAgenda(false);
       setAgendaEditandoId(null);
       setCatActiva(catPreviaRef.current);
@@ -1279,8 +1280,8 @@ export default function CajaClient() {
                   setVistaAgenda(false);
                   setModoAgenda(false);
                   setAgendaEditandoId(null);
-                  setAgendaRecordatorioFecha(""); setAgendaRecordatorioHora("");
-                  setAgendaEntregaFecha(""); setAgendaEntregaHora("");
+                  setAgendaRecordatorioFecha(""); setAgendaRecordatorioHora("09:00");
+                  setAgendaEntregaFecha(""); setAgendaEntregaHora("12:00");
                   clearCart();
                   setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel("");
                   setCatActiva(catPreviaRef.current);
