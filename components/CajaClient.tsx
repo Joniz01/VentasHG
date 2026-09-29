@@ -1180,7 +1180,7 @@ export default function CajaClient() {
   }
 
   function descartarBorrador(id: string) {
-    if (confirm("¿Descartar este borrador? Se perderá el pedido guardado.")) {
+    if (confirm("¿Descartar este pedido guardado? Se perderá el pedido guardado.")) {
       saveBorradores(borradores.filter((b) => b.id !== id));
     }
   }
@@ -1255,7 +1255,7 @@ export default function CajaClient() {
                 setVistaAgenda(false);
               }}
             >
-              {vistaBorradores ? "← Catálogo" : "📂 Borradores"}
+              {vistaBorradores ? "← Catálogo" : "📂 Pedidos Guardados"}
               {!vistaBorradores && (
                 <span style={{ position: "absolute", top: -3, right: -3, background: "#f59e0b", color: "#1c1c1e", borderRadius: "50%", width: 14, height: 14, fontSize: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
                   {borradores.length}
@@ -1328,7 +1328,7 @@ export default function CajaClient() {
             <div className="hist-panel">
               <div className="borrador-panel">
                 <div className="borrador-toolbar">
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>📂 Pedidos en Espera</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>📂 Pedidos Guardados</span>
                   <div style={{ flex: 1 }} />
                   <span style={{ fontSize: 10, color: "var(--t2)" }}>{borradores.length} guardado(s)</span>
                 </div>
@@ -2181,7 +2181,7 @@ export default function CajaClient() {
             <div style={{ fontSize: 26 }}>💾</div>
             <div className="cf-title" style={{ textAlign: "left" }}>Guardar pedido en espera</div>
             <div className="cf-detail" style={{ textAlign: "left" }}>
-              El carrito se guardará y podrás recuperarlo desde <strong>📂 Borradores</strong>. Opcionalmente ponle un nombre para identificarlo.
+              El carrito se guardará y podrás recuperarlo desde <strong>📂 Pedidos Guardados</strong>. Opcionalmente ponle un nombre para identificarlo.
             </div>
             <input
               className="f-input"
