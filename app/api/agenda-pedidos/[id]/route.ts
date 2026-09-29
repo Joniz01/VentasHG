@@ -12,6 +12,15 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       alertaPreparacionDisparada?: boolean;
       alertaRetiroDisparada?: boolean;
       ventaId?: number;
+      // edición completa
+      cliente?: string | null;
+      clienteTelefono?: string | null;
+      items?: unknown[];
+      totalUsd?: number;
+      recordatorioAt?: string;
+      entregaAt?: string | null;
+      minsPreparacion?: number;
+      minsRetiro?: number;
     };
 
     const sets: string[] = [];
@@ -22,6 +31,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (body.alertaPreparacionDisparada !== undefined) { sets.push(`alerta_preparacion_disparada = $${vals.length + 1}`); vals.push(body.alertaPreparacionDisparada); }
     if (body.alertaRetiroDisparada !== undefined) { sets.push(`alerta_retiro_disparada = $${vals.length + 1}`); vals.push(body.alertaRetiroDisparada); }
     if (body.ventaId !== undefined) { sets.push(`venta_id = $${vals.length + 1}`); vals.push(body.ventaId); }
+    if (body.cliente !== undefined) { sets.push(`cliente = $${vals.length + 1}`); vals.push(body.cliente); }
+    if (body.clienteTelefono !== undefined) { sets.push(`cliente_telefono = $${vals.length + 1}`); vals.push(body.clienteTelefono); }
+    if (body.items !== undefined) { sets.push(`items = $${vals.length + 1}`); vals.push(JSON.stringify(body.items)); }
+    if (body.totalUsd !== undefined) { sets.push(`total_usd = $${vals.length + 1}`); vals.push(body.totalUsd); }
+    if (body.recordatorioAt !== undefined) { sets.push(`recordatorio_at = $${vals.length + 1}`); vals.push(body.recordatorioAt); }
+    if ("entregaAt" in body) { sets.push(`entrega_at = $${vals.length + 1}`); vals.push(body.entregaAt ?? null); }
+    if (body.minsPreparacion !== undefined) { sets.push(`mins_preparacion = $${vals.length + 1}`); vals.push(body.minsPreparacion); }
+    if (body.minsRetiro !== undefined) { sets.push(`mins_retiro = $${vals.length + 1}`); vals.push(body.minsRetiro); }
 
     if (sets.length === 0) return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
 

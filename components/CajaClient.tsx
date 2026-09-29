@@ -316,9 +316,9 @@ button{cursor:pointer}
 .ag-date{font-size:8px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em}
 .ag-hour{font-size:14px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
 .ag-info{display:flex;flex-direction:column;gap:2px}
-.ag-name{font-size:11px;font-weight:600}
-.ag-detail{font-size:9px;color:var(--t2);display:flex;gap:6px;flex-wrap:wrap}
-.ag-tag{display:inline-flex;padding:1px 6px;border-radius:10px;font-size:8px;font-weight:700}
+.ag-name{font-size:13px;font-weight:600}
+.ag-detail{font-size:11px;color:var(--t2);display:flex;gap:6px;flex-wrap:wrap}
+.ag-tag{display:inline-flex;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
 .ag-actions{display:flex;flex-direction:column;gap:4px}
 .ag-btn{padding:3px 8px;border-radius:5px;border:none;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
 .ag-btn.cobrar{background:var(--green,#22c55e);color:#000}
@@ -348,8 +348,10 @@ button{cursor:pointer}
 .cf-title{font-size:17px;font-weight:700;color:var(--tt)}
 .cf-detail{font-size:13px;color:var(--tt2);line-height:1.6}
 .cf-detail strong{color:var(--tt)}
-.cf-ok{padding:10px;background:var(--accent);color:#1c1c1e;border:none;border-radius:8px;font-size:13px;font-weight:700}
+.cf-ok{padding:10px;background:var(--accent);color:#1c1c1e;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
 .cf-ok:hover{opacity:.9}
+.cf-cancel{padding:10px;background:none;color:var(--tt2);border:1.5px solid var(--tl);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+.cf-cancel:hover{border-color:var(--tt3);color:var(--tt)}
 
 @media(max-width:700px){.pos-body{flex-direction:column}.ticket{width:100%;border-left:none;border-top:1px solid var(--tl)}.left-panel{min-width:unset}.bottom-bar{flex-direction:column}}
 `;
@@ -425,6 +427,9 @@ export default function CajaClient() {
   const [agendaGuardando, setAgendaGuardando] = useState(false);
   const [agendaAlertaActual, setAgendaAlertaActual] = useState<AgendaPedido | null>(null);
   const agendaAlertasDismissedRef = useRef<Set<number>>(new Set());
+  const [agendaEditandoId, setAgendaEditandoId] = useState<number | null>(null);
+  const [agendaSinClienteModal, setAgendaSinClienteModal] = useState(false);
+  const clienteNombreRef = useRef<HTMLInputElement>(null);
   const [temaOpen, setTemaOpen] = useState(false);
   const temaRef = useRef<HTMLDivElement>(null);
   const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
@@ -707,8 +712,12 @@ export default function CajaClient() {
     }
   }
 
-  async function guardarEnAgenda() {
+  async function guardarEnAgenda(forzarSinCliente = false) {
     if (carrito.length === 0 || !agendaRecordatorioFecha) return;
+    if (!forzarSinCliente && !clienteNombre.trim()) {
+      setAgendaSinClienteModal(true);
+      return;
+    }
     setAgendaGuardando(true);
     try {
       const body = {
@@ -721,15 +730,58 @@ export default function CajaClient() {
         minsPreparacion: Number(agendaMinsPrepa) || 45,
         minsRetiro: Number(agendaMinsRetiro) || 15,
       };
-      const r = await fetch("/api/agenda-pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      let r: Response;
+      if (agendaEditandoId !== null) {
+        r = await fetch(`/api/agenda-pedidos/${agendaEditandoId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      } else {
+        r = await fetch("/api/agenda-pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      }
       if (!r.ok) { const e = await r.json().catch(() => ({})); alert((e as { error?: string }).error ?? "Error al guardar agenda"); return; }
-      setConfirmOverlay({ icon: "📅", titulo: "Pedido agendado", detalle: `Recordatorio: <strong>${agendaRecordatorioFecha} ${agendaRecordatorioHora}</strong><br>El pedido no descuenta inventario hasta ser cobrado.` });
+      const tituloConfirm = agendaEditandoId !== null ? "Agenda actualizada" : "Pedido agendado";
+      setConfirmOverlay({ icon: "📅", titulo: tituloConfirm, detalle: `Recordatorio: <strong>${agendaRecordatorioFecha} ${agendaRecordatorioHora}</strong><br>El pedido no descuenta inventario hasta ser cobrado.` });
       clearCart();
       setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel(""); setDireccion("");
       setAgendaRecordatorioFecha(""); setAgendaEntregaFecha("");
       setModoAgenda(false);
+      setAgendaEditandoId(null);
       void cargarAgenda();
     } finally { setAgendaGuardando(false); }
+  }
+
+  function editarAgenda(pedido: AgendaPedido) {
+    const nuevas = pedido.items.map((it) => {
+      const prod = productos.find((p) => p.id === it.productoId);
+      const extra = prod?.extras.find((e) => e.id === it.extraId);
+      return {
+        uid: `edit-${it.productoId}-${it.extraId ?? 0}-${Date.now()}`,
+        productoId: it.productoId,
+        nombre: it.nombre,
+        precio: it.precio,
+        qty: it.cantidad,
+        extraId: it.extraId ?? null,
+        extraNombre: extra?.nombre ?? null,
+        extraPrecio: extra?.precioAdicional ?? 0,
+        variadaSelecciones: [] as string[],
+      };
+    });
+    setCarrito(nuevas);
+    setClienteNombre(pedido.cliente ?? "");
+    setClienteTel(pedido.clienteTelefono ?? "");
+    const rec = new Date(pedido.recordatorioAt);
+    setAgendaRecordatorioFecha(rec.toISOString().slice(0, 10));
+    setAgendaRecordatorioHora(rec.toTimeString().slice(0, 5));
+    if (pedido.entregaAt) {
+      const ent = new Date(pedido.entregaAt);
+      setAgendaEntregaFecha(ent.toISOString().slice(0, 10));
+      setAgendaEntregaHora(ent.toTimeString().slice(0, 5));
+    } else {
+      setAgendaEntregaFecha(""); setAgendaEntregaHora("");
+    }
+    setAgendaMinsPrepa(String(pedido.minsPreparacion));
+    setAgendaMinsRetiro(String(pedido.minsRetiro));
+    setAgendaEditandoId(pedido.id);
+    setModoAgenda(true);
+    setVistaAgenda(false);
   }
 
   function cobrarDesdeAgenda(pedido: AgendaPedido) {
@@ -1160,6 +1212,7 @@ export default function CajaClient() {
                       </div>
                       <div className="ag-actions">
                         <button className="ag-btn cobrar" onClick={() => cobrarDesdeAgenda(p)}>💰 Cobrar</button>
+                        <button className="ag-btn ver" style={{ borderColor: "#7c3aed", color: "#7c3aed" }} onClick={() => editarAgenda(p)}>✏️ Editar</button>
                         <button className="ag-btn ver" onClick={async () => {
                           if (confirm(`¿Cancelar agenda de ${p.cliente ?? "este pedido"}?`)) {
                             await fetch(`/api/agenda-pedidos/${p.id}`, { method: "DELETE" });
@@ -1542,7 +1595,7 @@ export default function CajaClient() {
                 <div className="hora-row">
                   <div style={{ flex: 1, position: "relative" }}>
                     <div className="f-label">Nombre</div>
-                    <input className="f-input" type="text" placeholder="Consumidor Final" value={clienteNombre}
+                    <input ref={clienteNombreRef} className="f-input" type="text" placeholder="Consumidor Final" value={clienteNombre}
                       onChange={(e) => { setClienteNombre(e.target.value); setClienteCampoActivo("nombre"); buscarCliente(e.target.value); }}
                       onBlur={() => setTimeout(() => { setClienteSugerencias([]); setClienteCampoActivo(null); }, 150)}
                     />
@@ -1811,13 +1864,13 @@ export default function CajaClient() {
                 {modoAgenda ? (
                   <button className="cobrar-btn" disabled={!canAgenda}
                     style={canAgenda ? { background: "#7c3aed" } : undefined}
-                    onClick={guardarEnAgenda}>
+                    onClick={() => void guardarEnAgenda()}>
                     <span>📅</span>
                     <span>
                       {carrito.length === 0 ? "Sin productos"
                         : agendaGuardando ? "Guardando…"
                         : !agendaRecordatorioFecha || !agendaRecordatorioHora ? "Elige fecha de recordatorio"
-                        : `Guardar en Agenda · ${fmt(total)}`}
+                        : agendaEditandoId !== null ? `Actualizar Agenda · ${fmt(total)}` : `Guardar en Agenda · ${fmt(total)}`}
                     </span>
                   </button>
                 ) : (
@@ -1838,6 +1891,29 @@ export default function CajaClient() {
           </div>
         </div>
       </div>
+
+      {/* Modal: sin cliente en agenda */}
+      {agendaSinClienteModal && (
+        <div className="overlay">
+          <div className="ov-card" style={{ textAlign: "left", gap: 10, maxWidth: 340 }}>
+            <div style={{ fontSize: 26 }}>👤</div>
+            <div className="cf-title" style={{ textAlign: "left" }}>Sin cliente seleccionado</div>
+            <div className="cf-detail" style={{ textAlign: "left", lineHeight: 1.5 }}>
+              No ha seleccionado ningún cliente para la agenda del pedido. ¿Desea continuar sin cliente o agregar uno?
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <button className="cf-ok" style={{ flex: 1, background: "#7c3aed" }}
+                onClick={() => { setAgendaSinClienteModal(false); setTimeout(() => clienteNombreRef.current?.focus(), 50); }}>
+                ✏️ Agregar cliente
+              </button>
+              <button className="cf-cancel" style={{ flex: 1 }}
+                onClick={() => { setAgendaSinClienteModal(false); void guardarEnAgenda(true); }}>
+                Continuar sin cliente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Agenda Alert Overlay */}
       {agendaAlertaActual && agendaAlertasPantalla && (
