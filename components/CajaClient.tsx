@@ -7,6 +7,23 @@ type Producto = { id: number; nombre: string; precioVenta: number; categoriaNomb
 type Motorizado = { id: number; nombre: string; apellido: string };
 type LineaCarrito = { uid: string; productoId: number; nombre: string; precio: number; qty: number; extraId: number | null; extraNombre: string | null; extraPrecio: number; variadaSelecciones: string[] };
 type Theme = "dark" | "light" | "azul" | "beige";
+type Borrador = {
+  id: string;
+  nombre: string;
+  savedAt: string;
+  carrito: LineaCarrito[];
+  pagos: { metodo: string; monto: string }[];
+  entrega: "LOCAL" | "DELIVERY" | "PICKUP";
+  direccion: string;
+  horaEntrega: string;
+  fechaEntrega: string;
+  clienteNombre: string;
+  clienteApellido: string;
+  clienteCi: string;
+  clienteTel: string;
+  costoDelivery: string;
+  total: number;
+};
 type AgendaItem = { productoId: number; cantidad: number; extraId?: number | null; nombre: string; precio: number };
 type AgendaPedido = {
   id: number;
@@ -348,6 +365,18 @@ button{cursor:pointer}
 .ag-alert-body{font-size:11px;color:var(--t2);line-height:1.5}
 .ag-alert-btns{display:flex;gap:7px;width:100%}
 .ag-alert-btns button{flex:1;padding:8px;border-radius:7px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}
+/* ── Borradores ── */
+.borrador-panel{padding:12px;display:flex;flex-direction:column;gap:8px;height:100%;overflow-y:auto}
+.borrador-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--tl)}
+.borrador-card{background:var(--surface);border:1.5px solid var(--tl);border-radius:9px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start}
+.borrador-card:hover{border-color:var(--ab)}
+.borrador-nombre{font-size:13px;font-weight:600;color:var(--tt)}
+.borrador-detail{font-size:11px;color:var(--t2);line-height:1.5}
+.borrador-total{font-size:14px;font-weight:700;color:var(--accent)}
+.borrador-actions{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.borrador-btn-rec{padding:5px 12px;border-radius:6px;border:none;background:var(--accent);color:#1c1c1e;font-size:11px;font-weight:700;cursor:pointer}
+.borrador-btn-del{padding:4px 10px;border-radius:6px;border:1.5px solid var(--tl);background:none;color:var(--t2);font-size:11px;cursor:pointer}
+.borrador-btn-del:hover{border-color:#ef4444;color:#ef4444}
 /* Mesa Abierta ── */
 .mesa-chips{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;align-items:center}
 .mesa-chips::-webkit-scrollbar{display:none}
@@ -447,6 +476,13 @@ export default function CajaClient() {
   const [agendaSinClienteModal, setAgendaSinClienteModal] = useState(false);
   const clienteNombreRef = useRef<HTMLInputElement>(null);
   const catPreviaRef = useRef<string>("Tradicional");
+  const LS_KEY = "caja_borradores_v1";
+  const [borradores, setBorradores] = useState<Borrador[]>(() => {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) ?? "[]") as Borrador[]; } catch { return []; }
+  });
+  const [vistaBorradores, setVistaBorradores] = useState(false);
+  const [borradorNombreModal, setBorradorNombreModal] = useState(false);
+  const [borradorNombreInput, setBorradorNombreInput] = useState("");
   const [temaOpen, setTemaOpen] = useState(false);
   const temaRef = useRef<HTMLDivElement>(null);
   const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }));
@@ -1086,6 +1122,69 @@ export default function CajaClient() {
     } finally { setGuardando(false); }
   }
 
+  function saveBorradores(list: Borrador[]) {
+    setBorradores(list);
+    try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch { /* cuota */ }
+  }
+
+  function confirmarGuardarBorrador() {
+    if (carrito.length === 0) return;
+    setBorradorNombreInput(clienteNombre.trim() || "");
+    setBorradorNombreModal(true);
+  }
+
+  function ejecutarGuardarBorrador() {
+    const nombre = borradorNombreInput.trim() || `Borrador ${new Date().toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+    const nuevo: Borrador = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      nombre,
+      savedAt: new Date().toISOString(),
+      carrito: [...carrito],
+      pagos: [...pagos],
+      entrega,
+      direccion,
+      horaEntrega,
+      fechaEntrega,
+      clienteNombre,
+      clienteApellido,
+      clienteCi,
+      clienteTel,
+      costoDelivery,
+      total: subtotal + (ivaActivo ? subtotal * 0.16 : 0) + (entrega === "DELIVERY" ? (Number(costoDelivery) || 0) : 0),
+    };
+    saveBorradores([nuevo, ...borradores]);
+    clearCart();
+    setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel("");
+    setDireccion(""); setHoraEntrega(""); setCostoDelivery("0");
+    setPagos([{ metodo: "EFECTIVO_BS", monto: "0" }]);
+    setEntrega("LOCAL");
+    setBorradorNombreModal(false);
+  }
+
+  function recuperarBorrador(b: Borrador) {
+    setCarrito(b.carrito);
+    setPagos(b.pagos);
+    setEntrega(b.entrega);
+    setDireccion(b.direccion);
+    setHoraEntrega(b.horaEntrega);
+    setFechaEntrega(b.fechaEntrega);
+    setClienteNombre(b.clienteNombre);
+    setClienteApellido(b.clienteApellido);
+    setClienteCi(b.clienteCi);
+    setClienteTel(b.clienteTel);
+    setCostoDelivery(b.costoDelivery);
+    saveBorradores(borradores.filter((x) => x.id !== b.id));
+    catPreviaRef.current = catActiva;
+    setCatActiva("PEDIDO");
+    setVistaBorradores(false);
+  }
+
+  function descartarBorrador(id: string) {
+    if (confirm("¿Descartar este borrador? Se perderá el pedido guardado.")) {
+      saveBorradores(borradores.filter((b) => b.id !== id));
+    }
+  }
+
   const ticketLabel = `#${String(ticketNum).padStart(4, "0")}`;
   const racionesCompletas = carrito.every((c) => c.variadaSelecciones.length === 0 || c.variadaSelecciones.every(Boolean));
   const canCobrar = carrito.length > 0 && !guardando && racionesCompletas && (modoAgenda || entrega === "LOCAL" || !!horaEntrega);
@@ -1137,7 +1236,33 @@ export default function CajaClient() {
           >
             + Mesa
           </button>
+          <button
+            className="mesa-chip-new"
+            title="Guardar pedido en espera"
+            disabled={carrito.length === 0}
+            onClick={confirmarGuardarBorrador}
+          >
+            💾 Guardar
+          </button>
           <div className="tb-space" />
+          {borradores.length > 0 && (
+            <button
+              className={`tb-btn${vistaBorradores ? " active" : ""}`}
+              style={{ position: "relative" }}
+              onClick={() => {
+                setVistaBorradores((v) => !v);
+                setVistaHistorial(false);
+                setVistaAgenda(false);
+              }}
+            >
+              {vistaBorradores ? "← Catálogo" : "📂 Borradores"}
+              {!vistaBorradores && (
+                <span style={{ position: "absolute", top: -3, right: -3, background: "#f59e0b", color: "#1c1c1e", borderRadius: "50%", width: 14, height: 14, fontSize: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+                  {borradores.length}
+                </span>
+              )}
+            </button>
+          )}
           <button
             className={`tb-btn${vistaHistorial ? " active" : ""}`}
             onClick={() => { setVistaHistorial((v) => { if (!v) setVistaAgenda(false); return !v; }); }}
@@ -1198,6 +1323,48 @@ export default function CajaClient() {
         </div>
 
         <div className="pos-body">
+          {/* ══ BORRADORES PANEL ══ */}
+          {vistaBorradores && (
+            <div className="hist-panel">
+              <div className="borrador-panel">
+                <div className="borrador-toolbar">
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>📂 Pedidos en Espera</span>
+                  <div style={{ flex: 1 }} />
+                  <span style={{ fontSize: 10, color: "var(--t2)" }}>{borradores.length} guardado(s)</span>
+                </div>
+                {borradores.length === 0 && (
+                  <div style={{ textAlign: "center", padding: 32, fontSize: 12, color: "var(--t3)" }}>Sin borradores guardados</div>
+                )}
+                {borradores.map((b) => {
+                  const dt = new Date(b.savedAt);
+                  const hora = dt.toLocaleTimeString("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false });
+                  const fecha = dt.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "short" });
+                  return (
+                    <div key={b.id} className="borrador-card">
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <div className="borrador-nombre">{b.nombre}</div>
+                        <div className="borrador-detail">
+                          {b.carrito.map((c) => `${c.nombre} ×${c.qty}`).join(" · ")}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 2 }}>
+                          <span className="borrador-total">${b.total.toFixed(2)}</span>
+                          <span style={{ fontSize: 10, color: "var(--t3)" }}>
+                            {b.entrega === "DELIVERY" ? "🛵 Delivery" : b.entrega === "PICKUP" ? "📦 Pick-Up" : "🏠 Local"}
+                          </span>
+                          <span style={{ fontSize: 10, color: "var(--t3)" }}>⏱ {fecha} {hora}</span>
+                        </div>
+                      </div>
+                      <div className="borrador-actions">
+                        <button className="borrador-btn-rec" onClick={() => recuperarBorrador(b)}>↩ Recuperar</button>
+                        <button className="borrador-btn-del" onClick={() => descartarBorrador(b.id)}>✕ Descartar</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* ══ HISTORIAL PANEL ══ */}
           {vistaAgenda && (
             <div className="hist-panel">
@@ -1440,7 +1607,7 @@ export default function CajaClient() {
           )}
 
           {/* ══ LEFT PANEL ══ */}
-          {!vistaHistorial && !vistaAgenda && <div className="left-panel">
+          {!vistaHistorial && !vistaAgenda && !vistaBorradores && <div className="left-panel">
             <div className="cat-head">
               <div className="search-wrap">
                 <span className="s-icon">⌕</span>
@@ -2006,6 +2173,33 @@ export default function CajaClient() {
           </div>
         </div>
       </div>
+
+      {/* Modal: nombre del borrador */}
+      {borradorNombreModal && (
+        <div className="overlay">
+          <div className="ov-card" style={{ textAlign: "left", gap: 10, maxWidth: 320 }}>
+            <div style={{ fontSize: 26 }}>💾</div>
+            <div className="cf-title" style={{ textAlign: "left" }}>Guardar pedido en espera</div>
+            <div className="cf-detail" style={{ textAlign: "left" }}>
+              El carrito se guardará y podrás recuperarlo desde <strong>📂 Borradores</strong>. Opcionalmente ponle un nombre para identificarlo.
+            </div>
+            <input
+              className="f-input"
+              type="text"
+              placeholder="Ej: Cliente Juan, Mesa 2…"
+              value={borradorNombreInput}
+              onChange={(e) => setBorradorNombreInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") ejecutarGuardarBorrador(); if (e.key === "Escape") setBorradorNombreModal(false); }}
+              autoFocus
+              style={{ width: "100%", marginTop: 4 }}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <button className="cf-ok" style={{ flex: 1 }} onClick={ejecutarGuardarBorrador}>💾 Guardar</button>
+              <button className="cf-cancel" style={{ flex: 1 }} onClick={() => setBorradorNombreModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: sin cliente en agenda */}
       {agendaSinClienteModal && (
