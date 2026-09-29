@@ -17,7 +17,7 @@ export async function GET() {
         te.nombre AS tipo_empaque_nombre,
         c.nombre  AS categoria_nombre,
         COALESCE(c.orden, 99) AS cat_orden,
-        (SELECT COUNT(*) FROM extras e WHERE e.producto_id = p.id AND e.activo = TRUE)::int AS extras_count
+        (SELECT COUNT(*) FROM producto_extras pe WHERE pe.producto_id = p.id)::int AS extras_count
       FROM productos p
       LEFT JOIN familias   c  ON c.id  = p.categoria_id
       LEFT JOIN tipos_empaque te ON te.id = p.tipo_empaque_id

@@ -506,29 +506,18 @@ export default function CajaClient() {
     return new Set(ALL_HIST_COLS);
   });
 
+  const LS_PROD_KEY = "caja_productos_v1";
   useEffect(() => {
-    fetch("/api/productos?grupo=PARA_LA_VENTA")
-      .then((r) => r.json())
-      .then((data: Record<string, unknown>[]) => {
-        setProductos(data.map((p) => ({
-          id: p.id as number,
-          nombre: p.nombre as string,
-          precioVenta: Number(p.precioVenta ?? 0),
-          categoriaNombre: (p.categoriaNombre ?? null) as string | null,
-          lineaNombre: (p.lineaNombre ?? null) as string | null,
-          extras: ((p.extras ?? []) as Record<string, unknown>[]).map((e) => ({
-            id: e.id as number,
-            nombre: e.nombre as string,
-            precioAdicional: Number(e.precioAdicional ?? 0),
-          })),
-          extrasCount: Number(p.extrasCount ?? 0),
-          imagenUrl: (p.imagenUrl ?? null) as string | null,
-          tipoProducto: (p.tipoProducto as string) ?? "NORMAL",
-          variadaRaciones: Number(p.variadaRaciones ?? 0),
-          tipoEmpaqueId: (p.tipoEmpaqueId as number | null) ?? null,
-          tipoEmpaqueNombre: (p.tipoEmpaqueNombre as string | null) ?? null,
-        })));
-      }).catch(() => {});
+    try {
+      const cached = localStorage.getItem(LS_PROD_KEY);
+      if (cached) setProductos(JSON.parse(cached) as Producto[]);
+    } catch { /* ignore */ }
+    fetch("/api/productos/caja")
+      .then((r) => { if (!r.ok) throw new Error(); return r.json() as Promise<Producto[]>; })
+      .then((data) => {
+        setProductos(data);
+        try { localStorage.setItem(LS_PROD_KEY, JSON.stringify(data)); } catch { /* cuota */ }
+      }).catch(() => { /* keep cache */ });
 
     fetch("/api/motorizados")
       .then((r) => r.json())
