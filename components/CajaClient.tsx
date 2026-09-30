@@ -778,8 +778,8 @@ export default function CajaClient() {
         clienteTelefono: clienteTel || null,
         items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? null, nombre: c.nombre, precio: c.precio })),
         totalUsd: total,
-        recordatorioAt: `${agendaRecordatorioFecha}T${agendaRecordatorioHora || "09:00"}:00`,
-        entregaAt: agendaEntregaFecha ? `${agendaEntregaFecha}T${agendaEntregaHora || "12:00"}:00` : null,
+        recordatorioAt: new Date(`${agendaRecordatorioFecha}T${agendaRecordatorioHora || "09:00"}:00`).toISOString(),
+        entregaAt: agendaEntregaFecha ? new Date(`${agendaEntregaFecha}T${agendaEntregaHora || "12:00"}:00`).toISOString() : null,
         minsPreparacion: Number(agendaMinsPrepa) || 45,
         minsRetiro: Number(agendaMinsRetiro) || 15,
       };
@@ -823,12 +823,13 @@ export default function CajaClient() {
     setClienteNombre(pedido.cliente ?? "");
     setClienteTel(pedido.clienteTelefono ?? "");
     const rec = new Date(pedido.recordatorioAt);
-    setAgendaRecordatorioFecha(rec.toISOString().slice(0, 10));
-    setAgendaRecordatorioHora(rec.toTimeString().slice(0, 5));
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    setAgendaRecordatorioFecha(`${rec.getFullYear()}-${p2(rec.getMonth()+1)}-${p2(rec.getDate())}`);
+    setAgendaRecordatorioHora(`${p2(rec.getHours())}:${p2(rec.getMinutes())}`);
     if (pedido.entregaAt) {
       const ent = new Date(pedido.entregaAt);
-      setAgendaEntregaFecha(ent.toISOString().slice(0, 10));
-      setAgendaEntregaHora(ent.toTimeString().slice(0, 5));
+      setAgendaEntregaFecha(`${ent.getFullYear()}-${p2(ent.getMonth()+1)}-${p2(ent.getDate())}`);
+      setAgendaEntregaHora(`${p2(ent.getHours())}:${p2(ent.getMinutes())}`);
     } else {
       setAgendaEntregaFecha(""); setAgendaEntregaHora("");
     }
@@ -1386,8 +1387,8 @@ export default function CajaClient() {
                   const rec = new Date(p.recordatorioAt);
                   const ahora = new Date();
                   const vencido = rec < ahora;
-                  const hoyStr = ahora.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit" });
-                  const recStr = rec.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit" });
+                  const hoyStr = ahora.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric" });
+                  const recStr = rec.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric" });
                   const esHoy = hoyStr === recStr;
                   return (
                     <div key={p.id} className={`agenda-card${vencido ? " ag-urgent" : esHoy ? " ag-today" : ""}`}>
@@ -1407,10 +1408,10 @@ export default function CajaClient() {
                           <span style={{ fontWeight: 700, fontSize: 13 }}>${p.totalUsd.toFixed(2)}</span>
                         </div>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
-                          <span className="ag-tag" style={{ background: "var(--al)", color: "var(--accent)" }}>🔔 {rec.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "short" })}</span>
+                          <span className="ag-tag" style={{ background: "var(--al)", color: "var(--accent)" }}>🔔 {rec.toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric" })} {rec.toLocaleTimeString("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                           {p.entregaAt && (
                             <span className="ag-tag" style={{ background: "rgba(34,197,94,.12)", color: "#4ade80" }}>
-                              📦 {new Date(p.entregaAt).toLocaleTimeString("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false })}
+                              📦 {new Date(p.entregaAt).toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "numeric" })} {new Date(p.entregaAt).toLocaleTimeString("es-VE", { timeZone: "America/Caracas", hour: "2-digit", minute: "2-digit", hour12: false })}
                             </span>
                           )}
                         </div>
