@@ -79,6 +79,65 @@ function fmtBs(n: number, tasa: number) {
 }
 function today() { return new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" }); }
 
+// Date input that shows DD/MM/AAAA regardless of browser locale
+function DateField({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const pickerRef = useRef<HTMLInputElement>(null);
+  // Convert YYYY-MM-DD → DD/MM/AAAA for display
+  const toDisplay = (iso: string) =>
+    iso.length === 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso;
+  // Convert DD/MM/AAAA → YYYY-MM-DD for state
+  const toIso = (txt: string): string => {
+    const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+  };
+
+  const [display, setDisplay] = useState(() => toDisplay(value));
+  useEffect(() => { setDisplay(toDisplay(value)); }, [value]);
+
+  function handleText(raw: string) {
+    // Auto-insert "/" after dd and mm while typing
+    let v = raw.replace(/[^\d/]/g, "");
+    if (raw.length > display.length) { // typing forward
+      const digits = v.replace(/\//g, "");
+      if (digits.length <= 2) v = digits;
+      else if (digits.length <= 4) v = `${digits.slice(0,2)}/${digits.slice(2)}`;
+      else v = `${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4,8)}`;
+    }
+    setDisplay(v);
+    const iso = toIso(v);
+    if (iso || v === "") onChange(iso);
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        className={className}
+        type="text"
+        placeholder="dd/mm/aaaa"
+        value={display}
+        onChange={(e) => handleText(e.target.value)}
+        maxLength={10}
+        style={{ paddingRight: 28 }}
+      />
+      {/* Hidden native date picker */}
+      <input
+        ref={pickerRef}
+        type="date"
+        value={value}
+        tabIndex={-1}
+        style={{ position: "absolute", opacity: 0, width: 0, height: 0, top: 0, right: 24, pointerEvents: "none" }}
+        onChange={(e) => { onChange(e.target.value); setDisplay(toDisplay(e.target.value)); }}
+      />
+      <button
+        type="button"
+        title="Abrir calendario"
+        style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: "0 2px", fontSize: 14, color: "var(--t2)" }}
+        onClick={() => { try { pickerRef.current?.showPicker(); } catch { /* unsupported */ } }}
+      >📅</button>
+    </div>
+  );
+}
+
 const PAY_OPTS = [
   { key: "EFECTIVO_BS",  label: "Efectivo Bs", icon: "💵" },
   { key: "PUNTO_VENTA",  label: "Punto",        icon: "💳" },
@@ -1749,7 +1808,7 @@ export default function CajaClient() {
                     <div className="hora-row">
                       <div style={{ flex: 1 }}>
                         <div className="f-label">🔔 Recordatorio de Cobro — Fecha</div>
-                        <input className="f-input" type="date" lang="es-VE" value={agendaRecordatorioFecha} onChange={(e) => setAgendaRecordatorioFecha(e.target.value)} />
+                        <DateField className="f-input" value={agendaRecordatorioFecha} onChange={setAgendaRecordatorioFecha} />
                       </div>
                       <div style={{ flex: "0 0 100px" }}>
                         <div className="f-label">Hora</div>
@@ -1759,7 +1818,7 @@ export default function CajaClient() {
                     <div className="hora-row">
                       <div style={{ flex: 1 }}>
                         <div className="f-label">📦 Entrega del Pedido — Fecha</div>
-                        <input className="f-input" type="date" lang="es-VE" value={agendaEntregaFecha} onChange={(e) => setAgendaEntregaFecha(e.target.value)} />
+                        <DateField className="f-input" value={agendaEntregaFecha} onChange={setAgendaEntregaFecha} />
                       </div>
                       <div style={{ flex: "0 0 100px" }}>
                         <div className="f-label">Hora</div>
