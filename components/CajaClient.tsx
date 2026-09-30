@@ -1749,7 +1749,7 @@ export default function CajaClient() {
                     <div className="hora-row">
                       <div style={{ flex: 1 }}>
                         <div className="f-label">🔔 Recordatorio de Cobro — Fecha</div>
-                        <input className="f-input" type="date" value={agendaRecordatorioFecha} onChange={(e) => setAgendaRecordatorioFecha(e.target.value)} />
+                        <input className="f-input" type="date" lang="es-VE" value={agendaRecordatorioFecha} onChange={(e) => setAgendaRecordatorioFecha(e.target.value)} />
                       </div>
                       <div style={{ flex: "0 0 100px" }}>
                         <div className="f-label">Hora</div>
@@ -1759,7 +1759,7 @@ export default function CajaClient() {
                     <div className="hora-row">
                       <div style={{ flex: 1 }}>
                         <div className="f-label">📦 Entrega del Pedido — Fecha</div>
-                        <input className="f-input" type="date" value={agendaEntregaFecha} onChange={(e) => setAgendaEntregaFecha(e.target.value)} />
+                        <input className="f-input" type="date" lang="es-VE" value={agendaEntregaFecha} onChange={(e) => setAgendaEntregaFecha(e.target.value)} />
                       </div>
                       <div style={{ flex: "0 0 100px" }}>
                         <div className="f-label">Hora</div>
