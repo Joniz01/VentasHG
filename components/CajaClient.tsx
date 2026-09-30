@@ -557,6 +557,7 @@ export default function CajaClient() {
   const [histHasta, setHistHasta] = useState(() => today());
   const [histColsOpen, setHistColsOpen] = useState(false);
   const histColsRef = useRef<HTMLDivElement>(null);
+  const mesaAutoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [histColsVisibles, setHistColsVisibles] = useState<Set<HistCol>>(() => {
     try {
       const s = localStorage.getItem("caja-hist-cols");
@@ -707,6 +708,32 @@ export default function CajaClient() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
+
+  // Auto-guardar mesa silenciosamente 1s después del último cambio en el carrito
+  useEffect(() => {
+    if (!mesaActual || carrito.length === 0) return;
+    if (mesaAutoSaveTimer.current) clearTimeout(mesaAutoSaveTimer.current);
+    mesaAutoSaveTimer.current = setTimeout(async () => {
+      try {
+        const body = {
+          fecha: fechaHoy,
+          tasaDelDia: bcvRate,
+          cliente: [clienteNombre.trim(), clienteApellido.trim()].filter(Boolean).join(" ") || "Consumidor Final",
+          clienteTelefono: clienteTel || null,
+          modoEntrega: "LOCAL",
+          costoDelivery: 0,
+          despachoPendiente: false,
+          mesa: mesaActual.mesa,
+          esMesaAbierta: true,
+          items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined, variadaSelecciones: c.variadaSelecciones.map(Number).filter(Boolean) })),
+          pagos: [],
+        };
+        await fetch(`/api/ventas/${mesaActual.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        void cargarMesasAbiertas();
+      } catch { /* silencioso */ }
+    }, 1000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carrito]);
   const FILTROS = [
     { key: "Todos",      label: "Todos" },
     { key: "Premium",    label: "Premium" },
@@ -1095,8 +1122,6 @@ export default function CajaClient() {
       const id = mesaActual ? mesaActual.id : saved.id;
       setMesaActual({ id, mesa: nombreMesa.trim() });
       await cargarMesasAbiertas();
-      clearCart();
-      setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel("");
       setConfirmOverlay({ icon: "🍽️", titulo: `Mesa guardada`, detalle: `Mesa <strong>${nombreMesa.trim()}</strong> guardada con ${body.items.length} ítem(s).` });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al guardar mesa");
