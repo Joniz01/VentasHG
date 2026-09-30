@@ -558,6 +558,8 @@ export default function CajaClient() {
   const [histColsOpen, setHistColsOpen] = useState(false);
   const histColsRef = useRef<HTMLDivElement>(null);
   const mesaAutoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mesaActualRef = useRef<{ id: number; mesa: string } | null>(null);
+  const mesaLoadingRef = useRef(false);
   const [histColsVisibles, setHistColsVisibles] = useState<Set<HistCol>>(() => {
     try {
       const s = localStorage.getItem("caja-hist-cols");
@@ -709,10 +711,17 @@ export default function CajaClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
+  // Mantener ref siempre actualizado con el state de mesaActual
+  useEffect(() => { mesaActualRef.current = mesaActual; }, [mesaActual]);
+
   // Auto-guardar mesa silenciosamente 1s después del último cambio en el carrito
   useEffect(() => {
-    if (!mesaActual || carrito.length === 0) return;
+    // Ignorar cambios de carrito causados por abrirMesa (carga inicial)
+    if (mesaLoadingRef.current) return;
+    const mesa = mesaActualRef.current;
+    if (!mesa || carrito.length === 0) return;
     if (mesaAutoSaveTimer.current) clearTimeout(mesaAutoSaveTimer.current);
+    const snapshot = { mesa, items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined, variadaSelecciones: c.variadaSelecciones.map(Number).filter(Boolean) })) };
     mesaAutoSaveTimer.current = setTimeout(async () => {
       try {
         const body = {
@@ -723,13 +732,13 @@ export default function CajaClient() {
           modoEntrega: "LOCAL",
           costoDelivery: 0,
           despachoPendiente: false,
-          mesa: mesaActual.mesa,
+          mesa: snapshot.mesa.mesa,
           esMesaAbierta: true,
-          items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined, variadaSelecciones: c.variadaSelecciones.map(Number).filter(Boolean) })),
+          items: snapshot.items,
           pagos: [],
         };
-        await fetch(`/api/ventas/${mesaActual.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        void cargarMesasAbiertas();
+        const r = await fetch(`/api/ventas/${snapshot.mesa.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (r.ok) void cargarMesasAbiertas();
       } catch { /* silencioso */ }
     }, 1000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1087,8 +1096,12 @@ export default function CajaClient() {
         extraPrecio: item.extraPrecio,
         variadaSelecciones: [],
       }));
+      // Flag: el próximo cambio de carrito es carga inicial, no edición del usuario
+      mesaLoadingRef.current = true;
       setCarrito(nuevasLineas);
       setMesaActual({ id: data.venta.id, mesa: data.venta.mesa });
+      // Limpiamos el flag en el siguiente tick (después del render)
+      setTimeout(() => { mesaLoadingRef.current = false; }, 0);
       setEntrega("LOCAL");
       if (data.venta.cliente && data.venta.cliente !== "Consumidor Final") {
         setClienteNombre(data.venta.cliente);
@@ -1122,6 +1135,8 @@ export default function CajaClient() {
       const id = mesaActual ? mesaActual.id : saved.id;
       setMesaActual({ id, mesa: nombreMesa.trim() });
       await cargarMesasAbiertas();
+      clearCart();
+      setClienteNombre(""); setClienteApellido(""); setClienteCi(""); setClienteTel("");
       setConfirmOverlay({ icon: "🍽️", titulo: `Mesa guardada`, detalle: `Mesa <strong>${nombreMesa.trim()}</strong> guardada con ${body.items.length} ítem(s).` });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al guardar mesa");
