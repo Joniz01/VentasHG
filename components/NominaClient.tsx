@@ -131,6 +131,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const [form, setForm] = useState<EmpleadoForm>({ ...EMPTY_EMPLEADO_FORM });
   const [consultandoTasa, setConsultandoTasa] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileRifRef = useRef<HTMLInputElement>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
@@ -206,6 +207,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     setEditingId(null);
     setForm({ ...EMPTY_EMPLEADO_FORM });
     setShowForm(false);
+    setSuccessMsg(null);
+    setVerFicha(false);
   }
 
   function startEdit(e: Empleado) {
@@ -285,8 +288,13 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al guardar el empleado");
-      resetForm();
       await loadEmpleados();
+      if (editingId) {
+        setSuccessMsg("Empleado actualizado correctamente");
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        resetForm();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar el empleado");
     } finally {
@@ -416,6 +424,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       </div>
 
       {error && <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {successMsg && <div className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-700">{successMsg}</div>}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
