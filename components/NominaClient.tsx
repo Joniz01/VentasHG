@@ -326,6 +326,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Error en OCR");
       const d = data.data;
+      const cedulaComprimida = await compressImage(file, 1200, 0.75);
       setForm((p) => ({
         ...p,
         nombre: d.nombres ? toTitleCase(d.nombres) : p.nombre,
@@ -341,7 +342,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           if (ec.startsWith("SOL")) return "SOLTERO";
           return ec || p.estadoCivil;
         })(),
-        fotoCedulaUrl: dataUrl,
+        fotoCedulaUrl: cedulaComprimida,
         fotoCedulaRotacion: 0,
       }));
     } catch (err) {
@@ -351,23 +352,38 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     }
   }
 
-  async function handleFotoFile(file: File) {
-    const reader = new FileReader();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+  // Comprime la imagen a max 1200px y calidad 0.75 para no superar el límite de 4MB del body
+  async function compressImage(file: File, maxPx = 1200, quality = 0.75): Promise<string> {
+    const raw = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = reject;
+      r.readAsDataURL(file);
     });
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+          else { width = Math.round(width * maxPx / height); height = maxPx; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = raw;
+    });
+  }
+
+  async function handleFotoFile(file: File) {
+    const dataUrl = await compressImage(file, 800, 0.8);
     setForm((p) => ({ ...p, fotoUrl: dataUrl }));
   }
 
   async function handleRifFile(file: File) {
-    const reader = new FileReader();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    const dataUrl = await compressImage(file, 1200, 0.75);
     setForm((p) => ({ ...p, fotoRifUrl: dataUrl, fotoRifRotacion: 0 }));
   }
 
@@ -490,56 +506,46 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>Escanear cédula extrae los datos automáticamente y guarda la imagen</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={ocrLoading}
-                  className="rounded-lg px-3 py-1.5 text-sm font-medium border disabled:opacity-50"
-                  style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
-                >
-                  {ocrLoading ? "Escaneando…" : "📷 Escanear Cédula"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileRifRef.current?.click()}
-                  className="rounded-lg px-3 py-1.5 text-sm font-medium border"
-                  style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
-                >
-                  📄 Subir RIF
-                </button>
+              <div className="flex gap-2 flex-wrap">
+                {/* Botón Cédula + badge si ya tiene imagen */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={ocrLoading}
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium border disabled:opacity-50"
+                    style={{ borderColor: form.fotoCedulaUrl ? "var(--erp-primary)" : "var(--erp-border)", color: form.fotoCedulaUrl ? "var(--erp-primary)" : "var(--erp-text-2)" }}
+                  >
+                    {ocrLoading ? "Escaneando…" : "📷 Escanear Cédula"}
+                  </button>
+                  {form.fotoCedulaUrl && (
+                    <span className="flex items-center gap-1">
+                      <img src={form.fotoCedulaUrl} alt="Cédula" style={{ width: 32, height: 22, objectFit: "cover", borderRadius: 3, border: "1px solid var(--erp-primary)", transform: `rotate(${form.fotoCedulaRotacion}deg)` }} />
+                      <button type="button" title="Girar" onClick={() => setForm((p) => ({ ...p, fotoCedulaRotacion: (p.fotoCedulaRotacion + 90) % 360 }))} className="text-xs" style={{ color: "var(--erp-text-2)" }}>↻</button>
+                      <button type="button" title="Quitar" onClick={() => setForm((p) => ({ ...p, fotoCedulaUrl: "", fotoCedulaRotacion: 0 }))} className="text-xs text-red-500">✕</button>
+                    </span>
+                  )}
+                </div>
+                {/* Botón RIF + badge si ya tiene imagen */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => fileRifRef.current?.click()}
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium border"
+                    style={{ borderColor: form.fotoRifUrl ? "var(--erp-primary)" : "var(--erp-border)", color: form.fotoRifUrl ? "var(--erp-primary)" : "var(--erp-text-2)" }}
+                  >
+                    📄 Subir RIF
+                  </button>
+                  {form.fotoRifUrl && (
+                    <span className="flex items-center gap-1">
+                      <img src={form.fotoRifUrl} alt="RIF" style={{ width: 32, height: 22, objectFit: "cover", borderRadius: 3, border: "1px solid var(--erp-primary)", transform: `rotate(${form.fotoRifRotacion}deg)` }} />
+                      <button type="button" title="Girar" onClick={() => setForm((p) => ({ ...p, fotoRifRotacion: (p.fotoRifRotacion + 90) % 360 }))} className="text-xs" style={{ color: "var(--erp-text-2)" }}>↻</button>
+                      <button type="button" title="Quitar" onClick={() => setForm((p) => ({ ...p, fotoRifUrl: "", fotoRifRotacion: 0 }))} className="text-xs text-red-500">✕</button>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-
-            {/* Miniaturas de documentos */}
-            {(form.fotoCedulaUrl || form.fotoRifUrl) && (
-              <div className="flex flex-wrap gap-4">
-                {form.fotoCedulaUrl && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>Cédula</span>
-                    <div className="flex items-start gap-2">
-                      <img src={form.fotoCedulaUrl} alt="Cédula" style={{ maxWidth: 200, maxHeight: 130, objectFit: "contain", transform: `rotate(${form.fotoCedulaRotacion}deg)`, transition: "transform 0.2s", borderRadius: 6, border: "1px solid var(--erp-border)" }} />
-                      <div className="flex flex-col gap-1">
-                        <button type="button" onClick={() => setForm((p) => ({ ...p, fotoCedulaRotacion: (p.fotoCedulaRotacion + 90) % 360 }))} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>↻ Girar</button>
-                        <button type="button" onClick={() => setForm((p) => ({ ...p, fotoCedulaUrl: "", fotoCedulaRotacion: 0 }))} className="text-xs px-2 py-1 rounded border text-red-500" style={{ borderColor: "var(--erp-border)" }}>Quitar</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {form.fotoRifUrl && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium" style={{ color: "var(--erp-text-2)" }}>RIF</span>
-                    <div className="flex items-start gap-2">
-                      <img src={form.fotoRifUrl} alt="RIF" style={{ maxWidth: 200, maxHeight: 130, objectFit: "contain", transform: `rotate(${form.fotoRifRotacion}deg)`, transition: "transform 0.2s", borderRadius: 6, border: "1px solid var(--erp-border)" }} />
-                      <div className="flex flex-col gap-1">
-                        <button type="button" onClick={() => setForm((p) => ({ ...p, fotoRifRotacion: (p.fotoRifRotacion + 90) % 360 }))} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>↻ Girar</button>
-                        <button type="button" onClick={() => setForm((p) => ({ ...p, fotoRifUrl: "", fotoRifRotacion: 0 }))} className="text-xs px-2 py-1 rounded border text-red-500" style={{ borderColor: "var(--erp-border)" }}>Quitar</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
