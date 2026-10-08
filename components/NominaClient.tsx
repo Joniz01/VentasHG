@@ -380,21 +380,28 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   }
 
   function handleImprimirFicha() {
-    window.print();
+    const ficha = document.getElementById("ficha-empleado-print");
+    if (!ficha) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>Ficha de Empleado</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 32px; color: #111; margin: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; }
+  img { max-width: 100%; height: auto; }
+  @media print { body { padding: 0; } }
+</style>
+</head><body>${ficha.innerHTML}</body></html>`);
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 400);
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Estilos de impresión */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          #ficha-empleado-print, #ficha-empleado-print * { visibility: visible !important; }
-          #ficha-empleado-print { position: fixed !important; top: 0; left: 0; width: 100%; padding: 32px; background: #fff; }
-        }
-        #ficha-empleado-print { display: none; }
-        #ficha-empleado-print.visible { display: block; }
-      `}</style>
 
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold" style={{ color: "var(--erp-text)" }}>Ficha de Empleado</h2>
@@ -688,8 +695,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
         </form>
       )}
 
-      {/* Ficha — visible en pantalla con "Ver Ficha" y siempre al imprimir */}
-      <div id="ficha-empleado-print" className={verFicha ? "visible" : ""} style={{ fontFamily: "Arial, sans-serif", padding: 32, maxWidth: 680, margin: "0 auto", color: "#111", ...(verFicha ? { border: "1px solid #d1d5db", borderRadius: 12, background: "#fff" } : {}) }}>
+      {/* Ficha — visible en pantalla con "Ver Ficha", imprime en ventana nueva */}
+      <div id="ficha-empleado-print" style={{ display: verFicha ? "block" : "none", fontFamily: "Arial, sans-serif", padding: 32, maxWidth: 680, margin: "0 auto", color: "#111", border: "1px solid #d1d5db", borderRadius: 12, background: "#fff" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 24, marginBottom: 20, borderBottom: "2px solid #333", paddingBottom: 16 }}>
           {form.fotoUrl ? (
             <img src={form.fotoUrl} alt="Foto" style={{ width: 90, height: 110, objectFit: "cover", borderRadius: 4, border: "1px solid #ccc" }} />
