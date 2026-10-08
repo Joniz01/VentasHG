@@ -28,6 +28,10 @@ function mapEmpleado(r: Record<string, unknown>, nominasRows: Record<string, unk
       : null,
     activo: r.activo,
     estadoCivil: r.estado_civil ?? null,
+    rif: r.rif ?? null,
+    direccion: r.direccion ?? null,
+    fotoUrl: r.foto_url ?? null,
+    fotoCedulaUrl: r.foto_cedula_url ?? null,
     createdAt: r.created_at,
   };
 }
@@ -85,8 +89,9 @@ export async function POST(request: NextRequest) {
       result = await client.query(
         `INSERT INTO empleados
           (nombre, apellido, cedula, fecha_nacimiento, sexo, cargo, cargo_id, locacion_id,
-           salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo, estado_civil)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+           salario_base_usd, salario_base_bs, tasa_registro, fecha_ingreso, activo, estado_civil,
+           rif, direccion, foto_url, foto_cedula_url)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
         [
           body.nombre.trim(),
           body.apellido?.trim() || null,
@@ -102,6 +107,10 @@ export async function POST(request: NextRequest) {
           body.fechaIngreso || null,
           body.activo ?? true,
           body.estadoCivil || null,
+          body.rif?.trim() || null,
+          body.direccion?.trim() || null,
+          body.fotoUrl || null,
+          body.fotoCedulaUrl || null,
         ]
       );
     } catch {

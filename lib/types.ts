@@ -733,6 +733,10 @@ export type Empleado = {
   fechaIngreso: string | null;
   activo: boolean;
   estadoCivil: string | null;
+  rif: string | null;
+  direccion: string | null;
+  fotoUrl: string | null;
+  fotoCedulaUrl: string | null;
   createdAt: string;
 };
 
@@ -752,6 +756,10 @@ export type EmpleadoInput = {
   fechaIngreso: string;
   activo: boolean;
   estadoCivil?: string | null;
+  rif?: string | null;
+  direccion?: string | null;
+  fotoUrl?: string | null;
+  fotoCedulaUrl?: string | null;
 };
 
 export type TipoIncidencia = {

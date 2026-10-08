@@ -71,6 +71,8 @@ type EmpleadoForm = {
   nombre: string;
   apellido: string;
   cedula: string;
+  rif: string;
+  direccion: string;
   fechaNacimiento: string;
   sexo: Sexo | "";
   cargo: string;
@@ -84,12 +86,17 @@ type EmpleadoForm = {
   fechaIngreso: string;
   activo: boolean;
   estadoCivil: string;
+  fotoUrl: string;
+  fotoCedulaUrl: string;
+  fotoCedulaRotacion: number;
 };
 
 const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   nombre: "",
   apellido: "",
   cedula: "",
+  rif: "",
+  direccion: "",
   fechaNacimiento: "",
   sexo: "",
   cargo: "",
@@ -103,6 +110,9 @@ const EMPTY_EMPLEADO_FORM: EmpleadoForm = {
   fechaIngreso: today(),
   activo: true,
   estadoCivil: "SOLTERO",
+  fotoUrl: "",
+  fotoCedulaUrl: "",
+  fotoCedulaRotacion: 0,
 };
 
 function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
@@ -118,6 +128,9 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const [consultandoTasa, setConsultandoTasa] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const fotoCameraRef = useRef<HTMLInputElement>(null);
+  const [fotoDragOver, setFotoDragOver] = useState(false);
 
   function recalcularBs(salarioBaseUsd: string, tasaRegistro: string): { raw: string; display: string } {
     const usd = Number(salarioBaseUsd) || 0;
@@ -196,6 +209,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       nombre: e.nombre,
       apellido: e.apellido ?? "",
       cedula: e.cedula ?? "",
+      rif: e.rif ?? "",
+      direccion: e.direccion ?? "",
       fechaNacimiento: e.fechaNacimiento ?? "",
       sexo: e.sexo ?? "",
       cargo: e.cargo ?? "",
@@ -209,6 +224,9 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
       fechaIngreso: e.fechaIngreso ?? today(),
       activo: e.activo,
       estadoCivil: e.estadoCivil ?? "SOLTERO",
+      fotoUrl: e.fotoUrl ?? "",
+      fotoCedulaUrl: e.fotoCedulaUrl ?? "",
+      fotoCedulaRotacion: 0,
     });
     setShowForm(true);
   }
@@ -234,6 +252,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim() || undefined,
         cedula: form.cedula.trim(),
+        rif: form.rif.trim() || null,
+        direccion: form.direccion.trim() || null,
         fechaNacimiento: form.fechaNacimiento,
         sexo: form.sexo || null,
         cargo: cargoSeleccionado?.nombre ?? form.cargo.trim(),
@@ -246,6 +266,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
         fechaIngreso: form.fechaIngreso,
         activo: form.activo,
         estadoCivil: form.estadoCivil || null,
+        fotoUrl: form.fotoUrl || null,
+        fotoCedulaUrl: form.fotoCedulaUrl || null,
       };
       const res = await fetch(editingId ? `/api/empleados/${editingId}` : "/api/empleados", {
         method: editingId ? "PUT" : "POST",
@@ -273,11 +295,12 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     setOcrLoading(true);
     try {
       const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+      const base64 = dataUrl.split(",")[1];
       const res = await fetch("/api/nomina/ocr-cedula", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -301,6 +324,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           if (ec.startsWith("SOL")) return "SOLTERO";
           return ec || p.estadoCivil;
         })(),
+        fotoCedulaUrl: dataUrl,
+        fotoCedulaRotacion: 0,
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al escanear el documento");
@@ -309,9 +334,49 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     }
   }
 
+  async function handleFotoFile(file: File) {
+    const reader = new FileReader();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    setForm((p) => ({ ...p, fotoUrl: dataUrl }));
+  }
+
+  function calcEdad(fechaNacimiento: string): number {
+    const hoy = new Date(today() + "T00:00:00");
+    const nac = new Date(fechaNacimiento + "T00:00:00");
+    let edad = hoy.getFullYear() - nac.getFullYear();
+    if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) edad--;
+    return edad;
+  }
+
+  function calcAnosEmpresa(fechaIngreso: string): number {
+    const hoy = new Date(today() + "T00:00:00");
+    const ing = new Date(fechaIngreso + "T00:00:00");
+    let anos = hoy.getFullYear() - ing.getFullYear();
+    if (hoy.getMonth() < ing.getMonth() || (hoy.getMonth() === ing.getMonth() && hoy.getDate() < ing.getDate())) anos--;
+    return Math.max(0, anos);
+  }
+
+  function handleImprimirFicha() {
+    window.print();
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      {/* Estilos de impresión — solo visibles al imprimir */}
+      <style>{`
+        @media print {
+          body > *:not(#ficha-empleado-print) { display: none !important; }
+          #ficha-empleado-print { display: block !important; }
+        }
+        #ficha-empleado-print { display: none; }
+      `}</style>
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold" style={{ color: "var(--erp-text)" }}>Ficha de Empleado</h2>
         <button
           type="button"
           onClick={() => { setForm({ ...EMPTY_EMPLEADO_FORM }); setEditingId(null); setShowForm((v) => !v); }}
@@ -326,35 +391,50 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border p-4 flex flex-col gap-3" style={{ background: "var(--erp-surface)", borderColor: "var(--erp-border)" }}>
-          <div className="flex justify-end">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              hidden
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleOcrCedula(f); e.target.value = ""; }}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={ocrLoading}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium border disabled:opacity-50"
-              style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
-            >
-              {ocrLoading ? "Escaneando…" : "📷 Escanear Cédula"}
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, nombre: toTitleCase(p.nombre) }))} required />
+          {/* inputs ocultos */}
+          <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleOcrCedula(f); e.target.value = ""; }} />
+          <input ref={fotoCameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFotoFile(f); e.target.value = ""; }} />
+          <input ref={fotoInputRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFotoFile(f); e.target.value = ""; }} />
+
+          {/* Foto de perfil + Nombre */}
+          <div className="flex items-start gap-4">
+            {/* Foto de perfil */}
+            <div className="flex flex-col items-center gap-1.5 shrink-0">
+              <div
+                className="relative rounded-full overflow-hidden border-2 cursor-pointer flex items-center justify-center"
+                style={{ width: 72, height: 72, borderColor: fotoDragOver ? "var(--erp-primary)" : "var(--erp-border)", background: "var(--erp-bg)" }}
+                onDragOver={(e) => { e.preventDefault(); setFotoDragOver(true); }}
+                onDragLeave={() => setFotoDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setFotoDragOver(false); const f = e.dataTransfer.files?.[0]; if (f?.type.startsWith("image/")) handleFotoFile(f); }}
+                onClick={() => fotoInputRef.current?.click()}
+                title="Subir foto de perfil"
+              >
+                {form.fotoUrl ? (
+                  <img src={form.fotoUrl} alt="Foto" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: 28, color: "var(--erp-text-2)" }}>👤</span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <button type="button" title="Subir foto" onClick={() => fotoInputRef.current?.click()} className="text-xs px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>📁</button>
+                <button type="button" title="Tomar foto" onClick={() => fotoCameraRef.current?.click()} className="text-xs px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>📷</button>
+                {form.fotoUrl && <button type="button" title="Quitar foto" onClick={() => setForm((p) => ({ ...p, fotoUrl: "" }))} className="text-xs px-1.5 py-0.5 rounded border text-red-500" style={{ borderColor: "var(--erp-border)" }}>✕</button>}
+              </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Apellido</label>
-              <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.apellido} onChange={(e) => setForm((p) => ({ ...p, apellido: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, apellido: toTitleCase(p.apellido) }))} placeholder="Ej: González" />
+
+            {/* Nombre + Apellido */}
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Nombre</label>
+                <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, nombre: toTitleCase(p.nombre) }))} required />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Apellido</label>
+                <input className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.apellido} onChange={(e) => setForm((p) => ({ ...p, apellido: e.target.value }))} onBlur={() => setForm((p) => ({ ...p, apellido: toTitleCase(p.apellido) }))} placeholder="Ej: González" />
+              </div>
             </div>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Cargo</label>
@@ -368,6 +448,38 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               )}
             </div>
           </div>
+          {/* Escanear Cédula */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: "var(--erp-text-2)" }}>Escanear cédula llenará los datos automáticamente y guardará la imagen</span>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={ocrLoading}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium border disabled:opacity-50"
+              style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}
+            >
+              {ocrLoading ? "Escaneando…" : "📷 Escanear Cédula"}
+            </button>
+          </div>
+
+          {/* Imagen de cédula escaneada */}
+          {form.fotoCedulaUrl && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Cédula escaneada</label>
+              <div className="flex items-start gap-2">
+                <img
+                  src={form.fotoCedulaUrl}
+                  alt="Cédula"
+                  style={{ maxWidth: 220, maxHeight: 140, objectFit: "contain", transform: `rotate(${form.fotoCedulaRotacion}deg)`, transition: "transform 0.2s", borderRadius: 6, border: "1px solid var(--erp-border)" }}
+                />
+                <div className="flex flex-col gap-1">
+                  <button type="button" onClick={() => setForm((p) => ({ ...p, fotoCedulaRotacion: (p.fotoCedulaRotacion + 90) % 360 }))} className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>↻ Girar</button>
+                  <button type="button" onClick={() => setForm((p) => ({ ...p, fotoCedulaUrl: "", fotoCedulaRotacion: 0 }))} className="text-xs px-2 py-1 rounded border text-red-500" style={{ borderColor: "var(--erp-border)" }}>Quitar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>C.I.</label>
@@ -379,6 +491,21 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
                 onBlur={() => setForm((p) => {
                   const v = p.cedula.trim();
                   if (v && /^\d+$/.test(v)) return { ...p, cedula: "V-" + v };
+                  return p;
+                })}
+                placeholder="Ej: V-12345678"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>RIF</label>
+              <input
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--erp-border)" }}
+                value={form.rif}
+                onChange={(e) => setForm((p) => ({ ...p, rif: e.target.value }))}
+                onBlur={() => setForm((p) => {
+                  const v = p.rif.trim();
+                  if (v && /^\d+$/.test(v)) return { ...p, rif: "V-" + v };
                   return p;
                 })}
                 placeholder="Ej: V-12345678"
@@ -404,6 +531,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
                 {SEXOS.map((s) => <option key={s} value={s}>{SEXO_LABELS[s]}</option>)}
               </select>
             </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Estado Civil</label>
               <select className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--erp-border)" }} value={form.estadoCivil} onChange={(e) => setForm((p) => ({ ...p, estadoCivil: e.target.value }))}>
@@ -412,6 +541,16 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
                 <option value="DIVORCIADO">Divorciado/a</option>
                 <option value="VIUDO">Viudo/a</option>
               </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Dirección</label>
+              <input
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--erp-border)" }}
+                value={form.direccion}
+                onChange={(e) => setForm((p) => ({ ...p, direccion: e.target.value }))}
+                placeholder="Ej: Urb. Los Chaguaramos, Calle 5, Casa 10"
+              />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -488,7 +627,10 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               Activo
             </label>
           )}
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end flex-wrap">
+            {editingId && (
+              <button type="button" onClick={handleImprimirFicha} className="rounded-lg px-4 py-2 text-sm font-semibold border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>🖨️ Imprimir Ficha</button>
+            )}
             <button type="button" onClick={resetForm} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
             <button type="submit" disabled={saving} className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" style={{ background: "var(--erp-primary)" }}>
               {saving ? "Guardando..." : editingId ? "Actualizar" : "Guardar Empleado"}
@@ -496,6 +638,52 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           </div>
         </form>
       )}
+
+      {/* Ficha de impresión — visible solo al imprimir */}
+      <div id="ficha-empleado-print" style={{ fontFamily: "Arial, sans-serif", padding: 32, maxWidth: 680, margin: "0 auto", color: "#111" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 24, marginBottom: 20, borderBottom: "2px solid #333", paddingBottom: 16 }}>
+          {form.fotoUrl ? (
+            <img src={form.fotoUrl} alt="Foto" style={{ width: 90, height: 110, objectFit: "cover", borderRadius: 4, border: "1px solid #ccc" }} />
+          ) : (
+            <div style={{ width: 90, height: 110, background: "#e5e7eb", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "#9ca3af" }}>👤</div>
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{form.nombre} {form.apellido}</div>
+            <div style={{ fontSize: 13, color: "#555", marginBottom: 2 }}>{form.cargo || "—"}</div>
+            <div style={{ fontSize: 12, color: "#888" }}>Ficha de Empleado</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <tbody>
+            {[
+              ["C.I.", form.cedula || "—"],
+              ["RIF", form.rif || "—"],
+              ["Fecha de nacimiento", form.fechaNacimiento ? formatFechaCorta(form.fechaNacimiento) : "—"],
+              ["Edad", form.fechaNacimiento ? `${calcEdad(form.fechaNacimiento)} años` : "—"],
+              ["Sexo", form.sexo ? SEXO_LABELS[form.sexo as Sexo] : "—"],
+              ["Estado Civil", form.estadoCivil ? (form.estadoCivil.charAt(0) + form.estadoCivil.slice(1).toLowerCase()) : "—"],
+              ["Fecha de ingreso", form.fechaIngreso ? formatFechaCorta(form.fechaIngreso) : "—"],
+              ["Años en la empresa", form.fechaIngreso ? `${calcAnosEmpresa(form.fechaIngreso)} años` : "—"],
+              ["Dirección", form.direccion || "—"],
+            ].map(([label, value]) => (
+              <tr key={label} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                <td style={{ padding: "7px 10px", fontWeight: 600, color: "#374151", width: "40%" }}>{label}</td>
+                <td style={{ padding: "7px 10px", color: "#111" }}>{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {form.fotoCedulaUrl && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, color: "#555", marginBottom: 6 }}>CÉDULA DE IDENTIDAD</div>
+            <img
+              src={form.fotoCedulaUrl}
+              alt="Cédula"
+              style={{ maxWidth: 280, border: "1px solid #ccc", borderRadius: 4, transform: `rotate(${form.fotoCedulaRotacion}deg)` }}
+            />
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <p className="text-sm" style={{ color: "var(--erp-text-2)" }}>Cargando…</p>
