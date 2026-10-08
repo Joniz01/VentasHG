@@ -590,7 +590,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium" style={{ color: "var(--erp-text)" }}>Tasa del día</label>
               <div className="flex gap-1">
-                <input type="number" step="0.0001" min="0" className="rounded-md border px-3 py-2 text-sm flex-1" style={{ borderColor: "var(--erp-border)" }} value={form.tasaRegistro} onChange={(e) => handleTasaChange(e.target.value)} />
+                <input type="number" step="0.0001" min="0" autoComplete="off" className="rounded-md border px-3 py-2 text-sm flex-1" style={{ borderColor: "var(--erp-border)" }} value={form.tasaRegistro} onChange={(e) => handleTasaChange(e.target.value)} />
                 <button type="button" onClick={handleConsultarTasa} disabled={consultandoTasa} className="text-xs px-2 rounded-md border disabled:opacity-50" style={{ borderColor: "var(--erp-border)" }}>
                   {consultandoTasa ? "…" : "BCV"}
                 </button>
