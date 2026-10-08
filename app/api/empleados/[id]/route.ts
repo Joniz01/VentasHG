@@ -22,6 +22,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     await client.query("BEGIN");
 
+    // UPDATE principal — con SAVEPOINT fallback para DBs sin cargo_id/apellido
     await client.query("SAVEPOINT sp_emp_put");
     let result: { rowCount: number | null; rows: { id: number }[] };
     try {
@@ -29,9 +30,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
         `UPDATE empleados
          SET nombre = $1, apellido = $2, cedula = $3, fecha_nacimiento = $4, sexo = $5, cargo = $6, cargo_id = $7, locacion_id = $8,
              salario_base_usd = $9, salario_base_bs = $10, tasa_registro = $11,
-             fecha_ingreso = $12, activo = $13, estado_civil = $14,
-             rif = $15, direccion = $16, foto_url = $17, foto_cedula_url = $18, foto_rif_url = $19
-         WHERE id = $20
+             fecha_ingreso = $12, activo = $13, estado_civil = $14
+         WHERE id = $15
          RETURNING id`,
         [
           body.nombre.trim(),
@@ -48,11 +48,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
           body.fechaIngreso || null,
           body.activo ?? true,
           body.estadoCivil || null,
-          body.rif?.trim() || null,
-          body.direccion?.trim() || null,
-          body.fotoUrl || null,
-          body.fotoCedulaUrl || null,
-          body.fotoRifUrl || null,
           id,
         ]
       );
@@ -114,6 +109,27 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (result.rowCount === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Empleado no encontrado" }, { status: 404 });
+    }
+
+    // UPDATE secundario — siempre ejecutar para campos nuevos (con su propio SAVEPOINT)
+    // Separado del bloque principal para que el fallback de cargo_id no afecte las imágenes
+    await client.query("SAVEPOINT sp_emp_extra");
+    try {
+      await client.query(
+        `UPDATE empleados
+         SET rif = $1, direccion = $2, foto_url = $3, foto_cedula_url = $4, foto_rif_url = $5
+         WHERE id = $6`,
+        [
+          body.rif?.trim() || null,
+          body.direccion?.trim() || null,
+          body.fotoUrl || null,
+          body.fotoCedulaUrl || null,
+          body.fotoRifUrl || null,
+          id,
+        ]
+      );
+    } catch {
+      await client.query("ROLLBACK TO sp_emp_extra");
     }
 
     await client.query(`DELETE FROM empleado_nominas WHERE empleado_id = $1`, [id]);
