@@ -131,6 +131,7 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const fotoCameraRef = useRef<HTMLInputElement>(null);
   const [fotoDragOver, setFotoDragOver] = useState(false);
+  const [verFicha, setVerFicha] = useState(false);
 
   function recalcularBs(salarioBaseUsd: string, tasaRegistro: string): { raw: string; display: string } {
     const usd = Number(salarioBaseUsd) || 0;
@@ -188,9 +189,9 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
     loadCargos();
   }, []);
 
-  // Auto-fetch tasa BCV al abrir el formulario de nuevo empleado
+  // Auto-fetch tasa BCV al abrir el formulario (nuevo o edición)
   useEffect(() => {
-    if (showForm && !editingId && !form.tasaRegistro) {
+    if (showForm) {
       handleConsultarTasa();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -366,13 +367,15 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Estilos de impresión — solo visibles al imprimir */}
+      {/* Estilos de impresión */}
       <style>{`
         @media print {
-          body > *:not(#ficha-empleado-print) { display: none !important; }
-          #ficha-empleado-print { display: block !important; }
+          body * { visibility: hidden !important; }
+          #ficha-empleado-print, #ficha-empleado-print * { visibility: visible !important; }
+          #ficha-empleado-print { position: fixed !important; top: 0; left: 0; width: 100%; padding: 32px; background: #fff; }
         }
         #ficha-empleado-print { display: none; }
+        #ficha-empleado-print.visible { display: block; }
       `}</style>
 
       <div className="flex items-center justify-between">
@@ -629,7 +632,10 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
           )}
           <div className="flex gap-2 justify-end flex-wrap">
             {editingId && (
-              <button type="button" onClick={handleImprimirFicha} className="rounded-lg px-4 py-2 text-sm font-semibold border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>🖨️ Imprimir Ficha</button>
+              <>
+                <button type="button" onClick={() => setVerFicha((v) => !v)} className="rounded-lg px-4 py-2 text-sm font-semibold border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>{verFicha ? "Ocultar Ficha" : "👁 Ver Ficha"}</button>
+                <button type="button" onClick={handleImprimirFicha} className="rounded-lg px-4 py-2 text-sm font-semibold border" style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-2)" }}>🖨️ Imprimir Ficha</button>
+              </>
             )}
             <button type="button" onClick={resetForm} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ border: "1px solid var(--erp-border)", color: "var(--erp-text-2)" }}>Cancelar</button>
             <button type="submit" disabled={saving} className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" style={{ background: "var(--erp-primary)" }}>
@@ -639,8 +645,8 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
         </form>
       )}
 
-      {/* Ficha de impresión — visible solo al imprimir */}
-      <div id="ficha-empleado-print" style={{ fontFamily: "Arial, sans-serif", padding: 32, maxWidth: 680, margin: "0 auto", color: "#111" }}>
+      {/* Ficha — visible en pantalla con "Ver Ficha" y siempre al imprimir */}
+      <div id="ficha-empleado-print" className={verFicha ? "visible" : ""} style={{ fontFamily: "Arial, sans-serif", padding: 32, maxWidth: 680, margin: "0 auto", color: "#111", ...(verFicha ? { border: "1px solid #d1d5db", borderRadius: 12, background: "#fff" } : {}) }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 24, marginBottom: 20, borderBottom: "2px solid #333", paddingBottom: 16 }}>
           {form.fotoUrl ? (
             <img src={form.fotoUrl} alt="Foto" style={{ width: 90, height: 110, objectFit: "cover", borderRadius: 4, border: "1px solid #ccc" }} />
