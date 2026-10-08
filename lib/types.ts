@@ -737,6 +737,7 @@ export type Empleado = {
   direccion: string | null;
   fotoUrl: string | null;
   fotoCedulaUrl: string | null;
+  fotoRifUrl: string | null;
   createdAt: string;
 };
 
@@ -760,6 +761,7 @@ export type EmpleadoInput = {
   direccion?: string | null;
   fotoUrl?: string | null;
   fotoCedulaUrl?: string | null;
+  fotoRifUrl?: string | null;
 };
 
 export type TipoIncidencia = {

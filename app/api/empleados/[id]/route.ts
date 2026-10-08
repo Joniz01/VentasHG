@@ -30,8 +30,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
          SET nombre = $1, apellido = $2, cedula = $3, fecha_nacimiento = $4, sexo = $5, cargo = $6, cargo_id = $7, locacion_id = $8,
              salario_base_usd = $9, salario_base_bs = $10, tasa_registro = $11,
              fecha_ingreso = $12, activo = $13, estado_civil = $14,
-             rif = $15, direccion = $16, foto_url = $17, foto_cedula_url = $18
-         WHERE id = $19
+             rif = $15, direccion = $16, foto_url = $17, foto_cedula_url = $18, foto_rif_url = $19
+         WHERE id = $20
          RETURNING id`,
         [
           body.nombre.trim(),
@@ -52,6 +52,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
           body.direccion?.trim() || null,
           body.fotoUrl || null,
           body.fotoCedulaUrl || null,
+          body.fotoRifUrl || null,
           id,
         ]
       );
