@@ -667,7 +667,16 @@ function EmpleadosTab({ nominas }: { nominas: Nomina[] }) {
               ["Fecha de nacimiento", form.fechaNacimiento ? formatFechaCorta(form.fechaNacimiento) : "—"],
               ["Edad", form.fechaNacimiento ? `${calcEdad(form.fechaNacimiento)} años` : "—"],
               ["Sexo", form.sexo ? SEXO_LABELS[form.sexo as Sexo] : "—"],
-              ["Estado Civil", form.estadoCivil ? (form.estadoCivil.charAt(0) + form.estadoCivil.slice(1).toLowerCase()) : "—"],
+              ["Estado Civil", (() => {
+                const esFem = form.sexo === "FEMENINO";
+                const ec: Record<string, [string, string]> = {
+                  SOLTERO: ["Soltero", "Soltera"],
+                  CASADO: ["Casado", "Casada"],
+                  DIVORCIADO: ["Divorciado", "Divorciada"],
+                  VIUDO: ["Viudo", "Viuda"],
+                };
+                return form.estadoCivil ? (ec[form.estadoCivil]?.[esFem ? 1 : 0] ?? form.estadoCivil) : "—";
+              })()],
               ["Fecha de ingreso", form.fechaIngreso ? formatFechaCorta(form.fechaIngreso) : "—"],
               ["Años en la empresa", form.fechaIngreso ? `${calcAnosEmpresa(form.fechaIngreso)} años` : "—"],
               ["Dirección", form.direccion || "—"],
