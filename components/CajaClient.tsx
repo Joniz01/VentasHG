@@ -790,7 +790,7 @@ export default function CajaClient() {
     setCarrito((prev) => {
       // Variada siempre agrega línea nueva (cada una tiene sus propias raciones)
       if (esVariada) {
-        return [...prev, { uid: uid(), productoId: prod.id, nombre: prod.nombre, precio: prod.precioVenta, qty: 1, extraId: null, extraNombre: null, extraPrecio: 0, variadaSelecciones: Array.from({ length: prod.variadaRaciones }, () => "") }];
+        return [...prev, { uid: uid(), productoId: prod.id, nombre: prod.nombre, precio: prod.precioVenta, qty: 1, extraId, extraNombre: extra?.nombre ?? null, extraPrecio: extra?.precioAdicional ?? 0, variadaSelecciones: Array.from({ length: prod.variadaRaciones }, () => "") }];
       }
       const ex = prev.find((c) => c.productoId === prod.id && c.extraId === extraId);
       if (ex) return prev.map((c) => c.uid === ex.uid ? { ...c, qty: c.qty + 1 } : c);
@@ -989,10 +989,6 @@ export default function CajaClient() {
     setClienteCampoActivo(null);
   }
   function clickProducto(prod: Producto) {
-    if (prod.tipoProducto === "VARIADA") {
-      addToCart(prod, null);
-      return;
-    }
     if (prod.extras.length > 0) {
       setExpandedId(expandedId === prod.id ? null : prod.id);
     } else if (prod.extrasCount > 0) {
