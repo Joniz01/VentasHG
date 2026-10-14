@@ -1191,7 +1191,11 @@ export default function CajaClient() {
         horaPreparacion: horaPrepaISO,
         horaRetiro: horaRetiroISO,
         items: carrito.map((c) => ({ productoId: c.productoId, cantidad: c.qty, extraId: c.extraId ?? undefined, variadaSelecciones: c.variadaSelecciones.length > 0 ? c.variadaSelecciones.filter(Boolean).map(Number) : undefined })),
-        pagos: cobroAlEntregar ? [] : isCxP ? [] : isCashea ? [] : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => ({ metodo: p.metodo, monto: Number(p.monto) })),
+        pagos: cobroAlEntregar ? [] : isCxP ? [] : isCashea ? [] : pagos.filter((p) => p.metodo && Number(p.monto) > 0).map((p) => {
+          const montoUsd = Number(p.monto);
+          const esPagoUsd = (["EFECTIVO_USD", "ZELLE", "CASHEA", "YUMMY", "CXC_DIRECTA"] as string[]).includes(p.metodo);
+          return { metodo: p.metodo, monto: esPagoUsd ? montoUsd : montoUsd * bcvRate };
+        }),
         fechaLimitePago: isCxP || isCashea ? (fechaCxC || casheaVence || null) : null,
         cobroAlEntregar: cobroAlEntregar || undefined,
         casheaDatos: isCashea ? { porcentaje: Number(casheaPct) || 40, montoInicial: casheaInicial, montoFinanciado: casheaFinanciado, dias: Number(casheaDiasSelec) || 15, fechaVencimiento: casheaVence, metodoInicial: casheaMetodoInicial || null } : undefined,
