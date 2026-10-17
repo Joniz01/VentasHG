@@ -386,7 +386,7 @@ export default function SidebarNav({ rol, permisos }: Props) {
           className="shrink-0 border-t px-3 py-2.5 text-[10px]"
           style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-3)" }}
         >
-          VentasHG v3.1.0 · © 2026 HG
+          VentasHG v3.2.0 · © 2026 HG
         </div>
       )}
     </>
