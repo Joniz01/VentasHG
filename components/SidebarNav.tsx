@@ -29,14 +29,13 @@ const GRUPOS: NavGroup[] = [
     noCollapse: true,
     items: [
       { href: "/",     icon: "🏠", label: "Inicio" },
-      { href: "/caja", icon: "⚡", label: "Caja Rápida" },
     ],
   },
   {
     label: "Ventas",
     icon: "🛒",
     items: [
-      { href: "/ventas",                   icon: "🛒", label: "Punto de Venta",    permiso: "ventas" },
+      { href: "/ventas",                   icon: "🛒", label: "Vender",            permiso: "ventas" },
       { href: "/pedidos-pendientes",       icon: "📋", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
       { href: "/delivery",                 icon: "📬", label: "Deliveries" },
       { href: "/ventas?vista=cortesias",   icon: "🎁", label: "Salida Cortesías",   permiso: "ventas" },
