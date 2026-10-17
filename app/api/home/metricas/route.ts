@@ -6,29 +6,34 @@ export async function GET() {
     const [ventasRes, ayerRes] = await Promise.all([
       pool.query(`
         SELECT
-          COUNT(*)::int                                        AS ordenes,
-          COALESCE(SUM(total_bs / NULLIF(tasa_dia, 0)), 0)   AS total_usd,
-          COALESCE(SUM(costo_total_usd), 0)                   AS costo_usd
-        FROM ventas
-        WHERE DATE(created_at AT TIME ZONE 'America/Caracas')
+          COUNT(DISTINCT v.id)::int                                          AS ordenes,
+          COALESCE(SUM(vi.precio_unit * vi.cantidad), 0)                    AS total_usd,
+          COALESCE(SUM(vi.costo_unit * vi.cantidad), 0)                     AS costo_usd
+        FROM ventas v
+        JOIN venta_items vi ON vi.venta_id = v.id
+        WHERE DATE(v.created_at AT TIME ZONE 'America/Caracas')
                 = (NOW() AT TIME ZONE 'America/Caracas')::date
-          AND COALESCE(anulada, FALSE) = FALSE
+          AND COALESCE(v.anulada, FALSE) = FALSE
+          AND COALESCE(v.es_mesa_abierta, FALSE) = FALSE
       `).catch(() => pool.query(`
-        SELECT COUNT(*)::int AS ordenes,
-               0::numeric    AS total_usd,
-               0::numeric    AS costo_usd
-        FROM ventas
-        WHERE DATE(created_at) = CURRENT_DATE
-          AND COALESCE(anulada, FALSE) = FALSE
+        SELECT COUNT(DISTINCT v.id)::int AS ordenes,
+               COALESCE(SUM(vi.precio_unit * vi.cantidad), 0) AS total_usd,
+               COALESCE(SUM(vi.costo_unit  * vi.cantidad), 0) AS costo_usd
+        FROM ventas v
+        JOIN venta_items vi ON vi.venta_id = v.id
+        WHERE DATE(v.created_at) = CURRENT_DATE
+          AND COALESCE(v.anulada, FALSE) = FALSE
       `)),
       pool.query(`
         SELECT
-          COUNT(*)::int                                        AS ordenes,
-          COALESCE(SUM(total_bs / NULLIF(tasa_dia, 0)), 0)   AS total_usd
-        FROM ventas
-        WHERE DATE(created_at AT TIME ZONE 'America/Caracas')
+          COUNT(DISTINCT v.id)::int                                          AS ordenes,
+          COALESCE(SUM(vi.precio_unit * vi.cantidad), 0)                    AS total_usd
+        FROM ventas v
+        JOIN venta_items vi ON vi.venta_id = v.id
+        WHERE DATE(v.created_at AT TIME ZONE 'America/Caracas')
                 = (NOW() AT TIME ZONE 'America/Caracas')::date - INTERVAL '1 day'
-          AND COALESCE(anulada, FALSE) = FALSE
+          AND COALESCE(v.anulada, FALSE) = FALSE
+          AND COALESCE(v.es_mesa_abierta, FALSE) = FALSE
       `).catch(() => ({ rows: [{ ordenes: 0, total_usd: 0 }] })),
     ]);
 
