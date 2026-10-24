@@ -1119,10 +1119,20 @@ export default function VentasClient({ rol = null, puedeDescuento = false, puede
 
   async function handleToggleCuentaCobrada(venta: Venta, fechaPago?: string, metodoPago?: string) {
     try {
+      // Calcular monto aquí para evitar que el servidor use precio_unit almacenado en DB,
+      // que puede estar en Bs si la orden fue creada con un bug anterior.
+      const totalUsd =
+        venta.items.reduce((acc, i) => acc + i.precioUnit * i.cantidad, 0) +
+        (venta.costoDelivery ?? 0);
+      const tasa = venta.tasaDelDia ?? 1;
+      const metodo = metodoPago ?? "CXC_DIRECTA";
+      const isUsdMetodo = (METODOS_PAGO_USD as readonly string[]).includes(metodo);
+      const monto = isUsdMetodo ? totalUsd : totalUsd * tasa;
+
       const res = await fetch(`/api/reportes/cuentas-por-cobrar/${venta.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuentaCobrada: !venta.cuentaCobrada, fechaPago, metodoPago }),
+        body: JSON.stringify({ cuentaCobrada: !venta.cuentaCobrada, fechaPago, metodoPago, monto }),
       });
       const data = await res.json();
       if (!res.ok) {
