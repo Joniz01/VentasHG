@@ -10,7 +10,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { cuentaCobrada, alarmaSilenciadaHasta } = body;
 
   if (typeof cuentaCobrada === "boolean") {
-    const { fechaPago, metodoPago } = body as { fechaPago?: string; metodoPago?: string };
+    const { fechaPago, metodoPago, monto: montoCliente } = body as { fechaPago?: string; metodoPago?: string; monto?: number };
     const metodo = metodoPago ?? "CXC_DIRECTA";
     const client = await pool.connect();
     try {
@@ -47,18 +47,24 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       if (cuentaCobrada) {
         const fp = fechaPago || hoyCaracas();
         const METODOS_USD = ["EFECTIVO_USD", "ZELLE", "CXC_DIRECTA"];
-        let tasa = Number(row.tasa_dia ?? 0);
-        // Si la venta no tiene tasa registrada, usar la más reciente de tasas_bcv
-        if (tasa <= 0) {
-          const tasaRes = await client.query(
-            `SELECT valor FROM tasas_bcv ORDER BY fecha DESC LIMIT 1`
-          );
-          tasa = tasaRes.rows[0] ? Number(tasaRes.rows[0].valor) : 0;
+        let monto: number;
+        if (typeof montoCliente === "number" && montoCliente > 0) {
+          // Usar el monto calculado en el cliente (precio en USD desde productos * tasa correcta).
+          // Esto evita que valores de precio_unit almacenados en Bs (por bug histórico) provoquen
+          // una doble conversión y el monto final sea incorrecto.
+          monto = montoCliente;
+        } else {
+          let tasa = Number(row.tasa_dia ?? 0);
+          if (tasa <= 0) {
+            const tasaRes = await client.query(
+              `SELECT valor FROM tasas_bcv ORDER BY fecha DESC LIMIT 1`
+            );
+            tasa = tasaRes.rows[0] ? Number(tasaRes.rows[0].valor) : 0;
+          }
+          monto = METODOS_USD.includes(metodo) || tasa <= 0
+            ? Number(row.total_usd)
+            : Number(row.total_usd) * tasa;
         }
-        // Métodos USD: guardar en USD. Métodos Bs: guardar en Bs (total_usd * tasa)
-        const monto = METODOS_USD.includes(metodo) || tasa <= 0
-          ? Number(row.total_usd)
-          : Number(row.total_usd) * tasa;
         await client.query(
           `INSERT INTO pagos_venta (venta_id, metodo, monto, fecha_pago)
            VALUES ($1, $2, $3, $4)`,

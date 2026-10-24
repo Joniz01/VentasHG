@@ -2,6 +2,130 @@
 
 ---
 
+## v3.2.0 — Correcciones Caja Rápida + Dashboard + Menú consolidado
+
+**Fecha:** 2026-10-17 | **Branch:** `claude/wizardly-darwin-6dpfhj`
+
+---
+
+### 1. Persistencia de imágenes en Empleados
+
+**Archivos modificados:**
+- `app/api/empleados/[id]/route.ts`
+
+**Descripción:**
+Las columnas `foto_url`, `foto_cedula_url`, `foto_rif_url`, `rif` y `direccion`
+no se persistían al guardar un empleado porque el UPDATE principal entraba en el
+fallback SAVEPOINT cuando `cargo_id` no existía. Se separaron estas columnas en
+un bloque `sp_emp_extra` independiente que siempre se ejecuta tras el UPDATE principal.
+
+---
+
+### 2. Corrección monto de pagos en Caja Rápida
+
+**Archivos modificados:**
+- `components/CajaClient.tsx`
+
+**Descripción:**
+Los pagos en métodos Bs (Efectivo, Débito, Transferencia, Pago Móvil) se almacenaban
+en `pagos_venta.monto` en USD en lugar de Bs, distorsionando totales y reportes.
+El estado interno de `CajaClient` maneja montos en USD; se agregó conversión
+`montoUsd * bcvRate` en la función `cobrar()` para métodos no-USD antes de enviar
+al API. Los métodos USD (`EFECTIVO_USD`, `ZELLE`, `CASHEA`, `YUMMY`, `CXC_DIRECTA`)
+se envían sin conversión. Órdenes afectadas resueltas: 947, 951, 952.
+
+---
+
+### 3. Extras de Bandeja Variada en Caja Rápida
+
+**Archivos modificados:**
+- `components/CajaClient.tsx`
+
+**Descripción:**
+Al agregar una Bandeja Variada con extra asignado (ej. "Frito 2"), el overlay de
+selección de extra no se mostraba porque `clickProducto()` hacía early-return para
+`VARIADA`. Se corrigió para que el flujo de extras se ejecute antes del early-return,
+y `addToCart()` recibe el `extraId`/`extraNombre`/`extraPrecio` en la rama VARIADA.
+
+---
+
+### 4. Indicadores de Home Dashboard ($0.00 → valores reales)
+
+**Archivos modificados:**
+- `app/api/home/metricas/route.ts`
+
+**Descripción:**
+Los indicadores "Facturación hoy", "Ticket promedio", "Órdenes hoy" y "Utilidad bruta"
+mostraban $0.00. La causa raíz fue que el endpoint usaba columnas inexistentes y
+filtraba por `created_at` en lugar de `fecha`. Solución final: usar `getResumenLocal()`
+de `lib/resumen.ts` — la misma función canónica que usa `VentasClient` — como fuente
+única de verdad para las métricas del día.
+
+---
+
+### 5. Consolidación del menú de Inventario (11 → 5 ítems)
+
+**Archivos creados:**
+- `app/(main)/inventario/stock-hub/page.tsx`
+- `app/(main)/inventario/control-hub/page.tsx`
+- `app/(main)/inventario/conteos-hub/page.tsx`
+
+**Archivos modificados:**
+- `components/SidebarNav.tsx`
+- `app/(main)/page.tsx`
+
+**Descripción:**
+Los 9 ítems de inventario del menú lateral se consolidaron en 3 hubs temáticos:
+- **Stock & Existencias** (`/inventario/stock-hub`): Dashboard, Movimientos, Valorización
+- **Control de Inventario** (`/inventario/control-hub`): Ajustes, Lotes, Reglas de Reorden
+- **Conteos Físicos** (`/inventario/conteos-hub`): Bandeja, Conteo móvil, Programación
+
+Sidebar y home page cards actualizados en el mismo commit (CLAUDE.md).
+
+---
+
+### 6. Renombramiento y reorganización del menú lateral
+
+**Archivos modificados:**
+- `components/SidebarNav.tsx`
+
+**Descripción:**
+- Eliminado "Caja Rápida" del grupo Principal del menú lateral
+- "Punto de Venta" renombrado a "Vender" en el grupo Ventas
+
+---
+
+### 7. Botón Caja Rápida junto al botón Atrás
+
+**Archivos modificados:**
+- `components/BackButton.tsx`
+- `app/(main)/ventas/page.tsx`
+
+**Descripción:**
+Se implementó el patrón `RIGHT_EXTRAS` en `BackButton.tsx`: en la ruta `/ventas`,
+aparece el botón "🧾 Caja Rápida" alineado a la derecha del botón "← Atrás",
+en el mismo contenedor flex con `justify-content: space-between`.
+Se eliminó el bloque del botón Caja Rápida que existía directamente en `ventas/page.tsx`.
+
+---
+
+### 8. Mockup módulo de Facturación Forma Libre (propuesta)
+
+**Descripción:**
+Se elaboró propuesta de arquitectura y mockup interactivo del módulo de Facturación
+SENIAT-compliant (Forma Libre). Incluye emisión de factura, vista previa de impresión,
+libro de facturas, arqueo/cierre de caja y configuración. Tablas propuestas:
+`facturas`, `factura_items`, `facturas_config`. Pendiente de aprobación de parámetros
+adicionales antes de implementar.
+
+---
+
+## Migraciones SQL — v3.2.0
+
+> Ninguna. Todos los cambios son de lógica de frontend/backend sin cambios de schema.
+
+---
+
 ## v3.1.0 — Navegación agrupada + Clasificación Tipo de Empaque
 
 **Fecha:** 2026-09-26 | **Commits:** `9d36773` → `723ccd3`

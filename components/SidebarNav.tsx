@@ -29,14 +29,13 @@ const GRUPOS: NavGroup[] = [
     noCollapse: true,
     items: [
       { href: "/",     icon: "🏠", label: "Inicio" },
-      { href: "/caja", icon: "⚡", label: "Caja Rápida" },
     ],
   },
   {
     label: "Ventas",
     icon: "🛒",
     items: [
-      { href: "/ventas",                   icon: "🛒", label: "Punto de Venta",    permiso: "ventas" },
+      { href: "/ventas",                   icon: "🛒", label: "Vender",            permiso: "ventas" },
       { href: "/pedidos-pendientes",       icon: "📋", label: "Pedidos Pendientes", permiso: "pedidosPendientes" },
       { href: "/delivery",                 icon: "📬", label: "Deliveries" },
       { href: "/ventas?vista=cortesias",   icon: "🎁", label: "Salida Cortesías",   permiso: "ventas" },
@@ -49,18 +48,11 @@ const GRUPOS: NavGroup[] = [
     icon: "📦",
     groupBadge: "outstock",
     items: [
-      { href: "/productos",               icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
-      { href: "/insumos",                 icon: "🧱", label: "Insumos / Materia Prima",  permiso: "productos" },
-      { href: "/inventario",              icon: "🚦", label: "Dashboard Stock",          permiso: "productos" },
-      { href: "/inventario/ajustes",      icon: "⚖️",  label: "Ajustes de Inventario",   permiso: "productos" },
-      { href: "/inventario-disponible",   icon: "✅", label: "Inventario Disponible",    permiso: "productos" },
-      { href: "/inventario/lotes",        icon: "🏷️", label: "Lotes & Vencimientos",     permiso: "productos" },
-      { href: "/inventarios",             icon: "📊", label: "Inventario y Movimientos", permiso: "productos" },
-      { href: "/inventario/valorizacion", icon: "💰", label: "Valorización",             permiso: "reportes" },
-      { href: "/inventario/reorden",      icon: "🔁", label: "Reglas de Reorden",        permiso: "productos" },
-      { href: "/inventario/conteos",      icon: "📋", label: "Bandeja Conteos",          permiso: "autorizarConteo", badge: "conteo" },
-      { href: "/conteo",                  icon: "📱", label: "Conteo Físico",            permiso: "conteo" },
-      { href: "/inventario/programacion", icon: "🗓️", label: "Programación de Conteos",  permiso: "programarConteo", badge: "programacion" },
+      { href: "/productos",                      icon: "🛒", label: "Productos de Venta",      permiso: "productos" },
+      { href: "/insumos",                        icon: "🧱", label: "Insumos / Materia Prima",  permiso: "productos" },
+      { href: "/inventario/stock-hub",           icon: "📊", label: "Stock & Existencias",       permiso: "productos" },
+      { href: "/inventario/control-hub",         icon: "🔧", label: "Control de Inventario",     permiso: "productos" },
+      { href: "/inventario/conteos-hub",         icon: "📋", label: "Conteos Físicos",           permiso: "productos", badge: "conteo" },
     ],
   },
   {
@@ -394,7 +386,7 @@ export default function SidebarNav({ rol, permisos }: Props) {
           className="shrink-0 border-t px-3 py-2.5 text-[10px]"
           style={{ borderColor: "var(--erp-border)", color: "var(--erp-text-3)" }}
         >
-          VentasHG v3.1.0 · © 2026 HG
+          VentasHG v3.2.0 · © 2026 HG
         </div>
       )}
     </>
