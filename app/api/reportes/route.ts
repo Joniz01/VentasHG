@@ -192,10 +192,7 @@ export async function GET(request: NextRequest) {
   // Detalle de ventas por forma de pago (para conciliación)
   const detalleResult = await pool.query(
     `SELECT
-       CASE WHEN v.cuenta_por_cobrar = TRUE AND v.cuenta_cobrada = TRUE
-            THEN 'CXC_DIRECTA'::metodo_pago
-            ELSE pv.metodo
-       END AS metodo,
+       pv.metodo,
        pv.monto, v.id, v.cliente, v.tasa_dia,
        COALESCE(
          (SELECT SUM(vi.cantidad * vi.precio_unit) FROM venta_items vi WHERE vi.venta_id = v.id),
